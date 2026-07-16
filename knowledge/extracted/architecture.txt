@@ -1,0 +1,68 @@
+--- page 1 ---
+■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+■                    CRYPTOMIGRATE-Q ARCHITECTURE              ■
+■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+                           INPUT LAYER
+ ■■■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■
+ ■ Network         ■  ■ Source Code     ■  ■ Config Files    ■
+ ■ Interfaces      ■  ■ Repositories    ■  ■                 ■
+ ■ (TLS sessions)  ■  ■ GitHub/GitLab   ■  ■ Nginx, Apache   ■
+ ■                 ■  ■ / Local         ■  ■                 ■
+ ■■■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■
+          ■                    ■                    ■
+          ▼                    ▼                    ▼
+ ■■■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■
+ ■ NETWORK SCANNER ■  ■ CODE ANALYZER   ■  ■ CONFIG SCANNER  ■
+ ■  nmap TLS      ■  ■  Tree-sitter   ■  ■  Regex pattern ■
+ ■   probe         ■  ■   AST           ■  ■   matching      ■
+ ■  pcap capture  ■  ■  Crypto API    ■  ■                 ■
+ ■                 ■  ■   detection     ■  ■                 ■
+ ■■■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■
+                     ■
+                     ▼
+ ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ ■                  CRYPTO ASSET REGISTRY                     ■
+ ■ Asset: { location, algorithm, key_size,                   ■
+ ■          usage_context, data_type }                       ■
+ ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+                     ■
+                     ▼
+ ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ ■                  HNDL RISK QUANTIFIER                      ■
+ ■                                                           ■
+ ■ Bayesian Network:                                         ■
+ ■  P(CRQC by year T) → Monte Carlo over expert estimates   ■
+ ■  Data sensitivity / lifetime → ML classifier             ■
+ ■  Quantum vulnerability score → algorithm × key size      ■
+ ■   mapping                                                 ■
+ ■  Risk Score = P(data decrypted before obsolete) ∈ [0,1]  ■
+ ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+                     ■
+                     ▼
+ ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ ■                 MIGRATION ORCHESTRATOR                     ■
+ ■                                                           ■
+ ■ ■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■  ■
+ ■ ■ Priority      ■  ■ LLM Code Transformer             ■  ■
+ ■ ■ Queue         ■  ■ (RSA→Kyber, ECDSA→Dilithium      ■  ■
+ ■ ■ Risk × Effort ■  ■ diffs)                           ■  ■
+ ■ ■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■  ■
+ ■                                                           ■
+ ■ ■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■  ■
+ ■ ■ IaC Patch     ■  ■ Hybrid Bridge (Dual-Stack)        ■  ■
+ ■ ■ Generator     ■  ■ Classical + PQ concurrent support ■  ■
+ ■ ■ Terraform /   ■  ■                                   ■  ■
+ ■ ■ Ansible       ■  ■                                   ■  ■
+ ■ ■■■■■■■■■■■■■■■■■  ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■  ■
+ ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+                     ■
+                     ▼
+ ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ ■                       RISK DASHBOARD                       ■
+ ■                    (Dash / Plotly / React)                ■
+ ■                                                           ■
+ ■  HNDL risk posture                                       ■
+ ■  Migration progress                                      ■
+ ■  Quantum timeline model                                  ■
+ ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+

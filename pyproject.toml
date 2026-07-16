@@ -1,0 +1,70 @@
+[project]
+name = "qubit-workspace"
+version = "0.0.0"                 # placeholder; real versions live in each package (kept lockstep)
+description = "QUBIT — Quantum Upgrade Bridge & Inventory Tool (workspace root)"
+requires-python = ">=3.12,<3.14"  # risk engine pins <3.14 (pgmpy/torch); uv manages the interpreter
+license = "MIT"
+readme = "README.md"
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+qubit-core = { workspace = true }
+qubit-scanner = { workspace = true }
+qubit-risk = { workspace = true }
+qubit-migrate = { workspace = true }
+qubit-bridge = { workspace = true }
+qubit-api = { workspace = true }
+qubit-cli = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=5",
+  "pytest-xdist>=3.6",
+  "hypothesis>=6.115",
+  "mypy>=1.13",
+  "ruff>=0.8",
+  "pre-commit>=4",
+  "poethepoet>=0.30",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["knowledge", "docs", ".obsidian"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "S", "PTH", "RUF"]
+ignore = ["S101"]                                       # assert is fine in tests
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S", "SIM"]
+"demo-lab/**" = ["S"]                                   # demo-lab is deliberately vulnerable
+
+[tool.mypy]
+python_version = "3.12"
+strict = false                                          # per-package; qubit-core sets strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+markers = [
+  "integration: needs docker",
+  "llm: needs live Ollama",
+  "online: needs internet",
+  "slow: >30s",
+]
+testpaths = ["packages"]
+
+[tool.coverage.run]
+source = ["qubit_core", "qubit_scanner", "qubit_risk"]  # frame coverage-gate scope (3 core packages)
+branch = true
+
+[tool.poe.tasks]
+fmt = "ruff format ."
+lint = "ruff check ."
+type = "mypy packages/qubit-core/src"
+unit = "pytest -m 'not integration and not llm and not online'"
+integ = "pytest -m integration"
+check = ["fmt", "lint", "type", "unit"]

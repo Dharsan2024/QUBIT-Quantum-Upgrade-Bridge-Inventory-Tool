@@ -20,6 +20,7 @@ from qubit_core import (
     LibraryRef,
     QuantumAttack,
     QuantumVulnerability,
+    SourceScanner,
     UsageContext,
     algorithms,
     fingerprint,
@@ -54,7 +55,7 @@ def normalize(det: Detection, *, occurrence: int = 1) -> CryptoAsset:
     confidence = det.confidence if canon is not None else "low"
 
     asset = CryptoAsset(
-        source_scanner="code",
+        source_scanner=SourceScanner.code,
         location=det.location,
         asset_type=AssetType(asset_type),
         algorithm=algorithm,

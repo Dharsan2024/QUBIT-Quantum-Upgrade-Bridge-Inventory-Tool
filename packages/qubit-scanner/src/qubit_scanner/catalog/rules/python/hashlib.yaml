@@ -41,3 +41,79 @@ rules:
         - "import hashlib\nd = hashlib.sha1(data)"
       negative:
         - "import hashlib\nd = hashlib.sha256(data)"
+
+  - id: PY-HASHLIB-NEW-MD5
+    title: hashlib.new("md5") (broken hash)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @obj attribute: (identifier) @meth)
+          arguments: (argument_list (string) @algo)) @call
+      where:
+        - { capture: obj, equals: hashlib }
+        - { capture: meth, equals: new }
+        - { capture: algo, regex: '^[rubfRUBF]*["'']md5["'']$' }
+    extract:
+      algorithm: { literal: MD5 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - "import hashlib\nh = hashlib.new('md5')"
+      negative:
+        - "import hashlib\nh = hashlib.new('sha256')"
+
+  - id: PY-HASHLIB-NEW-SHA1
+    title: hashlib.new("sha1") (broken hash)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @obj attribute: (identifier) @meth)
+          arguments: (argument_list (string) @algo)) @call
+      where:
+        - { capture: obj, equals: hashlib }
+        - { capture: meth, equals: new }
+        - { capture: algo, regex: '^[rubfRUBF]*["'']sha-?1["'']$' }
+    extract:
+      algorithm: { literal: SHA-1 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - "import hashlib\nh = hashlib.new('sha1')"
+      negative:
+        - "import hashlib\nh = hashlib.new('sha256')"
+
+  - id: PY-HASHLIB-FROM-MD5
+    title: from hashlib import md5; md5()
+    match:
+      query: |
+        (call function: (identifier) @fn) @call
+      where:
+        - { capture: fn, equals: md5 }
+    extract:
+      algorithm: { literal: MD5 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - "from hashlib import md5\nh = md5(data)"
+      negative:
+        - "from hashlib import sha256\nh = sha256(data)"
+
+  - id: PY-HASHLIB-FROM-SHA1
+    title: from hashlib import sha1; sha1()
+    match:
+      query: |
+        (call function: (identifier) @fn) @call
+      where:
+        - { capture: fn, equals: sha1 }
+    extract:
+      algorithm: { literal: SHA-1 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - "from hashlib import sha1\nh = sha1(data)"
+      negative:
+        - "from hashlib import sha256\nh = sha256(data)"

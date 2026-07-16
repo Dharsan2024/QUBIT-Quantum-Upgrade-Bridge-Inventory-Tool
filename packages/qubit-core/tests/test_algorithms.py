@@ -37,6 +37,21 @@ def test_quantum_verdicts() -> None:
     assert algorithms.get("AES-256").vulnerable is False  # type: ignore[union-attr]
 
 
+def test_bare_public_key_family_stays_shor_vulnerable() -> None:
+    # a size-less "RSA" (Cipher.getInstance("RSA"), JWT RS256) must NOT degrade to safe/unknown
+    rsa = algorithms.resolve("RSA")
+    assert rsa is not None and rsa.canonical == "RSA"
+    assert rsa.vulnerable is True and rsa.attack is QuantumAttack.shor
+    ec = algorithms.resolve("EC")
+    assert ec is not None and ec.attack is QuantumAttack.shor
+
+
+def test_size_wins_over_bare_family() -> None:
+    # explicit key size must still parameterize even though a bare "RSA" entry now exists
+    assert algorithms.resolve("RSA", key_size=3072).canonical == "RSA-3072"  # type: ignore[union-attr]
+    assert algorithms.resolve("RSA-2048").canonical == "RSA-2048"  # type: ignore[union-attr]
+
+
 def test_unknown_returns_none() -> None:
     assert algorithms.resolve("totally-made-up-cipher") is None
     assert algorithms.resolve("") is None

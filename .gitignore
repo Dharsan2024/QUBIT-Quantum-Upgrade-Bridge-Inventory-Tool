@@ -38,7 +38,10 @@ demo-lab/certs/
 *.pcapng
 !tests/fixtures/**/*.pcap   # committed golden pcaps are intentional
 
-# --- Secrets / keys (never commit real ones) ---
+# --- Secrets / keys / env (never commit real ones) ---
+.env
+.env.*
+!.env.example              # the template (no real creds) IS committed
 *.pem
 *.key
 *.jks

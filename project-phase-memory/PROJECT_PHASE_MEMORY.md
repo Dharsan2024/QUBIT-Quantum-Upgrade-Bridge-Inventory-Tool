@@ -181,6 +181,20 @@ you start coding.
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-16 (Phase 0 shipped to GitHub) — remote push + DB decision + multi-agent split
+- GitHub remote: `origin` = https://github.com/Dharsan2024/QUBIT-Quantum-Upgrade-Bridge-Inventory-Tool.git ,
+  branch `main`. Push only committed source (the `.gitignore`/`.gitattributes` keep out venvs/models/secrets).
+- **Database decision (important):** default stays **offline SQLite** (backs the "no exfiltration" claim).
+  Neon/Postgres is wired as an **optional** hosted backend via the `QUBIT_DB_URL` env var (see `.env.example`)
+  + the `qubit-core[postgres]` extra (`psycopg`). The DB code already supports it (session.py only applies
+  SQLite pragmas to sqlite URLs). NOTE: the URL the user gave is Neon's **Data-API (REST)** endpoint —
+  SQLAlchemy needs the **Postgres connection string** instead (`postgresql+psycopg://…neon.tech/neondb?sslmode=require`),
+  which must come from the Neon dashboard. NOT hardcoded; NOT the default. Real scanned data in a cloud DB
+  leaves the machine — only for a hosted demo, never the offline core.
+- Added **`project-phase-memory/AGENT_WORK_SPLIT.md`** — assigns work across Claude / Codex / Copilot /
+  Gemini by strength, with hard boundaries (no one but Claude touches qubit-core or the design docs; PR-only
+  to main) and model-switch triggers. See that file before delegating.
+
 ### 2026-07-16 (Phase 0 complete) — Repo bootstrapped + qubit-core built, schema FROZEN
 - Environment verified: Docker 29.6.1, Ollama 0.32.0 + qwen2.5-coder:7b, RTX 4060 8 GB.
 - Git repo initialized on branch `main` with identity Dharsan L <astradyne.recruitment@gmail.com>.

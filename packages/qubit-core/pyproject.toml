@@ -12,6 +12,11 @@ dependencies = [
   "platformdirs>=4.2",
 ]
 
+[project.optional-dependencies]
+# Optional hosted-Postgres backend (e.g. Neon). Default stays offline SQLite.
+# Enable with: uv sync --extra postgres
+postgres = ["psycopg[binary]>=3.2"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

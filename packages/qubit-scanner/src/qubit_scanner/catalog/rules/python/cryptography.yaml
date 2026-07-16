@@ -1,0 +1,52 @@
+schema: qubit-rule/v1
+language: python
+library:
+  name: cryptography
+  detect_imports: [cryptography]
+rules:
+  - id: PY-CRYPTOGRAPHY-RSA-KEYGEN
+    title: RSA private-key generation (rsa.generate_private_key)
+    match:
+      query: |
+        (call
+          function: (attribute attribute: (identifier) @meth)
+          arguments: (argument_list
+            (keyword_argument
+              name: (identifier) @kw
+              value: (integer) @size))) @call
+      where:
+        - { capture: meth, equals: generate_private_key }
+        - { capture: kw, equals: key_size }
+    extract:
+      algorithm: { literal: RSA }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import rsa
+          key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+      negative:
+        - "from cryptography.hazmat.primitives.asymmetric import x25519"
+
+  - id: PY-CRYPTOGRAPHY-EC-KEYGEN
+    title: EC private-key generation (ec.generate_private_key)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)) @call
+      where:
+        - { capture: mod, equals: ec }
+        - { capture: meth, equals: generate_private_key }
+    extract:
+      algorithm: { literal: ECDSA-P256 }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import ec
+          key = ec.generate_private_key(ec.SECP256R1())
+      negative:
+        - "from cryptography.hazmat.primitives.asymmetric import rsa"

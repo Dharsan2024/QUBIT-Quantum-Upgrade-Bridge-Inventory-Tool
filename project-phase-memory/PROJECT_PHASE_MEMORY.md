@@ -75,7 +75,19 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
 - [x] **Phase 0 DONE:** uv monorepo bootstrapped; `qubit-core` built + **CryptoAsset schema FROZEN**;
       6 sibling packages stubbed; `uv sync` resolves all 7; **quality gate green** (ruff + mypy --strict +
       31 tests). Git repo initialized (branch `main`). NOT yet committed / pushed to GitHub.
-- [ ] Phase 1 (M1 walking skeleton).  ← **NEXT**
+- [~] **Phase 1 (M1) IN PROGRESS** — `qubit-scanner` code-scan engine DONE:
+      - `qubit-rule/v1` YAML rule format + loader (compiles tree-sitter 0.26 `Query`); bad rules fail loudly.
+      - `CodeScanner`: walk → parse → import-gate shortlist → run rules → `Detection`; error-node guard;
+        string-literal + single-assignment string-constant folding + int-literal resolver.
+      - `normalize()`: Detection → `CryptoAsset` via qubit-core (canonical resolve + quantum verdict +
+        **evidence redaction** + fingerprint). Unknown algos kept as `UNKNOWN(...)`, low-confidence.
+      - `scan_paths()` public API (complete ScanResult, .gitignore-aware, 2 MB cap, occurrence dedup).
+      - First Python rules: hashlib (MD5/SHA-1), cryptography (RSA keygen w/ key_size, EC keygen).
+      - 24 scanner tests incl. auto-generated rule-example tests (every rule ships its own fixtures).
+      - **Gate GREEN: ruff + mypy + 55 tests total.** tree-sitter 0.26 + language-pack 1.12.5.
+      - STILL TODO in M1: bulk detection rules (more Python libs, Java, Go) — **good Codex task now that
+        the format is proven**; minimal CBOM 1.7 export; Java grammar rules; `qubit rules lint/test` CLI.
+- [ ] Phase 1 (M1) remainder + Phase 2.  ← next
 - [ ] Phase 2 (M2 feature-complete + live 4-phase demo).
 - [ ] Phase 3 (M3 hardening + paper experiments).
 
@@ -141,45 +153,73 @@ Do not start until the §3 "must have" tools are installed and `ollama pull` has
 > the agent where it is, what to read, the rules, and how to continue + keep this log updated.
 
 ```
-You are taking over building QUBIT, a production-ready open-source post-quantum cryptography
-migration platform. I am the sole builder; you (the agent) write most of the code, I review.
+You are helping build QUBIT, a production-ready open-source post-quantum cryptography migration
+platform. I am the sole human builder; AI agents write most of the code and I review. You have NO prior
+context — this project's memory lives in files. Get context from them before doing anything.
 
-BEFORE DOING ANYTHING, read these files in this order and do not skip them:
+STEP 1 — READ THESE FILES IN ORDER (do not skip any):
 1. project-phase-memory/PROJECT_PHASE_MEMORY.md   <- START HERE. Constraints (§0), current status (§2),
-   next action (§4), and the CHANGELOG (§5, newest first) tell you exactly where the last agent stopped.
-2. docs/BUILD_PLAN.md                              <- the master plan + canonical cross-doc decisions (§4).
-3. docs/design/00-architecture-frame.md            <- BINDING: stack, monorepo layout, CryptoAsset schema.
-4. The specific docs/design/0X file for whatever subsystem the CHANGELOG says is next.
+   next action (§4), and the CHANGELOG (§5, newest first) show exactly where the last agent stopped.
+2. project-phase-memory/AGENT_WORK_SPLIT.md        <- which agent does what + the HARD boundaries.
+3. docs/BUILD_PLAN.md                              <- master plan + canonical cross-doc decisions (§4).
+4. docs/design/00-architecture-frame.md            <- BINDING: stack, monorepo layout, CryptoAsset schema.
+5. The specific docs/design/0X file for the subsystem you'll work on.
 
-HARD RULES (do not violate):
-- This is a PRODUCTION-READY application, not a demo/simulation. No stubbed or faked functionality
-  "just for the demo." (The ONE exception, which is correct and not faking: the CRQC-arrival risk
-  timeline is a legitimate Monte-Carlo simulation — see PROJECT_PHASE_MEMORY §0.)
-- Solo build, continuous, no academic-calendar breaks. Ignore the two-person "Student A/B" split and
-  the exam-break timeline in the design docs — those are university paperwork only.
-- Conform to the BINDING frame (docs/design/00) and the canonical decisions in BUILD_PLAN §4. When two
-  design docs disagree, BUILD_PLAN wins. The CryptoAsset schema in packages/qubit-core is FROZEN —
-  additive changes only.
-- Every package must pass the quality gate before you consider it done:
+STEP 2 — IDENTIFY YOUR LANE:
+State which agent you are (Claude / OpenAI Codex / GitHub Copilot / Google Gemini). Find your assigned
+packages and your BOUNDARIES in AGENT_WORK_SPLIT.md §0 + §2. You may ONLY work inside your lane. In
+particular, if you are NOT Claude: never edit packages/qubit-core/ (the frozen schema), never edit
+docs/design/** or the memory design docs, work on your own git branch, and open a PR — never push to main.
+
+HARD RULES (all agents):
+- PRODUCTION-READY, not a demo/simulation. Nothing stubbed or faked "for the demo." (The one legitimate
+  simulation is the CRQC-arrival risk timeline — see PROJECT_PHASE_MEMORY §0.)
+- Solo, continuous build. Ignore the two-person "Student A/B" split + exam-break timeline in the design
+  docs (university paperwork only).
+- Conform to the BINDING frame (docs/design/00) + BUILD_PLAN §4 canonical decisions. If two docs
+  disagree, BUILD_PLAN wins. The CryptoAsset schema in qubit-core is FROZEN (additive only, Claude only).
+- Import from qubit_core; never redefine its models. Match doc 05's normative REST registry exactly.
+- Quality gate before you call anything done:
   `uv run ruff check <pkg> && uv run mypy <pkg>/src && uv run pytest <pkg> -q`  (all green).
-- Windows 11 dev machine (i7-14700HX / 16 GB / RTX 4060 8 GB). Run Ollama natively (GPU); do not run it
-  inside Docker. Use `uv run ...` for everything (the workspace pins Python 3.12).
+- Windows 11 (i7-14700HX / 16 GB / RTX 4060). Ollama runs natively on the GPU, not in Docker. Use
+  `uv run ...` for everything (Python 3.12 is pinned by the workspace).
 
-TO RESUME:
-- Do exactly what PROJECT_PHASE_MEMORY §4 "Next action" says. If it's ambiguous, ask me one question.
-- Work in small, verifiable increments; run the quality gate after each package/feature.
-- WHEN YOU FINISH a meaningful chunk: append a dated entry to PROJECT_PHASE_MEMORY §5 CHANGELOG
-  (newest at top) using the template at the bottom of that file, update the §2 status checkboxes and the
-  §4 "Next action", and commit with a clear message. This is how the NEXT agent will catch up — treat
-  keeping this file current as part of "done," not optional.
+STEP 3 — DO THE WORK:
+- Do the PROJECT_PHASE_MEMORY §4 "Next action", OR the specific task I give you — but first confirm it's
+  inside your lane (STEP 2). If it isn't, tell me which agent should do it instead. If anything is
+  ambiguous, ask me ONE question, then proceed.
+- Work in small, verifiable increments; run the quality gate after each.
 
-Confirm you've read the four files above and state the current phase + the next concrete action before
-you start coding.
+STEP 4 — LOGGING IS MANDATORY (this is how continuity survives model switches):
+- The MOMENT you start a chunk, add a CHANGELOG entry (§5, newest at top) noting what you're beginning.
+- As you finish each increment, update that entry / add one: what changed, files touched, gate status.
+- Update §2 status checkboxes and the §4 "Next action" so the next agent knows the new state.
+- If you sense you may run low on context/credits MID-TASK, immediately log your partial progress AND the
+  exact next step, and commit, BEFORE you stop. Never stop with unlogged work — the next agent (which
+  could be a fresh me) only knows what this file says. Treat "log to the memory md" as part of "done."
+
+Confirm you've read files 1–5, state which agent you are + your lane, the current phase, and the next
+concrete action — then start.
 ```
 
 ---
 
 ## 5. CHANGELOG (newest first — every agent appends here)
+
+### 2026-07-16 (Phase 1 start) — qubit-scanner code-scan engine built + tested
+- Built the whole code-discovery pipeline (Claude's lane, engine + rule format):
+  `catalog/` (qubit-rule/v1 schema + loader compiling tree-sitter 0.26 Query), `code/` (languages,
+  resolver, CodeScanner), `normalize.py` (Detection→CryptoAsset via qubit-core), `api.py` (scan_paths).
+- First Python rule packs: `rules/python/hashlib.yaml` (MD5, SHA-1), `rules/python/cryptography.yaml`
+  (RSA keygen + key_size, EC keygen). Rules are DATA — new rule = new YAML + embedded examples.
+- Verified end-to-end: scans real Python → canonical assets (RSA-2048/MD5) with quantum verdicts,
+  fingerprints, and **redacted evidence** (planted AWS key was scrubbed). 24 tests; full gate green.
+- Deps added to qubit-scanner: tree-sitter 0.26, tree-sitter-language-pack 1.12.5, pyyaml, pathspec.
+- **HANDOFF FLAG:** the rule format is proven → the BULK detection rules (Python pycryptodome/ssl/jwt,
+  Java JCA/BouncyCastle, Go crypto) are now a well-specified **Codex** task (see AGENT_WORK_SPLIT §2:
+  Codex writes catalog/rules/*.yaml against the engine, doesn't touch the engine or qubit-core).
+- **Next:** either (a) Claude builds minimal CBOM 1.7 export + `qubit rules lint/test` CLI, or
+  (b) hand the bulk rules to Codex while Claude does CBOM. Recommend (b) to save Claude credits.
 
 ### 2026-07-16 (Phase 0 shipped to GitHub) — remote push + DB decision + multi-agent split
 - GitHub remote: `origin` = https://github.com/Dharsan2024/QUBIT-Quantum-Upgrade-Bridge-Inventory-Tool.git ,

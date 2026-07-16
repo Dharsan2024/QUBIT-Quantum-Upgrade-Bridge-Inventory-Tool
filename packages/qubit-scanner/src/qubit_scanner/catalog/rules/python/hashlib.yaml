@@ -1,0 +1,43 @@
+schema: qubit-rule/v1
+language: python
+library:
+  name: hashlib
+  detect_imports: [hashlib]
+rules:
+  - id: PY-HASHLIB-MD5
+    title: hashlib.md5 (broken hash)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @obj attribute: (identifier) @meth)) @call
+      where:
+        - { capture: obj, equals: hashlib }
+        - { capture: meth, equals: md5 }
+    extract:
+      algorithm: { literal: MD5 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - "import hashlib\nh = hashlib.md5()"
+      negative:
+        - "import hashlib\nh = hashlib.sha256()"
+
+  - id: PY-HASHLIB-SHA1
+    title: hashlib.sha1 (broken hash)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @obj attribute: (identifier) @meth)) @call
+      where:
+        - { capture: obj, equals: hashlib }
+        - { capture: meth, equals: sha1 }
+    extract:
+      algorithm: { literal: SHA-1 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - "import hashlib\nd = hashlib.sha1(data)"
+      negative:
+        - "import hashlib\nd = hashlib.sha256(data)"

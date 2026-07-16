@@ -1,0 +1,60 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- uv ---
+# uv.lock IS committed (reproducibility) — do not ignore it.
+
+# --- Node / dashboard ---
+node_modules/
+dashboard/dist/
+dashboard/.vite/
+*.tsbuildinfo
+
+# --- QUBIT runtime artifacts ---
+*.db
+*.db-wal
+*.db-shm
+*.db.bak-*
+out/
+experiments/results/**/*.csv
+experiments/results/**/*.png
+models/                     # fetched/trained ML artifacts (see models/MANIFEST.sha256)
+!models/MANIFEST.sha256
+demo-lab/certs/
+*.pcap
+*.pcapng
+!tests/fixtures/**/*.pcap   # committed golden pcaps are intentional
+
+# --- Secrets / keys (never commit real ones) ---
+*.pem
+*.key
+*.jks
+*.p12
+*.pfx
+!tests/fixtures/**          # deliberately-vulnerable fixtures are intentional
+!demo-lab/**               # demo-lab keys are generated + deliberately weak
+
+# --- Editor / OS ---
+.obsidian/
+*.base
+*.canvas
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Agent scratch ---
+.claude/

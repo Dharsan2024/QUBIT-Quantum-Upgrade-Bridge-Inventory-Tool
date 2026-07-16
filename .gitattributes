@@ -1,0 +1,15 @@
+# Normalize line endings: LF in the repo, auto-convert on checkout.
+* text=auto eol=lf
+
+# Binary files — never touch.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.pcap binary
+*.pcapng binary
+*.jks binary
+*.p12 binary
+*.pfx binary
+
+# Shell scripts must stay LF even on Windows checkout.
+*.sh text eol=lf

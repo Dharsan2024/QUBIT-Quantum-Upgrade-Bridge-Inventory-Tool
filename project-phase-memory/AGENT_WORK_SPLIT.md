@@ -23,7 +23,15 @@
    `uv run ruff check <pkg> && uv run mypy <pkg>/src && uv run pytest <pkg> -q` — all green.
 6. **PR, never push to `main`.** Open a pull request. Claude or the human reviews and merges. This
    review step is the safety net that keeps the core intact.
-7. **Log your work.** When a chunk is done, append a dated entry to `PROJECT_PHASE_MEMORY.md` §5.
+7. **Log your work — in `SUBAGENT_WORK_LOG.md`, CONTINUOUSLY.** Add a timestamped entry when you START,
+   and update it after every meaningful step (get the time with `date "+%Y-%m-%d %H:%M:%S %Z"`). Never
+   have more than one unlogged step. If you feel yourself running low on credits/context, log your
+   partial progress + the exact next step and commit BEFORE you stop — a cut-off with no log is the worst
+   failure mode. Also append the task you were given to `USER_PROMPTS_LOG.md`.
+
+**Claude is the main orchestrator.** It oversees the whole project, and when the human returns it reviews
+every sub-agent change (via the ORCHESTRATOR RESUME PROMPT, `PROJECT_PHASE_MEMORY.md §4c`) and decides
+KEEP / UPDATE / REMOVE. Your work is provisional until Claude verifies and merges it.
 
 Violating rule 1, 2, or 6 can corrupt the project — those are the ones that matter most.
 
@@ -37,6 +45,7 @@ Violating rule 1, 2, or 6 can corrupt the project — those are the ones that ma
 | **OpenAI Codex** (Codex CLI / cloud agent) | Autonomous, well-specified multi-file features in a sandbox; generates a whole module from a clear spec; runs test loops until green. | Drifts on under-specified/ambiguous tasks; give it acceptance criteria. |
 | **GitHub Copilot** (in-IDE, you drive) | Inline autocomplete, boilerplate, CRUD, React components, config, docstrings, filling obvious bodies. | Not autonomous; don't let it auto-accept large multi-file edits unreviewed. |
 | **Google Gemini** (Gemini CLI / Code Assist) | Very large context (whole-repo reads), docs, data/experiment analysis, multimodal (diagrams/screenshots). | Can over-refactor across the repo; scope it tightly. |
+| **Google Antigravity** (agent-first IDE) | Autonomous multi-file implementation with built-in planning + **browser/e2e verification**; running an agent that plans → codes → checks. | Agentic autonomy can wander; give it a clear spec + acceptance criteria like Codex. |
 
 ---
 
@@ -47,8 +56,9 @@ Violating rule 1, 2, or 6 can corrupt the project — those are the ones that ma
 | `qubit-core` (schema, registry, DB, redaction) | **Claude ONLY** | Frozen contract; a mistake here breaks everything. | No other agent edits this package. |
 | `qubit-risk` (Monte-Carlo CRQC, Bayesian net, XGBoost, Mosca math) | **Claude** | Statistical correctness + the paper's credibility ride on it. | Codex may add *tests/fixtures* here from a Claude-written spec, not the math. |
 | `qubit-scanner` — engine + tree-sitter integration | **Claude** (skeleton), then **Codex** (bulk rules) | Engine is integration-heavy; the YAML detection rules are high-volume + well-specified. | Codex writes `catalog/rules/*.yaml` + adapters against Claude's engine; doesn't change the engine. |
-| `qubit-migrate` — template transforms, IaC templates, rule pack | **Codex** | Self-contained, spec-driven (doc 03 has exact rules + goldens). | LLM-prompt/safety logic + state machine reviewed by Claude before merge. |
-| `qubit-bridge` — probe/verify, compose images, bench harness | **Codex** | Well-defined I/O, testable against containers (doc 04). | Claude reviews the security-adjacent probe parsing. |
+| `qubit-migrate` — template transforms, IaC templates, rule pack | **Codex / Antigravity** | Self-contained, spec-driven (doc 03 has exact rules + goldens). | LLM-prompt/safety logic + state machine reviewed by Claude before merge. |
+| `qubit-bridge` — probe/verify, compose images, bench harness | **Codex / Antigravity** | Well-defined I/O, testable against containers (doc 04). | Claude reviews the security-adjacent probe parsing. |
+| `dashboard/` browser/e2e verification (Playwright) | **Antigravity** | Its built-in browser-driving + verification fits e2e testing. | Test-only; does not change product source. |
 | `qubit-api` — FastAPI CRUD endpoint bodies, routers | **Copilot** (you drive) + Claude review | Mostly boilerplate over the normative registry (doc 05). | Endpoints must match doc 05 exactly; JobRunner + auth guardrails = Claude. |
 | `qubit-cli` — Typer command wiring | **Copilot** | Boilerplate command plumbing. | Business logic delegates to package APIs, not reimplemented. |
 | `dashboard/` — React/TS pages + components | **Copilot** (build) + **Gemini** (layout/UX passes) | UI is boilerplate-heavy; Gemini good for multi-file layout. | Data only via the REST client + fixtures; no direct DB. |
@@ -75,6 +85,10 @@ completion — cheapest for high-volume typing.
 
 **Hand off to Gemini when:** the task needs huge context (read all seven design docs at once), doc
 writing, or analyzing experiment output / building paper figures.
+
+**Hand off to Antigravity when:** you want an autonomous agent to implement a well-specified package/
+feature end-to-end with its own planning + browser/e2e verification (an alternative to Codex, especially
+for anything that benefits from driving the running app or the dashboard).
 
 **Claude will proactively tell you** in its replies when an upcoming task is better suited to another
 agent — e.g. *"this next piece is well-specified and isolated → good Codex task, save your Claude

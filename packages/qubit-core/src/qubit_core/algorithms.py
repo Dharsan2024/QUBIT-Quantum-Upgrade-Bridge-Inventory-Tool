@@ -228,6 +228,19 @@ for _a in ALGORITHMS:
 
 _RSA_SIZE_RE = re.compile(r"rsa[-_/ ]?(\d{3,5})")
 
+# Bare family names with no size. Public-key families are ALWAYS Shor-vulnerable regardless of key
+# size, so a bare "RSA"/"EC"/"DSA" must keep that verdict rather than degrading to "unknown/safe".
+# Kept OUT of _BY_KEY so exact/size resolution wins first; consulted only as a fallback.
+_BARE_FAMILY: dict[str, CanonicalAlgorithm] = {
+    "rsa": CanonicalAlgorithm("RSA", "RSA", "asymmetric", QuantumAttack.shor, vulnerable=True),
+    "ec": CanonicalAlgorithm("EC", "EC", "asymmetric", QuantumAttack.shor, vulnerable=True),
+    "dsa": CanonicalAlgorithm("DSA", "DSA", "asymmetric", QuantumAttack.shor, vulnerable=True),
+}
+for _b in _BARE_FAMILY.values():
+    _BY_CANONICAL.setdefault(_b.canonical, _b)
+
+_SIZED_FAMILIES = {"rsa": "RSA", "aes": "AES"}
+
 
 def _normkey(name: str) -> str:
     return name.strip().lower().replace("-", "").replace("/", "").replace("_", "").replace(" ", "")
@@ -236,30 +249,34 @@ def _normkey(name: str) -> str:
 def resolve(name: str, key_size: int | None = None) -> CanonicalAlgorithm | None:
     """Resolve a raw algorithm name (+ optional key size) to a canonical entry, or None.
 
-    Case/separator-insensitive; understands aliases; parameterizes RSA by key size
-    (``resolve("rsa", 4096) -> RSA-4096``; ``resolve("RSA/2048") -> RSA-2048``).
+    Case/separator-insensitive; understands aliases; parameterizes by key size
+    (``resolve("rsa", 4096) -> RSA-4096``; ``resolve("RSA/2048") -> RSA-2048``); and falls back to a
+    Shor-vulnerable bare family entry for a size-less public-key name (``resolve("RSA") -> RSA``).
     """
     if not name:
         return None
     key = _normkey(name)
 
-    # exact canonical/alias hit
+    # 1. size embedded in the name, e.g. "RSA2048"
+    m = _RSA_SIZE_RE.match(key)
+    if m:
+        sized = _BY_CANONICAL.get(f"RSA-{m.group(1)}")
+        if sized is not None:
+            return sized
+
+    # 2. bare sized-family + explicit key size -> parameterized canonical (size wins over bare)
+    if key_size and key in _SIZED_FAMILIES:
+        sized = _BY_CANONICAL.get(f"{_SIZED_FAMILIES[key]}-{key_size}")
+        if sized is not None:
+            return sized
+
+    # 3. exact canonical / alias hit
     hit = _BY_KEY.get(key)
     if hit is not None:
         return hit
 
-    # RSA-family with size in the name
-    m = _RSA_SIZE_RE.match(key)
-    if m:
-        return _BY_CANONICAL.get(f"RSA-{m.group(1)}")
-
-    # bare family + explicit key size
-    if key == "rsa" and key_size:
-        return _BY_CANONICAL.get(f"RSA-{key_size}")
-    if key in ("aes",) and key_size:
-        return _BY_CANONICAL.get(f"AES-{key_size}")
-
-    return None
+    # 4. bare public-key family with unknown size -> keep the Shor-vulnerable verdict
+    return _BARE_FAMILY.get(key)
 
 
 def get(canonical: str) -> CanonicalAlgorithm | None:

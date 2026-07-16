@@ -1,0 +1,131 @@
+schema: qubit-rule/v1
+language: python
+library:
+  name: PyCryptodome
+  detect_imports: [Crypto]
+rules:
+  - id: PY-PYCRYPTODOME-RSA-GENERATE
+    title: Crypto.PublicKey.RSA.generate(bits)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)
+          arguments: (argument_list (integer) @size)) @call
+      where:
+        - { capture: mod, equals: RSA }
+        - { capture: meth, equals: generate }
+    extract:
+      algorithm: { literal: RSA }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from Crypto.PublicKey import RSA
+          key = RSA.generate(2048)
+      negative:
+        - |
+          from Crypto.PublicKey import ECC
+          key = ECC.generate(curve="P-256")
+
+  - id: PY-PYCRYPTODOME-ECC-GENERATE-P256
+    title: Crypto.PublicKey.ECC.generate(curve="P-256")
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)
+          arguments: (argument_list
+            (keyword_argument
+              name: (identifier) @kw
+              value: (string) @curve))) @call
+      where:
+        - { capture: mod, equals: ECC }
+        - { capture: meth, equals: generate }
+        - { capture: kw, equals: curve }
+        - { capture: curve, regex: '^[rubfRUBF]*["'']P-256["'']$' }
+    extract:
+      algorithm: { literal: ECDSA-P256 }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from Crypto.PublicKey import ECC
+          key = ECC.generate(curve="P-256")
+      negative:
+        - |
+          from Crypto.PublicKey import ECC
+          key = ECC.generate(curve="Ed25519")
+
+  - id: PY-PYCRYPTODOME-DES-NEW
+    title: Crypto.Cipher.DES.new
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)) @call
+      where:
+        - { capture: mod, equals: DES }
+        - { capture: meth, equals: new }
+    extract:
+      algorithm: { literal: DES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from Crypto.Cipher import DES
+          cipher = DES.new(key, DES.MODE_ECB)
+      negative:
+        - |
+          from Crypto.Cipher import AES
+          cipher = AES.new(key, AES.MODE_GCM)
+
+  - id: PY-PYCRYPTODOME-DES3-NEW
+    title: Crypto.Cipher.DES3.new
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)) @call
+      where:
+        - { capture: mod, equals: DES3 }
+        - { capture: meth, equals: new }
+    extract:
+      algorithm: { literal: 3DES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from Crypto.Cipher import DES3
+          cipher = DES3.new(key, DES3.MODE_CBC, iv)
+      negative:
+        - |
+          from Crypto.Cipher import AES
+          cipher = AES.new(key, AES.MODE_GCM)
+
+  - id: PY-PYCRYPTODOME-HASH-BROKEN
+    title: Crypto.Hash MD5/SHA1 constructors
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)) @call
+      where:
+        - { capture: mod, in: [MD5, SHA1] }
+        - { capture: meth, equals: new }
+    extract:
+      algorithm: { from: mod, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from Crypto.Hash import MD5
+          digest = MD5.new(data)
+        - |
+          from Crypto.Hash import SHA1
+          digest = SHA1.new(data)
+      negative:
+        - |
+          from Crypto.Hash import SHA256
+          digest = SHA256.new(data)

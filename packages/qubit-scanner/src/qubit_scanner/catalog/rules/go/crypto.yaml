@@ -1,0 +1,212 @@
+schema: qubit-rule/v1
+language: go
+library:
+  name: Go crypto
+  detect_imports: [crypto]
+rules:
+  - id: GO-CRYPTO-RSA-GENERATEKEY
+    title: rsa.GenerateKey(rand, bits)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)
+          arguments: (argument_list (_) (int_literal) @size)) @call
+      where:
+        - { capture: pkg, equals: rsa }
+        - { capture: fn, equals: GenerateKey }
+    extract:
+      algorithm: { literal: RSA }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/rsa"
+          func f() { rsa.GenerateKey(rand.Reader, 2048) }
+      negative:
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f() { ecdsa.GenerateKey(elliptic.P256(), rand.Reader) }
+
+  - id: GO-CRYPTO-ECDSA-P256
+    title: ecdsa.GenerateKey(elliptic.P256(), ...)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)
+          arguments: (argument_list
+            (call_expression
+              function: (selector_expression
+                operand: (identifier) @curve_pkg
+                field: (field_identifier) @curve))
+            (_))) @call
+      where:
+        - { capture: pkg, equals: ecdsa }
+        - { capture: fn, equals: GenerateKey }
+        - { capture: curve_pkg, equals: elliptic }
+        - { capture: curve, equals: P256 }
+    extract:
+      algorithm: { literal: ECDSA-P256 }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f() { ecdsa.GenerateKey(elliptic.P256(), rand.Reader) }
+      negative:
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f() { ecdsa.GenerateKey(elliptic.P384(), rand.Reader) }
+
+  - id: GO-CRYPTO-ECDSA-P384
+    title: ecdsa.GenerateKey(elliptic.P384(), ...)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)
+          arguments: (argument_list
+            (call_expression
+              function: (selector_expression
+                operand: (identifier) @curve_pkg
+                field: (field_identifier) @curve))
+            (_))) @call
+      where:
+        - { capture: pkg, equals: ecdsa }
+        - { capture: fn, equals: GenerateKey }
+        - { capture: curve_pkg, equals: elliptic }
+        - { capture: curve, equals: P384 }
+    extract:
+      algorithm: { literal: ECDSA-P384 }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f() { ecdsa.GenerateKey(elliptic.P384(), rand.Reader) }
+      negative:
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f() { ecdsa.GenerateKey(elliptic.P256(), rand.Reader) }
+
+  - id: GO-CRYPTO-MD5-NEW
+    title: md5.New()
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: md5 }
+        - { capture: fn, equals: New }
+    extract:
+      algorithm: { literal: MD5 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/md5"
+          func f() { md5.New() }
+      negative:
+        - |
+          package main
+          import "crypto/sha256"
+          func f() { sha256.New() }
+
+  - id: GO-CRYPTO-SHA1-NEW
+    title: sha1.New()
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: sha1 }
+        - { capture: fn, equals: New }
+    extract:
+      algorithm: { literal: SHA-1 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/sha1"
+          func f() { sha1.New() }
+      negative:
+        - |
+          package main
+          import "crypto/sha256"
+          func f() { sha256.New() }
+
+  - id: GO-CRYPTO-DES-NEWCIPHER
+    title: des.NewCipher
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: des }
+        - { capture: fn, equals: NewCipher }
+    extract:
+      algorithm: { literal: DES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/des"
+          func f() { des.NewCipher(key) }
+      negative:
+        - |
+          package main
+          import "crypto/aes"
+          func f() { aes.NewCipher(key) }
+
+  - id: GO-CRYPTO-3DES-NEWCIPHER
+    title: des.NewTripleDESCipher
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: des }
+        - { capture: fn, equals: NewTripleDESCipher }
+    extract:
+      algorithm: { literal: 3DES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/des"
+          func f() { des.NewTripleDESCipher(key) }
+      negative:
+        - |
+          package main
+          import "crypto/aes"
+          func f() { aes.NewCipher(key) }

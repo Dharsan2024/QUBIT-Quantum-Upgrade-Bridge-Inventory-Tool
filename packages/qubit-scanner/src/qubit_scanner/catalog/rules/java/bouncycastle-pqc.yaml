@@ -1,0 +1,59 @@
+schema: qubit-rule/v1
+language: java
+library:
+  name: Bouncy Castle PQC
+  detect_imports: [org, java]
+rules:
+  - id: JAVA-BC-PQC-MLKEM768
+    title: Bouncy Castle ML-KEM-768 key generation
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @algo)) @call
+      where:
+        - { capture: obj, equals: KeyPairGenerator }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: '^"(ML-KEM-768|Kyber768)"$' }
+    extract:
+      algorithm: { literal: ML-KEM-768 }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.KeyPairGenerator;
+          import org.bouncycastle.pqc.jcajce.provider.BouncyCastlePQCProvider;
+          class A { void f() throws Exception { KeyPairGenerator.getInstance("ML-KEM-768"); } }
+      negative:
+        - |
+          import java.security.KeyPairGenerator;
+          class A { void f() throws Exception { KeyPairGenerator.getInstance("RSA"); } }
+
+  - id: JAVA-BC-PQC-MLDSA65
+    title: Bouncy Castle ML-DSA-65 signatures
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @algo)) @call
+      where:
+        - { capture: obj, equals: Signature }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: '^"(ML-DSA-65|Dilithium3)"$' }
+    extract:
+      algorithm: { literal: ML-DSA-65 }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.Signature;
+          import org.bouncycastle.pqc.jcajce.provider.BouncyCastlePQCProvider;
+          class A { void f() throws Exception { Signature.getInstance("ML-DSA-65"); } }
+      negative:
+        - |
+          import java.security.Signature;
+          class A { void f() throws Exception { Signature.getInstance("SHA256withRSA"); } }

@@ -1,0 +1,63 @@
+schema: qubit-rule/v1
+language: python
+library:
+  name: PyJWT
+  detect_imports: [jwt]
+rules:
+  - id: PY-JWT-RS256
+    title: PyJWT RS256 token signing/verification
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @obj attribute: (identifier) @meth)
+          arguments: (argument_list
+            (keyword_argument
+              name: (identifier) @kw
+              value: (string) @alg))) @call
+      where:
+        - { capture: obj, equals: jwt }
+        - { capture: meth, in: [encode, decode] }
+        - { capture: kw, equals: algorithm }
+        - { capture: alg, regex: '^[rubfRUBF]*["'']RS256["'']$' }
+    extract:
+      algorithm: { literal: RSA }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          import jwt
+          token = jwt.encode(payload, private_key, algorithm="RS256")
+      negative:
+        - |
+          import jwt
+          token = jwt.encode(payload, secret, algorithm="HS256")
+
+  - id: PY-JWT-ES256
+    title: PyJWT ES256 token signing/verification
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @obj attribute: (identifier) @meth)
+          arguments: (argument_list
+            (keyword_argument
+              name: (identifier) @kw
+              value: (string) @alg))) @call
+      where:
+        - { capture: obj, equals: jwt }
+        - { capture: meth, in: [encode, decode] }
+        - { capture: kw, equals: algorithm }
+        - { capture: alg, regex: '^[rubfRUBF]*["'']ES256["'']$' }
+    extract:
+      algorithm: { literal: ECDSA-P256 }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          import jwt
+          token = jwt.encode(payload, ec_private_key, algorithm="ES256")
+      negative:
+        - |
+          import jwt
+          token = jwt.encode(payload, secret, algorithm="HS256")

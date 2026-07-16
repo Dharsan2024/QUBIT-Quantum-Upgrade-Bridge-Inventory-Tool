@@ -190,13 +190,17 @@ STEP 3 — DO THE WORK:
   ambiguous, ask me ONE question, then proceed.
 - Work in small, verifiable increments; run the quality gate after each.
 
-STEP 4 — LOGGING IS MANDATORY (this is how continuity survives model switches):
-- The MOMENT you start a chunk, add a CHANGELOG entry (§5, newest at top) noting what you're beginning.
-- As you finish each increment, update that entry / add one: what changed, files touched, gate status.
-- Update §2 status checkboxes and the §4 "Next action" so the next agent knows the new state.
-- If you sense you may run low on context/credits MID-TASK, immediately log your partial progress AND the
-  exact next step, and commit, BEFORE you stop. Never stop with unlogged work — the next agent (which
-  could be a fresh me) only knows what this file says. Treat "log to the memory md" as part of "done."
+STEP 4 — LOGGING IS MANDATORY AND CONTINUOUS (this is how continuity survives model switches):
+- WHERE you log: if you are Claude → PROJECT_PHASE_MEMORY.md §5 CHANGELOG. If you are a sub-agent
+  (Codex/Copilot/Gemini/Antigravity) → SUBAGENT_WORK_LOG.md. Also append the task/prompt you were given
+  to USER_PROMPTS_LOG.md. Use real timestamps: `date "+%Y-%m-%d %H:%M:%S %Z"`.
+- The MOMENT you start, add an entry noting what you're beginning.
+- Log AFTER EVERY meaningful step — never have more than ONE unlogged step of work. Do NOT wait until the
+  end. Assume you can be cut off (out of credits/context) at any instant.
+- If you sense you're running low MID-TASK: immediately write your partial progress AND the exact next
+  step into your log, commit, THEN stop. A cut-off with no log is the one failure that breaks the project's
+  continuity — avoid it above all. Treat "logged" as part of "done."
+- When finished: update §2 status + §4 "Next action" so the next agent knows the new state.
 
 Confirm you've read files 1–5, state which agent you are + your lane, the current phase, and the next
 concrete action — then start.
@@ -204,7 +208,86 @@ concrete action — then start.
 
 ---
 
+## 4c. ORCHESTRATOR RESUME PROMPT (paste to CLAUDE when you return after sub-agents worked)
+
+> Use this when you come back from running Codex / Copilot / Gemini / Antigravity and want Claude to
+> review what they did, keep/fix/remove it, and continue. Claude is the main orchestrator — it has final
+> say over everything that enters the project.
+
+```
+You are Claude, the ORCHESTRATOR of QUBIT. Sub-agents (Codex / Copilot / Gemini / Antigravity) may have
+done work while I was away. Review it, decide keep / update / remove, then continue building.
+
+1. READ: project-phase-memory/PROJECT_PHASE_MEMORY.md (§0 constraints, §5 changelog),
+   SUBAGENT_WORK_LOG.md (what sub-agents say they did), AGENT_WORK_SPLIT.md (the boundaries),
+   USER_PROMPTS_LOG.md (what I asked for), docs/BUILD_PLAN.md §4 (canonical decisions).
+2. SEE WHAT ACTUALLY CHANGED: `git status`, `git branch -a`, `git log --oneline -15`, and for each
+   sub-agent branch `git diff main...<branch> --stat` then read the important diffs.
+3. VERIFY every sub-agent change against:
+   - BOUNDARIES (AGENT_WORK_SPLIT §0): did it edit packages/qubit-core/ or docs/design/** or push to
+     main? If yes → suspect, scrutinize hard.
+   - The FROZEN CryptoAsset schema + BUILD_PLAN §4 canonical decisions + the relevant docs/design/0X.
+   - QUALITY GATE: `uv run ruff check <pkg> && uv run mypy <pkg>/src && uv run pytest <pkg> -q`.
+   - SEMANTIC CORRECTNESS: does it actually do the right thing? (e.g. do scanner rules resolve to real
+     algorithms with the correct quantum verdict? does an endpoint match doc 05's registry exactly?)
+4. DECIDE per change — you have final say:
+   - KEEP (verified good) → merge the branch to main.
+   - UPDATE (good idea, flawed execution) → fix it, then merge.
+   - REMOVE (breaks the core, deviates from the design, or lowers quality) → revert/discard and, if the
+     task still matters, redo it correctly or re-assign it.
+5. Merge good work; fix or discard the rest; commit clearly; push.
+6. LOG: write a KEEP/UPDATE/REMOVE verdict (with reason) on each SUBAGENT_WORK_LOG.md entry you reviewed;
+   add a PROJECT_PHASE_MEMORY §5 changelog entry; update §2 status + §4 Next action; append this prompt
+   to USER_PROMPTS_LOG.md with a timestamp (`date "+%Y-%m-%d %H:%M:%S %Z"`). Then continue the build.
+
+State your review verdict on each sub-agent change before you continue.
+```
+
+## 4d. SUDDEN CREDIT-OUT / CONTINUATION PROMPT (paste when an agent was cut off mid-task)
+
+> Use this if an agent (any model, including a fresh Claude) stopped in the MIDDLE of a task — ran out of
+> credits/context — and may have left unfinished or unlogged work. It recovers cleanly.
+
+```
+The previous agent may have run out of credits/context MID-TASK and stopped without finishing or logging.
+Recover before doing anything new:
+
+1. READ the newest entries in project-phase-memory/PROJECT_PHASE_MEMORY.md §5 and SUBAGENT_WORK_LOG.md —
+   the last line usually says what was in progress and the intended next step. Also read AGENT_WORK_SPLIT.md
+   (your lane) and, if you are Claude, §4c above (you are the orchestrator).
+2. FIND THE INTERRUPTED WORK: `git status` (uncommitted edits ARE the in-progress work), `git stash list`,
+   `git diff`, `git log --oneline -8`. Note the current branch.
+3. HEALTH CHECK: `uv run ruff check . ; uv run pytest -q`  (see what's green vs broken right now).
+4. JUDGE the in-progress change:
+   - Complete AND gate-green → just finish logging + commit it.
+   - Half-done → complete it following the relevant docs/design/0X + BUILD_PLAN, then gate + commit.
+   - Broken or unclear intent → revert it (`git checkout -- <files>`) and redo cleanly from the design.
+   Never build new work on top of an unverified half-finished change.
+5. From here on, LOG AFTER EVERY STEP (universal-prompt STEP 4 discipline) so a cut-off never loses a trail.
+
+State what interrupted work you found and its health, then continue.
+```
+
+---
+
 ## 5. CHANGELOG (newest first — every agent appends here)
+
+### 2026-07-17 — Orchestration: verified + merged Codex rules; agent infra; registry fix
+- **Reviewed Codex's `codex/scanner-rules`** (33 rules: py 18 / java 8 / go 7). Verdict **KEEP**: stayed in
+  lane (rules only), gate green, rules semantically sound. Logged in SUBAGENT_WORK_LOG.md.
+- **Orchestrator-found bug FIXED (qubit-core, Claude's lane):** bare `"RSA"/"EC"/"DSA"` (no key size, e.g.
+  `Cipher.getInstance("RSA")`, JWT RS256) previously resolved to None → normalized to UNKNOWN → marked
+  quantum-SAFE (wrong for a security tool). Added Shor-vulnerable bare-family fallback in `algorithms.resolve`
+  (size still wins: `resolve("RSA",3072)`→RSA-3072). +2 tests. Gate green, 118 tests.
+- **Agent infrastructure added** (this turn's user request):
+  - PROJECT_PHASE_MEMORY §4c **ORCHESTRATOR RESUME PROMPT** (Claude reviews sub-agent work → keep/update/remove).
+  - PROJECT_PHASE_MEMORY §4d **SUDDEN CREDIT-OUT CONTINUATION PROMPT** (recover interrupted work).
+  - Strengthened §4b universal prompt STEP 4: continuous logging, log BEFORE running out, route sub-agents
+    to their own log, timestamps via `date`.
+  - New **SUBAGENT_WORK_LOG.md** (non-Claude agents log here) + **USER_PROMPTS_LOG.md** (every user prompt, timestamped).
+  - AGENT_WORK_SPLIT.md: added **Google Antigravity** as a switchable agent; reaffirmed Claude as orchestrator.
+- Merged `codex/scanner-rules` → `main`.
+- **Next:** minimal CBOM 1.7 export + `qubit rules lint/test` CLI (Claude), or hand more rules/CBOM to a sub-agent.
 
 ### 2026-07-16 (Phase 1 start) — qubit-scanner code-scan engine built + tested
 - Built the whole code-discovery pipeline (Claude's lane, engine + rule format):

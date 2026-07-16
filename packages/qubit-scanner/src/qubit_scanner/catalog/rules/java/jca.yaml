@@ -1,0 +1,164 @@
+schema: qubit-rule/v1
+language: java
+library:
+  name: Java JCA/JCE
+  detect_imports: [java, javax]
+rules:
+  - id: JAVA-JCA-MESSAGEDIGEST-BROKEN
+    title: MessageDigest.getInstance("MD5"/"SHA-1")
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @algo)) @call
+      where:
+        - { capture: obj, equals: MessageDigest }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: '^"(MD5|SHA-?1)"$' }
+    extract:
+      algorithm: { from: algo, resolve: string-literal }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.MessageDigest;
+          class A { void f() throws Exception { MessageDigest.getInstance("SHA-1"); } }
+        - |
+          import java.security.MessageDigest;
+          class A { void f() throws Exception { MessageDigest.getInstance("MD5"); } }
+      negative:
+        - |
+          import java.security.MessageDigest;
+          class A { void f() throws Exception { MessageDigest.getInstance("SHA-256"); } }
+
+  - id: JAVA-JCA-CIPHER-RSA
+    title: Cipher.getInstance("RSA...")
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @xform)) @call
+      where:
+        - { capture: obj, equals: Cipher }
+        - { capture: meth, equals: getInstance }
+        - { capture: xform, regex: '^"RSA(/|")' }
+    extract:
+      algorithm: { literal: RSA }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("RSA/ECB/PKCS1Padding"); } }
+      negative:
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("AES/GCM/NoPadding"); } }
+
+  - id: JAVA-JCA-CIPHER-DES
+    title: Cipher.getInstance("DES")
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @xform)) @call
+      where:
+        - { capture: obj, equals: Cipher }
+        - { capture: meth, equals: getInstance }
+        - { capture: xform, regex: '^"DES(/|")' }
+    extract:
+      algorithm: { literal: DES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("DES/CBC/PKCS5Padding"); } }
+      negative:
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("AES/GCM/NoPadding"); } }
+
+  - id: JAVA-JCA-CIPHER-3DES
+    title: Cipher.getInstance("DESede")
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @xform)) @call
+      where:
+        - { capture: obj, equals: Cipher }
+        - { capture: meth, equals: getInstance }
+        - { capture: xform, regex: '^"(DESede|DESede/)' }
+    extract:
+      algorithm: { literal: 3DES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("DESede/CBC/PKCS5Padding"); } }
+      negative:
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("DES/CBC/PKCS5Padding"); } }
+
+  - id: JAVA-JCA-KEYPAIRGEN-RSA
+    title: KeyPairGenerator.getInstance("RSA")
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @algo)) @call
+      where:
+        - { capture: obj, equals: KeyPairGenerator }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: '^"RSA"$' }
+    extract:
+      algorithm: { literal: RSA }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          import java.security.KeyPairGenerator;
+          class A { void f() throws Exception { KeyPairGenerator.getInstance("RSA"); } }
+      negative:
+        - |
+          import java.security.KeyPairGenerator;
+          class A { void f() throws Exception { KeyPairGenerator.getInstance("Ed25519"); } }
+
+  - id: JAVA-JCA-SIGNATURE-SHA1RSA
+    title: Signature.getInstance("SHA1withRSA")
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @algo)) @call
+      where:
+        - { capture: obj, equals: Signature }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: '^"SHA1withRSA"$' }
+    extract:
+      algorithm: { literal: RSA }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          import java.security.Signature;
+          class A { void f() throws Exception { Signature.getInstance("SHA1withRSA"); } }
+      negative:
+        - |
+          import java.security.Signature;
+          class A { void f() throws Exception { Signature.getInstance("SHA256withRSA"); } }

@@ -50,3 +50,75 @@ rules:
           key = ec.generate_private_key(ec.SECP256R1())
       negative:
         - "from cryptography.hazmat.primitives.asymmetric import rsa"
+
+  - id: PY-CRYPTOGRAPHY-X25519-KEYGEN
+    title: X25519 private-key generation
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @cls attribute: (identifier) @meth)) @call
+      where:
+        - { capture: cls, equals: X25519PrivateKey }
+        - { capture: meth, equals: generate }
+    extract:
+      algorithm: { literal: X25519 }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+          key = X25519PrivateKey.generate()
+      negative:
+        - |
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          key = Ed25519PrivateKey.generate()
+
+  - id: PY-CRYPTOGRAPHY-ED25519-KEYGEN
+    title: Ed25519 private-key generation
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @cls attribute: (identifier) @meth)) @call
+      where:
+        - { capture: cls, equals: Ed25519PrivateKey }
+        - { capture: meth, equals: generate }
+    extract:
+      algorithm: { literal: Ed25519 }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          key = Ed25519PrivateKey.generate()
+      negative:
+        - |
+          from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+          key = X25519PrivateKey.generate()
+
+  - id: PY-CRYPTOGRAPHY-HASHES-BROKEN
+    title: cryptography hashes.MD5()/hashes.SHA1()
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @obj attribute: (identifier) @alg)) @call
+      where:
+        - { capture: obj, equals: hashes }
+        - { capture: alg, in: [MD5, SHA1] }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives import hashes
+          digest = hashes.Hash(hashes.SHA1())
+        - |
+          from cryptography.hazmat.primitives import hashes
+          digest = hashes.Hash(hashes.MD5())
+      negative:
+        - |
+          from cryptography.hazmat.primitives import hashes
+          digest = hashes.Hash(hashes.SHA256())

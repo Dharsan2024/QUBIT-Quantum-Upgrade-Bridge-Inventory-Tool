@@ -1,0 +1,12 @@
+# Required data secrecy shelf-life L ~ LogNormal(mu_ln, sigma_ln) years, per sensitivity class (Mosca X).
+# shelf_life_years on the asset = E[L] = exp(mu+sigma^2/2); Mosca uses the P90.
+version: 1
+classes:
+  phi:         {mu_ln: 3.40, sigma_ln: 0.30, note: "~30y; HIPAA + patient lifetime"}
+  pii:         {mu_ln: 3.00, sigma_ln: 0.40, note: "~20y; identity outlives breach cycles"}
+  ip:          {mu_ln: 2.71, sigma_ln: 0.50, note: "~15y; trade-secret horizon"}
+  financial:   {mu_ln: 2.30, sigma_ln: 0.40, note: "~10y; PCI/regulatory + fraud decay"}
+  credentials: {mu_ln: 0.00, sigma_ln: 0.50, note: "~1y; rotation assumed"}
+  ephemeral:   {mu_ln: -2.30, sigma_ln: 0.50, note: "~0.1y; session tokens"}
+  public:      {fixed: 0.0}
+  unknown:     {mu_ln: 1.61, sigma_ln: 0.80, note: "~5y median, broad; deliberately uncertain"}

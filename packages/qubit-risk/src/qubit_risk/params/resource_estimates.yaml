@@ -1,0 +1,32 @@
+# Quantum resources to break each algorithm. Q_L = logical qubits; N_tof = Toffoli count.
+# Ranges span published estimates; the simulator samples N_tof ~ LogUniform(low, high) per trial.
+# Sources re-checked M1: Gidney-Ekera 2019 (RSA), Webber+ 2022 (ECC anchors), Haner+ 2020 / Litinski 2023.
+version: 1
+algorithms:
+  RSA-2048:   {attack: shor, Q_L: 6200,  N_tof: {low: 1.3e9, high: 5.4e9},  source: "GE2019; Gidney 2025"}
+  RSA-3072:   {attack: shor, Q_L: 9300,  N_tof: {low: 5.0e9, high: 2.0e10}, source: "GE2019 n^3 scaling"}
+  RSA-4096:   {attack: shor, Q_L: 12400, N_tof: {low: 1.2e10, high: 4.6e10}, source: "GE2019 scaling"}
+  RSA-1024:   {attack: shor, Q_L: 3100,  N_tof: {low: 2.0e8, high: 8.0e8},  source: "GE2019 scaling"}
+  ECDSA-P256: {attack: shor, Q_L: 2400,  N_tof: {low: 5.0e7, high: 1.3e9},  source: "Haner+ 2020; Litinski 2023; Webber+ 2022"}
+  ECDH-P256:  {attack: shor, alias: ECDSA-P256}
+  X25519:     {attack: shor, alias: ECDSA-P256}
+  ECDSA-P384: {attack: shor, Q_L: 3450,  N_tof: {low: 1.7e8, high: 4.4e9},  source: "n^3 scaling from P256"}
+  Ed25519:    {attack: shor, alias: ECDSA-P256}
+  DH-2048:    {attack: shor, alias: RSA-2048}
+  EC:         {attack: shor, alias: ECDSA-P256}
+  RSA:        {attack: shor, alias: RSA-2048}   # bare RSA, unknown size -> worst-case anchor
+# Grover-tier symmetric/hash: no CDF (tier treatment, doc 02 6.1.6)
+grover_tier:
+  AES-128: {tier: marginal}
+  3DES:    {tier: marginal-plus-classical-weak}
+  DES:     {tier: classically-broken}
+  SHA-1:   {tier: classically-weak}
+  MD5:     {tier: classically-broken}
+  AES-256: {tier: safe}
+  SHA-256: {tier: safe}
+# Anchor tests: required_physical_qubits(...) must reproduce these within x2 (doc 02 8.1.2).
+# eta and gamma are PINNED in the anchor harness so the assertion is well-defined.
+calibration_anchors:
+  - {alg: ECDSA-P256, N_tof: 5.0e7, t_cycle_us: 1.0, t_reaction_us: 10.0, p: 1.0e-3, window_h: 1,  eta: 1.0, gamma: 0.35, expect_Q_P: 3.17e8, source: "Webber+ 2022"}
+  - {alg: ECDSA-P256, N_tof: 5.0e7, t_cycle_us: 1.0, t_reaction_us: 10.0, p: 1.0e-3, window_h: 24, eta: 1.0, gamma: 0.35, expect_Q_P: 1.3e7,  source: "Webber+ 2022"}
+  - {alg: RSA-2048,   N_tof: 2.7e9, t_cycle_us: 1.0, t_reaction_us: 10.0, p: 1.0e-3, window_h: 8,  eta: 1.0, gamma: 0.35, expect_Q_P: 2.0e7,  source: "GE2019"}

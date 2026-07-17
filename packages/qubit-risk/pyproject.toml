@@ -1,10 +1,15 @@
 [project]
 name = "qubit-risk"
 version = "0.1.0"
-description = "QUBIT risk (placeholder — see docs/design)"
+description = "QUBIT HNDL risk engine: Monte-Carlo CRQC timeline, sensitivity, Mosca margin, risk score"
 requires-python = ">=3.12,<3.14"
 license = "MIT"
-dependencies = ["qubit-core"]
+dependencies = [
+  "qubit-core",
+  "numpy>=2.0",
+  "scipy>=1.13",
+  "pyyaml>=6",
+]
 
 [build-system]
 requires = ["hatchling"]

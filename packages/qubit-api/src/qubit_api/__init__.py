@@ -1,3 +1,7 @@
-"""qubit-api — placeholder package (Phase 0). Implementation lands in a later phase; see docs/design."""
+"""qubit-api package."""
 
 __version__ = "0.1.0"
+
+from .app import create_app
+
+__all__ = ["__version__", "create_app"]

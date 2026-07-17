@@ -1,10 +1,18 @@
 [project]
 name = "qubit-cli"
 version = "0.1.0"
-description = "QUBIT cli (placeholder — see docs/design)"
+description = "QUBIT command-line interface (qubit)"
 requires-python = ">=3.12,<3.14"
 license = "MIT"
-dependencies = ["qubit-core"]
+dependencies = [
+  "qubit-core",
+  "qubit-scanner",
+  "typer>=0.12",
+  "rich>=13",
+]
+
+[project.scripts]
+qubit = "qubit_cli.main:app"
 
 [build-system]
 requires = ["hatchling"]

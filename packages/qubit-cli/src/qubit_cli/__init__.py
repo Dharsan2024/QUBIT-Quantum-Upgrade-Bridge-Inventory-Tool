@@ -1,3 +1,7 @@
-"""qubit-cli — placeholder package (Phase 0). Implementation lands in a later phase; see docs/design."""
+"""qubit-cli — the ``qubit`` command-line interface."""
+
+from .main import app
 
 __version__ = "0.1.0"
+
+__all__ = ["__version__", "app"]

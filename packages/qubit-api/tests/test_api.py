@@ -28,6 +28,19 @@ def _write_repo(repo: Path, *, include_md5: bool = True, include_rsa: bool = Tru
     (repo / "app.py").write_text("\n".join(parts) + "\n", encoding="utf-8")
 
 
+def _wait_for_scan(client: TestClient, scan_id: str, timeout: int = 15) -> dict:
+    import time
+
+    for _ in range(timeout * 10):
+        resp = client.get(f"/api/v1/scans/{scan_id}")
+        assert resp.status_code == 200
+        scan = resp.json()
+        if scan["status"] not in ("queued", "running"):
+            return scan
+        time.sleep(0.1)
+    raise TimeoutError("Scan did not complete")
+
+
 def test_project_crud_and_scan_asset_flow(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -46,8 +59,9 @@ def test_project_crud_and_scan_asset_flow(tmp_path: Path) -> None:
         )
         assert scan_resp.status_code == 202
         scan_payload = scan_resp.json()
-        assert scan_payload["scan"]["status"] == "succeeded"
         scan_id = scan_payload["scan"]["id"]
+        scan = _wait_for_scan(client, scan_id)
+        assert scan["status"] == "succeeded"
 
         assets_resp = client.get(f"/api/v1/scans/{scan_id}/assets")
         assert assets_resp.status_code == 200
@@ -79,12 +93,14 @@ def test_trends_and_scan_diff(tmp_path: Path) -> None:
             f"/api/v1/projects/{project_id}/scans",
             json={"targets": [str(repo)]},
         ).json()["scan"]["id"]
+        _wait_for_scan(client, scan_1)
 
         _write_repo(repo, include_md5=True, include_rsa=True)
         scan_2 = client.post(
             f"/api/v1/projects/{project_id}/scans",
             json={"targets": [str(repo)]},
         ).json()["scan"]["id"]
+        _wait_for_scan(client, scan_2)
 
         trends = client.get(f"/api/v1/projects/{project_id}/trends")
         assert trends.status_code == 200
@@ -116,10 +132,9 @@ def test_scan_rejects_target_outside_project_root(tmp_path: Path) -> None:
             f"/api/v1/projects/{project_id}/scans",
             json={"targets": [str(outside)]},
         )
-        assert response.status_code == 202
+        assert response.status_code == 400
         payload = response.json()
-        assert payload["scan"]["status"] == "failed"
-        assert "outside project root" in payload["scan"]["error"]
+        assert "outside project root" in payload["detail"]
 
 
 def test_auth_missing_token(tmp_path: Path) -> None:

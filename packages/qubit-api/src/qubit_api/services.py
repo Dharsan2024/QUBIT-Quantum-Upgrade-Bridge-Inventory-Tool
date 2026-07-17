@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from statistics import median
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -84,6 +85,7 @@ def run_scan(
     targets: list[str],
     scanners: list[str],
     label: str | None,
+    job_runner: Any = None,
 ) -> ScanRow:
     scan = ScanRow(
         project_id=project.id,
@@ -99,26 +101,48 @@ def run_scan(
     session.commit()
     session.refresh(scan)
 
-    try:
-        resolved_targets = validate_targets(project, targets)
-        result = scan_paths(resolved_targets, repo=project.slug)
-        rows = [
-            asset_to_row(asset, scan_id=scan.id, project_id=project.id)
-            for asset in result.assets
-        ]
-        if rows:
-            session.add_all(rows)
-        scan.status = "succeeded"
-        scan.stats = result.stats.model_dump(mode="json")
-        scan.error = None
-    except Exception as exc:
-        scan.status = "failed"
-        scan.error = str(exc)
-        scan.stats = {}
-    scan.finished_at = utcnow()
-    session.add(scan)
-    session.commit()
-    session.refresh(scan)
+    # Synchronous validation so bad targets return early
+    resolved_targets = validate_targets(project, targets)
+
+    if job_runner:
+        from qubit_core.db import Job
+
+        job = Job(
+            kind="scan",
+            project_id=project.id,
+            ref_id=scan.id,
+            payload={
+                "project_id": str(project.id),
+                "scan_id": str(scan.id),
+                "targets": targets,
+                "scanners": scanners,
+                "run_risk": True,
+            },
+        )
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+        job_runner.submit(job.id)
+    else:
+        try:
+            result = scan_paths(resolved_targets, repo=project.slug)
+            rows = [
+                asset_to_row(asset, scan_id=scan.id, project_id=project.id)
+                for asset in result.assets
+            ]
+            if rows:
+                session.add_all(rows)
+            scan.status = "succeeded"
+            scan.stats = result.stats.model_dump(mode="json")
+            scan.error = None
+        except Exception as exc:
+            scan.status = "failed"
+            scan.error = str(exc)
+            scan.stats = {}
+        scan.finished_at = utcnow()
+        session.add(scan)
+        session.commit()
+        session.refresh(scan)
     return scan
 
 

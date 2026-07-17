@@ -21,4 +21,3 @@ def version() -> dict[str, str]:
         "qubit-core": core_version,
         "qubit-scanner": scanner_version,
     }
-

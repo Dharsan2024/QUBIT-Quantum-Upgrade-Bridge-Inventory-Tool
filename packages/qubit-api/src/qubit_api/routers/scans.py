@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from qubit_core.db import ScanRow
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -30,6 +30,7 @@ router = APIRouter(tags=["scans"])
 def create_scan(
     project_id: UUID,
     payload: ScanCreate,
+    request: Request,
     session: Annotated[Session, Depends(get_session)],
 ) -> ScanCreateResponse:
     project = require_project(session, project_id)
@@ -39,6 +40,7 @@ def create_scan(
         targets=payload.targets,
         scanners=[scanner.value for scanner in payload.scanners],
         label=payload.label,
+        job_runner=getattr(request.app.state, "job_runner", None),
     )
     return ScanCreateResponse(
         scan=ScanOut(

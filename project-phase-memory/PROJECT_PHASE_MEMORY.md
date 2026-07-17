@@ -105,6 +105,13 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
       heuristic sensitivity classifier (regex rules → shelf-life priors), Mosca inequality,
       static HNDL risk score v0, RiskPipeline annotating CryptoAssets with priority rank.
       5 param YAMLs, 6 source modules, 3 test files (17 tests). Gate GREEN: ruff + 167 passed.
+- [x] **qubit-migrate M1 DONE** (Antigravity):
+      Graph builder (SCC), queue prioritization (WSJF), state machine (12-state FSM + DB),
+      patch generation (`libcst` templating), validation pipeline. 5 tests + 172 suite tests passing.
+- [x] **qubit-bridge M1 DONE** (Antigravity):
+      `demo-lab/vulnapp-python` built. `nginx-hybrid` container built for OpenSSL 3.5.x.
+      Client-side probe (`qubit bridge probe` / `verify`) via ephemeral `nginx:alpine` `s_client`.
+      Tests passing, CLI wired.
 - [ ] Phase 2 (M2 feature-complete + live 4-phase demo).
 - [ ] Phase 3 (M3 hardening + paper experiments).
 
@@ -372,6 +379,13 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 - Installed helper skills to `~/.claude/skills/` (qutip, qiskit, pennylane, cirq) and the
   document-skills + example-skills plugins — general tooling, not project source.
 - **Next:** install the §3 tools, then Phase 0 monorepo bootstrap + freeze `qubit-core` schema.
+
+### 2026-07-17 — qubit-bridge M1 (hybrid TLS proxy + demo lab) built
+- **qubit-bridge:** Implemented M1 walking skeleton including the client-side `probe.py`/`verify.py` tools (which spin up an ephemeral `nginx:alpine` container to run OpenSSL 3.5 `s_client`), `registry.py`, `models.py`, and wired the Typer CLI (`qubit bridge probe`, `qubit bridge verify`). Tests and ruff passed.
+- **demo-lab:** Created `vulnapp-python` containing required doc-04 cryptographic flaws (SHA-1 hashing, classical TLS pattern).
+- **nginx-hybrid:** Created a reverse proxy image on top of `nginx:alpine` guaranteeing OpenSSL 3.5.x, along with a script to dynamically generate self-signed fallback certs, acting as a real hybrid TLS 1.3 frontend for the vulnapp backend via `compose.yaml`.
+- **qubit-migrate:** Implemented M1 including Graph builder, queue prioritization, state machine, patch generation, and validation pipeline.
+- **Next:** Dashboard scaffold (M1 platform slice) or M2 feature implementation (network/config scanners).
 
 <!-- TEMPLATE for the next entry (copy above this line):
 ### YYYY-MM-DD — <short title>

@@ -91,3 +91,5 @@
   Codex defect): bare `"RSA"` literals (Cipher.getInstance("RSA"), JWT RS256) need a family-level registry
   entry in qubit-core so they keep their Shor-vulnerable verdict instead of degrading to UNKNOWN(RSA).
   Fix applied by Claude in the same session; Codex's rules kept as-is.
+[ 2 0 2 6 - 0 7 - 1 8 T 0 0 : 2 7 : 3 6 Z ]   A N T I G R A V I T Y :   c o m p l e t e d   q u b i t - b r i d g e   M 1   ( h y b r i d   T L S   t e r m i n a t o r   +   p r o b e   t o o l s ) .   T e s t s   p a s s i n g .   R e a d y   f o r   M 2   n e t w o r k   s c a n n e r s .  
+ 

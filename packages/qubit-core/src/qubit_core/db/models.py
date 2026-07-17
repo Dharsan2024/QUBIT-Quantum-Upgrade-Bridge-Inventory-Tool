@@ -109,4 +109,39 @@ class AssetRow(Base):
     )
 
 
-__all__ = ["AssetRow", "Base", "ProjectRow", "ScanRow"]
+class RiskRun(Base):
+    __tablename__ = "risk_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    scan_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("scans.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), default="queued")
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    timeline: Mapped[list | None] = mapped_column(JSON, default=None)
+    percentiles: Mapped[dict | None] = mapped_column(JSON, default=None)
+    summary: Mapped[dict | None] = mapped_column(JSON, default=None)
+    started_at: Mapped[datetime | None] = mapped_column(default=None)
+    finished_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class Job(Base):
+    __tablename__ = "jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    kind: Mapped[str] = mapped_column(String(16))  # scan|risk|plan|patch|verify|cbom_import
+    status: Mapped[str] = mapped_column(String(12), default="queued", index=True)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("projects.id"), index=True, default=None)
+    ref_id: Mapped[uuid.UUID | None] = mapped_column(default=None)  # scan_id / migration_item_id / risk_run_id
+    progress: Mapped[float] = mapped_column(default=0.0)
+    stage: Mapped[str] = mapped_column(String(64), default="")
+    message: Mapped[str] = mapped_column(String(256), default="")
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    result: Mapped[dict | None] = mapped_column(JSON, default=None)
+    error: Mapped[str | None] = mapped_column(default=None)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(default=None)
+    finished_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+__all__ = ["AssetRow", "Base", "Job", "ProjectRow", "RiskRun", "ScanRow"]

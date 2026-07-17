@@ -14,4 +14,3 @@ class Settings(BaseSettings):
     bind_host: str = "127.0.0.1"
     bind_port: int = 8787
     create_schema_on_startup: bool = True
-

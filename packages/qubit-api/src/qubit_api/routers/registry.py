@@ -23,4 +23,3 @@ def list_algorithms() -> list[dict[str, object]]:
         }
         for algorithm in ALGORITHMS
     ]
-

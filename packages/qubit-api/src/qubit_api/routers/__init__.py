@@ -11,4 +11,3 @@ __all__ = [
     "registry_router",
     "scans_router",
 ]
-

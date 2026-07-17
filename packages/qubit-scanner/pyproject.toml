@@ -10,6 +10,8 @@ dependencies = [
   "tree-sitter-language-pack>=0.9",
   "pyyaml>=6",
   "pathspec>=0.12",
+  "cryptography>=43.0",
+  "crossplane>=0.5.8",
 ]
 
 [build-system]

@@ -112,6 +112,9 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
       `demo-lab/vulnapp-python` built. `nginx-hybrid` container built for OpenSSL 3.5.x.
       Client-side probe (`qubit bridge probe` / `verify`) via ephemeral `nginx:alpine` `s_client`.
       Tests passing, CLI wired.
+- [x] **Platform Dashboard M1 Scaffold DONE** (Antigravity):
+      React 18 / Vite 8 / TailwindCSS v4 app scaffolded. 
+      `Inventory` page implemented with `@tanstack/react-table` showing discovered assets.
 - [ ] Phase 2 (M2 feature-complete + live 4-phase demo).
 - [ ] Phase 3 (M3 hardening + paper experiments).
 
@@ -385,7 +388,8 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 - **demo-lab:** Created `vulnapp-python` containing required doc-04 cryptographic flaws (SHA-1 hashing, classical TLS pattern).
 - **nginx-hybrid:** Created a reverse proxy image on top of `nginx:alpine` guaranteeing OpenSSL 3.5.x, along with a script to dynamically generate self-signed fallback certs, acting as a real hybrid TLS 1.3 frontend for the vulnapp backend via `compose.yaml`.
 - **qubit-migrate:** Implemented M1 including Graph builder, queue prioritization, state machine, patch generation, and validation pipeline.
-- **Next:** Dashboard scaffold (M1 platform slice) or M2 feature implementation (network/config scanners).
+- **Dashboard:** Scaffolded the M1 Platform Slice `dashboard/` with React 18, Vite 8, TailwindCSS v4, Zustand, and React Router v7. Implemented the `Inventory` page featuring an interactive table (`@tanstack/react-table`) hooked to the `qubit-api`.
+- **Next:** M2 feature implementation (network/config scanners).
 
 <!-- TEMPLATE for the next entry (copy above this line):
 ### YYYY-MM-DD — <short title>

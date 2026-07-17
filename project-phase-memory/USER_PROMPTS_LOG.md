@@ -14,6 +14,11 @@ Read project memory/design files 1-6 in order, identify Copilot lane, and start 
 work item: DB persistence + `qubit-api` FastAPI service so scans are stored in the registry and
 become queryable/trend-able.
 
+### 2026-07-17 23:20 IST — Claude
+Use git identity `Dharsan L <dharsanlingadurai24@gmail.com>`. Continue with qubit-risk M1 (heuristic
+sensitivity + Monte-Carlo CRQC timeline + Mosca). [/compact issued mid-turn → paused build at clean point,
+made memory current for seamless resume; qubit-risk build starts next.]
+
 ### 2026-07-17 23:10 IST — Claude
 Learn the "caveman" token-compression skill (github.com/JuliusBrussee/caveman) and bake it into ALL
 CORE_PROMPTS prompts → terse output, fewer credits, full required output preserved. Codex + Copilot credits

@@ -100,15 +100,11 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
       projects/scans/assets CRUD, synchronous scan→DB ingestion, trends/summary/diff, CBOM export, registry,
       health/version, single-token auth; Alembic migration home in qubit-core (round-trips); expanded CLI
       (project/db/serve). 150 tests, gate green.
-- [ ] **Next (IN PROGRESS — building now, Claude):** `qubit-risk` M1 per docs/design/02 §6. Scope:
-      (1) `timeline/surface_code.py` + `timeline/simulator.py` — Monte-Carlo CRQC CDF per algorithm, with the
-      ×2 anchor calibration tests (Webber ECC-256 317M@1h/13M@24h, GE2019 RSA-2048 20M@8h; pin eta=1,gamma=0.35);
-      (2) heuristic sensitivity classifier (rules over evidence snippet) + shelf-life priors;
-      (3) `mosca.py` (margin + p_too_late); (4) static risk score v0 + pipeline annotating CryptoAssets;
-      (5) params YAML (hardware_priors, resource_estimates, sensitivity_rules, shelf_life_priors, mosca);
-      (6) tests (anchor calibration, monotonicity, mosca, sensitivity). Deps: numpy, scipy, pyyaml. NO survey
-      blend / BN / BERT / XGBoost yet (those are M2). Git config already set to personal email this session.
-      Then (sub-agent/Antigravity): JobRunner+SSE+remaining doc-05 routes; config/network scanners; dashboard.
+- [x] **qubit-risk M1 DONE** (Claude/Antigravity, recovered + completed):
+      Monte-Carlo CRQC timeline (surface-code resource math, GE2019/Webber anchors within x2),
+      heuristic sensitivity classifier (regex rules → shelf-life priors), Mosca inequality,
+      static HNDL risk score v0, RiskPipeline annotating CryptoAssets with priority rank.
+      5 param YAMLs, 6 source modules, 3 test files (17 tests). Gate GREEN: ruff + 167 passed.
 - [ ] Phase 2 (M2 feature-complete + live 4-phase demo).
 - [ ] Phase 3 (M3 hardening + paper experiments).
 
@@ -183,6 +179,31 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 ---
 
 ## 5. CHANGELOG (newest first — every agent appends here)
+
+### 2026-07-18 05:12 IST — Recovery + qubit-risk M1 COMPLETE (Antigravity/Claude Opus)
+- **Recovered interrupted work:** previous agent built the entire qubit-risk M1 engine (6 modules,
+  5 param YAMLs, 3 test files) but ran out of credits before lint/test/commit. Found uncommitted code
+  on `main`, no stash, no branch — all files present and structurally complete.
+- **Fixes applied during recovery:**
+  - Ruff: 30 E501/RUF022/I001/B905 violations across 8 files — all wrapped/sorted/fixed.
+  - Tests: 2 failures in test_timeline.py — (1) missing `gamma` arg in `_qp()` call,
+    (2) `zip(..., strict=True)` on intentionally mismatched-length lists. Both fixed.
+- **Gate GREEN: ruff ok, 167 tests passed repo-wide (17 new risk tests).**
+- Committed as `8fa01fe` on `main`.
+- **What's in qubit-risk M1:**
+  - `timeline/surface_code.py`: physical-qubit resource math (GE2019/Webber anchors within ×2).
+  - `timeline/simulator.py`: Monte-Carlo CRQC CDF simulator (10k trials, binomial SE band).
+  - `sensitivity.py`: heuristic regex classifier → PHI/PII/financial/credentials/IP/ephemeral/unknown.
+  - `mosca.py`: Mosca inequality (margin + p_too_late).
+  - `score.py`: HNDL risk score v0 = P(harvested) × P(decrypted before obsolete), honest CI band.
+  - `pipeline.py`: RiskPipeline annotating CryptoAssets with dense priority rank.
+  - `params/`: 5 versioned YAMLs (hardware_priors, resource_estimates, sensitivity_rules,
+    shelf_life_priors, mosca). Reproducible via params_hash.
+  - `config.py`: loads + SHA-256 hashes all params.
+  - Tests: anchor calibration (×2 on published figures), CDF monotonicity, bigger-key-breaks-later,
+    sensitivity ordering, Mosca margin, pipeline rank, determinism.
+- **Next:** (a) remaining `qubit-api` routes (JobRunner/SSE) — Antigravity hand-off; (b) config/
+  network scanners; (c) dashboard scaffold; (d) wire risk pipeline into API+CLI.
 
 ### 2026-07-17 (later) — M1 qubit-api single hardcoded-token auth COMPLETE
 - **qubit-api Authentication:** Implemented single hardcoded-token auth per `docs/design/05-platform-api-dashboard.md §9`.

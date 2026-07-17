@@ -30,6 +30,8 @@ from qubit_scanner.catalog import RuleLoadError
 from rich.console import Console
 from rich.table import Table
 
+from qubit_cli.commands.risk import risk_app
+
 app = typer.Typer(
     name="qubit",
     help="QUBIT — Quantum Upgrade Bridge & Inventory Tool. Discover and inventory crypto.",
@@ -172,6 +174,7 @@ def _render_table(result) -> None:  # type: ignore[no-untyped-def]
 
 project_app = typer.Typer(help="Manage QUBIT projects.")
 app.add_typer(project_app, name="project")
+app.add_typer(risk_app, name="risk")
 
 
 @project_app.command("list")
@@ -303,9 +306,7 @@ def cbom_export(
             err_console.print("[red]error:[/red] no scan found.")
             raise typer.Exit(code=1)
 
-        asset_rows = session.scalars(
-            select(AssetRow).where(AssetRow.scan_id == scan_row.id)
-        ).all()
+        asset_rows = session.scalars(select(AssetRow).where(AssetRow.scan_id == scan_row.id)).all()
         assets = [row_to_asset(r) for r in asset_rows]
 
     doc = export_cbom(assets)
@@ -316,9 +317,7 @@ def cbom_export(
 
     output.write_text(json.dumps(doc, indent=2), encoding="utf-8")
     n = len(assets)
-    console.print(
-        f"[green]Wrote[/green] CBOM ({n} assets, scan #{scan_row.seq}) → {output}"
-    )
+    console.print(f"[green]Wrote[/green] CBOM ({n} assets, scan #{scan_row.seq}) → {output}")
 
 
 @cbom_app.command("validate")
@@ -441,8 +440,7 @@ def serve(
     """Start the QUBIT FastAPI server (qubit-api)."""
     if importlib.util.find_spec("qubit_api") is None:
         err_console.print(
-            "[red]error:[/red] qubit-api is not installed. "
-            "Install it with: uv sync --all-packages"
+            "[red]error:[/red] qubit-api is not installed. Install it with: uv sync --all-packages"
         )
         raise typer.Exit(code=1)
 
@@ -464,8 +462,7 @@ def serve(
         cmd.append("--reload")
 
     console.print(
-        f"[bold]QUBIT[/bold] API starting on [link]http://{host}:{port}[/link] "
-        f"(db: {url})"
+        f"[bold]QUBIT[/bold] API starting on [link]http://{host}:{port}[/link] (db: {url})"
     )
     try:
         subprocess.run(cmd, env=env, check=True)  # noqa: S603

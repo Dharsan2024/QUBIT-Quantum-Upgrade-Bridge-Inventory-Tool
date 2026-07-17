@@ -1,0 +1,28 @@
+schema: qubit-rule/v1
+language: python
+library: { name: "cryptography", detect_imports: ["cryptography"] }
+rules:
+  - id: PY-PQC-MLKEM-001
+    title: ML-KEM-768 Private Key Generation
+    match:
+      query: |
+        (call
+          function: (attribute
+            object: (identifier) @obj
+            attribute: (identifier) @meth)
+        )
+      where:
+        - { capture: obj, equals: "MLKEM768PrivateKey" }
+        - { capture: meth, equals: "generate" }
+    extract:
+      algorithm: { literal: "ML-KEM-768" }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric.mlkem import MLKEM768PrivateKey
+          priv = MLKEM768PrivateKey.generate()
+      negative:
+        - |
+          priv = rsa.generate_private_key(65537, 2048)

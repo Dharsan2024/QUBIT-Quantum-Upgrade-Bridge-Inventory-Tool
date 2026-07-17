@@ -55,7 +55,9 @@ def normalize(det: Detection, *, occurrence: int = 1) -> CryptoAsset:
     confidence = det.confidence if canon is not None else "low"
 
     asset = CryptoAsset(
-        source_scanner=SourceScanner.code,
+        source_scanner=SourceScanner(det.scanner)
+        if det.scanner in {s.value for s in SourceScanner}
+        else SourceScanner.code,
         location=det.location,
         asset_type=AssetType(asset_type),
         algorithm=algorithm,

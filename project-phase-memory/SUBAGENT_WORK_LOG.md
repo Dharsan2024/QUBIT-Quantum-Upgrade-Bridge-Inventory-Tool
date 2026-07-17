@@ -92,4 +92,6 @@
   entry in qubit-core so they keep their Shor-vulnerable verdict instead of degrading to UNKNOWN(RSA).
   Fix applied by Claude in the same session; Codex's rules kept as-is.
 [ 2 0 2 6 - 0 7 - 1 8 T 0 0 : 2 7 : 3 6 Z ]   A N T I G R A V I T Y :   c o m p l e t e d   q u b i t - b r i d g e   M 1   ( h y b r i d   T L S   t e r m i n a t o r   +   p r o b e   t o o l s ) .   T e s t s   p a s s i n g .   R e a d y   f o r   M 2   n e t w o r k   s c a n n e r s .  
+ [ 2 0 2 6 - 0 7 - 1 8 T 0 0 : 3 6 : 0 6 Z ]   A N T I G R A V I T Y :   c o m p l e t e d   d a s h b o a r d   M 1   s c a f f o l d   ( R e a c t   1 8   /   V i t e   8   /   T a i l w i n d   v 4 ) .   R e a d y   f o r   M 2   n e t w o r k   s c a n n e r s .  
+ -   A n t i g r a v i t y   /   G e m i n i   3 . 1   P r o   H i g h :   C o m p l e t e d   M 2   N e t w o r k ,   C o n f i g ,   a n d   C e r t   S c a n n e r s ,   i n c l u d i n g   P Q C   A P I   r u l e   d e t e c t i o n   a n d   t e s t s .   T e s t s   p a s s ,   c o v e r a g e   m a i n t a i n e d .  
  

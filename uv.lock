@@ -938,11 +938,19 @@ name = "qubit-bridge"
 version = "0.1.0"
 source = { editable = "packages/qubit-bridge" }
 dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
     { name = "qubit-core" },
+    { name = "typer" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "qubit-core", editable = "packages/qubit-core" }]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pydantic", specifier = ">=2.7" },
+    { name = "qubit-core", editable = "packages/qubit-core" },
+    { name = "typer", specifier = ">=0.12" },
+]
 
 [[package]]
 name = "qubit-cli"
@@ -951,7 +959,10 @@ source = { editable = "packages/qubit-cli" }
 dependencies = [
     { name = "alembic" },
     { name = "qubit-api" },
+    { name = "qubit-bridge" },
     { name = "qubit-core" },
+    { name = "qubit-migrate" },
+    { name = "qubit-risk" },
     { name = "qubit-scanner" },
     { name = "rich" },
     { name = "typer" },
@@ -961,7 +972,10 @@ dependencies = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.13" },
     { name = "qubit-api", editable = "packages/qubit-api" },
+    { name = "qubit-bridge", editable = "packages/qubit-bridge" },
     { name = "qubit-core", editable = "packages/qubit-core" },
+    { name = "qubit-migrate", editable = "packages/qubit-migrate" },
+    { name = "qubit-risk", editable = "packages/qubit-risk" },
     { name = "qubit-scanner", editable = "packages/qubit-scanner" },
     { name = "rich", specifier = ">=13" },
     { name = "typer", specifier = ">=0.12" },

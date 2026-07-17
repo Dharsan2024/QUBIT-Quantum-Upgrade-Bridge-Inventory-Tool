@@ -32,6 +32,7 @@ from rich.table import Table
 
 from qubit_cli.commands.risk import risk_app
 from qubit_migrate.cli import migrate_app
+from qubit_bridge.cli import bridge_app
 
 app = typer.Typer(
     name="qubit",
@@ -177,6 +178,7 @@ project_app = typer.Typer(help="Manage QUBIT projects.")
 app.add_typer(project_app, name="project")
 app.add_typer(risk_app, name="risk")
 app.add_typer(migrate_app, name="migrate")
+app.add_typer(bridge_app, name="bridge")
 
 
 @project_app.command("list")

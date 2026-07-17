@@ -7,6 +7,12 @@
 
 ---
 
+### 2026-07-17 06:29 IST — Claude
+Create a canonical CORE_PROMPTS.md: (a) a project-agnostic explanation of HOW the multi-agent workflow
+works — the structure/mechanism (shared-memory files, logs, branches, orchestrator review), not the
+project subject matter; and (b) ALL the project's operating prompts in one file (universal handoff,
+orchestrator resume, sudden credit-out continuation, and any others).
+
 ### 2026-07-17 ~04:00 IST — Claude
 Verify Codex's work and take it back. Build resume/continuation prompts + logging infrastructure:
 (1) an ORCHESTRATOR RESUME prompt for Claude to review sub-agent work and decide keep/update/remove;

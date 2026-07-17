@@ -1,3 +1,6 @@
-"""qubit-migrate — placeholder package (Phase 0). Implementation lands in a later phase."""
+"""QUBIT Migration Orchestrator (qubit-migrate)."""
 
-__version__ = "0.1.0"
+from .config import MigrateConfig
+from .orchestrator import MigrationOrchestrator
+
+__all__ = ["MigrateConfig", "MigrationOrchestrator"]

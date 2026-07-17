@@ -31,6 +31,7 @@ from rich.console import Console
 from rich.table import Table
 
 from qubit_cli.commands.risk import risk_app
+from qubit_migrate.cli import migrate_app
 
 app = typer.Typer(
     name="qubit",
@@ -175,6 +176,7 @@ def _render_table(result) -> None:  # type: ignore[no-untyped-def]
 project_app = typer.Typer(help="Manage QUBIT projects.")
 app.add_typer(project_app, name="project")
 app.add_typer(risk_app, name="risk")
+app.add_typer(migrate_app, name="migrate")
 
 
 @project_app.command("list")

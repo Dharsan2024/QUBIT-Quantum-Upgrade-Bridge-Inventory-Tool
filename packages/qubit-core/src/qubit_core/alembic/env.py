@@ -26,7 +26,7 @@ from sqlalchemy import engine_from_config, pool
 # Attempt to pull in extended tables from sibling packages if installed.
 # These imports are best-effort — the packages may not be installed yet.
 with contextlib.suppress(ImportError):
-    import qubit_migrate.db_models  # noqa: F401
+    import qubit_migrate.state.models  # noqa: F401
 with contextlib.suppress(ImportError):
     import qubit_risk.db_models  # noqa: F401
 

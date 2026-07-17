@@ -28,13 +28,13 @@
 
 ## Log (newest first)
 
-### 2026-07-17 06:59:46 +05:30 � OpenAI Codex � recovery audit of interrupted API work  [status: in-progress]
+### 2026-07-17 06:59:46 +05:30 - OpenAI Codex - recovery audit of interrupted API work  [status: done]
 - Branch: `copilot/api-db-persistence`   Lane: recovery/review of interrupted `packages/qubit-api` work per user prompt.
 - Did: read newest PROJECT_PHASE_MEMORY entries, SUBAGENT_WORK_LOG, AGENT_WORK_SPLIT; inspected branch/status/stash/log. Found uncommitted Copilot API persistence changes marked done in the sub-agent log but not committed.
 - Files: `packages/qubit-api/**`, `pyproject.toml`, `uv.lock`, `project-phase-memory/SUBAGENT_WORK_LOG.md`, `project-phase-memory/USER_PROMPTS_LOG.md`
 - Gate: repo ruff fail due pre-existing placeholder E501 in qubit-bridge/qubit-migrate/qubit-risk | repo pytest 139 passed | API ruff ok | API mypy ok | API pytest 3 passed.
 - Next step (if in-progress/cut-off): inspect API files/endpoints against doc 05; fix any scoped issues, then commit if complete.
-- Orchestrator verdict (Claude fills this): pending
+- **Orchestrator verdict (Claude, 2026-07-17 22:55 IST): KEEP** (the recovery pass correctly committed the interrupted API work as 7b454e8 — good use of the continuation flow; no separate artifact to review beyond the Copilot work below).
 
 ### 2026-07-17 06:56:51 +05:30 — GitHub Copilot — qubit-api DB persistence + CRUD foundation  [status: done]
 - Branch: `copilot/api-db-persistence`   Lane: `packages/qubit-api` (FastAPI CRUD endpoint bodies/routers)
@@ -42,7 +42,18 @@
 - Files: `packages/qubit-api/pyproject.toml`, `packages/qubit-api/src/qubit_api/{__init__.py,app.py,deps.py,main.py,schemas.py,services.py}`, `packages/qubit-api/src/qubit_api/routers/{__init__.py,meta.py,registry.py,projects.py,scans.py,assets.py}`, `packages/qubit-api/tests/test_api.py`, `pyproject.toml`
 - Gate: `uv run ruff check packages/qubit-api` ok | `uv run mypy packages/qubit-api/src` ok | `uv run pytest packages/qubit-api -q` 3 passed
 - Next step (if in-progress/cut-off): Claude/orchestrator review for normative endpoint parity (remaining doc-05 routes like risk/migrations/jobs/auth/SSE), plus decide whether to adopt JobRunner now or keep sync M1 mode.
-- Orchestrator verdict (Claude fills this): pending
+- **Orchestrator verdict (Claude, 2026-07-17 22:55 IST): UPDATE → KEEP, merged to main.**
+  Verified: endpoints match doc 05's M1 slice (projects/scans/assets CRUD, trends, summary, diff, cbom,
+  registry, health/version, single-token auth); Alembic migration round-trips (upgrade/downgrade) and matches
+  the ORM exactly; 40-file mypy + ruff + 150 tests green.
+  BOUNDARY NOTE: it touched `packages/qubit-core/` (Alembic scaffolding + initial migration) — normally
+  Claude-only — but the change is purely ADDITIVE infra that doc 05 §4.2 mandates ("single migration home in
+  qubit-core") and does NOT modify the frozen schema/ORM, so accepted. Tolerated this time; sub-agents should
+  still flag core-adjacent needs to Claude rather than editing qubit-core.
+  BUG FIXED by Claude (commit after 7b454e8): `deps.get_settings()` was `@lru_cache`'d + built a fresh
+  `Settings()`, so `create_app(settings)` did NOT thread the token into auth — a custom `api_token` was
+  silently ignored (tests passed only because they used the default token). Now settings live on `app.state`
+  and get_settings reads them; regression test added.
 
 ### 2026-07-17 06:49:26 +05:30 — GitHub Copilot — qubit-api DB persistence + CRUD foundation  [status: in-progress]
 - Branch: `copilot/api-db-persistence`   Lane: `packages/qubit-api` (FastAPI CRUD endpoint bodies/routers)

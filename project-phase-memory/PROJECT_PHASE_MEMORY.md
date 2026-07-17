@@ -87,8 +87,13 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
       - **Gate GREEN: ruff + mypy + 55 tests total.** tree-sitter 0.26 + language-pack 1.12.5.
       - DONE: bulk rules (33, via Codex), **CBOM 1.7 export**, **qubit CLI (scan + rules lint/list)**.
       - M1 scanner path is end-to-end (discover → normalize → CBOM → CLI). 136 tests, gate green.
-- [ ] **Next:** DB persistence + qubit-api (doc 05) so scans land in the registry; then qubit-risk M1
-      (heuristic sensitivity + Monte-Carlo CRQC timeline). Config/network scanners + more rules = sub-agent.
+- [x] **DB persistence + qubit-api DONE** (Copilot, orchestrator-reviewed + merged): FastAPI service with
+      projects/scans/assets CRUD, synchronous scan→DB ingestion, trends/summary/diff, CBOM export, registry,
+      health/version, single-token auth; Alembic migration home in qubit-core (round-trips); expanded CLI
+      (project/db/serve). 150 tests, gate green.
+- [ ] **Next:** `qubit-risk` M1 (heuristic sensitivity classifier + Monte-Carlo CRQC timeline + Mosca) —
+      Claude's lane (math). Then: JobRunner + SSE + remaining doc-05 routes (risk/migrations/jobs) = sub-agent;
+      config/network scanners + more rules = sub-agent; dashboard = sub-agent.
 - [ ] Phase 2 (M2 feature-complete + live 4-phase demo).
 - [ ] Phase 3 (M3 hardening + paper experiments).
 
@@ -181,6 +186,19 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 - **Placeholder Packages:** Fixed formatting and line length issues in `qubit-bridge`, `qubit-migrate`, and `qubit-risk` docstrings.
 - **Testing & Quality:** Added `CliRunner` tests for the new CLI commands. Fixed Typer 0.26 option bugs and Alembic closed-stream test errors. Full suite passes (146 tests, 0 failures). Ruff and mypy checks are fully green across all 54 source files.
 - **Next:** qubit-risk M1 (heuristic sensitivity + Monte-Carlo CRQC timeline) or auth in qubit-api.
+
+### 2026-07-17 22:55 IST — Orchestrator review: qubit-api (Copilot) merged, auth bug fixed
+- Reviewed `copilot/api-db-persistence` (Copilot built the API; a Codex continuation pass committed it as
+  7b454e8). Verdict **UPDATE → KEEP, merged to main**.
+- What landed: FastAPI `qubit-api` — projects/scans/assets CRUD, synchronous scan→DB ingest,
+  trends/summary/diff, CBOM export endpoint, registry/algorithms, health/version, single-token bearer auth;
+  **Alembic migration home** in qubit-core (initial_schema, round-trips); expanded `qubit` CLI (project/db/serve).
+- Boundary: it edited `packages/qubit-core/` (Alembic infra only — additive, doc-05-mandated, frozen schema
+  untouched) → accepted with a note in SUBAGENT_WORK_LOG.
+- **Bug I found + fixed:** `create_app(settings)` didn't thread settings into auth (`get_settings` was
+  lru_cache'd + fresh `Settings()`), so a custom `api_token` was ignored; tests passed only via the default
+  token. Fixed (settings on app.state) + regression test. Gate green: ruff + mypy (40 files) + 150 tests.
+- **Next:** qubit-risk M1 (Claude).
 
 ### 2026-07-17 (later) — M1 scanner slice COMPLETE: CBOM 1.7 export + qubit CLI
 - **CBOM export (qubit-core/cbom, Claude's lane):** `export_cbom(assets)` → CycloneDX 1.7 dict

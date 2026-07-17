@@ -164,6 +164,24 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-17 (later) — M1 qubit-api single hardcoded-token auth COMPLETE
+- **qubit-api Authentication:** Implemented single hardcoded-token auth per `docs/design/05-platform-api-dashboard.md §9`.
+- Added `api_token` to `qubit_api.settings.Settings` (defaulting to a dev token).
+- Added `verify_token` dependency using FastAPI's `HTTPBearer` in `qubit_api.auth.py`.
+- Added `/auth/whoami` endpoint returning `{name: "hardcoded-dev-token", scopes: "rw"}`.
+- Wired auth dependency to protected routers (`registry`, `projects`, `scans`, `assets`) in `qubit_api.app.py`, leaving `meta` (`/health`, `/version`) public.
+- Updated `qubit-api/tests/test_api.py` with headers and added tests for missing/invalid token 401s and whoami 200s.
+- **Gate GREEN:** ruff, mypy, and 149 tests passed.
+- **Next:** `qubit-risk` M1 (heuristic sensitivity analysis and Monte-Carlo CRQC timeline engine).
+
+### 2026-07-17 — M1 gap-fill COMPLETE: DB Persistence + qubit-api + expanded CLI
+- **Alembic Infrastructure:** Initialized Alembic in `qubit-core`, wired the environment (`env.py`) to the ORM models, and generated the initial migration.
+- **CLI Expansion:** Implemented the full M1 CLI command set in `packages/qubit-cli/src/qubit_cli/main.py` (`project`, `cbom`, `db`, `serve`).
+- **Dependency Management:** Added `qubit-api` and `alembic` as dependencies to `qubit-cli`.
+- **Placeholder Packages:** Fixed formatting and line length issues in `qubit-bridge`, `qubit-migrate`, and `qubit-risk` docstrings.
+- **Testing & Quality:** Added `CliRunner` tests for the new CLI commands. Fixed Typer 0.26 option bugs and Alembic closed-stream test errors. Full suite passes (146 tests, 0 failures). Ruff and mypy checks are fully green across all 54 source files.
+- **Next:** qubit-risk M1 (heuristic sensitivity + Monte-Carlo CRQC timeline) or auth in qubit-api.
+
 ### 2026-07-17 (later) — M1 scanner slice COMPLETE: CBOM 1.7 export + qubit CLI
 - **CBOM export (qubit-core/cbom, Claude's lane):** `export_cbom(assets)` → CycloneDX 1.7 dict
   (cryptographic-asset components, algorithmProperties primitive/param/security-levels, oid, qubit:*

@@ -1,0 +1,43 @@
+# Priors for the Monte-Carlo over quantum-hardware trajectories (doc 02 4.4). Sampled per trial.
+version: 1
+reference_year: 2026
+horizon_year: 2100
+n_trials: 10000
+seed: 42
+attack_window_days: 1        # HNDL adversary patience; risk curves use 1 day (matches the survey event)
+physical_qubits_now:         # Q0 ~ LogNormal
+  dist: lognormal
+  mu_ln: 8.29                # ln(~4000) frontier device scale, 2026
+  sigma_ln: 0.5
+qubit_growth_rate:           # g in Q(t)=Q0*exp(g*(t-t0)); mu=0.47 => ~x1.6/yr
+  dist: truncnorm
+  mu: 0.47
+  sigma: 0.15
+  low: 0.10
+  high: 1.10
+error_rate_now:              # p0 ~ LogNormal, two-qubit gate error
+  dist: lognormal
+  mu_ln: -5.81               # ln(3e-3)
+  sigma_ln: 0.35
+error_improvement_rate:      # r in p(t)=p0*exp(-r*(t-t0))
+  dist: truncnorm
+  mu: 0.10
+  sigma: 0.05
+  low: 0.0
+  high: 0.4
+architecture_efficiency:     # eta multiplies Q_P; captures GE2019 -> Gidney-2025-style reductions
+  dist: loguniform
+  low: 0.05
+  high: 1.0
+surface_code:
+  A: 0.1
+  p_threshold: 0.01
+  eps_fail: 0.05             # tolerated total logical failure prob per run
+  routing_overhead: 2.6      # physical qubits per logical = overhead * d^2; calibrated to k=1 anchors (see resource_estimates.yaml)
+  factory_overhead:          # gamma: extra fraction for magic-state factories
+    dist: uniform
+    low: 0.2
+    high: 0.5
+  t_cycle_us:    {dist: loguniform, low: 0.1, high: 10.0}
+  t_reaction_us: {dist: loguniform, low: 1.0, high: 100.0}
+  parallel_cap: 100          # max qubit-parallelization factor to compress wall-time into the window

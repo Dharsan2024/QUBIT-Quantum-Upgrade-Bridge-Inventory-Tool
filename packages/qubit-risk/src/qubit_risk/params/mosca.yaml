@@ -1,0 +1,15 @@
+# Mosca inequality parameters (doc 02 6.5). margin = Z - (X + Y); p_too_late = F_a(now + X + Y).
+version: 1
+z_percentile: 0.5            # Z = CRQC arrival at this CDF percentile (median); conservative variant uses 0.05
+shelf_life_percentile: 0.90  # X = P90 of the class shelf-life prior (conservative on secrecy need)
+# Y = migration effort (years). Default table by usage_context; qubit-migrate overrides per asset later.
+default_migration_years:
+  kex: 0.5
+  signature: 0.5
+  tls: 0.5
+  encryption-at-rest: 0.25
+  hash: 0.25
+  token: 0.25
+  password: 0.25
+  unknown: 0.5
+org_overhead_years: 0.5      # added to every Y (procurement, testing, rollout)

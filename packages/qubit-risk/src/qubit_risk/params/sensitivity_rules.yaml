@@ -1,0 +1,21 @@
+# Heuristic sensitivity classifier (doc 02 6.3.2). Each matching rule adds `weight` to its class;
+# class = argmax if max >= score_threshold else unknown; ties broken by tie_break_order (highest stakes).
+# `where` is limited to what the evidence contract provides: identifier | comment | file_path
+# (all derived from evidence.snippet + location). No endpoint mapping (out of scope, doc 02 6.3.1).
+version: 1
+score_threshold: 1.0
+rules:
+  - {class: pii,         weight: 1.0, where: [identifier],           regex: '(?i)\b(ssn|social_sec|aadhaar|passport(_no)?|national_id|dob|date_of_birth|driver_?licen[cs]e)\b'}
+  - {class: pii,         weight: 0.6, where: [identifier, comment],  regex: '(?i)\b(email|phone|address|first_?name|last_?name|customer)\b'}
+  - {class: phi,         weight: 1.0, where: [identifier, comment],  regex: '(?i)\b(patient|diagnos(is|tic)|icd10|hl7|fhir|medical_record|mrn|prescription|ehr|phi)\b'}
+  - {class: financial,   weight: 1.0, where: [identifier, file_path],regex: '(?i)\b(card_?(number|num|no)|pan\b|cvv|iban|swift|account_balance|txn|payment|invoice|payroll|billing)\b'}
+  - {class: credentials, weight: 1.0, where: [identifier],           regex: '(?i)\b(passw(or)?d|secret_?key|api_?key|bearer|jwt|refresh_token|private_?key)\b'}
+  - {class: ip,          weight: 0.8, where: [comment, file_path],   regex: '(?i)\b(proprietary|confidential|trade\s?secret|internal[-_ ]only|patent)\b'}
+  - {class: ephemeral,   weight: 0.8, where: [identifier],           regex: '(?i)\b(session_?(id|token)|nonce|csrf|cache_key|otp)\b'}
+  - {class: public,      weight: 0.8, where: [file_path],            regex: '(?i)(/public/|/static/|sitemap|robots\.txt|healthz)'}
+tie_break_order: [phi, financial, pii, credentials, ip, ephemeral, public]
+# Usage-context fallback when no rule fires (before defaulting to unknown):
+usage_defaults:
+  password: credentials
+  token: ephemeral
+  encryption-at-rest: unknown

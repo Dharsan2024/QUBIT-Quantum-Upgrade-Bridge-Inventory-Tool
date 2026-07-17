@@ -180,6 +180,17 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 00:25 IST — M1 qubit-migrate orchestrator COMPLETE
+- **Reviewed sub-agent work:** Google Antigravity completed the M1 slice of `qubit-migrate`. Verdict: **KEEP**.
+- **What's in qubit-migrate M1:**
+  - `graph/`: dependency graph builder resolving `cert_key_binding`, `library_upgrade`, and `same_module` edges, condensing them into SCC MigrationUnits.
+  - `queue/`: WSJF priority scoring + effort point estimates.
+  - `state/`: full 12-state FSM for migration tasks, persisted to DB via `qubit-core` models + Alembic.
+  - `transform/`: deterministic rule loader and `libcst`-based template codemod for `py-weakhash-01`.
+  - `cli.py`: Typer sub-app (`qubit migrate plan`, `generate`, `review`, `apply`, `verify`).
+- **Gate GREEN:** ruff ok, mypy ok, 172 tests passed repo-wide (5 new migration tests).
+- **Next:** Start on the Dashboard scaffold (M1 platform slice) or `qubit-bridge` (nginx-hybrid + probe/verify).
+
 ### 2026-07-18 05:12 IST — Recovery + qubit-risk M1 COMPLETE (Antigravity/Claude Opus)
 - **Recovered interrupted work:** previous agent built the entire qubit-risk M1 engine (6 modules,
   5 param YAMLs, 3 test files) but ran out of credits before lint/test/commit. Found uncommitted code

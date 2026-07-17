@@ -7,12 +7,18 @@
 
 ---
 
-### 2026-07-17 06:59:46 +05:30 � OpenAI Codex
+### 2026-07-17 06:59:46 +05:30 � OpenAI Codex
 Recover interrupted work before doing anything new: read project memory/sub-agent logs/work split, inspect git status/stash/diff/log, run health checks, judge whether the uncommitted change is complete/half-done/broken, log after every step, then continue safely.
 ### 2026-07-17 06:49:26 +05:30 — GitHub Copilot
 Read project memory/design files 1-6 in order, identify Copilot lane, and start the next concrete
 work item: DB persistence + `qubit-api` FastAPI service so scans are stored in the registry and
 become queryable/trend-able.
+
+### 2026-07-17 22:50 IST — Claude (Orchestrator Resume, prompt B2)
+Review what the sub-agents did while away, decide keep/update/remove, then continue.
+→ Reviewed `copilot/api-db-persistence`: verdict UPDATE→KEEP, merged to main after fixing a settings/auth
+  threading bug. (Earlier this session I had also set out to build the qubit-api persistence seam + a scoped
+  sub-agent task; Copilot delivered the API directly, so the review path superseded that.)
 
 ### 2026-07-17 06:29 IST — Claude
 Create a canonical CORE_PROMPTS.md: (a) a project-agnostic explanation of HOW the multi-agent workflow

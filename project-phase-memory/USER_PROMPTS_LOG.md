@@ -14,6 +14,14 @@ Read project memory/design files 1-6 in order, identify Copilot lane, and start 
 work item: DB persistence + `qubit-api` FastAPI service so scans are stored in the registry and
 become queryable/trend-able.
 
+### 2026-07-17 23:10 IST — Claude
+Learn the "caveman" token-compression skill (github.com/JuliusBrussee/caveman) and bake it into ALL
+CORE_PROMPTS prompts → terse output, fewer credits, full required output preserved. Codex + Copilot credits
+are exhausted → now switching only between Claude and Antigravity (models: Gemini 3.5 Flash L/M/H, Gemini 3.1
+Pro L/H, Claude Sonnet 4.6 Thinking, Claude Opus 4.6 Thinking, GPT-OSS 120B). Don't BLOCK agents from work —
+assign best-fit but let anyone do anything; orchestrator (main Claude) checks + verifies on return. Git:
+don't expose the astradyne email — keep just the name.
+
 ### 2026-07-17 22:50 IST — Claude (Orchestrator Resume, prompt B2)
 Review what the sub-agents did while away, decide keep/update/remove, then continue.
 → Reviewed `copilot/api-db-persistence`: verdict UPDATE→KEEP, merged to main after fixing a settings/auth

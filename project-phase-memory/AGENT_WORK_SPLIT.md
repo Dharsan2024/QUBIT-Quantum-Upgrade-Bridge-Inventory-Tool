@@ -1,118 +1,111 @@
-# QUBIT — Multi-Agent Work Split & Boundaries
+# QUBIT — Multi-Agent Work Split
 
-> **Purpose:** Distribute the build across several AI coding agents so Claude (the most expensive) is
-> reserved for high-stakes work and doesn't carry the whole load. This file assigns work by each
-> agent's strengths and sets HARD boundaries so no agent spoils the frozen core or overwrites another's
-> work. Read this alongside `PROJECT_PHASE_MEMORY.md`.
+> **Purpose:** Assign the BEST-FIT work to each agent so Claude (the orchestrator) isn't the bottleneck —
+> **without blocking anyone from any work.** Any agent may do any task; everything a sub-agent does is
+> *provisional* until the orchestrator (Claude) verifies it on return. Read alongside `PROJECT_PHASE_MEMORY.md`
+> and `CORE_PROMPTS.md`.
 
 ---
 
-## 0. The golden rules (apply to EVERY non-Claude agent, no exceptions)
+## 0. The rules (assign best-fit, don't block, verify on return)
 
-1. **Never touch the frozen core.** `packages/qubit-core/` (the `CryptoAsset` schema, algorithm
-   registry, DB models, redaction) is Claude-only. If your task seems to need a schema change, STOP and
-   ask the human to route it to Claude. Additive schema changes go through Claude, never anyone else.
-2. **Never edit the source-of-truth docs.** `docs/design/**`, `docs/BUILD_PLAN.md`, and
-   `project-phase-memory/**` are read-only for coding agents. Only Claude or the human updates them.
-3. **Stay in your lane.** Work ONLY inside your assigned package (§2), on your OWN git branch
-   (`codex/<pkg>`, `copilot/<feature>`, `gemini/<task>`). One package = one agent at a time — never edit
-   a package another agent is mid-flight on.
-4. **Import the core, don't redefine it.** Always `from qubit_core import ...`. Conform to the frozen
-   schema and to doc 05's normative REST registry. Do not invent competing models or endpoints.
-5. **Pass the quality gate before you commit:**
+1. **Assignments are recommendations, not restrictions.** §2 says who is *best* for each area. But if the
+   work in front of you needs something outside it — do it. Nobody is blocked from any part of the codebase.
+2. **Everything is provisional until the orchestrator verifies it.** When the human returns to Claude, it
+   reviews every sub-agent change (KEEP / UPDATE / REMOVE) via the ORCHESTRATOR RESUME prompt
+   (`CORE_PROMPTS.md B2`). This verification gate — not prohibitions — is what keeps the project safe.
+3. **Work on a branch; let the orchestrator merge.** Use `antigravity/<task>` (or `<agent>/<task>`), so
+   Claude can review before it lands on `main`. A GitHub PR is ideal (that's how the API work landed). If
+   you must commit to `main`, that's allowed — but the orchestrator will still audit it on return.
+4. **Handle the frozen core with extra care (not a ban).** `packages/qubit-core/` holds the `CryptoAsset`
+   schema + registry + DB. You MAY change it, but keep changes ADDITIVE (never alter an existing binding
+   field's meaning) and say WHY in your log — the orchestrator scrutinizes core changes hardest, because a
+   bad one breaks everything. Prefer to leave deep schema changes to Claude.
+5. **Conform to the contracts.** `from qubit_core import ...` (don't redefine its models); match doc 05's
+   normative REST registry; follow the relevant `docs/design/0X`. If you must deviate, log the reason.
+6. **Pass the quality gate before "done":**
    `uv run ruff check <pkg> && uv run mypy <pkg>/src && uv run pytest <pkg> -q` — all green.
-6. **PR, never push to `main`.** Open a pull request. Claude or the human reviews and merges. This
-   review step is the safety net that keeps the core intact.
-7. **Log your work — in `SUBAGENT_WORK_LOG.md`, CONTINUOUSLY.** Add a timestamped entry when you START,
-   and update it after every meaningful step (get the time with `date "+%Y-%m-%d %H:%M:%S %Z"`). Never
-   have more than one unlogged step. If you feel yourself running low on credits/context, log your
-   partial progress + the exact next step and commit BEFORE you stop — a cut-off with no log is the worst
-   failure mode. Also append the task you were given to `USER_PROMPTS_LOG.md`.
+7. **Log continuously in `SUBAGENT_WORK_LOG.md`** (Claude logs in `PROJECT_PHASE_MEMORY.md §5`). Timestamp
+   with `date "+%Y-%m-%d %H:%M:%S %Z"`; entry when you START, update after every step; if running low on
+   credits/context, log partial progress + the exact next step and commit BEFORE stopping. Append the task
+   you were given to `USER_PROMPTS_LOG.md`.
+8. **OUTPUT DISCIPLINE — "caveman" (save credits).** Talk terse: fragments over sentences, no filler,
+   preamble, or flattery. Shrink what you *say*, not what you *do*. Code, commands, diffs, file paths,
+   config, and log entries stay byte-for-byte exact and COMPLETE — never abbreviate those, and never drop a
+   required step (gate, logging, verification) for brevity. (Technique: github.com/JuliusBrussee/caveman.)
 
-**Claude is the main orchestrator.** It oversees the whole project, and when the human returns it reviews
-every sub-agent change (via the ORCHESTRATOR RESUME PROMPT, `PROJECT_PHASE_MEMORY.md §4c`) and decides
-KEEP / UPDATE / REMOVE. Your work is provisional until Claude verifies and merges it.
-
-Violating rule 1, 2, or 6 can corrupt the project — those are the ones that matter most.
+**Claude is the main orchestrator** — it oversees everything and has final say (KEEP/UPDATE/REMOVE) on all
+sub-agent work when the human returns.
 
 ---
 
-## 1. Who is best at what (why the split is shaped this way)
+## 1. Active agents (roster)
 
-| Agent | Real strengths | Weaknesses to avoid relying on |
-|---|---|---|
-| **Claude** (this agent) | System design, security-critical logic, math-heavy code, cross-module integration, code review, the research paper. Careful, follows constraints. | Cost — reserve it for work that actually needs the reasoning. |
-| **OpenAI Codex** (Codex CLI / cloud agent) | Autonomous, well-specified multi-file features in a sandbox; generates a whole module from a clear spec; runs test loops until green. | Drifts on under-specified/ambiguous tasks; give it acceptance criteria. |
-| **GitHub Copilot** (in-IDE, you drive) | Inline autocomplete, boilerplate, CRUD, React components, config, docstrings, filling obvious bodies. | Not autonomous; don't let it auto-accept large multi-file edits unreviewed. |
-| **Google Gemini** (Gemini CLI / Code Assist) | Very large context (whole-repo reads), docs, data/experiment analysis, multimodal (diagrams/screenshots). | Can over-refactor across the repo; scope it tightly. |
-| **Google Antigravity** (agent-first IDE) | Autonomous multi-file implementation with built-in planning + **browser/e2e verification**; running an agent that plans → codes → checks. | Agentic autonomy can wander; give it a clear spec + acceptance criteria like Codex. |
-
----
-
-## 2. Package/task assignments
-
-| Area | Primary agent | Why | Boundary |
+| Agent | Role | Strengths | Notes |
 |---|---|---|---|
-| `qubit-core` (schema, registry, DB, redaction) | **Claude ONLY** | Frozen contract; a mistake here breaks everything. | No other agent edits this package. |
-| `qubit-risk` (Monte-Carlo CRQC, Bayesian net, XGBoost, Mosca math) | **Claude** | Statistical correctness + the paper's credibility ride on it. | Codex may add *tests/fixtures* here from a Claude-written spec, not the math. |
-| `qubit-scanner` — engine + tree-sitter integration | **Claude** (skeleton), then **Codex** (bulk rules) | Engine is integration-heavy; the YAML detection rules are high-volume + well-specified. | Codex writes `catalog/rules/*.yaml` + adapters against Claude's engine; doesn't change the engine. |
-| `qubit-migrate` — template transforms, IaC templates, rule pack | **Codex / Antigravity** | Self-contained, spec-driven (doc 03 has exact rules + goldens). | LLM-prompt/safety logic + state machine reviewed by Claude before merge. |
-| `qubit-bridge` — probe/verify, compose images, bench harness | **Codex / Antigravity** | Well-defined I/O, testable against containers (doc 04). | Claude reviews the security-adjacent probe parsing. |
-| `dashboard/` browser/e2e verification (Playwright) | **Antigravity** | Its built-in browser-driving + verification fits e2e testing. | Test-only; does not change product source. |
-| `qubit-api` — FastAPI CRUD endpoint bodies, routers | **Copilot** (you drive) + Claude review | Mostly boilerplate over the normative registry (doc 05). | Endpoints must match doc 05 exactly; JobRunner + auth guardrails = Claude. |
-| `qubit-cli` — Typer command wiring | **Copilot** | Boilerplate command plumbing. | Business logic delegates to package APIs, not reimplemented. |
-| `dashboard/` — React/TS pages + components | **Copilot** (build) + **Gemini** (layout/UX passes) | UI is boilerplate-heavy; Gemini good for multi-file layout. | Data only via the REST client + fixtures; no direct DB. |
-| Docs site, README polish, paper figures/tables, experiment analysis | **Gemini** | Long-context + data analysis + writing. | Does NOT edit `docs/design/**` (source of truth) — only `docs/` user-guide/site + `experiments/`. |
-| Test corpora, ground-truth labeling assistance | **Gemini** / **Codex** | High-volume, well-specified. | Labels reviewed by the human (paper artifact). |
-| Cross-package integration, merges to `main`, security review, the paper's core claims | **Claude** | Needs whole-system reasoning. | — |
+| **Claude** (this agent) | **Orchestrator + core builder** | System design, security/math-heavy code (qubit-core, qubit-risk), cross-module integration, review + merge, the paper. | The only one that verifies/merges. Reserve for work that needs the reasoning. |
+| **Google Antigravity** (agent-first IDE) | **Primary sub-agent** | Autonomous multi-file implementation + planning + browser/e2e verification. Runs several models (below) — pick per task. | Provisional work; Claude verifies on return. |
+
+**Antigravity model picker** (models available in your Antigravity):
+| Model | Use for |
+|---|---|
+| Gemini 3.5 Flash (Low/Med/High) | Cheap + fast: high-volume boilerplate, detection rules, tests, docs, CRUD, config. Default to this. |
+| Gemini 3.1 Pro (Low/High) | Harder reasoning: multi-file features, refactors, trickier logic. Use **High** for complex. |
+| Claude Sonnet 4.6 (Thinking) | Strong general implementation when Flash/Pro struggle. |
+| Claude Opus 4.6 (Thinking) | Hardest sub-agent tasks needing top quality (still: deep core/risk work → the main Claude orchestrator). |
+| GPT-OSS 120B (Medium) | Open-model alternative / second opinion / general implementation. |
+
+**Currently unavailable:** OpenAI Codex and GitHub Copilot — credits exhausted. (Their past work is merged;
+if credits return, treat them like any sub-agent under these rules.)
 
 ---
 
-## 3. When to switch models (the notify triggers)
+## 2. Best-fit assignments (recommendations, per rule 1 — not restrictions)
 
-**Stay on / go to Claude when:**
-- Designing a new subsystem or changing the architecture.
-- Anything touching `qubit-core` / the schema, or the `qubit-risk` math.
-- Integrating two packages, or debugging a cross-cutting failure.
-- Reviewing/merging a PR to `main`, or writing the research paper.
-
-**Hand off to Codex when:** you have a fully-specified, isolated package/feature with acceptance
-criteria (e.g. "implement the nginx + sshd config scanner per doc 01 §6.2, tests green") and want it
-built autonomously while you spend Claude credits elsewhere.
-
-**Hand off to Copilot when:** you're hand-writing UI/CRUD/CLI boilerplate in VS Code and want inline
-completion — cheapest for high-volume typing.
-
-**Hand off to Gemini when:** the task needs huge context (read all seven design docs at once), doc
-writing, or analyzing experiment output / building paper figures.
-
-**Hand off to Antigravity when:** you want an autonomous agent to implement a well-specified package/
-feature end-to-end with its own planning + browser/e2e verification (an alternative to Codex, especially
-for anything that benefits from driving the running app or the dashboard).
-
-**Claude will proactively tell you** in its replies when an upcoming task is better suited to another
-agent — e.g. *"this next piece is well-specified and isolated → good Codex task, save your Claude
-credits."* Watch for those notes.
+| Area | Best fit | Why |
+|---|---|---|
+| `qubit-core` (schema, registry, DB, redaction, CBOM) | **Claude** | Frozen contract; a mistake breaks everything. Others may add additive infra (e.g. Alembic) + log why. |
+| `qubit-risk` (Monte-Carlo CRQC, Bayes, XGBoost, Mosca) | **Claude** | Statistical correctness + the paper ride on it. Antigravity may add tests/fixtures from a Claude spec. |
+| `qubit-scanner` detection rules (`catalog/rules/*.yaml`) | **Antigravity** (Gemini Flash) | High-volume, well-specified; the engine + format already exist. |
+| `qubit-migrate` template transforms, IaC, rule pack | **Antigravity** (Gemini Pro) | Self-contained, spec-driven (doc 03). LLM/safety logic reviewed by Claude. |
+| `qubit-bridge` probe/verify, compose images, bench | **Antigravity** | Well-defined I/O, testable vs containers (doc 04); its browser/e2e fits here. |
+| `qubit-api` remaining routes, JobRunner, SSE, auth scopes | **Antigravity** (Gemini Pro) | Boilerplate over doc 05's registry. Auth/security-guardrail bits verified by Claude. |
+| `qubit-cli` command wiring | **Antigravity** (Gemini Flash) | Boilerplate plumbing over package APIs. |
+| `dashboard/` React/TS pages + browser/e2e | **Antigravity** | UI + its built-in browser verification. Data via REST only. |
+| Docs site, README, paper figures, experiment analysis | **Antigravity** (Gemini Pro, big context) | Long-context + writing. Leave `docs/design/**` (source of truth) to Claude. |
+| Cross-package integration, merges to `main`, security review, paper core claims | **Claude** | Whole-system reasoning + final say. |
 
 ---
 
-## 4. Suggested branch + PR flow (keeps `main` always-green)
+## 3. When to switch (Claude ↔ Antigravity)
+
+**Use Claude (orchestrator) when:** designing/architecting; changing `qubit-core` schema or `qubit-risk`
+math; integrating packages; debugging cross-cutting failures; **reviewing/merging sub-agent work**; the paper.
+
+**Hand to Antigravity when:** a task is well-specified and isolated enough to run autonomously — pick the
+model by difficulty (Gemini Flash = cheap/bulk; Gemini Pro High or Claude Opus 4.6 Thinking = complex).
+Give it a scoped task (`CORE_PROMPTS.md B4`) after the universal prompt (B1).
+
+**Claude will flag in its replies** when an upcoming task is a good Antigravity hand-off ("well-specified +
+isolated → hand to Antigravity, Gemini Flash").
+
+---
+
+## 4. Branch + verify flow (keeps `main` reviewable)
 
 ```
-main                      # always green; only Claude/human merges here
- ├─ claude/qubit-core      # done (Phase 0)
- ├─ codex/scanner-rules    # Codex works here, opens PR -> Claude reviews -> merge
- ├─ copilot/api-crud       # Copilot works here
- └─ gemini/docs-site       # Gemini works here
+main                          # orchestrator (Claude) verifies + merges here
+ └─ antigravity/<task>        # sub-agent works here -> PR or hand back -> Claude reviews -> merge
 ```
-
-Each agent: branch → build → quality gate green → PR → review → merge. Never commit to `main` directly.
+Sub-agent: branch → build → quality gate green → log → PR/hand back. Claude: verify (boundaries + gate +
+semantics) → KEEP/UPDATE/REMOVE → merge. Direct commits to `main` are allowed but still audited on return.
 
 ---
 
 ## 5. Current recommended assignment (updated as phases progress)
 
-- **NOW (Phase 1 start):** Claude builds the `qubit-scanner` engine skeleton + tree-sitter integration
-  + the first Python rules (this is core-adjacent and defines the rule format). **Then** the bulk Python
-  + Java + Go detection rules become a **Codex** task, and the dashboard scaffold a **Copilot** task.
-- Claude will flag the exact handoff point in its next updates.
+- **NOW:** Claude builds `qubit-risk` M1 (heuristic sensitivity + Monte-Carlo CRQC timeline + Mosca) — core
+  math, Claude's lane.
+- **Good Antigravity hand-offs available in parallel:** remaining `qubit-api` routes + JobRunner/SSE (Gemini
+  Pro); config/network scanners + more detection rules (Gemini Flash); dashboard scaffold (Antigravity).
+- Claude flags the exact hand-off point in its updates.

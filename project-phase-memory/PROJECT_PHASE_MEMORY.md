@@ -32,6 +32,15 @@
   Quantum account, no quantum hardware, no quantum cloud service is required to build or run it. The
   qiskit/cirq/pennylane/qutip skills are only for an OPTIONAL paper illustration (a local-simulator
   Shor/Grover figure, qiskit-aer, no IBM account) — decide in Phase 3, not needed for the product.
+- **Active agents: Claude (orchestrator) + Google Antigravity (sub-agent).** OpenAI Codex + GitHub Copilot
+  are OUT OF CREDITS — not in rotation. Model is **assign best-fit, don't block anyone, orchestrator verifies
+  on return** (AGENT_WORK_SPLIT.md / CORE_PROMPTS.md). Antigravity runs Gemini 3.5 Flash / Gemini 3.1 Pro /
+  Claude Sonnet 4.6 / Claude Opus 4.6 / GPT-OSS 120B — pick by difficulty (Flash = cheap/bulk).
+- **OUTPUT DISCIPLINE (caveman):** every agent replies terse (fragments, no filler) to save credits — but
+  code, commands, diffs, paths, and LOG ENTRIES stay exact + complete, and no required step (gate, logging,
+  verification) is ever dropped for brevity. Baked into all CORE_PROMPTS prompts.
+- **Git identity:** commits use `Dharsan L <Dharsan2024@users.noreply.github.com>` — do NOT use the astradyne
+  email. (Commits before 2026-07-17 evening still carry the old email; not rewritten — pushed history.)
 
 ---
 
@@ -186,6 +195,17 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 - **Placeholder Packages:** Fixed formatting and line length issues in `qubit-bridge`, `qubit-migrate`, and `qubit-risk` docstrings.
 - **Testing & Quality:** Added `CliRunner` tests for the new CLI commands. Fixed Typer 0.26 option bugs and Alembic closed-stream test errors. Full suite passes (146 tests, 0 failures). Ruff and mypy checks are fully green across all 54 source files.
 - **Next:** qubit-risk M1 (heuristic sensitivity + Monte-Carlo CRQC timeline) or auth in qubit-api.
+
+### 2026-07-17 23:10 IST — Workflow update: caveman output discipline + Claude/Antigravity roster
+- Integrated the "caveman" output-compression technique (shrink what agents SAY, not what they DO) into
+  every CORE_PROMPTS prompt (B1–B4) + Part A A6 + AGENT_WORK_SPLIT rule 8 + §0 here. Terse prose; code/
+  commands/diffs/paths/logs stay exact; no required step dropped for brevity.
+- Roster: **Claude + Antigravity only** (Codex/Copilot out of credits). Reframed the model to **assign
+  best-fit, don't block anyone, orchestrator verifies on return** — AGENT_WORK_SPLIT rewritten (rules,
+  roster + Antigravity model picker, best-fit table, switch triggers Claude↔Antigravity). CORE_PROMPTS A1/A3/A5
+  updated to match (nobody blocked; provisional-until-verified).
+- Git identity set to `Dharsan L <Dharsan2024@users.noreply.github.com>` (no astradyne email going forward).
+- No product code changed this turn. Next unchanged: qubit-risk M1 (Claude).
 
 ### 2026-07-17 22:55 IST — Orchestrator review: qubit-api (Copilot) merged, auth bug fixed
 - Reviewed `copilot/api-db-persistence` (Copilot built the API; a Codex continuation pass committed it as

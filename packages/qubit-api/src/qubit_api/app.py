@@ -10,6 +10,7 @@ from .settings import Settings
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     app = FastAPI(title="QUBIT API", version="0.1.0")
+    app.state.settings = settings  # authoritative app-wide (auth reads this, not a fresh Settings)
     engine = get_engine(settings.db_url)
     app.state.engine = engine
     app.state.session_factory = session_factory(engine)

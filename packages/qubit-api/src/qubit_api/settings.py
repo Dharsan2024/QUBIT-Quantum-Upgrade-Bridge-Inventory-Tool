@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="QUBIT_", extra="ignore")
 
     db_url: str = Field(default_factory=default_db_url)
-    api_token: str = "qubit-dev-token-do-not-use-in-prod"
+    api_token: str = "qubit-dev-token-do-not-use-in-prod"  # noqa: S105 — dev default; override via QUBIT_API_TOKEN
     api_prefix: str = "/api/v1"
     bind_host: str = "127.0.0.1"
     bind_port: int = 8787

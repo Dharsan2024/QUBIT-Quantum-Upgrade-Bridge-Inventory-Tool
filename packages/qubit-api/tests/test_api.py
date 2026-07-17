@@ -144,3 +144,19 @@ def test_auth_whoami(tmp_path: Path) -> None:
         response = client.get("/api/v1/auth/whoami")
         assert response.status_code == 200
         assert response.json()["scopes"] == "rw"
+
+
+def test_custom_api_token_is_honored(tmp_path: Path) -> None:
+    # regression: create_app(settings) must thread the token into auth (not a fresh Settings()).
+    settings = Settings(
+        db_url=f"sqlite:///{(tmp_path / 'q.db').as_posix()}",
+        api_token="a-custom-token",
+        create_schema_on_startup=True,
+    )
+    app = create_app(settings)
+    with TestClient(app) as client:
+        assert client.get("/api/v1/projects").status_code == 401  # no token
+        ok = client.get("/api/v1/projects", headers={"Authorization": "Bearer a-custom-token"})
+        assert ok.status_code == 200
+        wrong = client.get("/api/v1/projects", headers={"Authorization": "Bearer default-token"})
+        assert wrong.status_code == 401

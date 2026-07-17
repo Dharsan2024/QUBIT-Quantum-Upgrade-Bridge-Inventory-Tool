@@ -147,130 +147,30 @@ Do not start until the §3 "must have" tools are installed and `ollama pull` has
 
 ---
 
-## 4b. UNIVERSAL HANDOFF PROMPT (paste this into a fresh agent to resume the project)
+## 4b. Prompts → see CORE_PROMPTS.md (single source of truth)
 
-> Copy everything inside the box and send it as your first message to a new agent (any model). It tells
-> the agent where it is, what to read, the rules, and how to continue + keep this log updated.
+All operating prompts live in **`project-phase-memory/CORE_PROMPTS.md`** (Part B), alongside an
+explanation of how the multi-agent workflow works (Part A). Use:
 
-```
-You are helping build QUBIT, a production-ready open-source post-quantum cryptography migration
-platform. I am the sole human builder; AI agents write most of the code and I review. You have NO prior
-context — this project's memory lives in files. Get context from them before doing anything.
+- **B1 Universal Handoff** — paste FIRST to any agent taking over (fresh start / model switch).
+- **B2 Orchestrator Resume** — paste to Claude when returning to review + absorb sub-agent work.
+- **B3 Sudden Credit-Out Continuation** — paste when an agent was cut off mid-task.
+- **B4 Task Assignment** — template to scope a concrete task to a sub-agent.
 
-STEP 1 — READ THESE FILES IN ORDER (do not skip any):
-1. project-phase-memory/PROJECT_PHASE_MEMORY.md   <- START HERE. Constraints (§0), current status (§2),
-   next action (§4), and the CHANGELOG (§5, newest first) show exactly where the last agent stopped.
-2. project-phase-memory/AGENT_WORK_SPLIT.md        <- which agent does what + the HARD boundaries.
-3. docs/BUILD_PLAN.md                              <- master plan + canonical cross-doc decisions (§4).
-4. docs/design/00-architecture-frame.md            <- BINDING: stack, monorepo layout, CryptoAsset schema.
-5. The specific docs/design/0X file for the subsystem you'll work on.
-
-STEP 2 — IDENTIFY YOUR LANE:
-State which agent you are (Claude / OpenAI Codex / GitHub Copilot / Google Gemini). Find your assigned
-packages and your BOUNDARIES in AGENT_WORK_SPLIT.md §0 + §2. You may ONLY work inside your lane. In
-particular, if you are NOT Claude: never edit packages/qubit-core/ (the frozen schema), never edit
-docs/design/** or the memory design docs, work on your own git branch, and open a PR — never push to main.
-
-HARD RULES (all agents):
-- PRODUCTION-READY, not a demo/simulation. Nothing stubbed or faked "for the demo." (The one legitimate
-  simulation is the CRQC-arrival risk timeline — see PROJECT_PHASE_MEMORY §0.)
-- Solo, continuous build. Ignore the two-person "Student A/B" split + exam-break timeline in the design
-  docs (university paperwork only).
-- Conform to the BINDING frame (docs/design/00) + BUILD_PLAN §4 canonical decisions. If two docs
-  disagree, BUILD_PLAN wins. The CryptoAsset schema in qubit-core is FROZEN (additive only, Claude only).
-- Import from qubit_core; never redefine its models. Match doc 05's normative REST registry exactly.
-- Quality gate before you call anything done:
-  `uv run ruff check <pkg> && uv run mypy <pkg>/src && uv run pytest <pkg> -q`  (all green).
-- Windows 11 (i7-14700HX / 16 GB / RTX 4060). Ollama runs natively on the GPU, not in Docker. Use
-  `uv run ...` for everything (Python 3.12 is pinned by the workspace).
-
-STEP 3 — DO THE WORK:
-- Do the PROJECT_PHASE_MEMORY §4 "Next action", OR the specific task I give you — but first confirm it's
-  inside your lane (STEP 2). If it isn't, tell me which agent should do it instead. If anything is
-  ambiguous, ask me ONE question, then proceed.
-- Work in small, verifiable increments; run the quality gate after each.
-
-STEP 4 — LOGGING IS MANDATORY AND CONTINUOUS (this is how continuity survives model switches):
-- WHERE you log: if you are Claude → PROJECT_PHASE_MEMORY.md §5 CHANGELOG. If you are a sub-agent
-  (Codex/Copilot/Gemini/Antigravity) → SUBAGENT_WORK_LOG.md. Also append the task/prompt you were given
-  to USER_PROMPTS_LOG.md. Use real timestamps: `date "+%Y-%m-%d %H:%M:%S %Z"`.
-- The MOMENT you start, add an entry noting what you're beginning.
-- Log AFTER EVERY meaningful step — never have more than ONE unlogged step of work. Do NOT wait until the
-  end. Assume you can be cut off (out of credits/context) at any instant.
-- If you sense you're running low MID-TASK: immediately write your partial progress AND the exact next
-  step into your log, commit, THEN stop. A cut-off with no log is the one failure that breaks the project's
-  continuity — avoid it above all. Treat "logged" as part of "done."
-- When finished: update §2 status + §4 "Next action" so the next agent knows the new state.
-
-Confirm you've read files 1–5, state which agent you are + your lane, the current phase, and the next
-concrete action — then start.
-```
-
----
-
-## 4c. ORCHESTRATOR RESUME PROMPT (paste to CLAUDE when you return after sub-agents worked)
-
-> Use this when you come back from running Codex / Copilot / Gemini / Antigravity and want Claude to
-> review what they did, keep/fix/remove it, and continue. Claude is the main orchestrator — it has final
-> say over everything that enters the project.
-
-```
-You are Claude, the ORCHESTRATOR of QUBIT. Sub-agents (Codex / Copilot / Gemini / Antigravity) may have
-done work while I was away. Review it, decide keep / update / remove, then continue building.
-
-1. READ: project-phase-memory/PROJECT_PHASE_MEMORY.md (§0 constraints, §5 changelog),
-   SUBAGENT_WORK_LOG.md (what sub-agents say they did), AGENT_WORK_SPLIT.md (the boundaries),
-   USER_PROMPTS_LOG.md (what I asked for), docs/BUILD_PLAN.md §4 (canonical decisions).
-2. SEE WHAT ACTUALLY CHANGED: `git status`, `git branch -a`, `git log --oneline -15`, and for each
-   sub-agent branch `git diff main...<branch> --stat` then read the important diffs.
-3. VERIFY every sub-agent change against:
-   - BOUNDARIES (AGENT_WORK_SPLIT §0): did it edit packages/qubit-core/ or docs/design/** or push to
-     main? If yes → suspect, scrutinize hard.
-   - The FROZEN CryptoAsset schema + BUILD_PLAN §4 canonical decisions + the relevant docs/design/0X.
-   - QUALITY GATE: `uv run ruff check <pkg> && uv run mypy <pkg>/src && uv run pytest <pkg> -q`.
-   - SEMANTIC CORRECTNESS: does it actually do the right thing? (e.g. do scanner rules resolve to real
-     algorithms with the correct quantum verdict? does an endpoint match doc 05's registry exactly?)
-4. DECIDE per change — you have final say:
-   - KEEP (verified good) → merge the branch to main.
-   - UPDATE (good idea, flawed execution) → fix it, then merge.
-   - REMOVE (breaks the core, deviates from the design, or lowers quality) → revert/discard and, if the
-     task still matters, redo it correctly or re-assign it.
-5. Merge good work; fix or discard the rest; commit clearly; push.
-6. LOG: write a KEEP/UPDATE/REMOVE verdict (with reason) on each SUBAGENT_WORK_LOG.md entry you reviewed;
-   add a PROJECT_PHASE_MEMORY §5 changelog entry; update §2 status + §4 Next action; append this prompt
-   to USER_PROMPTS_LOG.md with a timestamp (`date "+%Y-%m-%d %H:%M:%S %Z"`). Then continue the build.
-
-State your review verdict on each sub-agent change before you continue.
-```
-
-## 4d. SUDDEN CREDIT-OUT / CONTINUATION PROMPT (paste when an agent was cut off mid-task)
-
-> Use this if an agent (any model, including a fresh Claude) stopped in the MIDDLE of a task — ran out of
-> credits/context — and may have left unfinished or unlogged work. It recovers cleanly.
-
-```
-The previous agent may have run out of credits/context MID-TASK and stopped without finishing or logging.
-Recover before doing anything new:
-
-1. READ the newest entries in project-phase-memory/PROJECT_PHASE_MEMORY.md §5 and SUBAGENT_WORK_LOG.md —
-   the last line usually says what was in progress and the intended next step. Also read AGENT_WORK_SPLIT.md
-   (your lane) and, if you are Claude, §4c above (you are the orchestrator).
-2. FIND THE INTERRUPTED WORK: `git status` (uncommitted edits ARE the in-progress work), `git stash list`,
-   `git diff`, `git log --oneline -8`. Note the current branch.
-3. HEALTH CHECK: `uv run ruff check . ; uv run pytest -q`  (see what's green vs broken right now).
-4. JUDGE the in-progress change:
-   - Complete AND gate-green → just finish logging + commit it.
-   - Half-done → complete it following the relevant docs/design/0X + BUILD_PLAN, then gate + commit.
-   - Broken or unclear intent → revert it (`git checkout -- <files>`) and redo cleanly from the design.
-   Never build new work on top of an unverified half-finished change.
-5. From here on, LOG AFTER EVERY STEP (universal-prompt STEP 4 discipline) so a cut-off never loses a trail.
-
-State what interrupted work you found and its health, then continue.
-```
+They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS.md only.
 
 ---
 
 ## 5. CHANGELOG (newest first — every agent appends here)
+
+### 2026-07-17 06:29 IST — CORE_PROMPTS.md added (canonical prompt + workflow reference)
+- Created `project-phase-memory/CORE_PROMPTS.md`: **Part A** = how the multi-agent workflow works
+  (shared-memory files, roles, the handoff loop, safety mechanisms, which-prompt-when decision table) —
+  the reusable mechanism, not project subject matter; **Part B** = all operating prompts (B1 universal
+  handoff, B2 orchestrator resume, B3 sudden credit-out continuation, B4 task-assignment template).
+- De-duplicated: PROJECT_PHASE_MEMORY §4b/4c/4d now POINT to CORE_PROMPTS (single source of truth for prompts).
+- Build state unchanged (no code touched this turn). **Next** still: CBOM 1.7 export + `qubit rules
+  lint/test` CLI (Claude), or delegate a scoped task.
 
 ### 2026-07-17 — Orchestration: verified + merged Codex rules; agent infra; registry fix
 - **Reviewed Codex's `codex/scanner-rules`** (33 rules: py 18 / java 8 / go 7). Verdict **KEEP**: stayed in

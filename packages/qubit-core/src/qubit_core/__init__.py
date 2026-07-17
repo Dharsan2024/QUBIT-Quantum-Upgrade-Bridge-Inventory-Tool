@@ -8,6 +8,7 @@ algorithm registry (``algorithms``), deterministic ``fingerprint``, evidence ``r
 from __future__ import annotations
 
 from . import algorithms, redaction
+from .cbom import export_cbom, validate_cbom_structure
 from .fingerprint import fingerprint
 from .mapping import asset_to_row, row_to_asset
 from .schemas import (
@@ -54,8 +55,10 @@ __all__ = [
     "__version__",
     "algorithms",
     "asset_to_row",
+    "export_cbom",
     "fingerprint",
     "redaction",
     "row_to_asset",
     "utcnow",
+    "validate_cbom_structure",
 ]

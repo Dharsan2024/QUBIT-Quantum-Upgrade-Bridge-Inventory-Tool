@@ -85,9 +85,10 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
       - First Python rules: hashlib (MD5/SHA-1), cryptography (RSA keygen w/ key_size, EC keygen).
       - 24 scanner tests incl. auto-generated rule-example tests (every rule ships its own fixtures).
       - **Gate GREEN: ruff + mypy + 55 tests total.** tree-sitter 0.26 + language-pack 1.12.5.
-      - STILL TODO in M1: bulk detection rules (more Python libs, Java, Go) — **good Codex task now that
-        the format is proven**; minimal CBOM 1.7 export; Java grammar rules; `qubit rules lint/test` CLI.
-- [ ] Phase 1 (M1) remainder + Phase 2.  ← next
+      - DONE: bulk rules (33, via Codex), **CBOM 1.7 export**, **qubit CLI (scan + rules lint/list)**.
+      - M1 scanner path is end-to-end (discover → normalize → CBOM → CLI). 136 tests, gate green.
+- [ ] **Next:** DB persistence + qubit-api (doc 05) so scans land in the registry; then qubit-risk M1
+      (heuristic sensitivity + Monte-Carlo CRQC timeline). Config/network scanners + more rules = sub-agent.
 - [ ] Phase 2 (M2 feature-complete + live 4-phase demo).
 - [ ] Phase 3 (M3 hardening + paper experiments).
 
@@ -162,6 +163,26 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 ---
 
 ## 5. CHANGELOG (newest first — every agent appends here)
+
+### 2026-07-17 (later) — M1 scanner slice COMPLETE: CBOM 1.7 export + qubit CLI
+- **CBOM export (qubit-core/cbom, Claude's lane):** `export_cbom(assets)` → CycloneDX 1.7 dict
+  (cryptographic-asset components, algorithmProperties primitive/param/security-levels, oid, qubit:*
+  properties for quantum verdict/risk/fingerprint). Evidence omitted by default. `--reproducible` =
+  byte-identical (keyed on stable FINGERPRINT, not the random uuid — design fix found via a test).
+  `validate_cbom_structure()` structural check (full JSON-Schema validation vs vendored official schema
+  = planned follow-up). 9 CBOM tests.
+- **qubit CLI (qubit-cli):** `qubit scan <path> [--cbom out.json] [--json] [--repo] [--reproducible]
+  [--with-evidence]` — the frame's one-command promise; rich table (algorithm/usage/quantum/location/rule),
+  exit codes 0/1/3. `qubit rules lint` (33 rules compile) + `qubit rules list`. `qubit version`.
+  ASCII-safe output (Windows cp1252). 9 CLI tests. `qubit` script entrypoint registered.
+- **Verified live:** `qubit scan` on a demo file → RSA-2048 (vuln/shor) + MD5 (vuln/grover) table +
+  valid CycloneDX 1.7 CBOM written. `qubit rules lint` → "OK - 33 rules".
+- **Gate GREEN: ruff + mypy (24 files) + 136 tests.**
+- **M1 walking-skeleton scanner path is now end-to-end:** discover (code AST) → normalize (canonical +
+  redact + fingerprint) → inventory (CBOM 1.7) → CLI. 
+- **Next options:** (a) DB persistence + `qubit-api` FastAPI (doc 05) so scans land in the registry;
+  (b) more rules / config+network scanners (sub-agent); (c) start `qubit-risk` M1 (heuristic + MC timeline).
+  Recommend (a) next to make scans persistent + queryable, then the risk engine.
 
 ### 2026-07-17 06:29 IST — CORE_PROMPTS.md added (canonical prompt + workflow reference)
 - Created `project-phase-memory/CORE_PROMPTS.md`: **Part A** = how the multi-agent workflow works

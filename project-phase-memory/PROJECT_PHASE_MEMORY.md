@@ -39,8 +39,8 @@
 - **OUTPUT DISCIPLINE (caveman):** every agent replies terse (fragments, no filler) to save credits — but
   code, commands, diffs, paths, and LOG ENTRIES stay exact + complete, and no required step (gate, logging,
   verification) is ever dropped for brevity. Baked into all CORE_PROMPTS prompts.
-- **Git identity:** commits use `Dharsan L <Dharsan2024@users.noreply.github.com>` — do NOT use the astradyne
-  email. (Commits before 2026-07-17 evening still carry the old email; not rewritten — pushed history.)
+- **Git identity:** commits use `Dharsan L <dharsanlingadurai24@gmail.com>` — do NOT use the astradyne
+  email. (Commits before 2026-07-17 evening carry the old astradyne email; not rewritten — pushed history.)
 
 ---
 
@@ -100,9 +100,15 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
       projects/scans/assets CRUD, synchronous scan→DB ingestion, trends/summary/diff, CBOM export, registry,
       health/version, single-token auth; Alembic migration home in qubit-core (round-trips); expanded CLI
       (project/db/serve). 150 tests, gate green.
-- [ ] **Next:** `qubit-risk` M1 (heuristic sensitivity classifier + Monte-Carlo CRQC timeline + Mosca) —
-      Claude's lane (math). Then: JobRunner + SSE + remaining doc-05 routes (risk/migrations/jobs) = sub-agent;
-      config/network scanners + more rules = sub-agent; dashboard = sub-agent.
+- [ ] **Next (IN PROGRESS — building now, Claude):** `qubit-risk` M1 per docs/design/02 §6. Scope:
+      (1) `timeline/surface_code.py` + `timeline/simulator.py` — Monte-Carlo CRQC CDF per algorithm, with the
+      ×2 anchor calibration tests (Webber ECC-256 317M@1h/13M@24h, GE2019 RSA-2048 20M@8h; pin eta=1,gamma=0.35);
+      (2) heuristic sensitivity classifier (rules over evidence snippet) + shelf-life priors;
+      (3) `mosca.py` (margin + p_too_late); (4) static risk score v0 + pipeline annotating CryptoAssets;
+      (5) params YAML (hardware_priors, resource_estimates, sensitivity_rules, shelf_life_priors, mosca);
+      (6) tests (anchor calibration, monotonicity, mosca, sensitivity). Deps: numpy, scipy, pyyaml. NO survey
+      blend / BN / BERT / XGBoost yet (those are M2). Git config already set to personal email this session.
+      Then (sub-agent/Antigravity): JobRunner+SSE+remaining doc-05 routes; config/network scanners; dashboard.
 - [ ] Phase 2 (M2 feature-complete + live 4-phase demo).
 - [ ] Phase 3 (M3 hardening + paper experiments).
 

@@ -1,0 +1,43 @@
+id: py-weakhash-01
+language: python
+title: "SHA-1/MD5 weak hash → argon2id (passwords) or SHA-256 (generic digests)"
+matches:
+  algorithm: ["MD5", "SHA-1"]
+  usage_context: ["hashing", "password-hash", "mac", "digest"]
+  library_name: ["hashlib", "cryptography", null]
+target:
+  algorithm: SHA-256          # generic digest path
+  pqc_target: argon2id         # password-hash path
+  library:
+    name: argon2-cffi
+    min_version: "23.1.0"
+data_compat: dual_read
+semantic_note: >
+  For password hashing, use argon2-cffi (argon2id). Never use hashlib for
+  storing passwords. For generic digests (checksums, non-secret integrity),
+  upgrade to SHA-256 using hashlib.sha256(). The dual_read flag means
+  existing hashed values can still be verified (argon2id records parameters
+  in the hash string; SHA-256 digests are compared byte-by-byte) — no
+  immediate re-hash of stored data is required, but rehash on next login
+  is recommended.
+codemod: weakhash_to_argon2_or_sha256
+prompt_constraints:
+  - "Use argon2.PasswordHasher for password contexts."
+  - "Use hashlib.sha256 for generic digest contexts."
+  - "Do NOT import the old hashlib.md5 or hashlib.sha1 in the new code."
+  - "Preserve surrounding function signatures."
+example:
+  before: |
+    import hashlib
+    def store_password(pw: str) -> str:
+        return hashlib.sha1(pw.encode()).hexdigest()
+  after: |
+    from argon2 import PasswordHasher
+    _ph = PasswordHasher()
+    def store_password(pw: str) -> str:
+        return _ph.hash(pw)
+rescan_expect:
+  gone:
+    algorithm_prefix: "MD5"
+  present:
+    algorithm_prefix: "SHA-256"

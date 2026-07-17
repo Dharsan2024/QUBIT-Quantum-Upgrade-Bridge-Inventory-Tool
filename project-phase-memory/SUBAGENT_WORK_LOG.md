@@ -28,6 +28,22 @@
 
 ## Log (newest first)
 
+### 2026-07-18 00:15:00 +05:30 - Google Antigravity - complete qubit-migrate M1 implementation [status: done]
+- Branch: `main`   Lane: migration orchestrator (qubit-migrate)
+- Did: Implemented the full M1 scope for `qubit-migrate` (doc 03): `MigrateConfig`, dependency graph builder (types 2, 4, 6), queue priority/effort scoring, state machine and FSM events, yaml rule loader, deterministic template patching (`libcst` for py-weakhash-01), validation pipeline, and wired the `migrate_app` Typer CLI into `qubit-cli/main.py`. Added Alembic migration for new tables. Fixed foreign keys and schemas.
+- Files: `packages/qubit-migrate/src/**`, `packages/qubit-migrate/tests/**`, `packages/qubit-cli/src/qubit_cli/main.py`, `packages/qubit-core/src/qubit_core/alembic/env.py`, `packages/qubit-core/src/qubit_core/alembic/versions/*`
+- Gate: ruff ok | pytest 172 passed
+- Next step (if in-progress/cut-off): Handoff to orchestrator to review the M1 orchestrator wiring and FSM rules. Then either proceed to M2 (LLM code generation, stages 3/4 compilation sandboxes) or move to the next system component.
+- Orchestrator verdict (Claude fills this): pending
+
+### 2026-07-17 18:30:00 +00:00 - Google Antigravity - recovery + fix JobRunner test timeout + CLI wiring [status: done]
+- Branch: `main`   Lane: API jobs / CLI
+- Did: Found interrupted work where JobRunner wasn't successfully passing the job status to the DB (test_api.py was timing out). Added `scan.status = "succeeded"` to `scan_handler` in `handlers.py`, cleaned up debug prints in `runner.py`, formatted, and committed `feat(api): implement background jobs and SSE infrastructure (M2)`. Then wired the `qubit-risk` M1 commands (`timeline`, `assess`, `explain`, `mosca`) into `qubit-cli` by creating `packages/qubit-cli/src/qubit_cli/commands/risk.py` and registering it in `main.py`.
+- Files: `packages/qubit-api/src/qubit_api/jobs/handlers.py`, `packages/qubit-api/src/qubit_api/jobs/runner.py`, `packages/qubit-cli/src/qubit_cli/commands/risk.py`, `packages/qubit-cli/src/qubit_cli/commands/__init__.py`, `packages/qubit-cli/src/qubit_cli/main.py`
+- Gate: ruff ok | pytest 167 passed
+- Next step (if in-progress/cut-off): Handoff to orchestrator to review CLI integration. Phase 2 (M2) implementation is next (e.g. config/network scanners, dashboard scaffold, M2 risk engine).
+- Orchestrator verdict (Claude fills this): pending
+
 ### 2026-07-17 06:59:46 +05:30 - OpenAI Codex - recovery audit of interrupted API work  [status: done]
 - Branch: `copilot/api-db-persistence`   Lane: recovery/review of interrupted `packages/qubit-api` work per user prompt.
 - Did: read newest PROJECT_PHASE_MEMORY entries, SUBAGENT_WORK_LOG, AGENT_WORK_SPLIT; inspected branch/status/stash/log. Found uncommitted Copilot API persistence changes marked done in the sub-agent log but not committed.

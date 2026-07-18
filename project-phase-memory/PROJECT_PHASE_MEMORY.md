@@ -244,6 +244,15 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 - **Testing & Quality:** Added `CliRunner` tests for the new CLI commands. Fixed Typer 0.26 option bugs and Alembic closed-stream test errors. Full suite passes (146 tests, 0 failures). Ruff and mypy checks are fully green across all 54 source files.
 - **Next:** qubit-risk M1 (heuristic sensitivity + Monte-Carlo CRQC timeline) or auth in qubit-api.
 
+### 2026-07-18 (later) — Dashboard flagship page: Inventory restyled to the glass system
+- Inventory + AssetTable were still light-theme (bg-white/text-gray) clashing with the dark glass shell.
+  Restyled to the design system: glass KPI row (total / vulnerable / Shor / safe), glass-card table with
+  verdict chips (chip-danger shor / chip-warn grover / chip-safe) + a risk bar; kept the react-query data
+  wiring (fetchAssets). `npm run build` green. **This is the reference page** — the other 7 pages
+  (Projects, Risk, Timeline, Migrations, MigrationDetail, Scans, Cbom, Settings, Login) still need the same
+  treatment → good Antigravity (Gemini) task: "restyle page X to match Inventory.tsx + index.css glass
+  utilities (glass-card, chip, KPI pattern); keep data wiring; dark theme only; npm run build green."
+
 ### 2026-07-18 09:30 IST — Orchestrator review of Antigravity work + dashboard redesign (glass)
 - Reviewed everything Antigravity committed since 5490ed5 (qubit-risk M1 [mine, 8fa01fe], API jobs/SSE,
   risk CLI, qubit-migrate M1, qubit-bridge M1, scanner M2). **Verdict KEEP** — 180 tests pass repo-wide.

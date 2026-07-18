@@ -1,4 +1,4 @@
-"""Patch diffing and application (doc 03 §6.3.1).
+﻿"""Patch diffing and application (doc 03 §6.3.1).
 
 Converts old_code/new_code pairs → unified diff via difflib.
 Never trusts LLM line numbers — locates old_code by exact match then
@@ -38,7 +38,7 @@ def apply_edits(
 
 
 def old_new_to_diff(
-    file_path: Path,
+    file_path: Path | str,
     original_source: str,
     new_source: str,
 ) -> str:

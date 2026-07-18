@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import UTC
 from pathlib import Path
@@ -160,6 +161,15 @@ class MigrationOrchestrator:
         if repo_root:
             file_path = repo_root / file_path
 
+        # Diff headers + the stored patch path are repo-relative (posix) whenever the file
+        # sits under repo_root — required for `git apply` to work from the repo root.
+        # Absolute paths only remain for repo-less generation (no apply possible there).
+        diff_path = str(file_path)
+        if repo_root:
+            # file outside repo_root keeps its absolute path (repo-less generation only)
+            with contextlib.suppress(ValueError):
+                diff_path = file_path.resolve().relative_to(repo_root.resolve()).as_posix()
+
         rule = match_rule(asset, self._rules)
         if not rule:
             self._fail_task(task, "no rule matched")
@@ -186,7 +196,7 @@ class MigrationOrchestrator:
             self._fail_task(task, f"Codemod error: {e}")
             raise
 
-        diff = old_new_to_diff(file_path, orig, new)
+        diff = old_new_to_diff(diff_path, orig, new)
         report = validate_patch(
             diff_text=diff,
             patched_source=new,
@@ -198,7 +208,7 @@ class MigrationOrchestrator:
         patch = PatchProposal(
             task_id=task.id,
             generator="template",
-            file_path=str(file_path),
+            file_path=diff_path,
             base_sha256=file_sha256(file_path),
             diff_text=diff,
             validation_json=report.as_dict(),

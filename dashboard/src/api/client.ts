@@ -127,8 +127,11 @@ export async function fetchPlanQueue(planId: string): Promise<MigrationTask[]> {
   return send<MigrationTask[]>(`/migrate/plans/${planId}/queue`);
 }
 
-export async function generatePatch(taskId: string): Promise<MigrationPatch> {
-  return send<MigrationPatch>(`/migrate/tasks/${taskId}/generate`, "POST", {});
+export async function generatePatch(
+  taskId: string,
+  generator: "auto" | "llm" | "template" = "auto",
+): Promise<MigrationPatch> {
+  return send<MigrationPatch>(`/migrate/tasks/${taskId}/generate`, "POST", { generator });
 }
 
 export async function fetchTaskPatches(taskId: string): Promise<MigrationPatch[]> {

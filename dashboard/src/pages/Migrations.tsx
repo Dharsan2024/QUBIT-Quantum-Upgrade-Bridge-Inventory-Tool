@@ -37,6 +37,7 @@ function StateChip({ state }: { state: string }) {
 function TaskRow({ task }: { task: MigrationTask }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [generator, setGenerator] = useState<'auto' | 'llm' | 'template'>('auto');
 
   const { data: patches } = useQuery({
     queryKey: ['patches', task.id],
@@ -45,7 +46,7 @@ function TaskRow({ task }: { task: MigrationTask }) {
   });
 
   const gen = useMutation({
-    mutationFn: () => generatePatch(task.id),
+    mutationFn: () => generatePatch(task.id, generator),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['patches', task.id] });
       qc.invalidateQueries({ queryKey: ['migrate-queue'] });
@@ -90,18 +91,30 @@ function TaskRow({ task }: { task: MigrationTask }) {
         </td>
         <td className="px-4 py-3 text-right">
           {task.rule_id && task.state === 'ready' && (
-            <button
-              onClick={() => gen.mutate()}
-              disabled={gen.isPending}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-400/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
-            >
-              {gen.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Wand2 className="h-3.5 w-3.5" />
-              )}
-              Generate
-            </button>
+            <span className="inline-flex items-center gap-2">
+              <select
+                value={generator}
+                onChange={(e) => setGenerator(e.target.value as 'auto' | 'llm' | 'template')}
+                className="glass-input px-2 py-1.5 text-xs"
+                title="auto = codemod when available; llm = local Ollama model"
+              >
+                <option value="auto">auto</option>
+                <option value="template">template</option>
+                <option value="llm">llm</option>
+              </select>
+              <button
+                onClick={() => gen.mutate()}
+                disabled={gen.isPending}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-400/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
+              >
+                {gen.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Wand2 className="h-3.5 w-3.5" />
+                )}
+                Generate
+              </button>
+            </span>
           )}
           {!task.rule_id && (
             <span className="text-xs text-[color:var(--color-ink-faint)]">no codemod rule</span>
@@ -130,7 +143,9 @@ function TaskRow({ task }: { task: MigrationTask }) {
                 <div className="flex flex-wrap items-center gap-3 text-xs">
                   <StateChip state={latest.status} />
                   <span className="font-mono text-[color:var(--color-ink-faint)]">
-                    {latest.generator} · {latest.file_path.split(/[\\/]/).pop()}
+                    {latest.generator}
+                    {latest.model_name ? ` (${latest.model_name})` : ''} ·{' '}
+                    {latest.file_path.split(/[\\/]/).pop()}
                   </span>
                   {latest.validation?.stages &&
                     Object.entries(latest.validation.stages).map(([name, s]) => (

@@ -107,6 +107,7 @@ export interface MigrationPatch {
   id: string;
   task_id: string;
   generator: string;
+  model_name: string | null;
   file_path: string;
   diff_text: string;
   validation: {

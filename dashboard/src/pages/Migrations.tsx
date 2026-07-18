@@ -1,143 +1,303 @@
-import { Link } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatedPage } from '../components/AnimatedPage';
-import { Terminal, RefreshCw, ArrowRight } from 'lucide-react';
-import { fetchScanAssets } from '../api/client';
-import { useActiveScan } from '../hooks/useActiveScan';
-import type { CryptoAsset } from '../api/types';
+import {
+  Terminal,
+  RefreshCw,
+  Play,
+  Check,
+  X,
+  Loader2,
+  ChevronDown,
+  ChevronRight,
+  Wand2,
+} from 'lucide-react';
+import {
+  createPlan,
+  fetchPlanQueue,
+  fetchPlans,
+  fetchTaskPatches,
+  generatePatch,
+  reviewPatch,
+} from '../api/client';
+import type { MigrationTask } from '../api/types';
 
-// Recommended post-quantum / hardened replacement for a vulnerable asset. Heuristic by attack +
-// usage; the authoritative codemod target is chosen by the `qubit migrate` planner on the backend.
-function recommend(asset: CryptoAsset): string {
-  const ctx = asset.usage_context;
-  if (asset.quantum_vulnerable.attack === 'shor') {
-    if (ctx === 'signature' || ctx === 'token') return 'ML-DSA-65';
-    return 'ML-KEM-768';
-  }
-  if (asset.quantum_vulnerable.attack === 'grover') {
-    if (ctx === 'hash') return 'SHA-256';
-    if (ctx === 'password') return 'Argon2id';
-    return 'AES-256';
-  }
-  return '—';
+function StateChip({ state }: { state: string }) {
+  const cls =
+    state === 'ready'
+      ? 'chip'
+      : state === 'applied' || state === 'done' || state === 'approved'
+        ? 'chip chip-safe'
+        : state === 'failed'
+          ? 'chip chip-danger'
+          : 'chip chip-warn';
+  return <span className={cls}>{state.replace(/_/g, ' ')}</span>;
 }
 
-function locOf(a: CryptoAsset): string {
-  const l = a.location;
-  if (l.file_path) return `${l.file_path}${l.line ? `:${l.line}` : ''}`;
-  if (l.host) return `${l.host}:${l.service ?? ''}`;
-  return 'unknown';
+function TaskRow({ task }: { task: MigrationTask }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  const { data: patches } = useQuery({
+    queryKey: ['patches', task.id],
+    queryFn: () => fetchTaskPatches(task.id),
+    enabled: open,
+  });
+
+  const gen = useMutation({
+    mutationFn: () => generatePatch(task.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['patches', task.id] });
+      qc.invalidateQueries({ queryKey: ['migrate-queue'] });
+      setOpen(true);
+    },
+  });
+
+  const review = useMutation({
+    mutationFn: ({ patchId, approve }: { patchId: string; approve: boolean }) =>
+      reviewPatch(patchId, approve),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['patches', task.id] });
+      qc.invalidateQueries({ queryKey: ['migrate-queue'] });
+    },
+  });
+
+  const latest = patches?.[0];
+
+  return (
+    <>
+      <tr className="transition-colors hover:bg-black/10">
+        <td className="px-4 py-3">
+          <button
+            onClick={() => setOpen(!open)}
+            className="text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)]"
+          >
+            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
+        </td>
+        <td className="px-4 py-3 font-mono text-xs text-[color:var(--color-ink)]">
+          {task.file_path ? `${task.file_path.split(/[\\/]/).slice(-2).join('/')}${task.line ? `:${task.line}` : ''}` : '—'}
+        </td>
+        <td className="px-4 py-3">
+          <span className="inline-flex rounded border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-xs text-[color:var(--color-danger)]">
+            {task.algorithm ?? '?'}
+          </span>
+        </td>
+        <td className="px-4 py-3 font-mono text-xs">{task.rule_id ?? '—'}</td>
+        <td className="px-4 py-3 text-xs tabular-nums">{task.priority.toFixed(3)}</td>
+        <td className="px-4 py-3">
+          <StateChip state={task.state} />
+        </td>
+        <td className="px-4 py-3 text-right">
+          {task.rule_id && task.state === 'ready' && (
+            <button
+              onClick={() => gen.mutate()}
+              disabled={gen.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-400/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
+            >
+              {gen.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Wand2 className="h-3.5 w-3.5" />
+              )}
+              Generate
+            </button>
+          )}
+          {!task.rule_id && (
+            <span className="text-xs text-[color:var(--color-ink-faint)]">no codemod rule</span>
+          )}
+        </td>
+      </tr>
+      {gen.isError && (
+        <tr>
+          <td colSpan={7} className="px-4 pb-2">
+            <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+              {gen.error instanceof Error ? gen.error.message : 'generation failed'}
+            </div>
+          </td>
+        </tr>
+      )}
+      {open && (
+        <tr>
+          <td colSpan={7} className="bg-black/15 px-6 py-4">
+            {!patches?.length && (
+              <div className="text-xs text-[color:var(--color-ink-faint)]">
+                No patches yet — generate one.
+              </div>
+            )}
+            {latest && (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <StateChip state={latest.status} />
+                  <span className="font-mono text-[color:var(--color-ink-faint)]">
+                    {latest.generator} · {latest.file_path.split(/[\\/]/).pop()}
+                  </span>
+                  {latest.validation?.stages &&
+                    Object.entries(latest.validation.stages).map(([name, s]) => (
+                      <span
+                        key={name}
+                        title={s.detail}
+                        className={
+                          s.status === 'pass'
+                            ? 'text-[color:var(--color-safe)]'
+                            : s.status === 'fail'
+                              ? 'text-[color:var(--color-danger)]'
+                              : 'text-[color:var(--color-ink-faint)]'
+                        }
+                      >
+                        {name}:{s.status}
+                      </span>
+                    ))}
+                  {latest.status === 'proposed' && (
+                    <span className="ml-auto flex gap-2">
+                      <button
+                        onClick={() => review.mutate({ patchId: latest.id, approve: true })}
+                        disabled={review.isPending}
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 font-medium text-[color:var(--color-safe)] hover:bg-emerald-500/20"
+                      >
+                        <Check className="h-3.5 w-3.5" /> Approve
+                      </button>
+                      <button
+                        onClick={() => review.mutate({ patchId: latest.id, approve: false })}
+                        disabled={review.isPending}
+                        className="inline-flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 font-medium text-rose-300 hover:bg-rose-500/20"
+                      >
+                        <X className="h-3.5 w-3.5" /> Reject
+                      </button>
+                    </span>
+                  )}
+                  {latest.status === 'approved' && (
+                    <span className="ml-auto font-mono text-[color:var(--color-ink-faint)]">
+                      apply via: qubit migrate apply
+                    </span>
+                  )}
+                </div>
+                <pre className="max-h-64 overflow-auto rounded-lg border border-[color:var(--glass-border)] bg-black/40 p-3 font-mono text-xs leading-relaxed">
+                  {latest.diff_text.split('\n').map((l, i) => (
+                    <div
+                      key={i}
+                      className={
+                        l.startsWith('+') && !l.startsWith('+++')
+                          ? 'text-emerald-300'
+                          : l.startsWith('-') && !l.startsWith('---')
+                            ? 'text-rose-300'
+                            : 'text-[color:var(--color-ink-dim)]'
+                      }
+                    >
+                      {l}
+                    </div>
+                  ))}
+                </pre>
+              </div>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
+  );
 }
 
 export function Migrations() {
-  const { activeScanId, activeScan } = useActiveScan();
+  const qc = useQueryClient();
 
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['assets', activeScanId],
-    queryFn: () => fetchScanAssets(activeScanId as string),
-    enabled: !!activeScanId,
+  const plansQ = useQuery({ queryKey: ['migrate-plans'], queryFn: fetchPlans });
+  const activePlan = plansQ.data?.find((p) => p.status === 'active') ?? plansQ.data?.[0];
+
+  const queueQ = useQuery({
+    queryKey: ['migrate-queue', activePlan?.id],
+    queryFn: () => fetchPlanQueue(activePlan!.id),
+    enabled: !!activePlan && activePlan.status === 'active',
   });
 
-  const candidates = (data?.items ?? [])
-    .filter((a) => a.quantum_vulnerable.vulnerable)
-    .sort((a, b) => (b.risk?.score ?? 0) - (a.risk?.score ?? 0));
+  const build = useMutation({
+    mutationFn: () => createPlan(0),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['migrate-plans'] }),
+  });
+
+  const tasks = queueQ.data ?? [];
 
   return (
     <AnimatedPage className="flex flex-col gap-5 py-4">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Migration Queue</h1>
           <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">
-            {activeScan
-              ? `Recommended replacements for vulnerable assets · scan #${activeScan.seq}`
-              : 'Prioritized cryptographic migration candidates.'}
+            {activePlan
+              ? `Plan ${activePlan.id.slice(0, 8)} · ${activePlan.stats.tasks ?? 0} tasks / ${activePlan.stats.units ?? 0} units`
+              : 'Build a plan from risk-annotated assets, then generate and review patches.'}
           </p>
         </div>
+        <button
+          onClick={() => build.mutate()}
+          disabled={build.isPending}
+          className="glass-input flex items-center gap-2 border-indigo-400/40 text-sm font-medium hover:border-indigo-400/70 disabled:opacity-50"
+        >
+          {build.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Play className="h-4 w-4" />
+          )}
+          Build Plan
+        </button>
       </header>
 
-      <div className="glass-card flex items-start gap-3 border-indigo-400/30 bg-indigo-500/5 p-4 text-sm text-[color:var(--color-ink-dim)]">
-        <Terminal className="mt-0.5 h-4 w-4 flex-shrink-0 text-indigo-300" />
-        <div>
-          Patch generation and apply run through the CLI in M1:{' '}
-          <span className="font-mono text-indigo-300">
-            qubit migrate plan {activeScan?.targets.join(' ') ?? '<path>'}
-          </span>
-          . The interactive approve/apply workflow via the API lands in M2.
-        </div>
-      </div>
-
-      {!activeScanId && (
-        <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">
-          No scans yet.{' '}
-          <Link to="/scans" className="text-indigo-300 hover:text-indigo-200">
-            Run a scan
-          </Link>{' '}
-          to find migration candidates.
-        </div>
-      )}
-
-      {isError && (
+      {(plansQ.isError || build.isError) && (
         <div className="glass-card border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
-          Could not load candidates: {error instanceof Error ? error.message : 'unknown error'}.
+          {(() => {
+            const e = build.error ?? plansQ.error;
+            return e instanceof Error ? e.message : 'request failed';
+          })()}
+          <span className="text-[color:var(--color-ink-faint)]"> Is the API running on :8787?</span>
         </div>
       )}
 
-      {isLoading && (
+      {activePlan?.status === 'completed' && (
+        <div className="glass-card p-6 text-center text-sm text-[color:var(--color-ink-dim)]">
+          {activePlan.stats.message ?? 'Plan completed — no vulnerable assets in scope.'}
+        </div>
+      )}
+
+      {plansQ.isLoading && (
         <div className="glass-card flex items-center justify-center gap-3 p-12 text-[color:var(--color-ink-dim)]">
-          <RefreshCw className="h-4 w-4 animate-spin" /> Loading candidates…
+          <RefreshCw className="h-4 w-4 animate-spin" /> Loading plans…
         </div>
       )}
 
-      {data && (
+      {activePlan?.status === 'active' && (
         <div className="glass-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-[color:var(--color-ink-dim)]">
               <thead className="border-b border-[color:var(--glass-border)] bg-black/10 text-xs uppercase tracking-wide">
                 <tr>
-                  <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Asset</th>
-                  <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Current</th>
-                  <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Recommended</th>
-                  <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Risk</th>
+                  <th className="w-8 px-4 py-3" />
+                  <th className="px-4 py-3 font-medium text-[color:var(--color-ink)]">Asset</th>
+                  <th className="px-4 py-3 font-medium text-[color:var(--color-ink)]">Algorithm</th>
+                  <th className="px-4 py-3 font-medium text-[color:var(--color-ink)]">Rule</th>
+                  <th className="px-4 py-3 font-medium text-[color:var(--color-ink)]">WSJF</th>
+                  <th className="px-4 py-3 font-medium text-[color:var(--color-ink)]">State</th>
+                  <th className="px-4 py-3 text-right font-medium text-[color:var(--color-ink)]">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[color:var(--glass-border)]">
-                {candidates.map((a) => (
-                  <tr key={a.id} className="transition-colors hover:bg-black/10">
-                    <td className="px-6 py-4 font-mono text-xs text-[color:var(--color-ink)]">
-                      {locOf(a)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex rounded border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-xs text-[color:var(--color-danger)]">
-                        {a.algorithm}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center gap-1 rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-xs text-[color:var(--color-safe)]">
-                        <ArrowRight className="h-3 w-3" /> {recommend(a)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-16 overflow-hidden rounded-full border border-[color:var(--glass-border)] bg-black/40">
-                          <div
-                            className="h-full bg-gradient-to-r from-amber-500 to-rose-500"
-                            style={{ width: `${Math.round((a.risk?.score ?? 0) * 100)}%` }}
-                          />
-                        </div>
-                        <span className="text-xs tabular-nums">
-                          {(a.risk?.score ?? 0).toFixed(2)}
-                        </span>
-                      </div>
+                {tasks.map((t) => (
+                  <TaskRow key={t.id} task={t} />
+                ))}
+                {queueQ.isLoading && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center">
+                      <Loader2 className="inline h-4 w-4 animate-spin" /> Loading queue…
                     </td>
                   </tr>
-                ))}
-                {candidates.length === 0 && (
+                )}
+                {!queueQ.isLoading && tasks.length === 0 && (
                   <tr>
                     <td
-                      colSpan={4}
-                      className="px-6 py-10 text-center text-[color:var(--color-ink-faint)]"
+                      colSpan={7}
+                      className="px-4 py-8 text-center text-[color:var(--color-ink-faint)]"
                     >
-                      No vulnerable assets — nothing to migrate. 🎉
+                      Queue is empty.
                     </td>
                   </tr>
                 )}
@@ -146,6 +306,22 @@ export function Migrations() {
           </div>
         </div>
       )}
+
+      {!activePlan && plansQ.data && (
+        <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">
+          No migration plans yet. Run a scan first, then Build Plan.
+        </div>
+      )}
+
+      <div className="glass-card flex items-start gap-3 border-indigo-400/20 bg-indigo-500/5 p-4 text-xs text-[color:var(--color-ink-faint)]">
+        <Terminal className="mt-0.5 h-4 w-4 flex-shrink-0 text-indigo-300" />
+        <div>
+          Applying approved patches to a working tree runs via{' '}
+          <span className="font-mono text-indigo-300">qubit migrate apply</span> (or{' '}
+          <span className="font-mono text-indigo-300">POST /migrate/patches/&#123;id&#125;/apply</span>{' '}
+          with a repo root) so git safety checks run against the target checkout.
+        </div>
+      </div>
     </AnimatedPage>
   );
 }

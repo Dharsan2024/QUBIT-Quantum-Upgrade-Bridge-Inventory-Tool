@@ -190,6 +190,17 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (aft-2) — Apply leg proven e2e; 4th latent bug fixed (Claude, Fable)
+- **BUG (apply-blocker):** generated diffs used absolute Windows paths in headers → `git apply`
+  and the `applies` validation stage failed ("invalid path"); apply could never have worked.
+  Fixed: `generate_patch` emits repo-relative posix diff paths + stores `patch.file_path`
+  relative when the file sits under `repo_root`. (7f4d720)
+- **New e2e proof** (`test_apply_e2e.py`): real git repo → plan → generate (`applies` stage passes)
+  → approve → apply → **file rewritten on disk, committed on `pqc-migration` branch** → verify passes.
+  The full doc-03 loop (scan→plan→generate→review→apply→verify) is now covered by real tests.
+- Gate: **187 tests**, ruff+mypy clean.
+- **Next:** qubit-risk M2 (survey blend, Bayesian net) OR JobRunner async polish OR qubit-bridge polish.
+
 ### 2026-07-18 (aft) — M2 migration workflow over REST + Migrations page interactive (Claude, Fable)
 Found + fixed 3 REAL latent bugs while building it, then shipped the full workflow.
 - **BUG (crasher):** `MigrationOrchestrator` used `select(CryptoAsset)` / `session.get(CryptoAsset, ...)`

@@ -1,0 +1,46 @@
+id: py-rsa-kex-01
+language: python
+title: "RSA key transport/encryption → ML-KEM-768 hybrid (HPKE pattern)"
+matches:
+  algorithm: ["RSA-1024", "RSA-2048", "RSA-3072", "RSA-4096"]
+  # canonical qubit-core UsageContext values
+  usage_context: ["kex", "encryption-at-rest", "unknown"]
+  library_name: ["cryptography", "pycryptodome", "rsa", null]
+target:
+  algorithm: ML-KEM-768
+  pqc_target: ML-KEM-768
+  library:
+    name: pqcrypto
+    min_version: "0.3.0"
+data_compat: reencrypt_required
+semantic_note: >
+  RSA key transport (encrypting data or session keys under an RSA public key) is
+  Shor-breakable and HNDL-exposed. Replace with an ML-KEM-768 KEM-DEM pattern:
+  encapsulate to the recipient's ML-KEM public key to derive a shared secret, then
+  encrypt the payload with AES-256-GCM under that secret. Key generation switches from
+  rsa.generate_private_key to ML-KEM keypair generation. Existing RSA ciphertexts must
+  be re-encrypted (no dual-read); keep the old private key available for migration only.
+codemod: null   # structural rewrite — LLM generation with the constraints below
+prompt_constraints:
+  - "Use ML-KEM-768 (Kyber) via `from pqcrypto.kem.ml_kem_768 import generate_keypair, encrypt as kem_encapsulate, decrypt as kem_decapsulate`."
+  - "Derive the DEM key from the KEM shared secret and encrypt payloads with AESGCM from cryptography.hazmat.primitives.ciphers.aead."
+  - "Remove rsa.generate_private_key and every RSA/OAEP usage; do NOT keep RSA imports."
+  - "Return/serialize ciphertext as kem_ciphertext + nonce + aesgcm_ciphertext (hex), keeping the surrounding function signatures and routes unchanged."
+  - "Do not invent helper modules; everything stays in this file."
+example:
+  before: |
+    from cryptography.hazmat.primitives.asymmetric import rsa, padding
+    PRIVATE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    PUBLIC_KEY = PRIVATE_KEY.public_key()
+    ciphertext = PUBLIC_KEY.encrypt(message, padding.OAEP(...))
+  after: |
+    import os
+    from pqcrypto.kem.ml_kem_768 import generate_keypair, encrypt as kem_encapsulate
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    PUBLIC_KEY, PRIVATE_KEY = generate_keypair()
+    kem_ct, shared = kem_encapsulate(PUBLIC_KEY)
+    nonce = os.urandom(12)
+    ciphertext = AESGCM(shared[:32]).encrypt(nonce, message, None)
+rescan_expect:
+  gone:
+    algorithm_prefix: ["RSA-"]

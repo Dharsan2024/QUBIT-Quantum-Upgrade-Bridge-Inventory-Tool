@@ -14,6 +14,12 @@ Read project memory/design files 1-6 in order, identify Copilot lane, and start 
 work item: DB persistence + `qubit-api` FastAPI service so scans are stored in the registry and
 become queryable/trend-able.
 
+### 2026-07-18 (aft) IST — Claude (switched to Fable 5)
+"Continue — Fable won't be available after two, so build everything with that." → Built the M2 REST
+migration workflow: fixed 3 latent bugs (orchestrator Pydantic-vs-ORM crasher, dead codemod rule,
+scan/risk race), added the /migrate API router + e2e tests, wired the Migrations page interactive,
+proved plan→generate→approve live over HTTP. 186 tests green.
+
 ### 2026-07-18 (later) IST — Claude
 "JUST MAKE SURE ALL THESE REAL WORKING — you aren't fooling me by making mock AI-generated content;
 this should work in real life systems. ALSO CONTINUE." → Proved realness (scanner on demo-lab; MC

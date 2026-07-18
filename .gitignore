@@ -61,3 +61,6 @@ Thumbs.db
 
 # --- Agent scratch ---
 .claude/
+
+# Reproducible synthetic corpora (regenerate: qubit risk gen-dataset)
+datasets/

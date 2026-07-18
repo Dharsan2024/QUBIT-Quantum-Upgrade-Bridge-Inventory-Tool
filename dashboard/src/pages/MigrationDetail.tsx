@@ -26,10 +26,15 @@ export function MigrationDetail() {
       </div>
 
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Generate a Migration Patch</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Migration via the CLI</h1>
         <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">
-          In M1 patch generation, review, and apply run through the <span className="font-mono">qubit migrate</span> CLI.
-          The interactive in-dashboard diff review and approve/apply workflow lands in M2.
+          Plan, generate, and review run interactively on the{' '}
+          <Link to="/migrations" className="text-indigo-300 hover:text-indigo-200">
+            Migration Queue
+          </Link>{' '}
+          page. The equivalent <span className="font-mono">qubit migrate</span> CLI flow below also
+          covers <span className="font-mono">apply</span>, which runs against a git checkout so the
+          safety checks (clean tree, file-hash guard, branch/commit) execute where the code lives.
         </p>
       </header>
 

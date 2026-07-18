@@ -190,6 +190,20 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (aft-3) — LLM patch generation LIVE via local Ollama (Claude, Fable) — e155e16
+- `transform/llm.py`: prompt = rule semantic_note + hard constraints + full source; model returns the
+  complete rewritten file in a fenced block; temp 0; urllib only (no new deps). Orchestrator
+  `generator="llm"` (or auto w/o codemod) → records generator+model_name; auto still prefers the
+  deterministic codemod; the SAME validation pipeline gates LLM output (never trusted blindly).
+  API `GenerateRequest.generator` passthrough; `PatchOut.model_name`.
+- **LIVE proof (RTX 4060, qwen2.5-coder:7b-instruct-q4_K_M):** against the real demo-lab Flask app the
+  model recognized the *password* context and rewrote `hashlib.sha1(password)` → argon2
+  `PasswordHasher` (import + init included) — context-aware beyond the template codemod.
+  parses✓ rescan✓ → proposed.
+- Note: Ollama server must be running (`ollama serve`); models pulled: qwen2.5-coder:7b, gemma4:12b.
+- Gate: **192 tests**, ruff+mypy clean.
+- **Next:** qubit-risk M2 OR JobRunner async polish OR bridge/demo-lab e2e (`qubit demo run`).
+
 ### 2026-07-18 (aft-2) — Apply leg proven e2e; 4th latent bug fixed (Claude, Fable)
 - **BUG (apply-blocker):** generated diffs used absolute Windows paths in headers → `git apply`
   and the `applies` validation stage failed ("invalid path"); apply could never have worked.

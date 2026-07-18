@@ -190,6 +190,34 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (aft) — M2 migration workflow over REST + Migrations page interactive (Claude, Fable)
+Found + fixed 3 REAL latent bugs while building it, then shipped the full workflow.
+- **BUG (crasher):** `MigrationOrchestrator` used `select(CryptoAsset)` / `session.get(CryptoAsset, ...)`
+  on the *Pydantic* schema → SQLAlchemy `ArgumentError` at runtime; every DB entrypoint (`qubit migrate
+  plan/generate/verify`) would crash. Fixed: query `AssetRow`, hydrate via `row_to_asset`; `_load_asset`
+  helper; `_sync_public_status` writes `migration_status`+`migration_json` on the row (always incl. the
+  required `recommendation`). Also fixed scope filter (`quantum_vulnerable.vulnerable` — a Pydantic model
+  is always truthy so safe assets were in scope). Regression tests in `test_orchestrator.py`. (7a69a6a)
+- **BUG (dead rule):** `py-weakhash-01` matched NO real assets — its `usage_context` values
+  (hashing/digest/…) don't exist in the frozen UsageContext enum (hash/password). Fixed to canonical
+  values. Its `rescan_expect present: SHA-256` was unsatisfiable (scanner reports only vulnerable
+  crypto) → now expects MD5+SHA-1 *gone*; validate accepts prefix lists.
+- **BUG (race + ignored flag):** API `run_risk` was silently ignored (sync path) / hardcoded (job path),
+  and `scan_handler` flipped the scan to `succeeded` BEFORE the chained risk run → clients polling
+  status read `risk=None`. Fixed: `annotate_scan_risk` service, flag threaded through, status flips
+  only after risk chain. (047be2f)
+- **NEW:** `/migrate` REST router in qubit-api (doc 03 §5.1 over REST): POST/GET plans, GET
+  plans/{id}/queue (+denormalized asset context), POST tasks/{id}/generate, GET tasks/{id}/patches,
+  POST patches/{id}/review, POST patches/{id}/apply. qubit-api now deps qubit-migrate; state tables
+  register on shared Base. E2E test: scan→plan→queue→generate→approve→double-review-422.
+- **Dashboard Migrations page now interactive** (fdf8ab9): Build Plan, ranked WSJF queue, per-task
+  Generate → inline colorized diff + validation-stage chips, Approve/Reject.
+- **Proven live over HTTP:** plan (4 tasks/2 units from the real registry) → SHA-1 task → real argon2
+  codemod diff generated against `demo-lab/vulnapp-python/app.py` (parses✓ rescan✓) → approved.
+- Gate: **186 tests pass**, ruff+mypy clean, dashboard build green. NOTE: root env needs
+  `uv sync --all-packages` (plain `uv sync` prunes workspace members).
+- **Next:** qubit-risk M2 (survey blend, Bayesian net) OR JobRunner async polish OR qubit-bridge.
+
 ### 2026-07-18 (later) — Live-data wiring COMPLETE: every dashboard page is real (Claude, Opus)
 Finished removing ALL mock data from the dashboard; every page now reads the live qubit-api.
 - **Authed client** (`api/client.ts`): generic `send()` (GET/POST/DELETE + 204), bearer token from

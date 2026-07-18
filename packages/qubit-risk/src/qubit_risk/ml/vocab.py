@@ -143,4 +143,26 @@ CODE_TEMPLATES: dict[str, list[str]] = {
     ],
 }
 
+# Held-out code templates — structurally different from CODE_TEMPLATES, used ONLY for the
+# generalization eval so a high score can't come from memorizing training template shapes.
+HOLDOUT_CODE_TEMPLATES: dict[str, list[str]] = {
+    "python": [
+        "import hmac, hashlib\n{comment}\nsig = hmac.new(key, {a}.encode(), hashlib.sha1).hexdigest()",
+        "from Crypto.Cipher import PKCS1_v1_5\n{comment}\nenc = cipher.encrypt({a})  # {b}",
+        "{comment}\ntoken = base64.b64encode(hashlib.sha1({a}).digest())",
+    ],
+    "java": [
+        "// {comment}\nSignature s = Signature.getInstance(\"SHA1withRSA\"); s.update({a}.getBytes());",
+        "// {comment}\nSecretKeySpec k = new SecretKeySpec({a}.getBytes(), \"HmacSHA1\"); // {b}",
+    ],
+    "go": [
+        "// {comment}\nmac := hmac.New(sha1.New, key); mac.Write([]byte({a})) // {b}",
+        "// {comment}\nblock, _ := x509.ParsePKCS1PrivateKey({a}) // {b}",
+    ],
+    "javascript": [
+        "// {comment}\nconst hmac = crypto.createHmac('sha1', key).update({a}).digest('hex'); // {b}",
+        "// {comment}\nconst sig = crypto.privateEncrypt(key, Buffer.from({a}));",
+    ],
+}
+
 LANGUAGES: list[str] = list(CODE_TEMPLATES.keys())

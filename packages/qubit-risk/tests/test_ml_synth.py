@@ -53,6 +53,28 @@ def test_class_weights_sum_reasonable() -> None:
     assert all(x > 0 for x in w)
 
 
+def test_train_eval_splits_use_disjoint_vocab() -> None:
+    # No on-class identifier stem may appear in both the train and eval generalization splits
+    # (that's what makes holdout macro-F1 an honest generalization measure).
+    from qubit_risk.ml.synth import _half
+    from qubit_risk.ml.vocab import IDENTIFIERS
+
+    for cls, pool in IDENTIFIERS.items():
+        if len(pool) < 4:
+            continue
+        train_toks = set(_half(pool, "train"))
+        eval_toks = set(_half(pool, "eval"))
+        assert not (train_toks & eval_toks), cls
+        assert train_toks and eval_toks
+
+
+def test_eval_split_uses_holdout_templates() -> None:
+    from qubit_risk.ml.vocab import CODE_TEMPLATES, HOLDOUT_CODE_TEMPLATES
+
+    for lang, base in CODE_TEMPLATES.items():
+        assert not (set(base) & set(HOLDOUT_CODE_TEMPLATES[lang])), lang
+
+
 def test_write_jsonl(tmp_path) -> None:
     import json
 

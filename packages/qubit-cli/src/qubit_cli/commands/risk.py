@@ -189,9 +189,11 @@ def risk_train_sensitivity(
         f"(per_class={per_class}, max_epochs={max_epochs})"
     )
     result = train(cfg)
-    console.print(f"[green]Done.[/green] best macro-F1={result['best_macro_f1']:.4f} "
-                  f"accuracy={result['accuracy']:.4f} on {result['device']}")
-    console.print_json(data=result["per_class_f1"])
+    console.print(
+        f"[green]Done.[/green] holdout macro-F1={result['holdout_macro_f1']:.4f} "
+        f"(in-dist={result['in_distribution_macro_f1']:.4f}) on {result['device']}"
+    )
+    console.print_json(data=result["holdout_per_class_f1"])
 
 
 @risk_app.command("mosca")

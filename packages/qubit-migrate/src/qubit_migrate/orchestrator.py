@@ -212,6 +212,8 @@ class MigrationOrchestrator:
             rule=rule,
             repo_root=repo_root,
             language=rule.language,
+            target_rel_path=diff_path if repo_root else None,
+            no_docker=self.config.no_docker,
         )
 
         patch = PatchProposal(

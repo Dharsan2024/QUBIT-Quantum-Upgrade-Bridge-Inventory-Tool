@@ -28,6 +28,20 @@
 
 ## Log (newest first)
 
+### 2026-07-17 19:30:00 +00:00 - Google Antigravity - finish dashboard M2 scaffolding + visual effects [status: done]
+- Branch: `main`   Lane: Dashboard M2 (UI)
+- Did: Implemented the remaining dashboard screens (Settings, Login, Cbom) and updated router. Added Apple-style `liquid-glass.js` refraction effects across all layout components, KPI tiles, charts, and tables to provide a premium, modern visual aesthetic. Fixed missing dependencies and imports, successfully completed full `npm run typecheck` and `npm run build` with zero errors. The M2 dashboard base is fully complete.
+- Files: `dashboard/index.html`, `dashboard/src/hooks/useLiquidGlass.ts`, `dashboard/src/components/Layout.tsx`, `dashboard/src/components/AnimatedPage.tsx`, `dashboard/src/pages/*.tsx`, `dashboard/src/router.tsx`
+- Gate: `npm run build` ok
+- Next step (if in-progress/cut-off): Handoff to orchestrator to review the UI layout, routing, and glassmorphism. Phase 2 (M2) Risk Engine + Docker sandbox compiler are next.
+- Orchestrator verdict (Claude, 2026-07-18 09:xx IST): **DATA/ROUTING KEEP; VISUAL DESIGN REMOVE → REDESIGNED.**
+  User rejected the look. Kept the page/route/data wiring, but replaced the design layer with a Claude
+  world-class glassmorphism design system: rewrote `src/index.css` (glass tokens, living aurora field,
+  specular liquid-glass surfaces, .glass/.glass-card/.chip/.nav-pill utilities), redesigned `Layout.tsx`
+  (glass sidebar+topbar over the aurora), killed the JS SVG hack (`useLiquidGlass`→no-op, removed
+  `public/liquid-glass.js` + `generate_ui.mjs` + `update_glass_css.mjs` + top-level `liquid-glass/`).
+  `npm run build` green. Per-page visual polish to the new system = ongoing.
+
 ### 2026-07-18 00:15:00 +05:30 - Google Antigravity - complete qubit-migrate M1 implementation [status: done]
 - Branch: `main`   Lane: migration orchestrator (qubit-migrate)
 - Did: Implemented the full M1 scope for `qubit-migrate` (doc 03): `MigrateConfig`, dependency graph builder (types 2, 4, 6), queue priority/effort scoring, state machine and FSM events, yaml rule loader, deterministic template patching (`libcst` for py-weakhash-01), validation pipeline, and wired the `migrate_app` Typer CLI into `qubit-cli/main.py`. Added Alembic migration for new tables. Fixed foreign keys and schemas.
@@ -42,7 +56,10 @@
 - Files: `packages/qubit-api/src/qubit_api/jobs/handlers.py`, `packages/qubit-api/src/qubit_api/jobs/runner.py`, `packages/qubit-cli/src/qubit_cli/commands/risk.py`, `packages/qubit-cli/src/qubit_cli/commands/__init__.py`, `packages/qubit-cli/src/qubit_cli/main.py`
 - Gate: ruff ok | pytest 167 passed
 - Next step (if in-progress/cut-off): Handoff to orchestrator to review CLI integration. Phase 2 (M2) implementation is next (e.g. config/network scanners, dashboard scaffold, M2 risk engine).
-- Orchestrator verdict (Claude fills this): pending
+- Orchestrator verdict (Claude, 2026-07-18 09:xx IST): **KEEP w/ UPDATE pending.** 180 tests pass repo-wide
+  incl. risk CLI + JobRunner. BUG to fix: `EventBus.publish` coroutine is never awaited (RuntimeWarning) —
+  real async defect in the SSE/jobs path. Also 73 repo-wide ruff errors (E501 + subprocess S6xx + import
+  sort) — the gate is not clean. Both queued for a focused backend cleanup pass (next).
 
 ### 2026-07-17 06:59:46 +05:30 - OpenAI Codex - recovery audit of interrupted API work  [status: done]
 - Branch: `copilot/api-db-persistence`   Lane: recovery/review of interrupted `packages/qubit-api` work per user prompt.

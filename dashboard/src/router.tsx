@@ -1,38 +1,85 @@
-
-import { createBrowserRouter, Outlet, Link } from "react-router";
-import { Inventory } from "./pages/Inventory";
-import { Shield } from "lucide-react";
-
-function RootLayout() {
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <nav className="bg-indigo-700 text-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center gap-8">
-          <div className="flex items-center gap-2 font-bold text-xl tracking-wide">
-            <Shield className="w-6 h-6 text-indigo-300" />
-            QUBIT
-          </div>
-          <div className="flex items-center gap-4 text-sm font-medium">
-            <Link to="/" className="hover:text-indigo-200 transition-colors">Inventory</Link>
-            {/* Other pages would go here */}
-          </div>
-        </div>
-      </nav>
-      <div className="flex-1 bg-gray-50">
-        <Outlet />
-      </div>
-    </div>
-  );
-}
+import { createBrowserRouter } from 'react-router';
+import { Layout } from './components/Layout';
+import { Projects } from './pages/Projects';
+import { Inventory } from './pages/Inventory';
+import { Risk } from './pages/Risk';
+import { Timeline } from './pages/Timeline';
+import { Migrations } from './pages/Migrations';
+import { MigrationDetail } from './pages/MigrationDetail';
+import { Scans } from './pages/Scans';
+import { Cbom } from './pages/Cbom';
+import { Settings } from './pages/Settings';
+import { Login } from './pages/Login';
 
 export const router = createBrowserRouter([
   {
-    path: "/",
-    element: <RootLayout />,
+    path: '/login',
+    element: <Login />,
+  },
+  {
+    path: '/',
+    element: <Layout />,
     children: [
       {
-        path: "/",
+        index: true,
+        element: <Projects />,
+      },
+      {
+        path: 'settings',
+        element: <Settings />,
+      },
+      // In a real implementation these would be nested under /p/:pid
+      {
+        path: 'inventory',
         element: <Inventory />,
+      },
+      {
+        path: 'p/:pid/inventory',
+        element: <Inventory />,
+      },
+      {
+        path: 'risk',
+        element: <Risk />,
+      },
+      {
+        path: 'p/:pid/risk',
+        element: <Risk />,
+      },
+      {
+        path: 'timeline',
+        element: <Timeline />,
+      },
+      {
+        path: 'p/:pid/timeline',
+        element: <Timeline />,
+      },
+      {
+        path: 'migrations',
+        element: <Migrations />,
+      },
+      {
+        path: 'p/:pid/migrations',
+        element: <Migrations />,
+      },
+      {
+        path: 'm/:mid',
+        element: <MigrationDetail />,
+      },
+      {
+        path: 'scans',
+        element: <Scans />,
+      },
+      {
+        path: 'p/:pid/scans',
+        element: <Scans />,
+      },
+      {
+        path: 'cbom',
+        element: <Cbom />,
+      },
+      {
+        path: 'p/:pid/cbom',
+        element: <Cbom />,
       },
     ],
   },

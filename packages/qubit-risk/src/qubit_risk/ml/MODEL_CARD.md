@@ -40,6 +40,38 @@ which the heuristic-contradiction guard further constrains.
 - **Production stays on heuristic Tier-1** (`sensitivity.py`), with this model available behind the
   §6.3.3 confidence+contradiction gate as an optional assist.
 
+## Real-world transfer — MEASURED (the decisive result)
+Harvested **108 genuine crypto-context windows** from 19 permissive real repos (auth/identity:
+authentik, dex, gitea, kratos, authlib; payments: saleor, killbill; secrets: infisical; health:
+fhir-server; + teleport, caddy, synapse, …) using the crash-isolated scanner worker.
+
+Weak-labeled each with the heuristic **and** local-LLM (qwen2.5-coder:7b), and evaluated the
+synthetic-trained model against the agreed consensus:
+
+| Signal | Value | Interpretation |
+|---|---|---|
+| heuristic → `unknown` | **93 / 108** | heuristic abstains on ~86% of real crypto snippets |
+| LLM → `unknown` | **98 / 108** | the LLM abstains even more |
+| heuristic↔LLM confident agreement | **3 / 108 (2.8%)** | almost no consensus signal exists to train/eval on |
+| model vs consensus (n=3) | 2/3 | N far too small to claim anything |
+
+**Root cause (inspected):** the ±5-line window around a real crypto call contains *crypto-mechanism*
+tokens (`RSA`, `SECP256R1`, `md5`, `hexdigest`, `PrivateKey`, `SHA1`, `curve`) — **not** data-sensitivity
+tokens (`patient`, `card_number`, `ssn`). The sensitive data lives in the caller / DB schema / request
+handler, which the evidence contract (doc 02 §6.3.1) deliberately does **not** capture ("no
+route-to-crypto attribution; context is thin").
+
+**Conclusion (honest, and it's a real research result):** data-sensitivity classification from a
+±5-line crypto snippet **does not transfer to real code** — both independent weak labelers abstain
+~90% of the time, so the premise, not just this model, is what fails on real inputs. The synthetic
+0.992 measured a task that barely occurs in real code.
+
+**Decision:** QUBIT M2 **ships heuristic-only** (design cut-line C3), and the heuristic's high
+abstention (`unknown`) on real code is now shown to be the *correct* behaviour, not a weakness. The
+BERT tier is reported as a documented negative result. A capable model would require **widening the
+context window** (enclosing function / call-site data flow / schema) — explicitly out of scope for v1
+in doc 02 §6.3.1, so it is correctly deferred, not cut under pressure.
+
 ## To reach the Oct-15 ship gate
 1. Tier-2 weak-labeling over **real permissive repos** (scanner + local Ollama) — needs repos supplied.
 2. Human-adjudicated disagreement queue (3× weight) folded into training.

@@ -22,6 +22,7 @@ _FILES = (
     "sensitivity_rules",
     "shelf_life_priors",
     "mosca",
+    "expert_survey",
 )
 
 
@@ -32,6 +33,7 @@ class RiskConfig:
     sensitivity_rules: dict[str, Any]
     shelf_life_priors: dict[str, Any]
     mosca: dict[str, Any]
+    expert_survey: dict[str, Any] = field(default_factory=dict)
     params_hash: str = field(default="")
 
     @property
@@ -41,6 +43,11 @@ class RiskConfig:
     @property
     def n_trials(self) -> int:
         return int(self.hardware_priors.get("n_trials", 10000))
+
+    @property
+    def survey_weight(self) -> float:
+        """Default w in F = w·F_hw + (1-w)·F_survey (doc 02 §6.1.5)."""
+        return float(self.expert_survey.get("survey_weight", 0.5))
 
     def resource_for(self, algorithm: str) -> dict[str, Any] | None:
         """Return the resource estimate for an algorithm, following one level of ``alias``."""

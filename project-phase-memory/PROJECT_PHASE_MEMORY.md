@@ -190,6 +190,12 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 — Recovery: qubit-risk M2 survey blend (Antigravity)
+- **Recovered interrupted work:** Agent built `survey.py` (LogNormal fit to 26-expert GRI-2025) and blended hardware Monte-Carlo offsets. 
+- Fixed ambiguous unicode characters (RUF002/3) in docstrings and line-too-long in `vulnapp-python`.
+- Gate: **200 tests**, ruff clean. Committed.
+- **Next:** Bayesian net or JobRunner polish.
+
 ### 2026-07-18 (aft-6) — FULL demo-lab remediation 2/2 (Claude, Fable) — 4fbd3b0
 - New rule `py-rsa-kex-01` (RSA→ML-KEM-768 KEM-DEM, reencrypt_required, rescan expects RSA-* gone).
   No codemod → auto routes to the local LLM with hard constraints (pqcrypto ml_kem_768 + AESGCM).

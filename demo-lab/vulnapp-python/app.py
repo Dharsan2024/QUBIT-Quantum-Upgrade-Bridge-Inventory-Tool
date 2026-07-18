@@ -1,8 +1,9 @@
 import hashlib
-from flask import Flask, request, jsonify
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives import hashes
+
 import jwt
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
@@ -32,7 +33,8 @@ def login():
 
 @app.route("/token")
 def token():
-    # QUBIT-FIXTURE: py-ecdsa-sig-01 (using RSA here for simplicity, but simulating a vulnerable JWT pattern)
+    # QUBIT-FIXTURE: py-ecdsa-sig-01 (using RSA here for simplicity,
+    # but simulating a vulnerable JWT pattern)
     encoded = jwt.encode({"some": "payload"}, "secret", algorithm="HS256")
     return jsonify({"token": encoded})
 

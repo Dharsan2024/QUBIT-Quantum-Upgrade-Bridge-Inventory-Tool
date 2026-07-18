@@ -44,6 +44,17 @@ export interface Paginated<T> {
   size: number;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  slug: string;
+  root_path: string | null;
+  description: string | null;
+  settings: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ScanStats {
   files_scanned?: number;
   files_skipped?: number;

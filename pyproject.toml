@@ -46,6 +46,7 @@ ignore = ["S101"]                                       # assert is fine in test
 # controlled args — S603/S607 are intended there, not injection risks.
 "packages/qubit-migrate/**" = ["S603", "S607"]
 "packages/qubit-bridge/**" = ["S603", "S607"]
+"packages/qubit-cli/src/qubit_cli/commands/demo.py" = ["S603", "S607"]
 # scanners intentionally swallow parse errors per-file (best-effort discovery, never abort a scan).
 "packages/qubit-scanner/**" = ["S110"]
 # Typer routes options through call-in-default-arg by design.

@@ -38,6 +38,7 @@ from .transform import (
     run_codemod,
     validate_patch,
 )
+from .transform.llm import OllamaError, generate_llm_source
 
 logger = logging.getLogger(__name__)
 
@@ -177,24 +178,32 @@ class MigrationOrchestrator:
 
         self._transition(task, "generate", detail={"generator": generator})
 
-        if generator == "llm" or (generator == "auto" and not rule.codemod):
-            self._fail_task(task, "LLM path not implemented in M1")
-            raise NotImplementedError("LLM generation is M2")
+        # auto prefers the deterministic codemod; LLM is used when forced or when the
+        # rule has no codemod. Either way the same validation pipeline gates the result.
+        use_llm = generator == "llm" or (generator == "auto" and not rule.codemod)
+        model_name: str | None = None
 
-        if not rule.codemod:
-            self._fail_task(task, "Rule has no codemod")
-            raise ValueError(f"Rule {rule.id} has no codemod fallback")
-
-        # Template generation
-        try:
-            result = run_codemod(rule.codemod, asset, file_path)
-            if not result:
-                self._fail_task(task, f"Codemod {rule.codemod} produced no change")
-                raise ValueError("Codemod produced no change")
-            orig, new = result
-        except Exception as e:
-            self._fail_task(task, f"Codemod error: {e}")
-            raise
+        if use_llm:
+            try:
+                orig = file_path.read_text(encoding="utf-8")
+                new = generate_llm_source(orig, rule, asset, model=self.config.model)
+                model_name = self.config.model
+            except (OSError, OllamaError) as e:
+                self._fail_task(task, f"LLM generation failed: {e}")
+                raise ValueError(f"LLM generation failed: {e}") from e
+        else:
+            if not rule.codemod:
+                self._fail_task(task, "Rule has no codemod")
+                raise ValueError(f"Rule {rule.id} has no codemod fallback")
+            try:
+                result = run_codemod(rule.codemod, asset, file_path)
+                if not result:
+                    self._fail_task(task, f"Codemod {rule.codemod} produced no change")
+                    raise ValueError("Codemod produced no change")
+                orig, new = result
+            except Exception as e:
+                self._fail_task(task, f"Codemod error: {e}")
+                raise
 
         diff = old_new_to_diff(diff_path, orig, new)
         report = validate_patch(
@@ -207,7 +216,8 @@ class MigrationOrchestrator:
 
         patch = PatchProposal(
             task_id=task.id,
-            generator="template",
+            generator="llm" if use_llm else "template",
+            model_name=model_name,
             file_path=diff_path,
             base_sha256=file_sha256(file_path),
             diff_text=diff,

@@ -8,7 +8,7 @@ Importing the state models here also registers the migration tables on the share
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -57,12 +57,14 @@ class TaskOut(BaseModel):
 
 class GenerateRequest(BaseModel):
     repo_root: str | None = None
+    generator: Literal["auto", "llm", "template"] = "auto"
 
 
 class PatchOut(BaseModel):
     id: UUID
     task_id: UUID
     generator: str
+    model_name: str | None = None
     file_path: str
     diff_text: str
     validation: dict
@@ -118,6 +120,7 @@ def _patch_out(patch: PatchProposal) -> PatchOut:
         id=patch.id,
         task_id=patch.task_id,
         generator=patch.generator,
+        model_name=patch.model_name,
         file_path=patch.file_path,
         diff_text=patch.diff_text,
         validation=patch.validation_json or {},
@@ -172,6 +175,7 @@ def generate_patch(
     try:
         patch = orch.generate_patch(
             task_id,
+            generator=payload.generator,
             repo_root=Path(payload.repo_root) if payload.repo_root else None,
         )
     except (ValueError, NotImplementedError) as e:

@@ -164,6 +164,36 @@ def risk_gen_dataset(
     )
 
 
+@risk_app.command("train-sensitivity")
+def risk_train_sensitivity(
+    out: Annotated[Path, typer.Option("--out", help="Checkpoint output dir")] = Path(
+        "models/sensitivity-distilbert"
+    ),
+    per_class: Annotated[int, typer.Option("--per-class")] = 3000,
+    max_epochs: Annotated[int, typer.Option("--max-epochs", help="Ceiling; early stop picks")] = 20,
+    patience: Annotated[int, typer.Option("--patience")] = 3,
+    batch_size: Annotated[int, typer.Option("--batch-size")] = 32,
+) -> None:
+    """Fine-tune the DistilBERT sensitivity classifier (needs the 'ml' extra + a GPU)."""
+    from qubit_risk.ml.train import TrainConfig, train
+
+    cfg = TrainConfig(
+        out_dir=out,
+        per_class=per_class,
+        max_epochs=max_epochs,
+        patience=patience,
+        batch_size=batch_size,
+    )
+    console.print(
+        f"[bold]Training DistilBERT[/bold] -> {out} "
+        f"(per_class={per_class}, max_epochs={max_epochs})"
+    )
+    result = train(cfg)
+    console.print(f"[green]Done.[/green] best macro-F1={result['best_macro_f1']:.4f} "
+                  f"accuracy={result['accuracy']:.4f} on {result['device']}")
+    console.print_json(data=result["per_class_f1"])
+
+
 @risk_app.command("mosca")
 def risk_mosca(
     db: Annotated[str | None, typer.Option("--db", help="DB URL")] = None,

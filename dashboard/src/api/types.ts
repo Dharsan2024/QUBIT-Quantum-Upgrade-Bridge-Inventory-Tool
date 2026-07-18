@@ -133,6 +133,8 @@ export interface RiskSummary {
 /** Response of GET /risk/timeline?algorithm= — real Monte-Carlo CRQC arrival curve. */
 export interface TimelineResponse {
   algorithm: string;
+  blended?: boolean;
+  survey_weight?: number | null;
   years: number[];
   cdf: number[];
   cdf_stderr: number[];

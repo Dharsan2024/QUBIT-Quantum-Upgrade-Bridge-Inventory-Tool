@@ -19,12 +19,28 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 
 export function Timeline() {
   const [algorithm, setAlgorithm] = useState('RSA-2048');
+  const [blend, setBlend] = useState(false);
+  const [weight, setWeight] = useState(0.5);
 
-  const { data, isLoading, isError, error, isFetching } = useQuery({
+  // Hardware-only Monte-Carlo curve (always shown as the physics baseline).
+  const hwQuery = useQuery({
     queryKey: ['timeline', algorithm],
     queryFn: () => fetchTimeline(algorithm),
     staleTime: 5 * 60 * 1000,
   });
+  // Survey-blended curve (only when the toggle is on); weight is the hardware share w.
+  const blendQuery = useQuery({
+    queryKey: ['timeline-blend', algorithm, weight],
+    queryFn: () => fetchTimeline(algorithm, { blend: true, weight }),
+    enabled: blend,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const data = blend ? (blendQuery.data ?? hwQuery.data) : hwQuery.data;
+  const isLoading = hwQuery.isLoading || (blend && blendQuery.isLoading);
+  const isFetching = hwQuery.isFetching || blendQuery.isFetching;
+  const isError = hwQuery.isError || blendQuery.isError;
+  const error = hwQuery.error ?? blendQuery.error;
 
   return (
     <AnimatedPage className="flex flex-col gap-5 py-4">
@@ -33,12 +49,36 @@ export function Timeline() {
           <h1 className="text-2xl font-semibold tracking-tight">CRQC Timeline</h1>
           <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">
             Monte-Carlo simulation of Cryptographically Relevant Quantum Computer arrival
-            (surface-code resource model).
+            (surface-code resource model{blend ? ', blended with the GRI-2025 expert survey' : ''}).
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           {isFetching && (
             <RefreshCw className="h-4 w-4 animate-spin text-[color:var(--color-ink-faint)]" />
+          )}
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-[color:var(--color-ink-dim)]">
+            <input
+              type="checkbox"
+              checked={blend}
+              onChange={(e) => setBlend(e.target.checked)}
+              className="accent-indigo-500"
+            />
+            Blend survey
+          </label>
+          {blend && (
+            <label className="flex items-center gap-2 text-xs text-[color:var(--color-ink-faint)]">
+              w={weight.toFixed(2)}
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={weight}
+                onChange={(e) => setWeight(Number(e.target.value))}
+                className="accent-indigo-500"
+                title="Hardware share w in F = w·F_hw + (1−w)·F_survey"
+              />
+            </label>
           )}
           <select
             value={algorithm}
@@ -59,7 +99,7 @@ export function Timeline() {
           <Stat label="Median (P50)" value={data.median_year} />
           <Stat label="Earliest (P05)" value={data.p05_year} />
           <Stat label="Latest (P95)" value={data.p95_year} />
-          <Stat label="Trials" value={data.n_trials.toLocaleString()} />
+          <Stat label={blend ? 'Survey weight' : 'Trials'} value={blend ? (1 - weight).toFixed(2) : data.n_trials.toLocaleString()} />
         </div>
       )}
 
@@ -86,11 +126,27 @@ export function Timeline() {
                   type: 'scatter',
                   mode: 'lines',
                   line: { color: '#6366f1', width: 3 },
-                  name: `P(CRQC ≤ year) · ${data.algorithm}`,
+                  name: blend
+                    ? `Blended (w=${weight.toFixed(2)}) · ${data.algorithm}`
+                    : `P(CRQC ≤ year) · ${data.algorithm}`,
                   fill: 'tozeroy',
                   fillcolor: 'rgba(99, 102, 241, 0.12)',
                   hovertemplate: '%{x}: %{y:.1%}<extra></extra>',
                 },
+                // overlay the pure-hardware baseline for contrast when blending
+                ...(blend && hwQuery.data
+                  ? [
+                      {
+                        x: hwQuery.data.years,
+                        y: hwQuery.data.cdf,
+                        type: 'scatter' as const,
+                        mode: 'lines' as const,
+                        line: { color: '#64748b', width: 2, dash: 'dot' as const },
+                        name: 'Hardware only',
+                        hovertemplate: '%{x}: %{y:.1%}<extra></extra>',
+                      },
+                    ]
+                  : []),
               ]}
               layout={{
                 autosize: true,

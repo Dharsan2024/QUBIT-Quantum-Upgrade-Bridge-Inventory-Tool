@@ -190,6 +190,26 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (later) — Live-data wiring: CRQC Timeline page is now REAL (Claude, Opus)
+Answering the user's "make sure it's real, not mock" demand + wiring the first mock page to the API.
+- **Proved realness end-to-end:** ran the scanner on `demo-lab` → real RSA-2048 (Shor) + SHA-1 (Grover)
+  at real line numbers; ran the MC simulator → RSA-2048 median CRQC **2041** (p05 2036 / p95 2055),
+  real CDF (cdf@2040≈0.44) — nothing like the old hardcoded `MOCK_CDF`.
+- **New API endpoint** `GET /api/v1/risk/timeline?algorithm=` (qubit-api `routers/risk.py`): runs the
+  real `CRQCTimelineSimulator` on demand (no scan/DB row needed), returns years/cdf/percentiles/n_trials.
+  Doc 02 §5.3. Verified live over HTTP for RSA-2048/3072/4096, ECDSA-P256, ECDH-P256 (all 200); PQC → 404.
+- **Dashboard client rewritten** (`api/client.ts`): added **bearer auth** (was missing → every call would
+  have 401'd), `ApiError`, `getToken/setToken` (localStorage `qubit_token`, Vite `VITE_API_BASE`/`_TOKEN`
+  overrides), `fetchTimeline()`. This also fixes the Inventory page, which previously sent no token.
+- **Timeline.tsx** now fetches real data via react-query (algorithm picker, real P05/P50/P95 stat cards +
+  percentile markers), **`MOCK_CDF` deleted**.
+- Gate: dashboard `npm run build` green; qubit-api ruff+mypy clean, **9 tests pass** (added 2: real-curve
+  shape + PQC-404).
+- **Next:** wire the remaining mock pages to real endpoints following this pattern — Risk/Scans/Migrations/
+  Cbom/MigrationDetail/Settings (Antigravity task, Timeline is the reference vertical slice). Note the
+  scan→risk pages need a real scan+run in the DB first (`qubit scan` / POST scan), unlike the on-demand
+  timeline; may add on-demand variants where doc-05 allows.
+
 ### 2026-07-18 00:25 IST — M1 qubit-migrate orchestrator COMPLETE
 - **Reviewed sub-agent work:** Google Antigravity completed the M1 slice of `qubit-migrate`. Verdict: **KEEP**.
 - **What's in qubit-migrate M1:**

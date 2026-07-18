@@ -14,6 +14,12 @@ Read project memory/design files 1-6 in order, identify Copilot lane, and start 
 work item: DB persistence + `qubit-api` FastAPI service so scans are stored in the registry and
 become queryable/trend-able.
 
+### 2026-07-18 (later) IST — Claude
+"JUST MAKE SURE ALL THESE REAL WORKING — you aren't fooling me by making mock AI-generated content;
+this should work in real life systems. ALSO CONTINUE." → Proved realness (scanner on demo-lab; MC
+simulator) and began live-data wiring: added on-demand `GET /risk/timeline?algorithm=` (real simulator),
+gave the dashboard client bearer auth, and rewired the Timeline page to real data (deleted MOCK_CDF).
+
 ### 2026-07-18 10:29 IST — Claude (Orchestrator Resume, B2)
 Reviewed Antigravity's uncommitted+unlogged restyle of the 7 remaining dashboard pages → verdict
 KEEP-visual (glass-conformant, build green, in-lane); flagged that most pages render MOCK data and need

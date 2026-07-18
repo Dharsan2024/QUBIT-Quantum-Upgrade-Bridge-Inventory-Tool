@@ -161,6 +161,27 @@ def test_auth_whoami(tmp_path: Path) -> None:
         assert response.json()["scopes"] == "rw"
 
 
+def test_algorithm_timeline_returns_real_curve(tmp_path: Path) -> None:
+    # GET /risk/timeline?algorithm= runs the real Monte-Carlo simulator on demand (no scan needed).
+    with _make_client(tmp_path) as client:
+        r = client.get("/api/v1/risk/timeline", params={"algorithm": "RSA-2048"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["algorithm"] == "RSA-2048"
+        assert len(body["years"]) == len(body["cdf"]) > 0
+        # A real CDF is monotonically non-decreasing and bounded in [0, 1].
+        assert body["cdf"] == sorted(body["cdf"])
+        assert 0.0 <= body["cdf"][0] and body["cdf"][-1] <= 1.0
+        assert body["p05_year"] <= body["median_year"] <= body["p95_year"]
+        assert body["n_trials"] > 0
+
+
+def test_algorithm_timeline_unknown_algorithm_404(tmp_path: Path) -> None:
+    with _make_client(tmp_path) as client:
+        r = client.get("/api/v1/risk/timeline", params={"algorithm": "ML-KEM-768"})
+        assert r.status_code == 404
+
+
 def test_custom_api_token_is_honored(tmp_path: Path) -> None:
     # regression: create_app(settings) must thread the token into auth (not a fresh Settings()).
     settings = Settings(

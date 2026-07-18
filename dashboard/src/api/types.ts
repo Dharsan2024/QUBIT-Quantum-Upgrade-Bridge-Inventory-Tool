@@ -43,3 +43,15 @@ export interface Paginated<T> {
   page: number;
   size: number;
 }
+
+/** Response of GET /risk/timeline?algorithm= — real Monte-Carlo CRQC arrival curve. */
+export interface TimelineResponse {
+  algorithm: string;
+  years: number[];
+  cdf: number[];
+  cdf_stderr: number[];
+  median_year: number;
+  p05_year: number;
+  p95_year: number;
+  n_trials: number;
+}

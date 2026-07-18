@@ -104,8 +104,14 @@ export async function fetchScanAssets(
 
 // ── Risk ─────────────────────────────────────────────────────────────────────
 /** On-demand CRQC arrival curve for one algorithm (real Monte-Carlo simulator, doc 02 §5.3). */
-export async function fetchTimeline(algorithm = "RSA-2048"): Promise<TimelineResponse> {
-  return send<TimelineResponse>(`/risk/timeline?algorithm=${encodeURIComponent(algorithm)}`);
+export async function fetchTimeline(
+  algorithm = "RSA-2048",
+  opts: { blend?: boolean; weight?: number } = {},
+): Promise<TimelineResponse> {
+  const params = new URLSearchParams({ algorithm });
+  if (opts.blend) params.set("blend", "true");
+  if (opts.weight != null) params.set("weight", String(opts.weight));
+  return send<TimelineResponse>(`/risk/timeline?${params.toString()}`);
 }
 
 // The scan summary already carries the risk aggregates (scores, top-10, by-algorithm).

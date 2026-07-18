@@ -44,6 +44,30 @@ export interface Paginated<T> {
   size: number;
 }
 
+export interface ScanStats {
+  files_scanned?: number;
+  files_skipped?: number;
+  parse_failures?: number;
+  detections?: number;
+  assets?: number;
+  duration_s?: number;
+}
+
+export interface ScanSummary {
+  id: string;
+  project_id: string;
+  seq: number;
+  label: string | null;
+  status: string;
+  targets: string[];
+  scanners: string[];
+  stats: ScanStats;
+  error: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+}
+
 /** Response of GET /risk/timeline?algorithm= — real Monte-Carlo CRQC arrival curve. */
 export interface TimelineResponse {
   algorithm: string;

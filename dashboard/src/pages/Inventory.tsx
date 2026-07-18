@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { fetchAssets } from '../api/client';
+import { fetchScanAssets, fetchScans } from '../api/client';
 import { useUiStore } from '../stores/ui';
 import { AssetTable } from '../components/AssetTable';
 import { RefreshCw, ShieldAlert, ShieldCheck, Boxes, Zap } from 'lucide-react';
@@ -31,12 +32,19 @@ function Kpi({
 }
 
 export function Inventory() {
-  const projectId = useUiStore((s) => s.projectId);
   const scanId = useUiStore((s) => s.scanId);
 
+  // Resolve which scan to show: the one selected on the Scans page, else the most recent
+  // succeeded scan in the registry.
+  const { data: scans } = useQuery({ queryKey: ['scans'], queryFn: fetchScans });
+  const activeScanId =
+    scanId ?? scans?.find((s) => s.status === 'succeeded')?.id ?? scans?.[0]?.id;
+  const activeScan = scans?.find((s) => s.id === activeScanId);
+
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ['assets', projectId, scanId],
-    queryFn: () => fetchAssets(projectId, scanId),
+    queryKey: ['assets', activeScanId],
+    queryFn: () => fetchScanAssets(activeScanId as string),
+    enabled: !!activeScanId,
   });
 
   const items: CryptoAsset[] = data?.items ?? [];
@@ -50,13 +58,15 @@ export function Inventory() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Cryptographic Inventory</h1>
           <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">
-            {projectId} · scan{' '}
-            <span className="text-[color:var(--color-ink)]">{scanId || 'latest'}</span>
+            {activeScan
+              ? `Scan #${activeScan.seq} · ${activeScan.targets.join(', ')}`
+              : 'No scan selected'}
           </p>
         </div>
         <button
           onClick={() => refetch()}
           className="glass-input flex items-center gap-2 text-sm font-medium hover:border-indigo-400/60"
+          disabled={!activeScanId}
         >
           <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
           Refresh
@@ -89,6 +99,16 @@ export function Inventory() {
           accent="bg-emerald-500/20 border border-emerald-400/30"
         />
       </div>
+
+      {!activeScanId && (
+        <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">
+          No scans yet.{' '}
+          <Link to="/scans" className="text-indigo-300 hover:text-indigo-200">
+            Run a scan
+          </Link>{' '}
+          to populate the inventory.
+        </div>
+      )}
 
       {isLoading && (
         <div className="glass-card flex items-center justify-center gap-3 p-12 text-[color:var(--color-ink-dim)]">

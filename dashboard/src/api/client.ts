@@ -1,5 +1,6 @@
 import type {
   CryptoAsset,
+  HndlExplanation,
   MigrationPatch,
   MigrationPlan,
   MigrationTask,
@@ -116,6 +117,10 @@ export async function fetchTimeline(
 
 // The scan summary already carries the risk aggregates (scores, top-10, by-algorithm).
 // /scans/{id}/risk/summary is the separate normative RiskRun record (needs POST /risk/run first).
+export async function fetchAssetHndl(assetId: string): Promise<HndlExplanation> {
+  return send<HndlExplanation>(`/assets/${assetId}/hndl`);
+}
+
 export async function fetchRiskSummary(scanId: string): Promise<RiskSummary> {
   return send<RiskSummary>(`/scans/${scanId}/summary`);
 }

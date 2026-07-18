@@ -1,55 +1,117 @@
+import { Link } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 import { AnimatedPage } from '../components/AnimatedPage';
-import { Download, Check, AlertCircle, Terminal, FileJson } from 'lucide-react';
+import { Download, Terminal, FileJson, RefreshCw } from 'lucide-react';
+import { fetchCbom } from '../api/client';
+import { useActiveScan } from '../hooks/useActiveScan';
 
 export function Cbom() {
+  const { activeScanId, activeScan } = useActiveScan();
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['cbom', activeScanId],
+    queryFn: () => fetchCbom(activeScanId as string),
+    enabled: !!activeScanId,
+  });
+
+  const components = Array.isArray((data as { components?: unknown[] })?.components)
+    ? ((data as { components: unknown[] }).components as unknown[])
+    : [];
+  const specVersion = (data as { specVersion?: string })?.specVersion ?? '1.7';
+  const pretty = data ? JSON.stringify(data, null, 2) : '';
+
+  const download = () => {
+    if (!data) return;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cbom-scan-${activeScan?.seq ?? activeScanId}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <AnimatedPage className="flex flex-col gap-5 py-4 max-w-7xl mx-auto">
+    <AnimatedPage className="mx-auto flex max-w-7xl flex-col gap-5 py-4">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">CBOM Export</h1>
-          <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">Export your cryptographic inventory as a CycloneDX v1.7 Software Bill of Materials.</p>
+          <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">
+            {activeScan
+              ? `CycloneDX ${specVersion} SBOM · scan #${activeScan.seq}`
+              : 'Export your cryptographic inventory as a CycloneDX v1.7 SBOM.'}
+          </p>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {!activeScanId && (
+        <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">
+          No scans yet.{' '}
+          <Link to="/scans" className="text-indigo-300 hover:text-indigo-200">
+            Run a scan
+          </Link>{' '}
+          to generate a CBOM.
+        </div>
+      )}
+
+      {isError && (
+        <div className="glass-card border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
+          Could not load CBOM: {error instanceof Error ? error.message : 'unknown error'}.
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="glass-card p-8">
           <div className="space-y-6">
             <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                <FileJson className="w-8 h-8" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-400">
+                <FileJson className="h-8 w-8" />
               </div>
               <div>
-                <h3 className="text-xl font-bold tracking-tight">CycloneDX 1.7 JSON</h3>
-                <p className="text-sm text-[color:var(--color-ink-faint)]">Includes `cryptoprimitive` properties.</p>
+                <h3 className="text-xl font-bold tracking-tight">CycloneDX {specVersion} JSON</h3>
+                <p className="text-sm text-[color:var(--color-ink-faint)]">
+                  {data ? `${components.length} components` : 'includes cryptographic assets'}
+                </p>
               </div>
             </div>
 
-            <div className="flex gap-4">
-              <button className="flex-1 flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white px-4 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-indigo-500/20 text-sm">
-                <Download className="w-4 h-4" /> Download JSON
-              </button>
-              <button className="glass-input flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium hover:border-[color:var(--color-ink-dim)]">
-                <Check className="w-4 h-4 text-[color:var(--color-safe)]" /> Validate Schema
-              </button>
-            </div>
+            <button
+              onClick={download}
+              disabled={!data}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-colors hover:bg-indigo-400 disabled:opacity-50"
+            >
+              {isLoading ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Download JSON
+            </button>
           </div>
         </div>
 
         <div className="glass-card p-8">
           <div className="space-y-4">
-            <h3 className="font-medium text-[color:var(--color-ink-dim)] flex items-center gap-2 text-sm uppercase tracking-wide">
-              <Terminal className="w-4 h-4" /> CLI Export Equivalent
+            <h3 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-[color:var(--color-ink-dim)]">
+              <Terminal className="h-4 w-4" /> CLI Export Equivalent
             </h3>
-            <div className="p-4 bg-black/40 rounded-lg border border-[color:var(--glass-border)] font-mono text-sm text-indigo-300 overflow-x-auto">
-              qubit cbom export demo-lab --format json
-            </div>
-            <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm text-amber-200/80 mt-6">
-              <AlertCircle className="w-5 h-5 text-[color:var(--color-warn)] flex-shrink-0" />
-              <p>The interactive JSON tree viewer is slated for the M3 release. For now, use the downloaded file in your preferred editor.</p>
+            <div className="overflow-x-auto rounded-lg border border-[color:var(--glass-border)] bg-black/40 p-4 font-mono text-sm text-indigo-300">
+              qubit cbom export {activeScan?.targets.join(' ') ?? '<path>'} --format json
             </div>
           </div>
         </div>
       </div>
+
+      {data && (
+        <div className="glass-card overflow-hidden p-0">
+          <div className="border-b border-[color:var(--glass-border)] px-5 py-3 text-xs font-medium uppercase tracking-wide text-[color:var(--color-ink-faint)]">
+            Preview
+          </div>
+          <pre className="max-h-[420px] overflow-auto p-5 font-mono text-xs leading-relaxed text-[color:var(--color-ink-dim)]">
+            {pretty}
+          </pre>
+        </div>
+      )}
     </AnimatedPage>
   );
 }

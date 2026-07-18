@@ -1,4 +1,4 @@
-import type { CryptoAsset, Paginated, ScanSummary, TimelineResponse } from "./types";
+import type { CryptoAsset, Paginated, RiskSummary, ScanSummary, TimelineResponse } from "./types";
 
 // Base URL + bearer token. Both overridable at build time (Vite env) or at runtime (localStorage,
 // set by the Login page). The default token matches qubit-api's dev default so local runs work
@@ -87,4 +87,16 @@ export async function fetchScanAssets(
 /** On-demand CRQC arrival curve for one algorithm (real Monte-Carlo simulator, doc 02 §5.3). */
 export async function fetchTimeline(algorithm = "RSA-2048"): Promise<TimelineResponse> {
   return send<TimelineResponse>(`/risk/timeline?algorithm=${encodeURIComponent(algorithm)}`);
+}
+
+// The scan summary already carries the risk aggregates (scores, top-10, by-algorithm).
+// /scans/{id}/risk/summary is the separate normative RiskRun record (needs POST /risk/run first).
+export async function fetchRiskSummary(scanId: string): Promise<RiskSummary> {
+  return send<RiskSummary>(`/scans/${scanId}/summary`);
+}
+
+// ── CBOM ─────────────────────────────────────────────────────────────────────
+/** CycloneDX 1.7 CBOM document for a scan. */
+export async function fetchCbom(scanId: string): Promise<Record<string, unknown>> {
+  return send<Record<string, unknown>>(`/scans/${scanId}/cbom`);
 }

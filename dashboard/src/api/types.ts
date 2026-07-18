@@ -68,6 +68,15 @@ export interface ScanSummary {
   created_at: string;
 }
 
+/** Response of GET /scans/{id}/risk/summary — aggregate risk posture for one scan. */
+export interface RiskSummary {
+  total_assets: number;
+  by_algorithm: Record<string, { count: number; vulnerable: number }>;
+  by_usage_context: Record<string, number>;
+  risk_scores: number[];
+  top_10_risk: { asset_id: string; algorithm: string; risk_score: number }[];
+}
+
 /** Response of GET /risk/timeline?algorithm= — real Monte-Carlo CRQC arrival curve. */
 export interface TimelineResponse {
   algorithm: string;

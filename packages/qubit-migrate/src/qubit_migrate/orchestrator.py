@@ -9,6 +9,8 @@ from typing import Any, Literal
 from uuid import UUID
 
 from qubit_core import CryptoAsset
+from qubit_core.db import AssetRow
+from qubit_core.mapping import row_to_asset
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -49,11 +51,15 @@ class MigrationOrchestrator:
 
     def build_plan(self, *, min_risk: float = 0.0) -> MigrationPlan:
         """Build graph+queue from risk-annotated assets -> saves plan."""
-        stmt = select(CryptoAsset)
-        assets = self.session.scalars(stmt).all()
+        # Domain assets live as flattened AssetRow rows; hydrate back to the schema the
+        # graph/queue components expect.
+        rows = self.session.scalars(select(AssetRow)).all()
+        assets = [row_to_asset(r) for r in rows]
 
         in_scope = [
-            a for a in assets if a.risk and a.risk.score >= min_risk and a.quantum_vulnerable
+            a
+            for a in assets
+            if a.risk and a.risk.score >= min_risk and a.quantum_vulnerable.vulnerable
         ]
         if not in_scope:
             plan = MigrationPlan(
@@ -146,7 +152,7 @@ class MigrationOrchestrator:
         if not task:
             raise ValueError(f"Task {task_id} not found")
 
-        asset = self.session.get(CryptoAsset, task.asset_id)
+        asset = self._load_asset(task.asset_id)
         if not asset or not asset.location or not asset.location.file_path:
             raise ValueError(f"Asset {task.asset_id} has no file_path")
 
@@ -327,7 +333,7 @@ class MigrationOrchestrator:
         if not patch:
             raise ValueError("No applied patch found")
 
-        asset = self.session.get(CryptoAsset, task.asset_id)
+        asset = self._load_asset(task.asset_id)
         if not asset or not asset.location or not asset.location.file_path:
             raise ValueError("Asset lost")
 
@@ -366,16 +372,22 @@ class MigrationOrchestrator:
             detail=detail,
         )
 
+    def _load_asset(self, asset_id: UUID) -> CryptoAsset | None:
+        """Hydrate the domain CryptoAsset for an asset id (rows are flattened AssetRow)."""
+        row = self.session.get(AssetRow, asset_id)
+        return row_to_asset(row) if row else None
+
     def _sync_public_status(self, task: MigrationTask) -> None:
-        asset = self.session.get(CryptoAsset, task.asset_id)
-        if asset:
+        row = self.session.get(AssetRow, task.asset_id)
+        if row:
             status = to_public_status(task.state)
-            if not asset.migration:
-                asset.migration = {}
-            asset.migration["status"] = status
+            migration = dict(row.migration_json or {})
+            migration["status"] = status
             if task.rule_id:
-                asset.migration["recommendation"] = f"Migrate using {task.rule_id}"
-            flag_modified(asset, "migration")
+                migration["recommendation"] = f"Migrate using {task.rule_id}"
+            row.migration_status = status
+            row.migration_json = migration
+            flag_modified(row, "migration_json")
 
 
 __all__ = ["MigrationOrchestrator"]

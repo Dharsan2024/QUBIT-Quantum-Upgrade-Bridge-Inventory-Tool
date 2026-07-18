@@ -28,6 +28,19 @@
 
 ## Log (newest first)
 
+### 2026-07-18 ~10:20 IST — Google Antigravity (logged by orchestrator; agent left it uncommitted+unlogged) — restyle remaining dashboard pages to glass  [status: done]
+- Branch: `main` (uncommitted working tree).   Lane: dashboard pages only (in-lane ✓).
+- Did: restyled the 7 remaining pages to the glass design language set by Inventory —
+  Projects, Risk, Timeline, Migrations, MigrationDetail, Scans, Cbom, Settings, Login.
+- Files: `dashboard/src/pages/*.tsx` (9 files). No core/docs/other-package edits.
+- Gate: `npm run build` green; glass adoption confirmed; the two "light" hits are a slate pending-chip
+  + a white shimmer overlay (both correct on dark).
+- **Orchestrator verdict (Claude, 2026-07-18 10:29 IST): KEEP (visual).** Good glass conformance, in-lane,
+  builds. **UPDATE flagged (next phase, not blocking):** only Inventory + Projects call the real API;
+  Risk/Timeline/Migrations/Scans/Settings/Cbom/MigrationDetail render MOCK/placeholder data (e.g.
+  Timeline's `MOCK_CDF`). Must be wired to doc-05 endpoints (real scan/risk/migration data) — "production,
+  not simulation." Committed on the agent's behalf; reminder: sub-agents must commit + log their own work.
+
 ### 2026-07-17 19:30:00 +00:00 - Google Antigravity - finish dashboard M2 scaffolding + visual effects [status: done]
 - Branch: `main`   Lane: Dashboard M2 (UI)
 - Did: Implemented the remaining dashboard screens (Settings, Login, Cbom) and updated router. Added Apple-style `liquid-glass.js` refraction effects across all layout components, KPI tiles, charts, and tables to provide a premium, modern visual aesthetic. Fixed missing dependencies and imports, successfully completed full `npm run typecheck` and `npm run build` with zero errors. The M2 dashboard base is fully complete.

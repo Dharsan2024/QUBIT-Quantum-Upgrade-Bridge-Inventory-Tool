@@ -3,7 +3,6 @@ import { Play, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { useLiquidGlass } from '../hooks/useLiquidGlass';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -36,7 +35,7 @@ function StatusBadge({ status }: { status: string }) {
   const SelectedIcon = Icon[status] || Clock;
 
   return (
-    <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border relative z-10", styles[status] || styles.pending)}>
+    <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border", styles[status] || styles.pending)}>
       <SelectedIcon className="w-3.5 h-3.5" />
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
@@ -44,50 +43,48 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function Migrations() {
-  const glassRef = useLiquidGlass({ scale: -100 });
-
   return (
-    <AnimatedPage className="p-8 max-w-7xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
+    <AnimatedPage className="flex flex-col gap-5 py-4">
+      <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Migration Queue</h1>
-          <p className="text-slate-400 mt-1">Review and execute prioritized cryptographic patches.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Migration Queue</h1>
+          <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">Review and execute prioritized cryptographic patches.</p>
         </div>
-        <button className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-indigo-500/20 relative z-10">
+        <button className="glass-input flex items-center gap-2 text-sm font-medium hover:border-indigo-400/60">
           <Play className="w-4 h-4 fill-current" />
           Generate All Planned
         </button>
-      </div>
+      </header>
 
-      <div ref={glassRef} className="liquid-panel rounded-xl overflow-hidden relative">
-        <table className="w-full text-left text-sm text-slate-400 relative z-10">
-          <thead className="bg-slate-950/50 text-slate-300 uppercase text-xs font-semibold">
+      <div className="glass-card overflow-hidden">
+        <table className="w-full text-left text-sm text-[color:var(--color-ink-dim)]">
+          <thead className="border-b border-[color:var(--glass-border)] bg-black/10 text-xs uppercase tracking-wide">
             <tr>
-              <th className="px-6 py-4">Asset</th>
-              <th className="px-6 py-4">Current</th>
-              <th className="px-6 py-4">Recommendation</th>
-              <th className="px-6 py-4">Risk</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-right">Actions</th>
+              <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Asset</th>
+              <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Current</th>
+              <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Recommendation</th>
+              <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Risk</th>
+              <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Status</th>
+              <th className="px-6 py-4 text-right font-medium text-[color:var(--color-ink)]">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-[color:var(--glass-border)]">
             {MOCK_MIGRATIONS.map((migration) => (
-              <tr key={migration.id} className="hover:bg-slate-800/30 transition-colors">
-                <td className="px-6 py-4 font-mono text-slate-300">{migration.asset}</td>
+              <tr key={migration.id} className="transition-colors hover:bg-black/10">
+                <td className="px-6 py-4 font-mono text-sm text-[color:var(--color-ink)]">{migration.asset}</td>
                 <td className="px-6 py-4">
-                  <span className="px-2 py-1 bg-rose-500/10 text-rose-400 rounded text-xs border border-rose-500/20">
+                  <span className="inline-flex rounded border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-xs text-[color:var(--color-danger)]">
                     {migration.algo}
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded text-xs border border-emerald-500/20">
+                  <span className="inline-flex rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-xs text-[color:var(--color-safe)]">
                     {migration.recommendation}
                   </span>
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-1.5 w-16 overflow-hidden rounded-full bg-black/40 border border-[color:var(--glass-border)]">
                       <div 
                         className="h-full bg-gradient-to-r from-amber-500 to-rose-500"
                         style={{ width: `${migration.risk * 100}%` }}
@@ -102,7 +99,7 @@ export function Migrations() {
                 <td className="px-6 py-4 text-right">
                   <Link 
                     to={`/m/${migration.id}`}
-                    className="text-indigo-400 hover:text-indigo-300 font-medium"
+                    className="text-[color:var(--color-accent)] font-medium hover:text-[color:var(--color-accent-2)] transition-colors flex items-center justify-end gap-1"
                   >
                     Review &rarr;
                   </Link>

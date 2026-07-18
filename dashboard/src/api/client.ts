@@ -1,4 +1,11 @@
-import type { CryptoAsset, Paginated, RiskSummary, ScanSummary, TimelineResponse } from "./types";
+import type {
+  CryptoAsset,
+  Paginated,
+  Project,
+  RiskSummary,
+  ScanSummary,
+  TimelineResponse,
+} from "./types";
 
 // Base URL + bearer token. Both overridable at build time (Vite env) or at runtime (localStorage,
 // set by the Login page). The default token matches qubit-api's dev default so local runs work
@@ -44,6 +51,15 @@ async function send<T>(path: string, method = "GET", body?: unknown): Promise<T>
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+// ── Auth / projects ───────────────────────────────────────────────────────────
+export async function whoami(): Promise<{ name: string; scopes: string }> {
+  return send<{ name: string; scopes: string }>("/auth/whoami");
+}
+
+export async function fetchProjects(): Promise<Project[]> {
+  return send<Project[]>("/projects");
 }
 
 // ── Scans ────────────────────────────────────────────────────────────────────

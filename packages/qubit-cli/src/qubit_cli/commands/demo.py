@@ -118,8 +118,15 @@ def demo_run(
         if patch.status != "proposed":
             console.print(f"   · task {str(task.id)[:8]}: validation failed {stages}")
             continue
-        orch.review_patch(patch.id, approve=True, note="demo auto-approve", actor="demo")
-        orch.apply_patch(patch.id, repo_root=repo, actor="demo")
+        try:
+            orch.review_patch(patch.id, approve=True, note="demo auto-approve", actor="demo")
+            orch.apply_patch(patch.id, repo_root=repo, actor="demo")
+        except Exception as exc:
+            console.print(f"   · task {str(task.id)[:8]}: apply failed — {exc}")
+            continue
+        # Commit each applied patch so the next apply sees a clean tree (operator flow).
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", f"QUBIT demo: migrate task {task.id}")
         applied += 1
         console.print(
             f"   · task {str(task.id)[:8]}: [green]{patch.generator} patch applied[/green] "

@@ -38,6 +38,29 @@ def test_extract_code_block_no_fence_raises() -> None:
         extract_code_block("no code here")
 
 
+def test_rsa_kex_rule_matches_and_routes_to_llm() -> None:
+    """py-rsa-kex-01 has no codemod, so auto generation routes RSA kex assets to the LLM."""
+    from qubit_migrate.transform import match_rule
+
+    rsa = CryptoAsset(
+        algorithm="RSA-2048",
+        usage_context=UsageContext.kex,
+        source_scanner=SourceScanner.code,
+        asset_type=AssetType.algorithm_use,
+        quantum_vulnerable=QuantumVulnerability(vulnerable=True, attack=QuantumAttack.shor),
+        discovered_at=utcnow(),
+    )
+    rule = match_rule(rsa)
+    assert rule is not None and rule.id == "py-rsa-kex-01"
+    assert rule.codemod is None  # forces the LLM path under auto
+
+    md5 = rsa.model_copy(
+        update={"algorithm": "MD5", "usage_context": UsageContext.hash}
+    )
+    weak = match_rule(md5)
+    assert weak is not None and weak.id == "py-weakhash-01"  # rule order stays correct
+
+
 def _seeded_orchestrator(tmp_path) -> tuple[MigrationOrchestrator, object]:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)

@@ -79,6 +79,47 @@ export interface ScanSummary {
   created_at: string;
 }
 
+// ── Migration workflow (doc 03 over REST) ────────────────────────────────────
+export interface MigrationPlan {
+  id: string;
+  status: string;
+  stats: { tasks?: number; units?: number; message?: string };
+  created_at: string;
+}
+
+export interface MigrationTask {
+  id: string;
+  plan_id: string;
+  asset_id: string;
+  state: string;
+  rule_id: string | null;
+  priority: number;
+  rank: number;
+  effort_points: number;
+  last_error: string | null;
+  algorithm: string | null;
+  file_path: string | null;
+  line: number | null;
+  risk_score: number | null;
+}
+
+export interface MigrationPatch {
+  id: string;
+  task_id: string;
+  generator: string;
+  file_path: string;
+  diff_text: string;
+  validation: {
+    passed?: boolean;
+    partial?: boolean;
+    stages?: Record<string, { status: string; detail: string }>;
+  };
+  status: string;
+  review_note: string | null;
+  applied_branch: string | null;
+  applied_commit: string | null;
+}
+
 /** Response of GET /scans/{id}/risk/summary — aggregate risk posture for one scan. */
 export interface RiskSummary {
   total_assets: number;

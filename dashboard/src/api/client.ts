@@ -1,5 +1,8 @@
 import type {
   CryptoAsset,
+  MigrationPatch,
+  MigrationPlan,
+  MigrationTask,
   Paginated,
   Project,
   RiskSummary,
@@ -109,6 +112,35 @@ export async function fetchTimeline(algorithm = "RSA-2048"): Promise<TimelineRes
 // /scans/{id}/risk/summary is the separate normative RiskRun record (needs POST /risk/run first).
 export async function fetchRiskSummary(scanId: string): Promise<RiskSummary> {
   return send<RiskSummary>(`/scans/${scanId}/summary`);
+}
+
+// ── Migration workflow ───────────────────────────────────────────────────────
+export async function fetchPlans(): Promise<MigrationPlan[]> {
+  return send<MigrationPlan[]>("/migrate/plans");
+}
+
+export async function createPlan(minRisk = 0): Promise<MigrationPlan> {
+  return send<MigrationPlan>("/migrate/plans", "POST", { min_risk: minRisk });
+}
+
+export async function fetchPlanQueue(planId: string): Promise<MigrationTask[]> {
+  return send<MigrationTask[]>(`/migrate/plans/${planId}/queue`);
+}
+
+export async function generatePatch(taskId: string): Promise<MigrationPatch> {
+  return send<MigrationPatch>(`/migrate/tasks/${taskId}/generate`, "POST", {});
+}
+
+export async function fetchTaskPatches(taskId: string): Promise<MigrationPatch[]> {
+  return send<MigrationPatch[]>(`/migrate/tasks/${taskId}/patches`);
+}
+
+export async function reviewPatch(
+  patchId: string,
+  approve: boolean,
+  note = "",
+): Promise<MigrationPatch> {
+  return send<MigrationPatch>(`/migrate/patches/${patchId}/review`, "POST", { approve, note });
 }
 
 // ── CBOM ─────────────────────────────────────────────────────────────────────

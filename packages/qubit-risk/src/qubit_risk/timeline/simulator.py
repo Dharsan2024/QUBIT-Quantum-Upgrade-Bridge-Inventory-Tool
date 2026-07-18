@@ -51,14 +51,21 @@ def _sample(dist: dict, size: int, rng: np.random.Generator) -> np.ndarray:
 class CRQCTimelineSimulator:
     def __init__(self, config: RiskConfig | None = None) -> None:
         self.cfg = config or load_config()
-        self._cache: dict[str, TimelineCurve] = {}
+        self._cache: dict[tuple[str, int, float], TimelineCurve] = {}
 
     def simulate(
         self, algorithm: str, *, n_trials: int | None = None, window_days: float | None = None
     ) -> TimelineCurve | None:
         """Return CDF for a Shor-vulnerable algo, or None if absent."""
-        if algorithm in self._cache:
-            return self._cache[algorithm]
+        # cache key includes trials + window: a 24h-window blend call must never
+        # collide with the 30-day standalone risk curve for the same algorithm
+        key = (
+            algorithm,
+            n_trials or self.cfg.n_trials,
+            float(window_days or self.cfg.hardware_priors["attack_window_days"]),
+        )
+        if key in self._cache:
+            return self._cache[key]
         res = self.cfg.resource_for(algorithm)
         if res is None or res.get("attack") != "shor":
             return None
@@ -125,7 +132,7 @@ class CRQCTimelineSimulator:
             n_trials=n,
             params_hash=self.cfg.params_hash,
         )
-        self._cache[algorithm] = curve
+        self._cache[key] = curve
         return curve
 
     @staticmethod

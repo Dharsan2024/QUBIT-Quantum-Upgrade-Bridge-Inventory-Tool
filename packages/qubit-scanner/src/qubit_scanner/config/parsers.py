@@ -22,7 +22,7 @@ class NginxConfigParser:
     """Parses nginx configurations to find cryptographic settings."""
 
     def parse(self, file_path: Path) -> list[Detection]:
-        detections = []
+        detections: list[Detection] = []
         try:
             # crossplane parses nginx config to JSON AST
             payload = crossplane.parse(

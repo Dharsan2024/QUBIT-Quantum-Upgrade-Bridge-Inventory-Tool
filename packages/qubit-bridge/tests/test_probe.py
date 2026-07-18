@@ -38,6 +38,7 @@ SSL-Session:
     TLS session ticket max early data: 0 (bytes)
 """
 
+
 @patch("qubit_bridge.probe.subprocess.run")
 def test_probe_parsing(mock_run):
     mock_proc = MagicMock()
@@ -45,9 +46,9 @@ def test_probe_parsing(mock_run):
     mock_proc.stdout = GOLDEN_OUTPUT
     mock_proc.stderr = "CONNECTION ESTABLISHED"
     mock_run.return_value = mock_proc
-    
+
     result = probe_host("example.com")
-    
+
     assert result.reachable is True
     assert result.tls_version == "TLSv1.3"
     assert result.negotiated_group == "X25519MLKEM768"

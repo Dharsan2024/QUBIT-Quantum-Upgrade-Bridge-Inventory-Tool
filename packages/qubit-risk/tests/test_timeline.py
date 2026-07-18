@@ -11,10 +11,19 @@ SCP = CFG.hardware_priors["surface_code"]
 def _qp(q_logical: int, n_tof: float, p: float, window_h: float, eta: float, gamma: float) -> float:
     return float(
         required_physical_qubits(
-            q_logical, n_tof, p,
-            window_s=window_h * 3600.0, t_cycle_s=1e-6, t_reaction_s=1e-5, eta=eta, gamma=gamma,
-            A=SCP["A"], p_threshold=SCP["p_threshold"], eps_fail=SCP["eps_fail"],
-            routing_overhead=SCP["routing_overhead"], parallel_cap=SCP["parallel_cap"],
+            q_logical,
+            n_tof,
+            p,
+            window_s=window_h * 3600.0,
+            t_cycle_s=1e-6,
+            t_reaction_s=1e-5,
+            eta=eta,
+            gamma=gamma,
+            A=SCP["A"],
+            p_threshold=SCP["p_threshold"],
+            eps_fail=SCP["eps_fail"],
+            routing_overhead=SCP["routing_overhead"],
+            parallel_cap=SCP["parallel_cap"],
         )
     )
 
@@ -24,7 +33,7 @@ def _qp(q_logical: int, n_tof: float, p: float, window_h: float, eta: float, gam
 @pytest.mark.parametrize(
     "q_logical,n_tof,window_h,expect",
     [
-        (6200, 2.7e9, 8, 2.0e7),   # GE2019 RSA-2048 ~20M physical qubits @ ~8h
+        (6200, 2.7e9, 8, 2.0e7),  # GE2019 RSA-2048 ~20M physical qubits @ ~8h
         (2400, 1.3e9, 24, 1.3e7),  # Webber+ 2022 ECC-256 ~13M @ 24h
     ],
 )

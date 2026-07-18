@@ -83,8 +83,7 @@ def transition(current: str, event: str) -> str:
     allowed = _TRANSITIONS.get(current, {})
     if event not in allowed:
         raise InvalidTransition(
-            f"No transition '{event}' from state '{current}'. "
-            f"Allowed events: {sorted(allowed)}"
+            f"No transition '{event}' from state '{current}'. Allowed events: {sorted(allowed)}"
         )
     return allowed[event]
 

@@ -31,23 +31,28 @@ class RiskPipeline:
             asset.shelf_life_years = sens.shelf_life_years
 
             is_vuln = asset.quantum_vulnerable.vulnerable
-            curve = (
-                self.sim.simulate(asset.algorithm)
-                if is_vuln else None
-            )
+            curve = self.sim.simulate(asset.algorithm) if is_vuln else None
             sr = score_asset(asset, sens, curve, self.cfg, self._now)
 
             if curve is not None:
                 y = migration_years(self.cfg, asset.usage_context.value)
-                mr = mosca(curve, shelf_p90=sens.shelf_life_p90, y_years=y, now_year=self._now,
-                           z_percentile=self.cfg.mosca["z_percentile"])
+                mr = mosca(
+                    curve,
+                    shelf_p90=sens.shelf_life_p90,
+                    y_years=y,
+                    now_year=self._now,
+                    z_percentile=self.cfg.mosca["z_percentile"],
+                )
                 margin = mr.margin_years
             else:
                 margin = float(self.cfg.hardware_priors["horizon_year"] - self._now)
 
             asset.risk = RiskAnnotation(
-                score=sr.score, ci_low=sr.ci_low, ci_high=sr.ci_high,
-                mosca_margin_years=margin, priority_rank=1,  # rank filled after sorting
+                score=sr.score,
+                ci_low=sr.ci_low,
+                ci_high=sr.ci_high,
+                mosca_margin_years=margin,
+                priority_rank=1,  # rank filled after sorting
             )
 
         # dense priority rank: highest score first, tie-break most-negative Mosca margin

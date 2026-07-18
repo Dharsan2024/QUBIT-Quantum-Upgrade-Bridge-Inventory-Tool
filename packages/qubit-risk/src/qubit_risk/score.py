@@ -21,9 +21,12 @@ from .timeline import TimelineCurve
 
 # P(harvested | exposure, sensitivity tier) — expert-elicited (doc 02 bn_cpds.harvest_cpd).
 _HARVEST = {
-    ("network", "high"): 0.80, ("network", "low"): 0.40,
-    ("at_rest", "high"): 0.30, ("at_rest", "low"): 0.10,
-    ("offline", "high"): 0.05, ("offline", "low"): 0.02,
+    ("network", "high"): 0.80,
+    ("network", "low"): 0.40,
+    ("at_rest", "high"): 0.30,
+    ("at_rest", "low"): 0.10,
+    ("offline", "high"): 0.05,
+    ("offline", "low"): 0.02,
 }
 _HIGH_TIER = {"phi", "pii", "financial", "ip", "credentials"}
 _GROVER_MARGINAL = 0.15  # fixed small score for AES-128/3DES-class (halved symmetric strength)
@@ -39,9 +42,9 @@ class ScoreResult:
 
 
 def exposure_of(asset: CryptoAsset) -> str:
-    is_net = (
-        asset.source_scanner == SourceScanner.network
-        or asset.usage_context.value in ("tls", "kex")
+    is_net = asset.source_scanner == SourceScanner.network or asset.usage_context.value in (
+        "tls",
+        "kex",
     )
     if is_net:
         return "network"

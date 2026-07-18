@@ -131,8 +131,12 @@ class Job(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     kind: Mapped[str] = mapped_column(String(16))  # scan|risk|plan|patch|verify|cbom_import
     status: Mapped[str] = mapped_column(String(12), default="queued", index=True)
-    project_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("projects.id"), index=True, default=None)
-    ref_id: Mapped[uuid.UUID | None] = mapped_column(default=None)  # scan_id / migration_item_id / risk_run_id
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id"), index=True, default=None
+    )
+    ref_id: Mapped[uuid.UUID | None] = mapped_column(
+        default=None
+    )  # scan_id / migration_item_id / risk_run_id
     progress: Mapped[float] = mapped_column(default=0.0)
     stage: Mapped[str] = mapped_column(String(64), default="")
     message: Mapped[str] = mapped_column(String(256), default="")

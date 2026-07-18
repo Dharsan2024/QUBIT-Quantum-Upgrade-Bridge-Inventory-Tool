@@ -45,20 +45,22 @@ class ProgressReporter:
                 job.message = message
                 session.commit()
 
-                # Emit event via the event loop
-                self.loop.call_soon_threadsafe(
-                    asyncio.create_task,
-                    self.bus.publish(
-                        "job.progress",
-                        {
-                            "job_id": str(self.job_id),
-                            "kind": job.kind,
-                            "progress": progress,
-                            "stage": stage,
-                            "message": message,
-                        },
-                    ),
-                )
+                # run_coroutine_threadsafe owns the coro (never GC'd un-awaited); skip if the loop
+                # is gone (test teardown) so no orphan coro is created.
+                if not self.loop.is_closed():
+                    asyncio.run_coroutine_threadsafe(
+                        self.bus.publish(
+                            "job.progress",
+                            {
+                                "job_id": str(self.job_id),
+                                "kind": job.kind,
+                                "progress": progress,
+                                "stage": stage,
+                                "message": message,
+                            },
+                        ),
+                        self.loop,
+                    )
 
 
 class JobRunner:
@@ -97,15 +99,15 @@ class JobRunner:
                 job.error = error
             session.commit()
 
-            # Emit finished event
-            loop = asyncio.get_running_loop()
-            loop.call_soon_threadsafe(
-                asyncio.create_task,
-                self.bus.publish(
-                    "job.finished",
-                    {"job_id": str(job_id), "status": status, "result": result, "error": error},
-                ),
-            )
+            # Emit finished event (threadsafe schedule; coro is owned, never GC'd un-awaited)
+            if not self.loop.is_closed():
+                asyncio.run_coroutine_threadsafe(
+                    self.bus.publish(
+                        "job.finished",
+                        {"job_id": str(job_id), "status": status, "result": result, "error": error},
+                    ),
+                    self.loop,
+                )
 
     def submit(self, job_id: UUID) -> None:
         self._cancel_flags[job_id] = threading.Event()

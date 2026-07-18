@@ -69,7 +69,7 @@ async def run_risk_for_scan(
     session.refresh(job)
 
     runner: JobRunner = request.app.state.job_runner
-    await runner.submit(job.id)
+    runner.submit(job.id)  # sync: schedules the async job; do not await
 
     return {"job_id": str(job.id), "status": "queued"}
 

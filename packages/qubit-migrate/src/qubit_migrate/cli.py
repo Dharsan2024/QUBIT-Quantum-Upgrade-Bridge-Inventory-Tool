@@ -7,16 +7,27 @@ from pathlib import Path
 from uuid import UUID
 
 import typer
-from qubit_core.db import session_factory
+from qubit_core.db import session_factory as _make_session_factory
+from qubit_core.db.session import default_db_url, get_engine
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.table import Table
+from sqlalchemy.orm import Session
 
 from .orchestrator import MigrationOrchestrator
 from .transform import load_rules
 
 migrate_app = typer.Typer(help="Migrate cryptographic assets to post-quantum standards.")
 console = Console()
+
+
+def session_factory() -> Session:
+    """Open a DB Session against the default DB (env QUBIT_DB_URL or user-data-dir SQLite).
+
+    Zero-arg so every ``with session_factory() as session`` call site works; the real
+    qubit_core.db.session_factory needs an engine and returns a sessionmaker.
+    """
+    return _make_session_factory(get_engine(default_db_url()))()
 
 
 @migrate_app.command("plan")
@@ -27,15 +38,15 @@ def plan_cmd(
     with session_factory() as session:
         orch = MigrationOrchestrator(session)
         plan = orch.build_plan(min_risk=min_risk)
-        
+
         console.print(f"[green]Created migration plan[/] {plan.id}")
         console.print(f"Status: {plan.status}")
-        
+
         if plan.status == "completed":
             return
-            
+
         queue = orch.get_queue(plan.id, limit=20)
-        
+
         table = Table(title="Ready Frontier")
         table.add_column("Rank")
         table.add_column("Task ID")
@@ -51,7 +62,7 @@ def plan_cmd(
                 f"{task.priority:.3f}",
                 str(task.effort_points),
             )
-        
+
         console.print(table)
 
 
@@ -61,7 +72,7 @@ def status_cmd(plan_id: UUID) -> None:
     with session_factory() as session:
         orch = MigrationOrchestrator(session)
         queue = orch.get_queue(plan_id, limit=50)
-        
+
         table = Table(title=f"Plan {plan_id} Tasks")
         table.add_column("Rank")
         table.add_column("Task ID")
@@ -75,7 +86,7 @@ def status_cmd(plan_id: UUID) -> None:
                 task.state,
                 task.rule_id or "none",
             )
-        
+
         console.print(table)
 
 
@@ -93,39 +104,44 @@ def generate_cmd(
             console.print(f"[green]Generated patch[/] {patch.id}")
             console.print(f"Status: {patch.status}")
             if patch.status == "failed":
-                console.print(f"[red]Validation failed:[/]\n{json.dumps(patch.validation_json, indent=2)}")
+                console.print(
+                    f"[red]Validation failed:[/]\n{json.dumps(patch.validation_json, indent=2)}"
+                )
         except Exception as e:
             console.print(f"[red]Error generating patch: {e}[/]")
-            raise typer.Exit(2)
+            raise typer.Exit(2) from e
 
 
 @migrate_app.command("review")
 def review_cmd(
     patch_id: UUID,
-    approve: bool = typer.Option(False, "--approve", "-a", help="Approve without prompting (auto-approve)"),
+    approve: bool = typer.Option(
+        False, "--approve", "-a", help="Approve without prompting (auto-approve)"
+    ),
     reject: bool = typer.Option(False, "--reject", "-r", help="Reject without prompting"),
 ) -> None:
     """Review and approve/reject a patch."""
     with session_factory() as session:
         from .state import PatchProposal
+
         patch = session.get(PatchProposal, patch_id)
         if not patch or patch.status != "proposed":
             console.print("[red]Patch not found or not in proposed state[/]")
             raise typer.Exit(5)
-            
+
         console.print(f"Patch ID: {patch.id}")
         console.print(f"File: {patch.file_path}")
-        
+
         syntax = Syntax(patch.diff_text, "diff", theme="monokai", line_numbers=False)
         console.print(syntax)
-        
+
         if approve:
             choice = "a"
         elif reject:
             choice = "r"
         else:
             choice = typer.prompt("[a]pprove, [r]eject, or [s]kip", type=str).lower()
-            
+
         orch = MigrationOrchestrator(session)
         if choice.startswith("a"):
             orch.review_patch(patch_id, approve=True)
@@ -154,7 +170,7 @@ def apply_cmd(
                 console.print(f"Commit: {p.applied_commit}")
         except Exception as e:
             console.print(f"[red]Error applying patch: {e}[/]")
-            raise typer.Exit(3)
+            raise typer.Exit(3) from e
 
 
 @migrate_app.command("verify")
@@ -167,7 +183,7 @@ def verify_cmd(task_id: UUID) -> None:
             console.print(f"[green]Task {task_id} verified successfully.[/]")
         except Exception as e:
             console.print(f"[red]Error verifying task: {e}[/]")
-            raise typer.Exit(2)
+            raise typer.Exit(2) from e
 
 
 @migrate_app.command("rules")
@@ -181,7 +197,7 @@ def rules_cmd(
         table.add_column("ID")
         table.add_column("Language")
         table.add_column("Title")
-        
+
         for r in rules:
             table.add_row(r.id, r.language, r.title)
         console.print(table)

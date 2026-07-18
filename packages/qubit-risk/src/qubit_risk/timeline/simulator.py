@@ -93,10 +93,19 @@ class CRQCTimelineSimulator:
             q_avail = q0 * np.exp(g * dt)
             p_t = np.maximum(1e-5, p0 * np.exp(-r * dt))
             q_needed = sc.required_physical_qubits(
-                q_logical, n_tof, p_t,
-                window_s=window_s, t_cycle_s=t_cycle, t_reaction_s=t_react, eta=eta, gamma=gamma,
-                A=sc_p["A"], p_threshold=sc_p["p_threshold"], eps_fail=sc_p["eps_fail"],
-                routing_overhead=sc_p["routing_overhead"], parallel_cap=sc_p["parallel_cap"],
+                q_logical,
+                n_tof,
+                p_t,
+                window_s=window_s,
+                t_cycle_s=t_cycle,
+                t_reaction_s=t_react,
+                eta=eta,
+                gamma=gamma,
+                A=sc_p["A"],
+                p_threshold=sc_p["p_threshold"],
+                eps_fail=sc_p["eps_fail"],
+                routing_overhead=sc_p["routing_overhead"],
+                parallel_cap=sc_p["parallel_cap"],
             )
             newly = (q_avail >= q_needed) & np.isinf(break_year)
             break_year = np.where(newly, float(year), break_year)

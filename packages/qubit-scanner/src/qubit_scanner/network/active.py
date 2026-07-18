@@ -13,13 +13,12 @@ class TlsEnumerator:
         detections = []
         loc = Location(host=host, service=str(port))
 
-        loop = asyncio.get_running_loop()
         context = ssl.create_default_context()
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
 
         try:
-            reader, writer = await asyncio.wait_for(
+            _reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(host, port, ssl=context), timeout=5.0
             )
 
@@ -58,14 +57,8 @@ class TlsEnumerator:
                         )
                     )
 
-                # Feature-gate for Python 3.15+ (Probe A group)
-                if hasattr(ssl.SSLSocket, "group"):
-                    try:
-                        # Dummy call just to show the feature check pattern per spec
-                        # group = ssl_obj.group()
-                        pass
-                    except Exception:
-                        pass
+                # Negotiated-group readout (ssl.SSLSocket.group) is Python 3.15+; Probe B (raw
+                # ClientHello) is the canonical group source until then.
 
             writer.close()
             await writer.wait_closed()

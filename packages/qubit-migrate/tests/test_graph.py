@@ -50,7 +50,7 @@ def test_cert_key_edges():
     other_key = _asset("RSA-2048", asset_type="key", fingerprint="fp456")
 
     g = build_dependency_graph([cert, key, other_key])
-    
+
     assert g.number_of_nodes() == 3
     assert g.number_of_edges() == 1
     assert g.has_edge(cert.id, key.id)
@@ -63,7 +63,7 @@ def test_library_upgrade_edges():
     a3 = _asset("SHA-1", repo="repoB", library="hashlib")  # different repo
 
     g = build_dependency_graph([a1, a2, a3])
-    
+
     # a1 and a2 should have an edge (any direction is fine, it forms an SCC)
     assert g.has_edge(a1.id, a2.id) or g.has_edge(a2.id, a1.id)
     assert not g.has_edge(a1.id, a3.id)
@@ -75,24 +75,24 @@ def test_migration_order():
     # D -> E (separate)
     a1 = _asset("MD5", repo="repoA", library="hashlib")
     a2 = _asset("SHA-1", repo="repoA", library="hashlib")
-    
+
     # Add fake risk scores for sorting
     class _FakeRisk:
         score = 0.5
-    
+
     class _FakeRiskHigh:
         score = 0.9
 
     a1.risk = _FakeRisk()
     a2.risk = _FakeRiskHigh()
-    
+
     g = build_dependency_graph([a1, a2])
     # a1 <-> a2 due to library upgrade edge, forming an SCC
     # So they should be in the same MigrationUnit
-    
+
     id_map = {a.id: a for a in [a1, a2]}
     units = migration_order(g, id_map)
-    
+
     assert len(units) == 1
     assert len(units[0].member_ids) == 2
     assert set(units[0].member_ids) == {a1.id, a2.id}

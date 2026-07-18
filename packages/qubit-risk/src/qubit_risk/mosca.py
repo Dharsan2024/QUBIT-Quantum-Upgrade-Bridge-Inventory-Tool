@@ -36,8 +36,13 @@ def _cdf_at(curve: TimelineCurve, year: float) -> float:
 def migration_years(cfg: RiskConfig, usage_context: str, override: float | None = None) -> float:
     m = cfg.mosca
     defaults = m["default_migration_years"]
-    base = override if override is not None else defaults.get(
-        usage_context, 0.5,
+    base = (
+        override
+        if override is not None
+        else defaults.get(
+            usage_context,
+            0.5,
+        )
     )
     return float(base) + float(m["org_overhead_years"])
 

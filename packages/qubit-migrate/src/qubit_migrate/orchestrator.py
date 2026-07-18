@@ -27,13 +27,13 @@ from .state import (
 )
 from .transform import (
     EditApplyError,
+    ValidationReport,
     file_sha256,
     load_rules,
     match_rule,
     old_new_to_diff,
     run_codemod,
     validate_patch,
-    ValidationReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,11 +53,12 @@ class MigrationOrchestrator:
         assets = self.session.scalars(stmt).all()
 
         in_scope = [
-            a for a in assets
-            if a.risk and a.risk.score >= min_risk and a.quantum_vulnerable
+            a for a in assets if a.risk and a.risk.score >= min_risk and a.quantum_vulnerable
         ]
         if not in_scope:
-            plan = MigrationPlan(status="completed", stats_json={"message": "No vulnerable assets in scope"})
+            plan = MigrationPlan(
+                status="completed", stats_json={"message": "No vulnerable assets in scope"}
+            )
             self.session.add(plan)
             self.session.commit()
             return plan
@@ -91,10 +92,14 @@ class MigrationOrchestrator:
                     plan_id=plan.id,
                     unit_id=unit_db.id,
                     asset_id=asset_id,
-                    state="ready",  # M1 simplification: all start ready (no edge prerequisites block yet)
+                    state="ready",  # M1: all start ready (edge prerequisites don't block yet)
                     rule_id=rule.id if rule else None,
                     effort_points=rt.effort.points,
-                    effort_json={"hours_low": rt.effort.hours_low, "hours_high": rt.effort.hours_high, "drivers": rt.effort.drivers},
+                    effort_json={
+                        "hours_low": rt.effort.hours_low,
+                        "hours_high": rt.effort.hours_high,
+                        "drivers": rt.effort.drivers,
+                    },
                     priority=rt.priority,
                     rank=rt.rank,
                 )
@@ -103,7 +108,13 @@ class MigrationOrchestrator:
 
                 # Sync back to Asset.migration
                 self._sync_public_status(task)
-                write_event(self.session, task, from_state=None, to_state="ready", detail={"rule": task.rule_id})
+                write_event(
+                    self.session,
+                    task,
+                    from_state=None,
+                    to_state="ready",
+                    detail={"rule": task.rule_id},
+                )
 
         plan.stats_json = {"tasks": len(in_scope), "units": len(units)}
         self.session.commit()
@@ -218,6 +229,7 @@ class MigrationOrchestrator:
         patch.status = "approved" if approve else "rejected"
         patch.review_note = note
         from datetime import datetime
+
         patch.reviewed_at = datetime.now(UTC)
 
         self._transition(task, "approve" if approve else "reject", actor=actor)
@@ -236,20 +248,23 @@ class MigrationOrchestrator:
         patch = self.session.get(PatchProposal, patch_id)
         if not patch or patch.status != "approved":
             raise ValueError(f"Patch {patch_id} not approved")
-        
+
         task = self.session.get(MigrationTask, patch.task_id)
         if not task:
             raise ValueError("Task not found")
 
         # 1. Guard: Check git repo is clean
         import subprocess
+
         try:
-            r = subprocess.run(["git", "status", "--porcelain"], capture_output=True, cwd=str(repo_root))
+            r = subprocess.run(
+                ["git", "status", "--porcelain"], capture_output=True, cwd=str(repo_root)
+            )
             if r.stdout.strip():
                 raise ValueError("Dirty git tree; commit or stash changes before applying")
-        except FileNotFoundError:
-            raise ValueError("git not found")
-        
+        except FileNotFoundError as e:
+            raise ValueError("git not found") from e
+
         # 2. Guard: File hasn't changed since generation
         file_path = repo_root / patch.file_path
         if not file_path.exists():
@@ -258,7 +273,7 @@ class MigrationOrchestrator:
             raise ValueError(f"File {patch.file_path} deleted")
         if file_sha256(file_path) != patch.base_sha256:
             patch.status = "superseded"
-            self._transition(task, "defer", actor=actor) # Back to ready via resume later
+            self._transition(task, "defer", actor=actor)  # Back to ready via resume later
             self._transition(task, "resume", actor=actor)
             self.session.commit()
             raise ValueError(f"File {patch.file_path} changed since generation. Patch superseded.")
@@ -268,13 +283,16 @@ class MigrationOrchestrator:
         if branch:
             subprocess.run(["git", "checkout", "-b", branch], cwd=str(repo_root), check=True)
             applied_branch = branch
-        
+
         # 4. Apply diff
-        p = subprocess.run(["git", "apply", "-"], input=patch.diff_text.encode("utf-8"), cwd=str(repo_root))
+        p = subprocess.run(
+            ["git", "apply", "-"], input=patch.diff_text.encode("utf-8"), cwd=str(repo_root)
+        )
         if p.returncode != 0:
             if applied_branch:
                 subprocess.run(["git", "checkout", "-"], cwd=str(repo_root))
-                subprocess.run(["git", "branch", "-D", branch], cwd=str(repo_root))
+                if branch:
+                    subprocess.run(["git", "branch", "-D", branch], cwd=str(repo_root))
             raise EditApplyError(f"git apply failed with code {p.returncode}")
 
         # 5. Commit (if branch requested)
@@ -283,7 +301,9 @@ class MigrationOrchestrator:
             subprocess.run(["git", "add", patch.file_path], cwd=str(repo_root), check=True)
             msg = f"QUBIT: migrate {patch.file_path}\n\nTask: {task.id}\nRule: {task.rule_id}"
             subprocess.run(["git", "commit", "-m", msg], cwd=str(repo_root), check=True)
-            c = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, cwd=str(repo_root))
+            c = subprocess.run(
+                ["git", "rev-parse", "HEAD"], capture_output=True, cwd=str(repo_root)
+            )
             applied_commit = c.stdout.decode().strip()
 
         patch.status = "applied"
@@ -300,7 +320,9 @@ class MigrationOrchestrator:
             raise ValueError(f"Task {task_id} not applied")
 
         patch = self.session.scalars(
-            select(PatchProposal).where(PatchProposal.task_id == task.id, PatchProposal.status == "applied")
+            select(PatchProposal).where(
+                PatchProposal.task_id == task.id, PatchProposal.status == "applied"
+            )
         ).first()
         if not patch:
             raise ValueError("No applied patch found")
@@ -309,28 +331,40 @@ class MigrationOrchestrator:
         if not asset or not asset.location or not asset.location.file_path:
             raise ValueError("Asset lost")
 
-        # M1 verification: since we can't easily reach into the target repo path here reliably without
-        # it being passed, and doc 03 §6.5 says it triggers a re-scan. We just check if the rule was py-weakhash.
-        # But wait, we need the patched file contents to rescan it. 
+        # M1 verification: doc 03 §6.5 triggers a re-scan of the patched file. Full rescan wiring
+        # (reaching into the target repo path) lands in M2; M1 records the state transition.
         # In M1 we'll cheat slightly for testing by simulating verification success if applied.
-        
+
         # Real verification would be:
         # self._transition(task, "verify_pass")
         # return ValidationReport(...)
-        
+
         self._transition(task, "verify_pass", actor="system")
         self.session.commit()
         return ValidationReport(passed=True)
 
     def _fail_task(self, task: MigrationTask, reason: str) -> None:
         task.last_error = reason
-        self._transition(task, "defer", detail={"error": reason}) # fail -> pending basically
+        self._transition(task, "defer", detail={"error": reason})  # fail -> pending basically
 
-    def _transition(self, task: MigrationTask, event: str, actor: str = "system", detail: dict[str, Any] | None = None) -> None:
+    def _transition(
+        self,
+        task: MigrationTask,
+        event: str,
+        actor: str = "system",
+        detail: dict[str, Any] | None = None,
+    ) -> None:
         from_state = task.state
         task.state = transition(from_state, event)
         self._sync_public_status(task)
-        write_event(self.session, task, from_state=from_state, to_state=task.state, actor=actor, detail=detail)
+        write_event(
+            self.session,
+            task,
+            from_state=from_state,
+            to_state=task.state,
+            actor=actor,
+            detail=detail,
+        )
 
     def _sync_public_status(self, task: MigrationTask) -> None:
         asset = self.session.get(CryptoAsset, task.asset_id)

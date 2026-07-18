@@ -5,8 +5,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from qubit_core.db import Job, RiskRun, ScanRow
+from qubit_core.db import AssetRow, Job, RiskRun, ScanRow
+from qubit_core.mapping import row_to_asset
 from qubit_risk import CRQCTimelineSimulator
+from qubit_risk.config import load_config
+from qubit_risk.hndl import harvest_prob, hndl_bayes_net, p_decrypt_integral
+from qubit_risk.score import exposure_of
 from qubit_risk.timeline.survey import BlendedTimeline
 from sqlalchemy.orm import Session
 
@@ -150,4 +154,59 @@ def get_algorithm_timeline(
         "p05_year": curve.p05_year,
         "p95_year": curve.p95_year,
         "n_trials": curve.n_trials,
+    }
+
+
+# Per-asset HNDL explanation: the factor decomposition behind the risk score, with the closed-form
+# integral and its Bayesian-network agreement (doc 02 §6.2). Powers the dashboard "why this score".
+@router.get("/assets/{asset_id}/hndl")
+def get_asset_hndl(
+    asset_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+) -> dict:
+    row = session.get(AssetRow, asset_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    asset = row_to_asset(row)
+
+    if not asset.quantum_vulnerable.vulnerable:
+        return {"asset_id": str(asset_id), "algorithm": asset.algorithm, "vulnerable": False}
+
+    curve = _SIM.simulate(asset.algorithm)
+    if curve is None:
+        # Grover-tier / symmetric: no CRQC arrival curve, so no HNDL factor decomposition
+        return {
+            "asset_id": str(asset_id),
+            "algorithm": asset.algorithm,
+            "vulnerable": True,
+            "shor": False,
+            "note": "Symmetric/Grover-tier — no CRQC timeline; scored with a fixed marginal.",
+        }
+
+    cfg = load_config()
+    now = cfg.hardware_priors["reference_year"]
+    sensitivity = asset.sensitivity.value if asset.sensitivity else "unknown"
+    exposure = exposure_of(asset)
+    shelf_spec = cfg.shelf_life_priors["classes"].get(sensitivity, {})
+
+    harvest = harvest_prob(cfg, exposure, sensitivity)
+    p_dec = p_decrypt_integral(curve, shelf_spec, now)
+    closed_form = harvest * p_dec
+    bn_p, factors = hndl_bayes_net(cfg).p_hndl(curve, exposure, sensitivity, shelf_spec, now)
+
+    return {
+        "asset_id": str(asset_id),
+        "algorithm": asset.algorithm,
+        "vulnerable": True,
+        "shor": True,
+        "exposure": exposure,
+        "sensitivity": sensitivity,
+        "tier": factors.tier,
+        "harvest_prob": round(harvest, 4),
+        "p_decrypt": round(p_dec, 4),
+        "p_hndl_closed_form": round(closed_form, 4),
+        "p_hndl_bayes_net": round(bn_p, 4),
+        "bn_closed_form_agreement": round(abs(closed_form - bn_p), 4),
+        "crqc_median_year": curve.median_year,
+        "persisted_score": row.risk_score,
     }

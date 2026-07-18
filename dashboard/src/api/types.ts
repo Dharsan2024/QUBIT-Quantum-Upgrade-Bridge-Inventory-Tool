@@ -121,6 +121,25 @@ export interface MigrationPatch {
   applied_commit: string | null;
 }
 
+/** Response of GET /assets/{id}/hndl — per-asset HNDL factor decomposition (doc 02 §6.2). */
+export interface HndlExplanation {
+  asset_id: string;
+  algorithm: string;
+  vulnerable: boolean;
+  shor?: boolean;
+  note?: string;
+  exposure?: string;
+  sensitivity?: string;
+  tier?: string;
+  harvest_prob?: number;
+  p_decrypt?: number;
+  p_hndl_closed_form?: number;
+  p_hndl_bayes_net?: number;
+  bn_closed_form_agreement?: number;
+  crqc_median_year?: number | null;
+  persisted_score?: number | null;
+}
+
 /** Response of GET /scans/{id}/risk/summary — aggregate risk posture for one scan. */
 export interface RiskSummary {
   total_assets: number;

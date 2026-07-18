@@ -236,6 +236,41 @@ def test_algorithm_timeline_unknown_algorithm_404(tmp_path: Path) -> None:
         assert r.status_code == 404
 
 
+def test_asset_hndl_explanation(tmp_path: Path) -> None:
+    """Per-asset HNDL factor decomposition with BN/closed-form agreement (doc 02 §6.2)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_repo(repo, include_md5=False)  # RSA-2048 (Shor) asset present
+    with _make_client(tmp_path) as client:
+        pid = client.post("/api/v1/projects", json={"name": "H"}).json()["id"]
+        sid = client.post(
+            f"/api/v1/projects/{pid}/scans",
+            json={"targets": [str(repo)], "run_risk": True},
+        ).json()["scan"]["id"]
+        assert _wait_for_scan(client, sid)["status"] == "succeeded"
+
+        assets = client.get(f"/api/v1/scans/{sid}/assets").json()["items"]
+        rsa = next(a for a in assets if a["algorithm"] == "RSA-2048")
+
+        r = client.get(f"/api/v1/assets/{rsa['id']}/hndl")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["vulnerable"] is True and body["shor"] is True
+        assert 0.0 <= body["harvest_prob"] <= 1.0
+        assert 0.0 <= body["p_decrypt"] <= 1.0
+        # closed-form ≈ harvest · p_decrypt, and the BN agrees to <0.02
+        assert abs(body["p_hndl_closed_form"] - body["harvest_prob"] * body["p_decrypt"]) < 1e-3
+        assert body["bn_closed_form_agreement"] < 0.02
+
+
+def test_asset_hndl_missing_404(tmp_path: Path) -> None:
+    import uuid
+
+    with _make_client(tmp_path) as client:
+        r = client.get(f"/api/v1/assets/{uuid.uuid4()}/hndl")
+        assert r.status_code == 404
+
+
 def test_algorithm_timeline_survey_blend(tmp_path: Path) -> None:
     # blend=true fuses the expert-survey CDF (doc 02 §6.1.5) and reports the weight used.
     with _make_client(tmp_path) as client:

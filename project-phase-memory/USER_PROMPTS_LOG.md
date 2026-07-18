@@ -14,6 +14,11 @@ Read project memory/design files 1-6 in order, identify Copilot lane, and start 
 work item: DB persistence + `qubit-api` FastAPI service so scans are stored in the registry and
 become queryable/trend-able.
 
+### 2026-07-18 (eve) IST — Claude (Orchestrator Resume, B2)
+Reviewed 2 commits landed while away: bridge E2E (Antigravity, 8e493f4) → KEEP (live X25519MLKEM768
+negotiation verified); survey blend (c0fdac2) → KEEP-core+FINISH (added 6 tests + API blend param,
+removed cruft, fixed simulator cache-key bug). 208 tests green, pushed 68e7314.
+
 ### 2026-07-18 (aft) IST — Claude (switched to Fable 5)
 "Continue — Fable won't be available after two, so build everything with that." → Built the M2 REST
 migration workflow: fixed 3 latent bugs (orchestrator Pydantic-vs-ORM crasher, dead codemod rule,

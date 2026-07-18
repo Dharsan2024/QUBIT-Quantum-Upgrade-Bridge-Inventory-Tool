@@ -190,6 +190,21 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (eve) — Orchestrator review + M2 survey blend FINISHED (Claude, Fable) — 68e7314
+Reviewed 2 commits that landed while away (B2 resume):
+- **8e493f4 bridge E2E (Antigravity) — VERDICT KEEP.** `@pytest.mark.integration` test really spins up
+  the nginx-hybrid container (testcontainers) and the openssl probe negotiates **X25519MLKEM768 /
+  TLSv1.3** live — verified it PASSES here. Only ruff-cleaned (E501, import order).
+- **c0fdac2 survey blend — VERDICT KEEP-CORE + FINISH.** survey.py/config/simulator/yaml matched
+  doc 02 §6.1.4-6.1.5 and gate-green, but was INCOMPLETE (no tests, unwired) and carried cruft (2 empty
+  tracked files + an opportunistic ruff-reformat of the demo-lab fixture — vulnerable patterns intact).
+  Finished: 6 survey tests (LogNormal fit recovers GRI anchors ≤8pts, monotonic, w=1/w=0 extremes equal
+  hardware/survey components, ECDSA≤RSA, unknown→None); API `GET /risk/timeline?blend=true&weight=`;
+  removed junk files; fixed simulator cache-key bug (keyed algo+trials+window so 24h blend ≠ 30d curve).
+- Gate: **208 tests**, ruff+mypy clean.
+- **Next (risk M2 remaining):** Bayesian net (pgmpy, doc 02 §6.2); dashboard Timeline blend toggle;
+  JobRunner async polish.
+
 ### 2026-07-18 — Bridge E2E Testing (Antigravity)
 - **Feature:** Added E2E integration test for `qubit-bridge` (`test_e2e.py`).
 - **Dev-Ops:** Integrated `testcontainers-python` to dynamically build and run the `nginx-hybrid` terminator.

@@ -190,6 +190,16 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (aft-5) — `qubit demo run`: full M2 acceptance loop in ONE command (Claude, Fable) — bda7f5c
+- New `qubit demo run [--target DIR] [--generator auto|template|llm] [--keep]`: scratch git repo →
+  tree-sitter scan → MC-backed risk annotation → WSJF plan → generate → auto-approve → git apply →
+  re-scan with a before/after remediation table. All real components, in-process, no server needed.
+- **Proven live BOTH ways:** template AND llm (qwen2.5-coder via Ollama) each remediate SHA-1 1→0 with
+  stages applies/parses/**compiles(Docker)**/rescan all passing. RSA-2048 stays (no kex codemod rule
+  yet — honest gap, listed for M2 rules backlog).
+- Gate: 199 tests, ruff+mypy clean.
+- **Next:** more codemod rules (RSA kex → ML-KEM via bridge config?), qubit-risk M2, JobRunner polish.
+
 ### 2026-07-18 (aft-4) — Docker sandbox validation stages 3-4 REAL (Claude, Fable) — aab04a5
 - Stages `compiles`+`tests` were permanent skip-stubs → now real isolated containers
   (python:3.12-slim, `--network=none`): compile check on a read-only mount; tests = repo copy +

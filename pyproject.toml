@@ -52,6 +52,10 @@ ignore = ["S101"]                                       # assert is fine in test
 "packages/qubit-scanner/**" = ["S110"]
 # Typer routes options through call-in-default-arg by design.
 "**/cli.py" = ["B008"]
+# Sensitivity-classifier data synthesis: random is for reproducible sampling (not crypto);
+# vocab holds literal multi-language code templates that must stay verbatim.
+"packages/qubit-risk/src/qubit_risk/ml/synth.py" = ["S311"]
+"packages/qubit-risk/src/qubit_risk/ml/vocab.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

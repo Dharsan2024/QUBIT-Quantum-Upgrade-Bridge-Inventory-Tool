@@ -12,6 +12,15 @@ dependencies = [
   "pgmpy>=1.0",
 ]
 
+# Optional Tier-2 training stack (doc 02 §6.3.3). Base install stays lean; enable with
+# `uv sync --extra ml`. Dataset synthesis (Tier 1) needs none of this.
+[project.optional-dependencies]
+ml = [
+  "transformers>=4.44",
+  "torch>=2.2",
+  "datasets>=2.20",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

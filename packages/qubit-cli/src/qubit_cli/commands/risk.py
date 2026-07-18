@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
@@ -142,6 +143,25 @@ def risk_explain(
         console.print(f"CI 90%:      [{asset.risk.ci_low:.4f}, {asset.risk.ci_high:.4f}]")
         console.print(f"Mosca margin:{asset.risk.mosca_margin_years:.1f} years")
         console.print(f"Priority rank:{asset.risk.priority_rank}")
+
+
+@risk_app.command("gen-dataset")
+def risk_gen_dataset(
+    out: Annotated[Path, typer.Option("--out", help="Output JSONL path")] = Path(
+        "datasets/sensitivity/synth.jsonl"
+    ),
+    per_class: Annotated[int, typer.Option("--per-class", help="Examples per class")] = 1500,
+    seed: Annotated[int, typer.Option("--seed", help="RNG seed (reproducible)")] = 42,
+) -> None:
+    """Synthesize the Tier-1 sensitivity training corpus (doc 02 §6.3.4)."""
+    from qubit_risk.ml import SYNTH_CLASSES, generate_dataset, write_jsonl
+
+    data = generate_dataset(per_class=per_class, seed=seed)
+    n = write_jsonl(data, out)
+    console.print(
+        f"[green]Wrote {n} examples[/green] across {len(SYNTH_CLASSES)} classes "
+        f"({per_class}/class, seed={seed}) -> {out}"
+    )
 
 
 @risk_app.command("mosca")

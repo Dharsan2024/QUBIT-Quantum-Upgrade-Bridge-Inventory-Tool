@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from qubit_core.db import Job, RiskRun, ScanRow
+from qubit_risk import CRQCTimelineSimulator
 from sqlalchemy.orm import Session
 
 from ..deps import get_session
@@ -115,3 +116,28 @@ def get_risk_timeline(
     if not risk_run or risk_run.status != "succeeded":
         raise HTTPException(status_code=404, detail="Completed risk run not found for this scan")
     return {"timeline": risk_run.timeline or [], "percentiles": risk_run.percentiles or {}}
+
+
+# On-demand CRQC timeline for a single algorithm — runs the real Monte-Carlo simulator (doc 02 §5.3
+# `GET /risk/timeline?algorithm=`). No scan required; used by the dashboard's CRQC Timeline page.
+_SIM = CRQCTimelineSimulator()
+
+
+@router.get("/risk/timeline")
+def get_algorithm_timeline(algorithm: str = "RSA-2048") -> dict:
+    curve = _SIM.simulate(algorithm)
+    if curve is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No CRQC timeline for '{algorithm}' (not Shor-vulnerable / unknown)",
+        )
+    return {
+        "algorithm": curve.algorithm,
+        "years": curve.years,
+        "cdf": curve.cdf,
+        "cdf_stderr": curve.cdf_stderr,
+        "median_year": curve.median_year,
+        "p05_year": curve.p05_year,
+        "p95_year": curve.p95_year,
+        "n_trials": curve.n_trials,
+    }

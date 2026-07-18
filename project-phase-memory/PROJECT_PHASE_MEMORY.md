@@ -190,6 +190,19 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (eve-2) — HNDL Bayesian network + closed-form integral (Claude, Fable) — 24e18f6
+- `hndl.py`: closed-form `P_HNDL = P(H|E,S)·∫ f_L(ℓ)·F_a(now+ℓ)dℓ` (512-pt Gauss-Legendre) as the
+  ground truth, + `HndlBayesNet` (pgmpy DiscreteBayesianNetwork: Harvested|Exposure,SensTier;
+  CRQCArrival per-year off F_a; ShelfLife equal-support bins; DBO deterministic). **BN agrees with the
+  closed form to <0.02** (network 0.0159 / at_rest 0.0060 / offline 0.0010) — unit-tested per doc 02 §6.2.2.
+- `params/bn_cpds.yaml` (harvest_cpd, high_tiers, shelf_bins) registered in config. `score.py` now uses
+  the closed-form integral for P(decrypt) (was M1 MC) and pulls harvest prob from bn_cpds (one source).
+- Added `pgmpy>=1.0` dep (pulls torch/pandas/statsmodels; python already pinned <3.14). pgmpy 1.x uses
+  `DiscreteBayesianNetwork`.
+- Gate: **215 tests**, ruff+mypy clean.
+- **Risk M2 remaining:** XGBoost conformal band + DistilBERT sensitivity tier (Oct-15 ship/no-ship gate,
+  heavy — needs training data pipeline); dashboard Timeline blend toggle + BN-factors panel.
+
 ### 2026-07-18 (eve) — Orchestrator review + M2 survey blend FINISHED (Claude, Fable) — 68e7314
 Reviewed 2 commits that landed while away (B2 resume):
 - **8e493f4 bridge E2E (Antigravity) — VERDICT KEEP.** `@pytest.mark.integration` test really spins up

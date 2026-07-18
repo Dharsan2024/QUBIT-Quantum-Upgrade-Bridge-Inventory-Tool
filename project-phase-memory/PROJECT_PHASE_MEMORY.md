@@ -190,6 +190,16 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (eve-3) — Dashboard Timeline survey-blend toggle (Claude, Fable) — a3b4f97
+- `fetchTimeline(algo, {blend, weight})`; Timeline page gains a "Blend survey" toggle + w slider
+  (hardware share). Blended curve shown with the pure-hardware baseline overlaid (dotted) for contrast;
+  4th stat tile swaps to the survey weight. Makes the M2 survey blend visible in the UI.
+- Verified live over HTTP: RSA-2048 hardware median 2041 (p05 2036/p95 2055) vs blended w=0.5 median
+  2040 (p05 2030/p95 2060) — expert survey widens the band as expected. Dashboard build green.
+- **Note (git):** PowerShell here-strings with parens in `-m @'...'@` mis-parse — commit via `-F file`.
+- **Risk M2 remaining:** XGBoost conformal band + DistilBERT sensitivity tier (heavy, training-data
+  pipeline, Oct-15 gate). Analytical novelty (survey blend + Bayesian net) is DONE and UI-visible.
+
 ### 2026-07-18 (eve-2) — HNDL Bayesian network + closed-form integral (Claude, Fable) — 24e18f6
 - `hndl.py`: closed-form `P_HNDL = P(H|E,S)·∫ f_L(ℓ)·F_a(now+ℓ)dℓ` (512-pt Gauss-Legendre) as the
   ground truth, + `HndlBayesNet` (pgmpy DiscreteBayesianNetwork: Harvested|Exposure,SensTier;

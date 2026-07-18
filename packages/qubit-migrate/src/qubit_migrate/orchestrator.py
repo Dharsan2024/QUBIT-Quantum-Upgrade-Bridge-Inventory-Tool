@@ -383,8 +383,12 @@ class MigrationOrchestrator:
             status = to_public_status(task.state)
             migration = dict(row.migration_json or {})
             migration["status"] = status
+            # MigrationAnnotation requires a recommendation — always write one so the row
+            # stays hydratable via row_to_asset.
             if task.rule_id:
                 migration["recommendation"] = f"Migrate using {task.rule_id}"
+            else:
+                migration.setdefault("recommendation", "Manual migration required (no rule)")
             row.migration_status = status
             row.migration_json = migration
             flag_modified(row, "migration_json")

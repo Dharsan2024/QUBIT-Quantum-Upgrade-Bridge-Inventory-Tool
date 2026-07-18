@@ -8,6 +8,7 @@ dependencies = [
   "fastapi>=0.139",
   "pydantic-settings>=2.6",
   "qubit-core",
+  "qubit-migrate",
   "qubit-risk",
   "qubit-scanner",
   "sse-starlette~=3.4",

@@ -3,7 +3,9 @@ language: python
 title: "SHA-1/MD5 weak hash → argon2id (passwords) or SHA-256 (generic digests)"
 matches:
   algorithm: ["MD5", "SHA-1"]
-  usage_context: ["hashing", "password-hash", "mac", "digest"]
+  # canonical qubit-core UsageContext values (frozen schema): "hash" covers generic
+  # digests/MACs, "password" the credential-hashing path.
+  usage_context: ["hash", "password", "unknown"]
   library_name: ["hashlib", "cryptography", null]
 target:
   algorithm: SHA-256          # generic digest path
@@ -36,8 +38,8 @@ example:
     _ph = PasswordHasher()
     def store_password(pw: str) -> str:
         return _ph.hash(pw)
+# The scanner reports only vulnerable crypto, so "present: SHA-256" can never be
+# observed — the meaningful post-patch check is that both weak hashes are gone.
 rescan_expect:
   gone:
-    algorithm_prefix: "MD5"
-  present:
-    algorithm_prefix: "SHA-256"
+    algorithm_prefix: ["MD5", "SHA-1"]

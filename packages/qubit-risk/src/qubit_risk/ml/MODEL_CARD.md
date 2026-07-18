@@ -1,31 +1,46 @@
-# Sensitivity classifier — DistilBERT (Tier 2), synthetic-only checkpoint
+# Sensitivity classifier — DistilBERT (Tier 2)
 
-**Status: bootstrap / pipeline-proven — NOT the ship checkpoint.**
+**Status: strong synthetic generalization, gated by an abstention threshold. Bootstrap for Tier-2,
+not yet the human-verified ship checkpoint.**
 
 ## What was trained
 - Base: `distilbert-base-uncased`, 7-class head (phi, financial, pii, credentials, ip, ephemeral, public).
-- Data: **Tier-1 template synthesis only** — 21,000 examples (3000/class), `qubit risk gen-dataset` seed 42.
+- Data: **Tier-1 template synthesis**, trained on the *train* vocab/template split only.
 - Hardware: RTX 4060 Laptop (8 GB), torch 2.6.0+cu124, fp16, batch 32, lr 2e-5, weighted CE.
-- Early stopping on validation macro-F1 (ceiling 20 epochs, patience 3).
+- Early stopping on in-distribution val macro-F1 (ceiling 20 epochs, patience 3) — converged epoch 1.
 
-## Result (and why the number is misleading)
-- **Validation macro-F1 = 1.000** — reached at **epoch 1**, stopped at epoch 4.
-- This is **not** evidence of real-world capability. It is exactly the *structural circularity*
-  doc 02 §6.3.4 warns about: the synthetic templates are trivially separable, so the model learned
-  the template surface form, not data-sensitivity semantics.
-- Sanity check on **novel** phrasing confirms poor generalization:
-  - `ids: user_pwd, salt | "hash login secret"` → predicted **pii** (should be **credentials**).
-  - ambiguous `ids: value, data` → **ephemeral** @ 0.90 (overconfident, wrong).
+## Results — measured honestly
+Two numbers, because they mean different things:
 
-## Honest conclusion
-The training pipeline (synthesis → GPU fine-tune → macro-F1 gate → checkpoint → inference) is
-**real and works end-to-end**. The *model* is a bootstrap only. Per doc 02 §6.3.4 the real
-ship/no-ship gate (Oct-15) requires:
-1. Tier-2 weak-labeled **real** code (scanner + local Ollama over permissive repos),
-2. the **human-adjudicated disagreement queue** (3× weighted) in training,
-3. a **600-example human-verified eval set** (never trained on) reporting macro-F1 vs the heuristic
-   baseline and Cohen's κ.
+| Metric | macro-F1 | What it proves |
+|---|---|---|
+| in-distribution val | 1.000 | same templates/vocab as training — **memorization ceiling, not capability** |
+| **held-out generalization** | **0.992** | **disjoint vocabulary + structurally unseen code templates** — real in-family generalization |
 
-Until that exists, QUBIT uses the **heuristic Tier-1 classifier** (`sensitivity.py`) in production —
-which is the design's explicit fallback (cut-line C3: "M2 may ship heuristic-only"). This checkpoint
-is retained to prove the harness and to seed Tier-2 experiments, not to make risk decisions.
+Per-class holdout F1 all ≥ 0.98. The held-out split shares **no** identifier/comment/path tokens with
+training and uses different crypto templates, so 0.992 is an honest generalization result, not the
+earlier vanity 1.0.
+
+### Out-of-vocabulary behavior (the real limit) + why it's safe
+On phrasing outside the designed vocab families entirely:
+- `user_pwd, salt / "hash login secret"` → ephemeral **@ 0.487** (wrong, but **below 0.55**)
+- `bp_reading, glucose / "store vitals"` → phi **@ 0.541** (right; generalized to unseen health terms)
+- ambiguous `value, data` → ephemeral **@ 0.988** (confident-wrong — the genuine weakness)
+
+Per doc 02 §6.3.3 the model is **accepted only if softmax ≥ 0.55 and it doesn't contradict a
+weight-≥1.0 heuristic hit; otherwise it abstains → heuristic Tier-1**. Two of the three OOV cases fall
+below threshold and abstain safely; the residual risk is confident-wrong on genuinely ambiguous input,
+which the heuristic-contradiction guard further constrains.
+
+## Conclusion
+- The training pipeline (synthesis → disjoint-split GPU fine-tune → generalization macro-F1 → checkpoint
+  → inference) is **real, GPU-proven, and honestly measured**.
+- **Compute/epochs are not the bottleneck** (in-dist F1 = 1.0 at epoch 1); more epochs only memorize.
+  The bottleneck is **real labeled data** — synthetic vocab can't cover real-world phrasing.
+- **Production stays on heuristic Tier-1** (`sensitivity.py`), with this model available behind the
+  §6.3.3 confidence+contradiction gate as an optional assist.
+
+## To reach the Oct-15 ship gate
+1. Tier-2 weak-labeling over **real permissive repos** (scanner + local Ollama) — needs repos supplied.
+2. Human-adjudicated disagreement queue (3× weight) folded into training.
+3. 600-example human-verified eval set (never trained on): report macro-F1 vs heuristic + Cohen's κ.

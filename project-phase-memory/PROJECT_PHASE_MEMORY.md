@@ -190,6 +190,17 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (eve-4) — Per-asset HNDL explanation surfaced (Claude, Fable) — 77a7895
+- API `GET /assets/{id}/hndl`: recomputes the HNDL factor decomposition for a real asset — exposure,
+  sensitivity tier, P(harvest), P(decrypt) closed-form integral, BN value + <0.02 agreement, CRQC
+  median (doc 02 §6.2). Symmetric/Grover → honest "no CRQC timeline" note; missing → 404.
+- Dashboard Risk page: top-risk rows expand into a "why this score" panel (factor tiles + HNDL =
+  P(harvest)×P(decrypt) breakdown + BN/closed-form agreement). Makes the Bayesian net explainable in UI.
+- Tests: real RSA-2048 asset → factors in [0,1], closed-form ≈ harvest·p_decrypt, BN agreement <0.02.
+- Gate: qubit-api 13 tests pass, ruff+mypy clean, dashboard build green.
+- **Risk M2 remaining:** only the heavy ML tier (XGBoost conformal band + DistilBERT sensitivity,
+  training-data pipeline, Oct-15 gate). All analytical/explainability M2 work is DONE + UI-visible.
+
 ### 2026-07-18 (eve-3) — Dashboard Timeline survey-blend toggle (Claude, Fable) — a3b4f97
 - `fetchTimeline(algo, {blend, weight})`; Timeline page gains a "Blend survey" toggle + w slider
   (hardware share). Blended curve shown with the pure-hardware baseline overlaid (dotted) for contrast;

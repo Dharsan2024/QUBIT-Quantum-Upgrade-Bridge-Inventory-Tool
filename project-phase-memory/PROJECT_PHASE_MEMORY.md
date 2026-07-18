@@ -190,6 +190,30 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (later) — Live-data wiring COMPLETE: every dashboard page is real (Claude, Opus)
+Finished removing ALL mock data from the dashboard; every page now reads the live qubit-api.
+- **Authed client** (`api/client.ts`): generic `send()` (GET/POST/DELETE + 204), bearer token from
+  localStorage/Vite env, `ApiError`. Fns: whoami, fetchProjects, fetchScans/fetchScan/createScan/
+  deleteScan, fetchScanAssets, fetchRiskSummary, fetchCbom, fetchTimeline. `useActiveScan` hook =
+  shared "selected scan, else latest succeeded" resolver.
+- **Fixed a real bug:** old `fetchAssets` hit `/projects/{id}/assets` which does not exist → Inventory
+  silently empty. Now uses `/scans/{id}/assets`.
+- Pages wired to real endpoints: **Timeline** (`/risk/timeline?algorithm=`, MOCK_CDF gone),
+  **Scans** (list/create/delete/select, polls running), **Inventory** (`/scans/{id}/assets`),
+  **Risk** (`/scans/{id}/summary` → KPIs+histogram+top-10), **CBOM** (`/scans/{id}/cbom`, real
+  download+preview), **Projects** (`GET /projects` + per-project counts), **Login**/**Settings**
+  (token set + `/auth/whoami` verify).
+- **Honest, not faked:** qubit-api has NO migrate endpoints → **Migrations** shows real candidates
+  derived from the scan's vulnerable assets (algo→recommended PQC target+risk) with a note that apply
+  runs via the `qubit migrate` CLI (API in M2); **MigrationDetail** documents the CLI steps (no fake diff).
+- **Proven live over HTTP** end-to-end: POST project → POST scan on demo-lab → succeeded → real assets
+  (RSA-2048/Shor, SHA-1/Grover at real file:line), summary, CycloneDX-1.7 CBOM (2 components), MC timeline
+  (median 2041), DELETE 204. Grep confirms zero `mock/dummy/hardcoded` left in pages/components.
+- Gate: dashboard `npm run build` green; qubit-api ruff+mypy clean, 9 tests. Commits c74dcd4, 7f67124,
+  adbe69d, f7390c9 pushed.
+- **Next:** M2 — add migrate API endpoints (plan/generate/diff/apply) so Migrations becomes interactive;
+  qubit-risk M2 (survey blend, Bayesian net); optional JobRunner async scans (currently synchronous, M1).
+
 ### 2026-07-18 (later) — Live-data wiring: CRQC Timeline page is now REAL (Claude, Opus)
 Answering the user's "make sure it's real, not mock" demand + wiring the first mock page to the API.
 - **Proved realness end-to-end:** ran the scanner on `demo-lab` → real RSA-2048 (Shor) + SHA-1 (Grover)

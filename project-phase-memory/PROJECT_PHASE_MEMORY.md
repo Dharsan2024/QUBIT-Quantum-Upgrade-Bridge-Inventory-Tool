@@ -244,6 +244,21 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 - **Testing & Quality:** Added `CliRunner` tests for the new CLI commands. Fixed Typer 0.26 option bugs and Alembic closed-stream test errors. Full suite passes (146 tests, 0 failures). Ruff and mypy checks are fully green across all 54 source files.
 - **Next:** qubit-risk M1 (heuristic sensitivity + Monte-Carlo CRQC timeline) or auth in qubit-api.
 
+### 2026-07-18 09:30 IST — Orchestrator review of Antigravity work + dashboard redesign (glass)
+- Reviewed everything Antigravity committed since 5490ed5 (qubit-risk M1 [mine, 8fa01fe], API jobs/SSE,
+  risk CLI, qubit-migrate M1, qubit-bridge M1, scanner M2). **Verdict KEEP** — 180 tests pass repo-wide.
+  **UPDATE pending (not yet done):** (a) 73 repo-wide ruff errors (E501 + subprocess S6xx noqa + import
+  sort); (b) `EventBus.publish` coroutine never awaited (async bug in the SSE/jobs path). → next backend pass.
+- **Dashboard: user rejected the design → REDESIGNED (Claude glassmorphism).** Kept routing/data; replaced
+  the visual layer: new `src/index.css` design system (glass tokens, living aurora field, specular
+  liquid-glass surfaces, .glass/.glass-card/.chip/.nav-pill), redesigned `Layout.tsx` (glass sidebar+topbar),
+  removed the JS SVG hack (`useLiquidGlass`→no-op; deleted `liquid-glass.js`, `generate_ui.mjs`,
+  `update_glass_css.mjs`, top-level `liquid-glass/`). Existing pages inherit the glass via the upgraded
+  `.liquid-panel`. `npm run build` GREEN. **Per-page visual polish to the new system = ongoing.**
+- **Next:** (1) per-page dashboard polish (Projects/Inventory/Risk/Timeline/Migrations/Scans/CBOM/Settings)
+  to the new glass system — Antigravity can help (Gemini) against this design language; (2) backend cleanup
+  pass (ruff 73 + await EventBus.publish); (3) qubit-risk M2 or API/dashboard data wiring.
+
 ### 2026-07-17 23:10 IST — Workflow update: caveman output discipline + Claude/Antigravity roster
 - Integrated the "caveman" output-compression technique (shrink what agents SAY, not what they DO) into
   every CORE_PROMPTS prompt (B1–B4) + Part A A6 + AGENT_WORK_SPLIT rule 8 + §0 here. Terse prose; code/

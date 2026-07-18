@@ -236,6 +236,21 @@ def test_algorithm_timeline_unknown_algorithm_404(tmp_path: Path) -> None:
         assert r.status_code == 404
 
 
+def test_algorithm_timeline_survey_blend(tmp_path: Path) -> None:
+    # blend=true fuses the expert-survey CDF (doc 02 §6.1.5) and reports the weight used.
+    with _make_client(tmp_path) as client:
+        r = client.get(
+            "/api/v1/risk/timeline",
+            params={"algorithm": "RSA-2048", "blend": "true", "weight": "0.3"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["blended"] is True
+        assert body["survey_weight"] == 0.3
+        assert body["cdf"] == sorted(body["cdf"])
+        assert body["p05_year"] <= body["median_year"] <= body["p95_year"]
+
+
 def test_custom_api_token_is_honored(tmp_path: Path) -> None:
     # regression: create_app(settings) must thread the token into auth (not a fresh Settings()).
     settings = Settings(

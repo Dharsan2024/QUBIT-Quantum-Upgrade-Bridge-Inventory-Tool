@@ -3,8 +3,8 @@ import time
 from pathlib import Path
 
 import pytest
-from testcontainers.core.container import DockerContainer
 from qubit_bridge.probe import probe_host
+from testcontainers.core.container import DockerContainer
 
 IMAGES_DIR = Path(__file__).parent.parent / "images" / "nginx-hybrid"
 
@@ -53,6 +53,10 @@ def test_nginx_hybrid_tls_probe(nginx_hybrid_image):
         result = probe_host(host, int(port))
 
         logs = container.get_logs()
-        assert result.reachable is True, f"Host should be reachable. Raw: {result.raw_output}\nContainer Logs:\n{logs}"
+        assert result.reachable is True, (
+            f"Host should be reachable. Raw: {result.raw_output}\nContainer Logs:\n{logs}"
+        )
         assert result.tls_version == "TLSv1.3", f"Must negotiate TLS 1.3, got {result.tls_version}"
-        assert result.negotiated_group == "X25519MLKEM768", f"Must negotiate MLKEM768, got {result.negotiated_group}"
+        assert result.negotiated_group == "X25519MLKEM768", (
+            f"Must negotiate MLKEM768, got {result.negotiated_group}"
+        )

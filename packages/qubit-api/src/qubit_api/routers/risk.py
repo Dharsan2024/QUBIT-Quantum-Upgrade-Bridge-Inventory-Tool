@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from qubit_core.db import Job, RiskRun, ScanRow
 from qubit_risk import CRQCTimelineSimulator
+from qubit_risk.timeline.survey import BlendedTimeline
 from sqlalchemy.orm import Session
 
 from ..deps import get_session
@@ -120,19 +121,28 @@ def get_risk_timeline(
 
 # On-demand CRQC timeline for a single algorithm — runs the real Monte-Carlo simulator (doc 02 §5.3
 # `GET /risk/timeline?algorithm=`). No scan required; used by the dashboard's CRQC Timeline page.
+# blend=true additionally fuses the expert-survey CDF (doc 02 §6.1.5); weight overrides w.
 _SIM = CRQCTimelineSimulator()
+_BLEND = BlendedTimeline()
 
 
 @router.get("/risk/timeline")
-def get_algorithm_timeline(algorithm: str = "RSA-2048") -> dict:
-    curve = _SIM.simulate(algorithm)
+def get_algorithm_timeline(
+    algorithm: str = "RSA-2048",
+    blend: bool = False,
+    weight: float | None = None,
+) -> dict:
+    curve = _BLEND.blend(algorithm, weight=weight) if blend else _SIM.simulate(algorithm)
     if curve is None:
         raise HTTPException(
             status_code=404,
             detail=f"No CRQC timeline for '{algorithm}' (not Shor-vulnerable / unknown)",
         )
+    used_weight = (_BLEND.cfg.survey_weight if weight is None else weight) if blend else None
     return {
         "algorithm": curve.algorithm,
+        "blended": blend,
+        "survey_weight": used_weight,
         "years": curve.years,
         "cdf": curve.cdf,
         "cdf_stderr": curve.cdf_stderr,

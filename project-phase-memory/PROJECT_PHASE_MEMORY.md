@@ -244,6 +244,17 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 - **Testing & Quality:** Added `CliRunner` tests for the new CLI commands. Fixed Typer 0.26 option bugs and Alembic closed-stream test errors. Full suite passes (146 tests, 0 failures). Ruff and mypy checks are fully green across all 54 source files.
 - **Next:** qubit-risk M1 (heuristic sensitivity + Monte-Carlo CRQC timeline) or auth in qubit-api.
 
+### 2026-07-18 10:29 IST — Orchestrator: all dashboard pages now glass (Antigravity, verified KEEP)
+- All 9 dashboard pages restyled to the glass system (Antigravity, uncommitted+unlogged → orchestrator
+  verified, committed, logged). Build green; in-lane; glass-conformant. Whole dashboard is now visually
+  cohesive on the dark aurora/glass shell.
+- **FLAG (next phase):** most pages render MOCK/placeholder data — only Inventory + Projects hit the real
+  API. Risk / Timeline (MOCK_CDF) / Migrations / Scans / Settings / Cbom / MigrationDetail need wiring to
+  doc-05 endpoints. This is the **API↔dashboard live-data wiring** phase → "production, not simulation."
+- **Next:** (A) live-data wiring — stand up qubit-api serving + wire the mock pages to real endpoints
+  (`/scans/{sid}/assets`, `/risk/timeline`, `/migrations`, etc.) so a real `qubit scan` shows end-to-end;
+  or (B) qubit-risk M2 (survey blend, Bayesian net, DistilBERT, XGBoost). Recommend (A) for demo value.
+
 ### 2026-07-18 (later) — Dashboard flagship page: Inventory restyled to the glass system
 - Inventory + AssetTable were still light-theme (bg-white/text-gray) clashing with the dark glass shell.
   Restyled to the design system: glass KPI row (total / vulnerable / Shor / safe), glass-card table with

@@ -16,58 +16,56 @@ export function Projects() {
   };
 
   return (
-    <AnimatedPage className="p-8 max-w-7xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
+    <AnimatedPage className="flex flex-col gap-5 py-4">
+      <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Projects</h1>
-          <p className="text-slate-400 mt-1">Manage your scanned codebases and configurations.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
+          <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">Manage your scanned codebases and configurations.</p>
         </div>
-        <button className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-indigo-500/20">
+        <button className="glass-input flex items-center gap-2 text-sm font-medium hover:border-indigo-400/60">
           <Plus className="w-4 h-4" />
           New Scan
         </button>
-      </div>
+      </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {MOCK_PROJECTS.map((project) => (
-          <div key={project.id} ref={setRef} className="group liquid-panel rounded-xl p-6 transition-colors">
-            <div className="relative z-10">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-slate-800 rounded-lg group-hover:bg-indigo-500/20 transition-colors">
-                    <FolderGit2 className="w-6 h-6 text-indigo-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">{project.name}</h3>
-                    <p className="text-sm text-slate-400">ID: {project.id}</p>
-                  </div>
+          <div key={project.id} ref={setRef} className="group glass-card p-6 transition-colors hover:border-indigo-500/30">
+            <div className="flex justify-between items-start mb-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500/20 transition-colors">
+                  <FolderGit2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold tracking-tight">{project.name}</h3>
+                  <p className="text-xs text-[color:var(--color-ink-dim)] uppercase tracking-wide mt-0.5">ID: {project.id}</p>
                 </div>
               </div>
-              
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800/60">
-                  <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
-                    <Activity className="w-3.5 h-3.5" /> Total Assets
-                  </div>
-                  <div className="text-xl font-semibold text-slate-200">{project.assets}</div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="glass-card bg-black/20 p-3">
+                <div className="flex items-center gap-2 text-[color:var(--color-ink-faint)] text-xs uppercase tracking-wide mb-1">
+                  <Activity className="w-3.5 h-3.5" /> Assets
                 </div>
-                <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800/60">
-                  <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
-                    <ShieldAlert className="w-3.5 h-3.5 text-amber-500" /> Vulnerable
-                  </div>
-                  <div className="text-xl font-semibold text-slate-200">{project.vulnerable}</div>
-                </div>
+                <div className="text-xl font-semibold">{project.assets}</div>
               </div>
+              <div className="glass-card bg-black/20 p-3">
+                <div className="flex items-center gap-2 text-[color:var(--color-ink-faint)] text-xs uppercase tracking-wide mb-1">
+                  <ShieldAlert className="w-3.5 h-3.5 text-[color:var(--color-danger)]" /> Vulnerable
+                </div>
+                <div className="text-xl font-semibold text-[color:var(--color-danger)]">{project.vulnerable}</div>
+              </div>
+            </div>
 
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Last scan: {project.lastScan}</span>
-                <Link 
-                  to={`/p/${project.id}/inventory`}
-                  className="text-indigo-400 font-medium hover:text-indigo-300 transition-colors"
-                >
-                  View Details &rarr;
-                </Link>
-              </div>
+            <div className="flex items-center justify-between text-sm mt-auto">
+              <span className="text-[color:var(--color-ink-faint)] text-xs">Last scan: {project.lastScan}</span>
+              <Link 
+                to={`/p/${project.id}/inventory`}
+                className="text-[color:var(--color-accent)] font-medium hover:text-[color:var(--color-accent-2)] transition-colors text-sm flex items-center gap-1"
+              >
+                View Details &rarr;
+              </Link>
             </div>
           </div>
         ))}

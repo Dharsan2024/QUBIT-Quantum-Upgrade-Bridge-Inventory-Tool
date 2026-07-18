@@ -1,6 +1,5 @@
 import { AnimatedPage } from '../components/AnimatedPage';
 import Plot from 'react-plotly.js';
-import { useLiquidGlass } from '../hooks/useLiquidGlass';
 
 // MOCK data from qubit_risk simulator
 const MOCK_CDF = {
@@ -14,17 +13,17 @@ const MOCK_CDF = {
 };
 
 export function Timeline() {
-  const glassRef = useLiquidGlass({ scale: -90 });
-
   return (
-    <AnimatedPage className="p-8 max-w-7xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white">CRQC Timeline</h1>
-        <p className="text-slate-400 mt-1">Monte Carlo simulation of Cryptographically Relevant Quantum Computer arrival (Surface Code resource model).</p>
-      </div>
+    <AnimatedPage className="flex flex-col gap-5 py-4">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">CRQC Timeline</h1>
+          <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">Monte Carlo simulation of Cryptographically Relevant Quantum Computer arrival (Surface Code resource model).</p>
+        </div>
+      </header>
 
-      <div ref={glassRef} className="liquid-panel rounded-xl p-6 ">
-        <div className="w-full h-[500px] rounded-lg overflow-hidden relative z-10">
+      <div className="glass-card flex flex-col p-4">
+        <div className="w-full h-[500px] rounded-lg">
           <Plot
             data={[
               {
@@ -53,23 +52,23 @@ export function Timeline() {
               margin: { l: 50, r: 20, t: 30, b: 50 },
               paper_bgcolor: 'transparent',
               plot_bgcolor: 'transparent',
-              font: { color: '#94a3b8' },
+              font: { color: '#9aa3b8' },
               xaxis: { 
                 title: 'Year', 
-                gridcolor: '#334155',
+                gridcolor: 'rgba(255,255,255,0.05)',
                 dtick: 5
               },
               yaxis: { 
                 title: 'Probability', 
-                gridcolor: '#334155',
+                gridcolor: 'rgba(255,255,255,0.05)',
                 tickformat: ',.0%'
               },
               showlegend: true,
               legend: {
                 x: 0.02,
                 y: 0.98,
-                bgcolor: 'rgba(15, 23, 42, 0.8)',
-                bordercolor: '#334155',
+                bgcolor: 'rgba(0, 0, 0, 0.4)',
+                bordercolor: 'rgba(255,255,255,0.1)',
                 borderwidth: 1
               }
             }}

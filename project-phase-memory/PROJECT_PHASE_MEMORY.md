@@ -190,6 +190,21 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (night-2) — DistilBERT trained on GPU: pipeline proven, model NOT ship-ready (Claude, Fable) — a4bb5c9
+- Installed CUDA torch (2.6.0+cu124) + transformers/datasets/accelerate/sklearn; hardened harness
+  (macro-F1, early-stop, fp16) + `qubit risk train-sensitivity` CLI (2b9e312).
+- **Trained on the RTX 4060 Laptop GPU** (21k synth ex, batch 32, fp16): val **macro-F1 = 1.000 at
+  epoch 1**, early-stopped epoch 4, ~3 min. Checkpoint saved (models/, gitignored, 268MB).
+- **HONEST READ (this is the point):** macro-F1=1.0 is NOT capability — it's the template
+  separability / structural circularity doc 02 §6.3.4 explicitly warns about. Novel-input sanity
+  check FAILS: `user_pwd,salt`→pii (should be credentials); ambiguous→ephemeral@0.90. Model learned
+  template surface form, not semantics.
+- MODEL_CARD.md records this verbatim. **Production stays on heuristic Tier-1** (`sensitivity.py`) —
+  the design's explicit C3 fallback. Checkpoint retained only to prove the harness + seed Tier-2.
+- **To actually ship the model (Oct-15 gate):** Tier-2 weak-labeler over real permissive repos
+  (scanner + local Ollama), human-adjudicated disagreement queue (3× weight), 600-ex human eval set
+  (κ, macro-F1 vs heuristic). Needs user to supply real repos + human labeling.
+
 ### 2026-07-18 (night) — DistilBERT sensitivity classifier Tier-1 + train harness (Claude, Fable) — 0a87224
 - `qubit_risk/ml/`: **Tier-1 synthesizer** (dependency-free, deterministic) — vocab.py (per-class
   ids/comments/paths for all 7 classes + distractors + py/java/go/js crypto code templates);

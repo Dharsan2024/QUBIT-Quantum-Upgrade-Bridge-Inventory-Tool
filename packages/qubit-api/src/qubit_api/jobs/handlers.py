@@ -158,18 +158,19 @@ def _run_risk_impl(
                 {"year": pipeline._now + i, "cdf": curve.cdf[i]} for i in range(len(curve.cdf))
             ]
             percentiles = {"p05": curve.p05_year, "p50": curve.median_year, "p95": curve.p95_year}
-        risk_run = session.get(RiskRun, risk_run.id)
-        if risk_run:
-            risk_run.timeline = timeline_data
-            risk_run.percentiles = percentiles
-            risk_run.summary = summary
-            risk_run.status = "succeeded"
+        rid = risk_run.id
+        row = session.get(RiskRun, rid)
+        if row:
+            row.timeline = timeline_data
+            row.percentiles = percentiles
+            row.summary = summary
+            row.status = "succeeded"
             from qubit_core.schemas import utcnow
 
-            risk_run.finished_at = utcnow()
+            row.finished_at = utcnow()
         session.commit()
 
-    return {"risk_run_id": str(risk_run.id), "assets_annotated": len(annotated_assets)}
+    return {"risk_run_id": str(rid), "assets_annotated": len(annotated_assets)}
 
 
 def _generate_risk_summary(assets) -> dict[str, Any]:

@@ -85,9 +85,7 @@ def _stage_parses(patched_source: str, language: str = "python") -> StageResult:
         ts_lang_name = lang_map.get(language, "python")
         parser = get_parser(ts_lang_name)
         tree = parser.parse(patched_source.encode("utf-8", errors="replace"))
-        error_nodes = [
-            n for n in tree.root_node.children if n.type == "ERROR"
-        ]
+        error_nodes = [n for n in tree.root_node.children if n.type == "ERROR"]
         if error_nodes:
             return StageResult(
                 "fail",
@@ -158,9 +156,7 @@ def _stage_rescan(
         except subprocess.TimeoutExpired:
             return StageResult("fail", "rescan timed out", time.monotonic() - t0)
         except FileNotFoundError:
-            return StageResult(
-                "skipped", "qubit CLI not found in PATH", time.monotonic() - t0
-            )
+            return StageResult("skipped", "qubit CLI not found in PATH", time.monotonic() - t0)
 
 
 def validate_patch(

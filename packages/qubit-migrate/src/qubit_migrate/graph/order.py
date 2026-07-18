@@ -48,11 +48,7 @@ def migration_order(
 
     def _risk_key(node: int) -> float:
         members: list[UUID] = [g.nodes[n]["asset"].id for n in cond.nodes[node]["members"]]
-        scores = [
-            id_map[m].risk.score
-            for m in members
-            if m in id_map and id_map[m].risk
-        ]
+        scores = [id_map[m].risk.score for m in members if m in id_map and id_map[m].risk]
         return -max(scores, default=0.0)
 
     try:
@@ -63,12 +59,8 @@ def migration_order(
 
     units: list[MigrationUnitInfo] = []
     for idx, node in enumerate(order):
-        member_asset_ids: list[UUID] = [
-            g.nodes[n]["asset"].id for n in cond.nodes[node]["members"]
-        ]
-        algos = {
-            id_map[m].algorithm for m in member_asset_ids if m in id_map
-        }
+        member_asset_ids: list[UUID] = [g.nodes[n]["asset"].id for n in cond.nodes[node]["members"]]
+        algos = {id_map[m].algorithm for m in member_asset_ids if m in id_map}
         label = ", ".join(sorted(algos)) or f"unit-{idx}"
         if len(member_asset_ids) > 1:
             label = f"[atomic] {label} ({len(member_asset_ids)} assets)"

@@ -70,8 +70,10 @@ def classify_sensitivity(asset: CryptoAsset, cfg: RiskConfig) -> SensitivityResu
 
     mean, p90 = _shelf(cfg, cls)
     return SensitivityResult(
-        sensitivity=cls, shelf_life_years=mean,
-        shelf_life_p90=p90, matched=matched,
+        sensitivity=cls,
+        shelf_life_years=mean,
+        shelf_life_p90=p90,
+        matched=matched,
     )
 
 

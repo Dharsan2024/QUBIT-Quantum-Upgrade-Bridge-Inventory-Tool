@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 class ProbeResult(BaseModel):
     """Result of a TLS handshake probe against a target host."""
+
     host: str
     port: int
     reachable: bool

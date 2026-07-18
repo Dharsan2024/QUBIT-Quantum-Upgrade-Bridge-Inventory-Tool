@@ -7,11 +7,13 @@ from typing import Annotated
 from uuid import UUID
 
 import typer
+from qubit_core import row_to_asset
 from qubit_core.db.models import AssetRow, ScanRow
 from qubit_core.db.session import default_db_url, get_engine, session_factory
 from qubit_risk import CRQCTimelineSimulator, RiskPipeline, load_config
 from rich.console import Console
 from rich.table import Table
+from sqlalchemy import select
 
 risk_app = typer.Typer(help="Risk Engine operations.")
 console = Console()
@@ -87,7 +89,8 @@ def risk_assess(
             err_console.print("[red]error:[/red] scan not found")
             raise typer.Exit(1)
 
-        assets = [AssetRow.to_schema(a) for a in scan.assets]
+        rows = session.execute(select(AssetRow).where(AssetRow.scan_id == scan.id)).scalars().all()
+        assets = [row_to_asset(r) for r in rows]
 
     pipe = RiskPipeline(load_config())
 
@@ -124,7 +127,7 @@ def risk_explain(
             err_console.print(f"[red]error:[/red] asset {asset_id} not found")
             raise typer.Exit(1)
 
-        asset = AssetRow.to_schema(row)
+        asset = row_to_asset(row)
 
         console.print(f"[bold]Risk Explanation for Asset {asset_id}[/bold]")
         console.print(f"Algorithm:   {asset.algorithm}")
@@ -152,12 +155,10 @@ def risk_mosca(
     sf = session_factory(engine)
 
     with sf() as session:
-        from sqlalchemy import select
-
         rows = (
             session.execute(select(AssetRow).where(AssetRow.risk_score.isnot(None))).scalars().all()
         )
-        assets = [AssetRow.to_schema(r) for r in rows]
+        assets = [row_to_asset(r) for r in rows]
 
     if not assets:
         console.print("No assessed assets found.")

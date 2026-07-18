@@ -6,7 +6,7 @@ from qubit_scanner.models import Detection
 
 
 class RawClientHelloProber:
-    """Raw TLS ClientHello probe (Probe B) for detecting PQC group support without host OpenSSL dependencies."""
+    """Raw TLS ClientHello probe (Probe B): detect PQC group support without a host OpenSSL dep."""
 
     async def probe_pqc_group(
         self, host: str, port: int, group_name: str = "X25519MLKEM768"

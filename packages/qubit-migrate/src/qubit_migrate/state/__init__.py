@@ -1,4 +1,5 @@
 """qubit-migrate state sub-package."""
+
 from .events import write_event
 from .machine import (
     InvalidTransition,

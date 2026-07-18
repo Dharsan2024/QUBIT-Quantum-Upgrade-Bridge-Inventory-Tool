@@ -75,9 +75,7 @@ def required_physical_qubits(
     factor needed to compress the serial run into the window (reaction-limited). k=1 is the natural
     (Webber/GE2019 anchor) regime.
     """
-    d = min_distance(
-        q_logical, n_toffoli, p, A=A, p_threshold=p_threshold, eps_fail=eps_fail
-    )
+    d = min_distance(q_logical, n_toffoli, p, A=A, p_threshold=p_threshold, eps_fail=eps_fail)
     n_arr = np.asarray(n_toffoli, dtype=np.float64)
     tc = np.asarray(t_cycle_s, dtype=np.float64)
     tr = np.asarray(t_reaction_s, dtype=np.float64)

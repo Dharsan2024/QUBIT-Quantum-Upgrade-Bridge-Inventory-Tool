@@ -255,9 +255,14 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
   removed the JS SVG hack (`useLiquidGlass`→no-op; deleted `liquid-glass.js`, `generate_ui.mjs`,
   `update_glass_css.mjs`, top-level `liquid-glass/`). Existing pages inherit the glass via the upgraded
   `.liquid-panel`. `npm run build` GREEN. **Per-page visual polish to the new system = ongoing.**
+- **Backend cleanup DONE (same session):** gate now GREEN — ruff clean repo-wide; **mypy clean per-package
+  on all 7** (run mypy PER PACKAGE, `mypy packages/qubit-<p>/src`; passing all src roots at once yields false
+  "duplicate module" errors — ignore that invocation); 180 tests pass. Fixed real crashers in Antigravity's
+  code: risk CLI (`AssetRow.to_schema`/`scan.assets`), migrate CLI (`session_factory()` no-engine ×6 cmds),
+  `await runner.submit()` (sync), `EventBus.publish` never-awaited, None-derefs, subprocess None-arg.
 - **Next:** (1) per-page dashboard polish (Projects/Inventory/Risk/Timeline/Migrations/Scans/CBOM/Settings)
-  to the new glass system — Antigravity can help (Gemini) against this design language; (2) backend cleanup
-  pass (ruff 73 + await EventBus.publish); (3) qubit-risk M2 or API/dashboard data wiring.
+  to the new glass system — good Antigravity (Gemini) task against this design language; (2) qubit-risk M2
+  (survey blend, Bayesian net, DistilBERT, XGBoost) or API↔dashboard live data wiring + JobRunner polish.
 
 ### 2026-07-17 23:10 IST — Workflow update: caveman output discipline + Claude/Antigravity roster
 - Integrated the "caveman" output-compression technique (shrink what agents SAY, not what they DO) into

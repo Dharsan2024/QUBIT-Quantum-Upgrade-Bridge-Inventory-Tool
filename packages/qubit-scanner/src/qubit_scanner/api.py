@@ -112,11 +112,12 @@ def scan_paths(
 async def scan_network(
     targets: list[str],
     *,
-    ports: list[int] = [443],
+    ports: list[int] | None = None,
     probe_pqc: bool = True,
     rate_limit: float = 20.0,
 ) -> ScanResult:
     """Active TLS enumeration against targets."""
+    ports = ports or [443]
     t0 = time.perf_counter()
     result = ScanResult(stats=ScanStats())
     detections: list[Detection] = []

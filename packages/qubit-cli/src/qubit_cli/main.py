@@ -22,17 +22,17 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+from qubit_bridge.cli import bridge_app
 from qubit_core import __version__ as core_version
 from qubit_core import export_cbom, validate_cbom_structure
 from qubit_core.db.session import default_db_url, get_engine, session_factory
+from qubit_migrate.cli import migrate_app
 from qubit_scanner import RuleCatalog, scan_paths
 from qubit_scanner.catalog import RuleLoadError
 from rich.console import Console
 from rich.table import Table
 
 from qubit_cli.commands.risk import risk_app
-from qubit_migrate.cli import migrate_app
-from qubit_bridge.cli import bridge_app
 
 app = typer.Typer(
     name="qubit",

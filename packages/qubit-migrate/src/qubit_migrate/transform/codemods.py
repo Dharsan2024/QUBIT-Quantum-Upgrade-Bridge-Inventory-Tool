@@ -17,6 +17,7 @@ from qubit_core import CryptoAsset
 # py-weakhash-01 codemod
 # ---------------------------------------------------------------------------
 
+
 class _WeakHashTransformer(cst.CSTTransformer):
     """Replace hashlib.md5 / hashlib.sha1 password usage with argon2id.
 
@@ -31,9 +32,7 @@ class _WeakHashTransformer(cst.CSTTransformer):
         self._needs_argon2_import = False
         self._needs_sha256_comment = False
 
-    def leave_Call(
-        self, original_node: cst.Call, updated_node: cst.Call
-    ) -> cst.BaseExpression:
+    def leave_Call(self, original_node: cst.Call, updated_node: cst.Call) -> cst.BaseExpression:
         # Match: hashlib.md5(...) or hashlib.sha1(...)
         if m.matches(
             updated_node,
@@ -54,8 +53,11 @@ class _WeakHashTransformer(cst.CSTTransformer):
                     inner = args[0].value
                     # If .encode() call present, strip it
                     if m.matches(inner, m.Call(func=m.Attribute(attr=m.Name("encode")))):
-                        inner = inner.func.value  # type: ignore[union-attr]
-                    return cst.parse_expression(f"_ph.hash({cst.parse_module('').code_for_node(inner)})")  # type: ignore[arg-type]
+                        # matcher guarantees inner is a Call whose func is an Attribute
+                        inner = inner.func.value  # type: ignore[attr-defined]
+                    return cst.parse_expression(
+                        f"_ph.hash({cst.parse_module('').code_for_node(inner)})"
+                    )  # type: ignore[arg-type]
             else:
                 self._needs_sha256_comment = True
                 # Replace hashlib.md5/sha1 with hashlib.sha256
@@ -67,17 +69,13 @@ class _WeakHashTransformer(cst.CSTTransformer):
                 )
         return updated_node
 
-    def leave_Module(
-        self, original_node: cst.Module, updated_node: cst.Module
-    ) -> cst.Module:
+    def leave_Module(self, original_node: cst.Module, updated_node: cst.Module) -> cst.Module:
         if not self._needs_argon2_import:
             return updated_node
         # Prepend argon2 import + _ph = PasswordHasher()
         argon2_import = cst.parse_statement("from argon2 import PasswordHasher\n")
         ph_assign = cst.parse_statement("_ph = PasswordHasher()\n")
-        return updated_node.with_changes(
-            body=[argon2_import, ph_assign, *updated_node.body]
-        )
+        return updated_node.with_changes(body=[argon2_import, ph_assign, *updated_node.body])
 
 
 def _is_password_context(source: str, asset: CryptoAsset) -> bool:
@@ -89,9 +87,7 @@ def _is_password_context(source: str, asset: CryptoAsset) -> bool:
     )
     if password_indicators.search(source):
         return True
-    if asset.usage_context and "password" in asset.usage_context.value.lower():
-        return True
-    return False
+    return bool(asset.usage_context and "password" in asset.usage_context.value.lower())
 
 
 def _apply_weakhash_codemod(source: str, asset: CryptoAsset) -> tuple[str, bool]:

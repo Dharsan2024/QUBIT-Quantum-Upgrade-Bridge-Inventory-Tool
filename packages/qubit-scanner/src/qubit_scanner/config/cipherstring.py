@@ -28,7 +28,7 @@ def expand_cipher_string(cipher_string: str) -> list[str]:
         return []
 
     parts = cipher_string.split(":")
-    suites = []
+    suites: list[str] = []
 
     for part in parts:
         if part.startswith("!"):

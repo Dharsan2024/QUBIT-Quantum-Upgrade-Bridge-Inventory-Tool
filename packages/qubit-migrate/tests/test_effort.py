@@ -41,26 +41,42 @@ def test_estimate_effort():
     e = estimate_effort(a, fan_out=4)
     assert e.points == 13
 
+
 def test_rank_ready_frontier():
     class _FakeRisk:
         def __init__(self, s, m):
             self.score = s
             self.mosca_margin_years = m
 
-    a1 = CryptoAsset(algorithm="MD5", usage_context=UsageContext.hash, source_scanner=SourceScanner.code, asset_type=AssetType.algorithm_use, quantum_vulnerable=QuantumVulnerability(vulnerable=True, attack=QuantumAttack.shor))
+    a1 = CryptoAsset(
+        algorithm="MD5",
+        usage_context=UsageContext.hash,
+        source_scanner=SourceScanner.code,
+        asset_type=AssetType.algorithm_use,
+        quantum_vulnerable=QuantumVulnerability(vulnerable=True, attack=QuantumAttack.shor),
+    )
     a1.id = uuid4()
     a1.risk = _FakeRisk(0.8, 1.0)
 
-    a2 = CryptoAsset(algorithm="SHA-1", usage_context=UsageContext.hash, source_scanner=SourceScanner.code, asset_type=AssetType.algorithm_use, quantum_vulnerable=QuantumVulnerability(vulnerable=True, attack=QuantumAttack.shor))
+    a2 = CryptoAsset(
+        algorithm="SHA-1",
+        usage_context=UsageContext.hash,
+        source_scanner=SourceScanner.code,
+        asset_type=AssetType.algorithm_use,
+        quantum_vulnerable=QuantumVulnerability(vulnerable=True, attack=QuantumAttack.shor),
+    )
     a2.id = uuid4()
     a2.risk = _FakeRisk(0.4, 5.0)
 
     # a1 priority = 0.8 / 1 (config) = 0.8
     # a2 priority = 0.4 / 1 (config) = 0.4
-    q = rank_ready_frontier([a1, a2], effort_kwargs_map={
-        a1.id: {"rule_kind": "config"},
-        a2.id: {"rule_kind": "config"},
-    })
+    q = rank_ready_frontier(
+        [a1, a2],
+        effort_kwargs_map={
+            a1.id: {"rule_kind": "config"},
+            a2.id: {"rule_kind": "config"},
+        },
+    )
 
     assert len(q) == 2
     assert q[0].asset.id == a1.id

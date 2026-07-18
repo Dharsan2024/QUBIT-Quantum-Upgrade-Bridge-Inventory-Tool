@@ -56,10 +56,14 @@
 - Files: `packages/qubit-api/src/qubit_api/jobs/handlers.py`, `packages/qubit-api/src/qubit_api/jobs/runner.py`, `packages/qubit-cli/src/qubit_cli/commands/risk.py`, `packages/qubit-cli/src/qubit_cli/commands/__init__.py`, `packages/qubit-cli/src/qubit_cli/main.py`
 - Gate: ruff ok | pytest 167 passed
 - Next step (if in-progress/cut-off): Handoff to orchestrator to review CLI integration. Phase 2 (M2) implementation is next (e.g. config/network scanners, dashboard scaffold, M2 risk engine).
-- Orchestrator verdict (Claude, 2026-07-18 09:xx IST): **KEEP w/ UPDATE pending.** 180 tests pass repo-wide
-  incl. risk CLI + JobRunner. BUG to fix: `EventBus.publish` coroutine is never awaited (RuntimeWarning) —
-  real async defect in the SSE/jobs path. Also 73 repo-wide ruff errors (E501 + subprocess S6xx + import
-  sort) — the gate is not clean. Both queued for a focused backend cleanup pass (next).
+- Orchestrator verdict (Claude, 2026-07-18): **KEEP + UPDATE DONE.** 180 tests pass. Cleanup completed this
+  session — gate now GREEN (ruff clean repo-wide; mypy clean per-package on all 7). Fixed: `EventBus.publish`
+  never-awaited (→ `run_coroutine_threadsafe` + loop-closed guard); risk CLI `AssetRow.to_schema`/`scan.assets`
+  (didn't exist → `row_to_asset` + scan_id query — would have crashed `qubit risk assess/explain/mosca`);
+  `migrate` CLI `session_factory()` called with no engine on all 6 commands (→ zero-arg Session wrapper —
+  would have crashed every `qubit migrate` command); `await runner.submit()` (submit is sync → `await None`);
+  `None.id` deref in risk handler; subprocess `branch` (str|None) arg guard; libcst attr narrowing; 73 ruff
+  (E501 wraps + scoped S603/S607/S110/B008 per-file-ignores for intended subprocess/typer patterns).
 
 ### 2026-07-17 06:59:46 +05:30 - OpenAI Codex - recovery audit of interrupted API work  [status: done]
 - Branch: `copilot/api-db-persistence`   Lane: recovery/review of interrupted `packages/qubit-api` work per user prompt.

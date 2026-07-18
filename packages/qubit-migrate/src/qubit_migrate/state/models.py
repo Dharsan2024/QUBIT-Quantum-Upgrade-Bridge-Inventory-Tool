@@ -40,12 +40,8 @@ class DependencyEdge(Base):
     plan_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("migration_plans.id", ondelete="CASCADE"), index=True
     )
-    src_asset_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("assets.id", ondelete="CASCADE")
-    )
-    dst_asset_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("assets.id", ondelete="CASCADE")
-    )
+    src_asset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"))
+    dst_asset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"))
     # keygen_before_use | shared_certificate | cert_key_binding
     # library_upgrade | tls_endpoint_config | same_module
     edge_type: Mapped[str] = mapped_column(String(64))
@@ -80,12 +76,8 @@ class MigrationTask(Base):
     plan_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("migration_plans.id", ondelete="CASCADE"), index=True
     )
-    unit_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("migration_units.id", ondelete="CASCADE")
-    )
-    asset_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("assets.id", ondelete="CASCADE")
-    )
+    unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("migration_units.id", ondelete="CASCADE"))
+    asset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"))
     # FSM state (internal, projected to migration.status via to_public_status)
     state: Mapped[str] = mapped_column(String(32), default="pending")
     rule_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

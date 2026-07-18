@@ -42,6 +42,14 @@ ignore = ["S101"]                                       # assert is fine in test
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S", "SIM"]
 "demo-lab/**" = ["S"]                                   # demo-lab is deliberately vulnerable
+# QUBIT legitimately orchestrates subprocesses (qubit CLI, git, openssl, nginx -t, docker) with
+# controlled args — S603/S607 are intended there, not injection risks.
+"packages/qubit-migrate/**" = ["S603", "S607"]
+"packages/qubit-bridge/**" = ["S603", "S607"]
+# scanners intentionally swallow parse errors per-file (best-effort discovery, never abort a scan).
+"packages/qubit-scanner/**" = ["S110"]
+# Typer routes options through call-in-default-arg by design.
+"**/cli.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.12"

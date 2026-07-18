@@ -35,8 +35,8 @@ def rank_ready_frontier(
     for a in assets:
         if ready_ids is not None and a.id not in ready_ids:
             continue
-        score = (a.risk.score if a.risk else 0.0)
-        mosca = (a.risk.mosca_margin_years if a.risk else 0.0)
+        score = a.risk.score if a.risk else 0.0
+        mosca = a.risk.mosca_margin_years if a.risk else 0.0
         effort = estimate_effort(a, **(effort_map.get(a.id, {})))
         priority = score / effort.points if effort.points else 0.0
         # Sort key: (-priority, mosca_margin asc, str(id) for stability)

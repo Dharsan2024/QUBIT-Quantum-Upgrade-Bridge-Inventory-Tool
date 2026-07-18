@@ -190,6 +190,17 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (aft-6) — FULL demo-lab remediation 2/2 (Claude, Fable) — 4fbd3b0
+- New rule `py-rsa-kex-01` (RSA→ML-KEM-768 KEM-DEM, reencrypt_required, rescan expects RSA-* gone).
+  No codemod → auto routes to the local LLM with hard constraints (pqcrypto ml_kem_768 + AESGCM).
+- Demo fix: commit after each applied patch (2nd apply used to die on the dirty-tree guard);
+  per-task apply failures reported, not crashed.
+- **LIVE:** `qubit demo run` now fully remediates the demo lab — template fixes SHA-1, the LLM does
+  the structural RSA→ML-KEM rewrite; both pass applies/parses/compiles(Docker)/rescan;
+  re-scan: **RSA-2048 1→0, SHA-1 1→0**.
+- Gate: **200 tests**, ruff+mypy clean.
+- **Next:** qubit-risk M2 (survey blend, Bayesian net) OR JobRunner polish OR bridge e2e.
+
 ### 2026-07-18 (aft-5) — `qubit demo run`: full M2 acceptance loop in ONE command (Claude, Fable) — bda7f5c
 - New `qubit demo run [--target DIR] [--generator auto|template|llm] [--keep]`: scratch git repo →
   tree-sitter scan → MC-backed risk annotation → WSJF plan → generate → auto-approve → git apply →

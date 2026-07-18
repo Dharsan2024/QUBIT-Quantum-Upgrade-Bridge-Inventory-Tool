@@ -190,6 +190,24 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (night-4) — Real-code transfer MEASURED: sensitivity-from-snippet fails (Claude, Fable) — d0fcc02
+- Chased real-world numbers: cloned 19 permissive real repos (authentik/dex/gitea/kratos/authlib/
+  saleor/killbill/infisical/fhir-server/teleport/caddy/synapse/…, user-supplied the domain-rich ones).
+- **FOUND P1 scanner bug:** tree-sitter `QueryCursor` **segfaults** (exit 139) on real files
+  (parse OK, query phase crashes; uncatchable native). Built crash-isolated checkpointing harvest
+  worker (`_scan_worker.py` + `scan_repo_resilient`) that skips+counts crashers — real-repo scanning
+  now completes. Harvested **108 windows** (28 files skipped). (860265d)
+- **Weak-labeled (heuristic + Ollama qwen2.5-coder) → decisive negative result:** heuristic→unknown
+  93/108, LLM→unknown 98/108, confident agreement **3/108 (2.8%)**. Root cause: ±5-line crypto snippet
+  carries crypto-mechanism tokens (RSA/md5/hexdigest/PrivateKey), NOT sensitivity tokens
+  (patient/card_number/ssn) — sensitive data lives at call-site/schema, which doc 02 §6.3.1 deliberately
+  doesn't capture. **Sensitivity-from-snippet does NOT transfer to real code**; the synthetic 0.992
+  measured a task that barely occurs in reality. (d0fcc02)
+- **DECISION:** M2 ships **heuristic-only** (design cut-line C3); the heuristic's ~86% `unknown`
+  abstention on real code is now shown to be CORRECT, not a weakness. BERT tier = documented negative
+  result (real fix needs a wider context window — out of scope v1). This is a genuine paper finding.
+- Compute was never the limit (GPU used fully); the premise was. Honesty > vanity metric.
+
 ### 2026-07-18 (night-3) — Honest generalization eval: holdout macro-F1 0.992 (Claude, Fable) — 40ab856
 - Root-caused the vanity 1.0: train+val shared templates/vocab. Built a **disjoint generalization
   split** — train and eval share NO identifier/comment/path tokens + use structurally different code

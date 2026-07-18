@@ -190,6 +190,19 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (night) — DistilBERT sensitivity classifier Tier-1 + train harness (Claude, Fable) — 0a87224
+- `qubit_risk/ml/`: **Tier-1 synthesizer** (dependency-free, deterministic) — vocab.py (per-class
+  ids/comments/paths for all 7 classes + distractors + py/java/go/js crypto code templates);
+  synth.py builds balanced §6.3.1 context windows with labels true by construction; CLI
+  `qubit risk gen-dataset --per-class --seed --out`. Verified: 2100 ex, balanced, deterministic.
+- **Tier-2 train harness** train.py (DistilBERT, §6.3.5: 3ep/lr2e-5/batch16/weighted-CE/10% val),
+  transformers+torch imported lazily → base install stays lean; opt-in `uv sync --extra ml`.
+- 7 synth tests; datasets/ gitignored (regenerable from seed). Gate: **224 tests**, ruff+mypy clean.
+- **Remaining for the model to actually ship (Oct-15 gate):** run training (needs `--extra ml` +
+  GPU/overnight-CPU), Tier-2 weak-labeler over real repos (needs a folder of permissive repos +
+  local Ollama — user may supply), human-adjudicated 600-ex eval set, inference wiring into
+  classify_sensitivity. XGBoost conformal band also still open. Per doc, M2 may ship heuristic-only.
+
 ### 2026-07-18 (eve-4) — Per-asset HNDL explanation surfaced (Claude, Fable) — 77a7895
 - API `GET /assets/{id}/hndl`: recomputes the HNDL factor decomposition for a real asset — exposure,
   sensitivity tier, P(harvest), P(decrypt) closed-form integral, BN value + <0.02 agreement, CRQC

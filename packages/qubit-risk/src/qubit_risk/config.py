@@ -23,6 +23,7 @@ _FILES = (
     "shelf_life_priors",
     "mosca",
     "expert_survey",
+    "bn_cpds",
 )
 
 
@@ -34,6 +35,7 @@ class RiskConfig:
     shelf_life_priors: dict[str, Any]
     mosca: dict[str, Any]
     expert_survey: dict[str, Any] = field(default_factory=dict)
+    bn_cpds: dict[str, Any] = field(default_factory=dict)
     params_hash: str = field(default="")
 
     @property

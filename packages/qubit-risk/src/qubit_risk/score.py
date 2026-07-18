@@ -12,23 +12,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import numpy as np
 from qubit_core import CryptoAsset, QuantumAttack, SourceScanner
 
 from .config import RiskConfig
+from .hndl import harvest_prob, p_decrypt_integral
 from .sensitivity import SensitivityResult
 from .timeline import TimelineCurve
 
-# P(harvested | exposure, sensitivity tier) — expert-elicited (doc 02 bn_cpds.harvest_cpd).
-_HARVEST = {
-    ("network", "high"): 0.80,
-    ("network", "low"): 0.40,
-    ("at_rest", "high"): 0.30,
-    ("at_rest", "low"): 0.10,
-    ("offline", "high"): 0.05,
-    ("offline", "low"): 0.02,
-}
-_HIGH_TIER = {"phi", "pii", "financial", "ip", "credentials"}
 _GROVER_MARGINAL = 0.15  # fixed small score for AES-128/3DES-class (halved symmetric strength)
 
 
@@ -63,18 +53,9 @@ def _p_decrypt(
     cfg: RiskConfig,
     now_year: int,
 ) -> float:
-    """MC over the shelf-life prior: mean_L F_a(now + L)."""
+    """Closed-form integral f_L(ell)*F_a(now+ell) (doc 02 6.2.2), replacing the M1 MC estimate."""
     spec = cfg.shelf_life_priors["classes"].get(sens.sensitivity, {})
-    rng = np.random.default_rng(cfg.seed)
-    if "fixed" in spec:
-        samples = np.full(256, float(spec["fixed"]))
-    else:
-        samples = rng.lognormal(float(spec["mu_ln"]), float(spec["sigma_ln"]), 256)
-    years = np.array(curve.years, dtype=float)
-    cdf = np.array(curve.cdf, dtype=float)
-    target = now_year + samples
-    f = np.interp(target, years, cdf)
-    return float(f.mean())
+    return p_decrypt_integral(curve, spec, now_year)
 
 
 def score_asset(
@@ -92,8 +73,7 @@ def score_asset(
         s = _GROVER_MARGINAL
         return ScoreResult(s, 0.0, min(1.0, s + 0.15), 0.0, 0.0)
 
-    tier = "high" if sens.sensitivity in _HIGH_TIER else "low"
-    harvest = _HARVEST.get((exposure_of(asset), tier), 0.1)
+    harvest = harvest_prob(cfg, exposure_of(asset), sens.sensitivity)
     p_dec = _p_decrypt(curve, sens, cfg, now_year)
     score = harvest * p_dec
     # Honest fixed CI band for M1 (the calibrated conformal interval is M2's XGBoost job).

@@ -1,0 +1,19 @@
+version: 1
+# Expert-elicited CPDs for the HNDL Bayesian network (doc 02 §6.2). These are NOT learned —
+# they are documented expert priors, sensitivity-analyzed in the paper.
+
+# P(Harvested = yes | Exposure, SensTier). Matches the closed-form harvest table.
+harvest_cpd:
+  network:   {high: 0.80, low: 0.40}
+  at_rest:   {high: 0.30, low: 0.10}
+  offline:   {high: 0.05, low: 0.02}
+
+# High-sensitivity tiers (everything else -> "low").
+high_tiers: [phi, pii, financial, ip, credentials]
+
+# Shelf-life discretization: number of equal-probability-support bins the LogNormal
+# shelf-life prior is split into for the BN (finer -> closer to the closed form).
+shelf_bins: 24
+
+# CRQC arrival is discretized to one bin per year off the empirical CDF (doc 02 §6.2.1),
+# so no fixed edges are needed here.

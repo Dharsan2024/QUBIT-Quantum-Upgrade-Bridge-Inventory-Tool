@@ -190,6 +190,14 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 — Bridge E2E Testing (Antigravity)
+- **Feature:** Added E2E integration test for `qubit-bridge` (`test_e2e.py`).
+- **Dev-Ops:** Integrated `testcontainers-python` to dynamically build and run the `nginx-hybrid` terminator.
+- **Fix:** Updated `probe.py` to gracefully install `openssl` in standard `nginx:alpine` containers for the probe client.
+- **Fix:** Fixed `nginx-hybrid` Dockerfile to correctly `apk add openssl` before checking version.
+- **Gate:** Tests pass locally via `uv run pytest packages/qubit-bridge -m integration -v`.
+- **Next:** `qubit-risk` M2 (Bayesian net) or JobRunner polish.
+
 ### 2026-07-18 — Recovery: qubit-risk M2 survey blend (Antigravity)
 - **Recovered interrupted work:** Agent built `survey.py` (LogNormal fit to 26-expert GRI-2025) and blended hardware Monte-Carlo offsets. 
 - Fixed ambiguous unicode characters (RUF002/3) in docstrings and line-too-long in `vulnapp-python`.

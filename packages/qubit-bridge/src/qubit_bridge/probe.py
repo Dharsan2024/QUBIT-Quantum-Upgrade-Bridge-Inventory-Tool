@@ -23,23 +23,21 @@ def probe_host(
 
     # We use docker run nginx:alpine to guarantee OpenSSL 3.5.x environment
     # since host OS (Windows/Linux) might have older OpenSSL without X25519MLKEM768 support.
+    
+    server_name = sni or host
+    groups_arg = f"-groups {groups}" if groups else ""
+    
+    shell_cmd = f"apk add --no-cache openssl > /dev/null 2>&1 && openssl s_client -connect {host}:{port} -tls1_3 -brief -servername {server_name} {groups_arg}".strip()
 
     cmd = [
         "docker",
         "run",
         "--rm",
+        "--entrypoint", "",
         "nginx:alpine",
-        "openssl",
-        "s_client",
-        "-connect",
-        f"{host}:{port}",
-        "-tls1_3",
-        "-brief",
-        "-servername",
-        sni or host,
+        "/bin/sh", "-c",
+        shell_cmd
     ]
-    if groups:
-        cmd.extend(["-groups", groups])
 
     probed_at = datetime.now(UTC)
 

@@ -190,6 +190,19 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (aft-4) — Docker sandbox validation stages 3-4 REAL (Claude, Fable) — aab04a5
+- Stages `compiles`+`tests` were permanent skip-stubs → now real isolated containers
+  (python:3.12-slim, `--network=none`): compile check on a read-only mount; tests = repo copy +
+  patched-file overlay + pytest (stdlib `unittest discover` fallback). Honest skips (daemon down,
+  non-python, no test suite) — never false-green. **Any hard stage fail now fails the patch**
+  (compiles/tests no longer exempt from gating).
+- Proven with real containers in the suite: SyntaxError caught; behavior-equivalent patch passes the
+  repo's tests in the sandbox; a regression patch (`double(x) -> x`) is CAUGHT and fails.
+- Env: Docker Desktop 29.6.1 up; image python:3.12-slim pulled. `MigrateConfig.no_docker=True` opts out.
+- Gate: **199 tests**, ruff+mypy clean. Dashboard picker (auto/template/llm) + model_name shipped
+  earlier today (1f0576b).
+- **Next:** qubit-risk M2 OR JobRunner polish OR bridge/demo e2e (`qubit demo run`).
+
 ### 2026-07-18 (aft-3) — LLM patch generation LIVE via local Ollama (Claude, Fable) — e155e16
 - `transform/llm.py`: prompt = rule semantic_note + hard constraints + full source; model returns the
   complete rewritten file in a fenced block; temp 0; urllib only (no new deps). Orchestrator

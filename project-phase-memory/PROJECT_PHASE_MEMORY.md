@@ -190,6 +190,21 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (night-3) — Honest generalization eval: holdout macro-F1 0.992 (Claude, Fable) — 40ab856
+- Root-caused the vanity 1.0: train+val shared templates/vocab. Built a **disjoint generalization
+  split** — train and eval share NO identifier/comment/path tokens + use structurally different code
+  templates (synth `split=train|eval|all`; 2 disjointness tests). Committed 9d559ff.
+- **Retrained on the RTX 4060** on the train split: in-distribution val macro-F1 1.0 (memorization
+  ceiling) vs **held-out macro-F1 0.992** (disjoint vocab + unseen templates) — real in-family
+  generalization, per-class all ≥0.98.
+- OOV probe (outside designed vocab): mixed but SAFE — wrong cases land <0.55 softmax → abstain to
+  heuristic per doc §6.3.3; one confident-wrong on genuinely ambiguous input (documented weakness).
+- **Compute/epochs NOT the bottleneck** (1.0 at epoch 1); real labeled data is. Production stays on
+  heuristic Tier-1; model available behind the §6.3.3 confidence+contradiction gate. metrics.json +
+  MODEL_CARD.md capture both numbers honestly.
+- **Verdict:** stopped over-training (won't help w/o real data). Oct-15 ship gate still needs Tier-2
+  real-repo weak-labeling + 600-ex human eval.
+
 ### 2026-07-18 (night-2) — DistilBERT trained on GPU: pipeline proven, model NOT ship-ready (Claude, Fable) — a4bb5c9
 - Installed CUDA torch (2.6.0+cu124) + transformers/datasets/accelerate/sklearn; hardened harness
   (macro-F1, early-stop, fp16) + `qubit risk train-sensitivity` CLI (2b9e312).

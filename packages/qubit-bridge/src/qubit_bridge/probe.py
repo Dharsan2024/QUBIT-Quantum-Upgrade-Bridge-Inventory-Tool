@@ -27,7 +27,11 @@ def probe_host(
     server_name = sni or host
     groups_arg = f"-groups {groups}" if groups else ""
     
-    shell_cmd = f"apk add --no-cache openssl > /dev/null 2>&1 && openssl s_client -connect {host}:{port} -tls1_3 -brief -servername {server_name} {groups_arg}".strip()
+    shell_cmd = (
+        "apk add --no-cache openssl > /dev/null 2>&1 && "
+        f"openssl s_client -connect {host}:{port} -tls1_3 -brief "
+        f"-servername {server_name} {groups_arg}"
+    ).strip()
 
     cmd = [
         "docker",

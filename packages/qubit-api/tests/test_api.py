@@ -161,6 +161,60 @@ def test_auth_whoami(tmp_path: Path) -> None:
         assert response.json()["scopes"] == "rw"
 
 
+def test_migrate_workflow_plan_generate_review(tmp_path: Path) -> None:
+    """Full REST migration workflow: scan -> plan -> queue -> generate -> review (doc 03 §5.1)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_repo(repo, include_rsa=False)  # md5 asset matches rule py-weakhash-01
+    with _make_client(tmp_path) as client:
+        project_id = client.post("/api/v1/projects", json={"name": "Mig"}).json()["id"]
+        scan_id = client.post(
+            f"/api/v1/projects/{project_id}/scans",
+            json={"targets": [str(repo)], "run_risk": True},
+        ).json()["scan"]["id"]
+        assert _wait_for_scan(client, scan_id)["status"] == "succeeded"
+
+        # plan
+        plan_resp = client.post("/api/v1/migrate/plans", json={"min_risk": 0.0})
+        assert plan_resp.status_code == 201
+        plan = plan_resp.json()
+        assert plan["status"] == "active"
+        assert plan["stats"]["tasks"] >= 1
+
+        # listed
+        assert any(p["id"] == plan["id"] for p in client.get("/api/v1/migrate/plans").json())
+
+        # queue carries asset context + matched rule
+        queue = client.get(f"/api/v1/migrate/plans/{plan['id']}/queue").json()
+        assert len(queue) >= 1
+        task = next(t for t in queue if t["algorithm"] == "MD5")
+        assert task["state"] == "ready"
+        assert task["rule_id"] == "py-weakhash-01"
+        assert task["file_path"]
+
+        # generate a real codemod patch
+        gen = client.post(f"/api/v1/migrate/tasks/{task['id']}/generate", json={})
+        assert gen.status_code == 200, gen.text
+        patch = gen.json()
+        assert patch["diff_text"].startswith("---")
+        assert "sha256" in patch["diff_text"] or "argon2" in patch["diff_text"]
+        assert patch["status"] == "proposed"
+
+        # review -> approve
+        rev = client.post(
+            f"/api/v1/migrate/patches/{patch['id']}/review",
+            json={"approve": True, "note": "lgtm"},
+        )
+        assert rev.status_code == 200
+        assert rev.json()["status"] == "approved"
+
+        # double-review is rejected
+        again = client.post(
+            f"/api/v1/migrate/patches/{patch['id']}/review", json={"approve": False}
+        )
+        assert again.status_code == 422
+
+
 def test_algorithm_timeline_returns_real_curve(tmp_path: Path) -> None:
     # GET /risk/timeline?algorithm= runs the real Monte-Carlo simulator on demand (no scan needed).
     with _make_client(tmp_path) as client:

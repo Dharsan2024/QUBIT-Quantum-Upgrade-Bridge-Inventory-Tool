@@ -57,6 +57,32 @@ def next_scan_sequence(session: Session, project_id: UUID) -> int:
     return 1 if max_seq is None else int(max_seq) + 1
 
 
+def annotate_scan_risk(session: Session, scan_id: UUID) -> int:
+    """Run the qubit-risk pipeline over a scan's assets and persist the annotations.
+
+    Returns the number of assets annotated. Mirrors ``qubit risk assess``.
+    """
+    from qubit_risk import RiskPipeline, load_config
+
+    rows = session.scalars(select(AssetRow).where(AssetRow.scan_id == scan_id)).all()
+    if not rows:
+        return 0
+    annotated = RiskPipeline(load_config()).assess([row_to_asset(r) for r in rows])
+    by_id = {r.id: r for r in rows}
+    count = 0
+    for asset in annotated:
+        row = by_id.get(asset.id)
+        if row and asset.risk:
+            row.risk_score = asset.risk.score
+            row.risk_ci_low = asset.risk.ci_low
+            row.risk_ci_high = asset.risk.ci_high
+            row.mosca_margin_years = asset.risk.mosca_margin_years
+            row.priority_rank = asset.risk.priority_rank
+            count += 1
+    session.commit()
+    return count
+
+
 def validate_targets(project: ProjectRow, targets: list[str]) -> list[Path]:
     roots: list[Path] = []
     if project.root_path:
@@ -86,6 +112,7 @@ def run_scan(
     scanners: list[str],
     label: str | None,
     job_runner: Any = None,
+    run_risk: bool = True,
 ) -> ScanRow:
     scan = ScanRow(
         project_id=project.id,
@@ -116,7 +143,7 @@ def run_scan(
                 "scan_id": str(scan.id),
                 "targets": targets,
                 "scanners": scanners,
-                "run_risk": True,
+                "run_risk": run_risk,
             },
         )
         session.add(job)
@@ -135,6 +162,9 @@ def run_scan(
             scan.status = "succeeded"
             scan.stats = result.stats.model_dump(mode="json")
             scan.error = None
+            if rows and run_risk:
+                session.commit()  # rows must be visible before the pipeline reads them
+                annotate_scan_risk(session, scan.id)
         except Exception as exc:
             scan.status = "failed"
             scan.error = str(exc)

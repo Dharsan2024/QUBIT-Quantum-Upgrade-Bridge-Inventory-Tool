@@ -7,6 +7,7 @@ from qubit_core.db import Base, get_engine, session_factory
 
 from .routers import assets_router, meta_router, projects_router, registry_router, scans_router
 from .routers.jobs import router as jobs_router
+from .routers.migrate import router as migrate_router
 from .routers.risk import router as risk_router
 from .settings import Settings
 
@@ -70,5 +71,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(
         risk_router, prefix=settings.api_prefix, dependencies=[Depends(verify_token)]
+    )
+    app.include_router(
+        migrate_router, prefix=settings.api_prefix, dependencies=[Depends(verify_token)]
     )
     return app

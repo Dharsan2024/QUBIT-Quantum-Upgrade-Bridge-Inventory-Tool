@@ -41,6 +41,7 @@ def create_scan(
         scanners=[scanner.value for scanner in payload.scanners],
         label=payload.label,
         job_runner=getattr(request.app.state, "job_runner", None),
+        run_risk=payload.run_risk,
     )
     return ScanCreateResponse(
         scan=ScanOut(

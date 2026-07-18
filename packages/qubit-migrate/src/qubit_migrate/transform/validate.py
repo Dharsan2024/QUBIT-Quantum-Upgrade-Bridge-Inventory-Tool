@@ -132,10 +132,12 @@ def _stage_rescan(
             algos = {a.get("algorithm", "") for a in assets}
 
             expect = rule.rescan_expect
-            gone_prefix = expect.get("gone", {}).get("algorithm_prefix", "")
+            gone_spec = expect.get("gone", {}).get("algorithm_prefix", "")
             present_prefix = expect.get("present", {}).get("algorithm_prefix", "")
+            # algorithm_prefix accepts a single prefix or a list of prefixes
+            gone_prefixes = [gone_spec] if isinstance(gone_spec, str) and gone_spec else gone_spec
 
-            if gone_prefix:
+            for gone_prefix in gone_prefixes or []:
                 still_present = [a for a in algos if a.startswith(gone_prefix)]
                 if still_present:
                     return StageResult(

@@ -84,15 +84,24 @@ def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[st
             session.add_all(chunk)
             session.commit()
 
-        # Update scan stats
+        # Update scan stats (status flips to succeeded only after the chained risk run,
+        # so "succeeded" always means the assets are fully annotated)
         scan.stats = result.stats.model_dump(mode="json")
-        scan.status = "succeeded"
         session.commit()
 
-    # Chain risk run if requested
+    # Chain risk run if requested. A risk failure doesn't invalidate the scan itself.
     if run_risk:
         reporter.update(0.9, "risk", "Chaining risk assessment")
-        _run_risk_impl(scan_id, {}, reporter)
+        try:
+            _run_risk_impl(scan_id, {}, reporter)
+        except Exception:
+            logger.exception("Chained risk run failed for scan %s", scan_id)
+
+    with reporter.sf() as session:
+        scan = session.get(ScanRow, scan_id)
+        if scan:
+            scan.status = "succeeded"
+            session.commit()
 
     reporter.update(1.0, "done", f"Completed. Found {len(result.assets)} assets.")
     return {"scan_id": str(scan_id), "assets": len(result.assets)}

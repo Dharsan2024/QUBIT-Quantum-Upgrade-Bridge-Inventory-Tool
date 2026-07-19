@@ -8,7 +8,7 @@ dependencies = [
     "qubit-core",
     "networkx>=3.3",
     "libcst>=1.4",
-    "tree-sitter>=0.26",
+    "tree-sitter>=0.24,<0.26",  # 0.26.0 binding SIGSEGVs during scanning; see qubit-scanner pin
     "tree-sitter-language-pack>=1.12",
     "GitPython>=3.1.43",
     "PyYAML>=6.0.1",

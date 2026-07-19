@@ -6,7 +6,10 @@ requires-python = ">=3.12,<3.14"
 license = "MIT"
 dependencies = [
   "qubit-core",
-  "tree-sitter>=0.23",
+  # tree-sitter 0.26.0's Python binding heap-corrupts during QueryCursor match processing on some
+  # real files (non-deterministic SIGSEGV; repro: authlib jose/rfc7518/jwe_algs.py). 0.25.1 is clean.
+  # Pinned <0.26 until the upstream binding bug is fixed. Regression: tests/test_segfault_regression.py
+  "tree-sitter>=0.24,<0.26",
   "tree-sitter-language-pack>=0.9",
   "pyyaml>=6",
   "pathspec>=0.12",

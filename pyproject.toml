@@ -35,7 +35,7 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["knowledge", "docs", ".obsidian"]
+extend-exclude = ["knowledge", "docs", ".obsidian", "**/tests/fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "S", "PTH", "RUF"]

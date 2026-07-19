@@ -190,6 +190,19 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-18 (night-5) — FIXED the scanner segfault (P1): pin tree-sitter <0.26 (Claude, Fable) — c858597
+- Root-caused via bisection: parse OK, query exec OK, crash is in **QueryCursor match processing**;
+  crash point non-deterministic (match 67 then 62 on identical input) = heap corruption / use-after-free
+  in the **tree-sitter 0.26.0 Python binding**. Uncatchable in-process (native SIGSEGV).
+- **Fix = version pin** `tree-sitter>=0.24,<0.26` (resolves 0.25.2) in qubit-scanner AND qubit-migrate
+  (workspace resolver requires both aligned). Clean root-cause fix, no subprocess complexity in core.
+- Verified: the reliably-crashing file scans clean; **full authlib (329 files) scans 0 errors**;
+  **229 tests pass**. Regression: vendored the offending file (BSD, authlib) as a fixture +
+  tests/test_segfault_regression.py (in-proc scan + subprocess exit-code guard + pin assertion);
+  fixtures excluded from ruff.
+- Note: the resilient harvester (860265d) stays as defense-in-depth for any future native crash.
+- **Next:** XGBoost conformal band (no external data — trains on the risk pipeline's own outputs).
+
 ### 2026-07-18 (night-4) — Real-code transfer MEASURED: sensitivity-from-snippet fails (Claude, Fable) — d0fcc02
 - Chased real-world numbers: cloned 19 permissive real repos (authentik/dex/gitea/kratos/authlib/
   saleor/killbill/infisical/fhir-server/teleport/caddy/synapse/…, user-supplied the domain-rich ones).

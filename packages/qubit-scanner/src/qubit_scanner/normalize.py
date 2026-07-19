@@ -17,6 +17,7 @@ from qubit_core import (
     Confidence,
     CryptoAsset,
     Evidence,
+    EvidenceContext,
     LibraryRef,
     QuantumAttack,
     QuantumVulnerability,
@@ -45,9 +46,16 @@ def normalize(det: Detection, *, occurrence: int = 1) -> CryptoAsset:
         key_size = det.key_size
 
     clean = redaction.redact_snippet(det.evidence_snippet)
+    raw_ctx = det.evidence_context or {}
+    context = EvidenceContext(
+        symbols=raw_ctx.get("symbols", {}) or {},
+        imports=raw_ctx.get("imports", []) or [],
+        extra=raw_ctx.get("extra", {}) or {},
+    )
     evidence = Evidence(
         snippet=clean,
         snippet_sha256=hashlib.sha256(clean.encode("utf-8")).hexdigest() if clean else None,
+        context=context,
     )
 
     usage = det.usage_context if det.usage_context in _VALID_USAGE else "unknown"

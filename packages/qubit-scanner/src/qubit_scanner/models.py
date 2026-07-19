@@ -20,6 +20,9 @@ class Detection(BaseModel):
     location: Location
     library_name: str | None = None
     evidence_snippet: str = ""
+    # Enclosing AST context (M2, doc 01 §4.3): {"symbols": {"defined": [...], "used": [...]},
+    # "imports": [...], "extra": {"enclosing_function": ..., "enclosing_class": ...}}
+    evidence_context: dict = Field(default_factory=dict)
     confidence: str = "high"
 
 

@@ -38,8 +38,22 @@ def _shelf(cfg: RiskConfig, cls: str) -> tuple[float, float]:
     return mean, p90
 
 
+def _context_text(asset: CryptoAsset) -> str:
+    """Enclosing-scope symbols (M2 evidence.context) as searchable text — the signal that a
+    ±5-line snippet lacks on real code (enclosing function/class/params + data-flow identifiers)."""
+    ctx = asset.evidence.context
+    if ctx is None:
+        return ""
+    parts: list[str] = []
+    parts.extend(ctx.symbols.get("defined", []))
+    parts.extend(ctx.symbols.get("used", []))
+    parts.extend(str(v) for v in ctx.extra.values())
+    return " ".join(parts)
+
+
 def classify_sensitivity(asset: CryptoAsset, cfg: RiskConfig) -> SensitivityResult:
     snippet = asset.evidence.snippet or ""
+    context_text = _context_text(asset)
     file_path = asset.location.file_path or ""
     rules = cfg.sensitivity_rules
 
@@ -49,7 +63,8 @@ def classify_sensitivity(asset: CryptoAsset, cfg: RiskConfig) -> SensitivityResu
         wheres = set(rule["where"])
         text = ""
         if wheres & _IDENTIFIER_WHERES:
-            text += snippet + "\n"
+            # search the snippet AND the enclosing-scope symbols (identifiers/comments)
+            text += snippet + "\n" + context_text + "\n"
         if "file_path" in wheres:
             text += file_path
         if text and re.search(rule["regex"], text):

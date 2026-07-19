@@ -60,7 +60,9 @@ class CodeScanner:
         detections: list[Detection] = []
         for cr in shortlist:
             for _, caps in QueryCursor(cr.query).matches(root):
-                det = self._match_to_detection(cr, caps, source, root, language, file_path, repo)
+                det = self._match_to_detection(
+                    cr, caps, source, root, language, file_path, repo, imports
+                )
                 if det is not None:
                     detections.append(det)
         return detections
@@ -74,6 +76,7 @@ class CodeScanner:
         language: str,
         file_path: str,
         repo: str | None,
+        imports: set[str] | None = None,
     ) -> Detection | None:
         rule = cr.rule
         if not all(_where_ok(w, caps) for w in rule.match.where):
@@ -91,6 +94,7 @@ class CodeScanner:
         line = (anchor.start_point.row + 1) if anchor is not None else None
         snippet = _snippet(source, anchor)
         confidence = "low" if raw_algo in ("UNRESOLVED",) else rule.confidence
+        context = _extract_context(anchor, imports or set())
 
         return Detection(
             scanner="code",
@@ -102,8 +106,81 @@ class CodeScanner:
             location=Location(repo=repo, file_path=file_path, line=line),
             library_name=cr.library_name,
             evidence_snippet=snippet,
+            evidence_context=context,
             confidence=confidence,
         )
+
+
+# AST node types for the enclosing scope, per language (doc 01 §4.3 evidence.context).
+_FUNC_TYPES = {
+    "function_definition",  # python
+    "function_declaration",  # go / js
+    "method_declaration",  # java / go
+    "method_definition",  # js
+    "func_literal",  # go closures
+    "arrow_function",  # js
+}
+_CLASS_TYPES = {"class_definition", "class_declaration", "type_declaration"}
+
+
+def _enclosing(node: Node, types: set[str]) -> Node | None:
+    cur = node.parent
+    while cur is not None:
+        if cur.type in types:
+            return cur
+        cur = cur.parent
+    return None
+
+
+def _identifiers_under(node: Node, limit: int) -> list[str]:
+    """Iteratively collect identifier texts beneath a node (bounded, no recursion)."""
+    out: list[str] = []
+    stack = [node]
+    while stack and len(out) < limit:
+        n = stack.pop()
+        if n.type in ("identifier", "field_identifier", "type_identifier"):
+            txt = resolve.node_text(n)
+            if txt:
+                out.append(txt)
+        stack.extend(n.children)
+    return out
+
+
+def _extract_context(anchor: Node | None, imports: set[str]) -> dict:
+    """Capture the enclosing function/class + data-flow identifiers around a crypto finding.
+
+    This is the M2 signal that ±5-line snippets lack on real code: the sensitivity of the data
+    handled by a crypto call lives in the enclosing function name, its parameters, and the class —
+    e.g. ``def store_password(user, pw): ... sha1(pw)``.
+    """
+    ctx: dict = {
+        "symbols": {"defined": [], "used": []},
+        "imports": sorted(imports)[:20],
+        "extra": {},
+    }
+    if anchor is None:
+        return ctx
+    defined: list[str] = []
+    fn = _enclosing(anchor, _FUNC_TYPES)
+    if fn is not None:
+        name_node = fn.child_by_field_name("name")
+        fname = resolve.node_text(name_node) if name_node is not None else None
+        if fname:
+            defined.append(fname)
+            ctx["extra"]["enclosing_function"] = fname
+        params = fn.child_by_field_name("parameters")
+        if params is not None:
+            defined.extend(_identifiers_under(params, 12))
+    cls = _enclosing(anchor, _CLASS_TYPES)
+    if cls is not None:
+        cname_node = cls.child_by_field_name("name")
+        cname = resolve.node_text(cname_node) if cname_node is not None else None
+        if cname:
+            defined.append(cname)
+            ctx["extra"]["enclosing_class"] = cname
+    ctx["symbols"]["defined"] = sorted(set(defined))
+    ctx["symbols"]["used"] = sorted(set(_identifiers_under(anchor, 30)))
+    return ctx
 
 
 def _import_gate(cr: CompiledRule, imports: set[str]) -> bool:

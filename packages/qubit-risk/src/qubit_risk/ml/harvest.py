@@ -45,10 +45,23 @@ class HarvestExample:
 
 
 def _context_window(asset) -> str:
-    """Build the §6.3.1 context window from a scanned asset's evidence snippet + location."""
+    """Build the §6.3.1 context window from a scanned asset.
+
+    Uses the M2 evidence.context (enclosing function/class + data-flow symbols) in addition to the
+    ±5-line snippet — the enclosing scope is where real-world sensitivity signal lives.
+    """
     snippet = (asset.evidence.snippet if asset.evidence else "") or ""
     path = asset.location.file_path or "" if asset.location else ""
-    ids = sorted({t for t in _IDENT_RE.findall(snippet)})[:20]
+    ctx = asset.evidence.context if asset.evidence else None
+    enclosing = ""
+    ctx_ids: list[str] = []
+    if ctx is not None:
+        fn = ctx.extra.get("enclosing_function")
+        cls = ctx.extra.get("enclosing_class")
+        enclosing = " ".join(str(x) for x in (cls, fn) if x)
+        ctx_ids = list(ctx.symbols.get("defined", [])) + list(ctx.symbols.get("used", []))
+    snippet_ids = _IDENT_RE.findall(snippet)
+    ids = sorted(set(ctx_ids) | set(snippet_ids))[:24]
     comments = []
     for line in snippet.splitlines():
         m = _COMMENT_RE.search(line.strip())
@@ -56,7 +69,10 @@ def _context_window(asset) -> str:
             comments.append(m.group(1).strip())
     comment_txt = "; ".join(comments)[:200]
     code = " ".join(snippet.split())[:400]
-    return f"path: {path} | ids: {', '.join(ids)} | comments: {comment_txt} | code: {code}"
+    return (
+        f"path: {path} | scope: {enclosing} | ids: {', '.join(ids)} "
+        f"| comments: {comment_txt} | code: {code}"
+    )
 
 
 def _llm_label(window: str, model: str, base_url: str = "http://127.0.0.1:11434") -> str:

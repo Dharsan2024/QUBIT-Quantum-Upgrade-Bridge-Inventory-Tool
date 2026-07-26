@@ -190,6 +190,22 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-26 — Repo cleanup + astradyne email scrub (history rewrite) (Claude, Opus) — d470e5f
+- User: keep only core working components + scrub the astradyne account. Backed up first
+  (`../qubit-backup-preclean-*.bundle`, all refs).
+- **Removed** (via git-filter-repo `--path ... --invert-paths`, purged from ALL history):
+  `generated/` (build artifact) + `models/sensitivity-distilbert/` (256 MB LFS model, negative-result,
+  not used by production). Kept: all 7 packages, dashboard, docs, demo-lab, knowledge,
+  project-phase-memory, config, and `models/risk-xgboost/` (the used regressor).
+- **Scrubbed astradyne identity:** `--mailmap` rewrote the 10 commits authored/committed as
+  `astradyne.recruitment@gmail.com` → `Dharsan L <dharsanlingadurai24@gmail.com>`; `--replace-text`
+  redacted the literal email from file contents (PROJECT_PHASE_MEMORY.md). All 74 commits rewritten
+  (every SHA changed), force-pushed `3c0a692...d470e5f`.
+- **Verified:** remote in sync; author list = dharsanlingadurai24 + GitHub-noreply only (NO astradyne);
+  generated/ + distilbert gone from remote; 134 package src files intact; ruff clean; 175 tests pass.
+- Note: git identity going forward stays `Dharsan L <dharsanlingadurai24@gmail.com>`. The old
+  astradyne SHAs survive only in the local backup bundle (delete it to fully erase).
+
 ### 2026-07-19 (eve-2) — FIXED broken push: 3.3 GB checkpoints blocked GitHub (Claude, Opus) — 3674302
 - **Root cause of "pushes never landed the core files" (incl. Antigravity's earlier attempt):**
   `2d1b126` force-added `models/sensitivity-distilbert/` DistilBERT checkpoints — `optimizer.pt`

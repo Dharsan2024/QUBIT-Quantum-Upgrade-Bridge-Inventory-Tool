@@ -31,8 +31,13 @@ dashboard/.vite/
 out/
 experiments/results/**/*.csv
 experiments/results/**/*.png
-models/                     # fetched/trained ML artifacts (see models/MANIFEST.sha256)
+# ML artifacts: ignore by default, but the shipped models (via Git LFS for the big ones) are
+# tracked so the repo is self-contained. Disposable training checkpoints stay ignored.
+models/*
 !models/MANIFEST.sha256
+!models/risk-xgboost/
+!models/sensitivity-distilbert/
+models/sensitivity-distilbert/checkpoint-*/
 demo-lab/certs/
 *.pcap
 *.pcapng
@@ -64,6 +69,3 @@ Thumbs.db
 
 # Reproducible synthetic corpora (regenerate: qubit risk gen-dataset)
 datasets/
-
-# never commit DistilBERT training checkpoints (3GB+; regenerate via qubit risk train-sensitivity)
-models/sensitivity-distilbert/

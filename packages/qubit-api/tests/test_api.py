@@ -261,6 +261,15 @@ def test_asset_hndl_explanation(tmp_path: Path) -> None:
         # closed-form ≈ harvest · p_decrypt, and the BN agrees to <0.02
         assert abs(body["p_hndl_closed_form"] - body["harvest_prob"] * body["p_decrypt"]) < 1e-3
         assert body["bn_closed_form_agreement"] < 0.02
+        assert "score_source" in body  # always present (closed-form when no regressor)
+
+        # If the shipped XGBoost model + xgboost are available, the regressor tier is surfaced.
+        if body.get("regressor") is not None:
+            reg = body["regressor"]
+            assert body["score_source"] == "xgb"
+            assert 0.0 <= reg["ci_low"] <= reg["score"] <= reg["ci_high"] <= 1.0
+            assert len(reg["shap_top"]) == 8
+            assert all("feature" in s and "contribution" in s for s in reg["shap_top"])
 
 
 def test_asset_hndl_missing_404(tmp_path: Path) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -18,6 +19,7 @@ from ..deps import get_session
 from ..jobs.runner import JobRunner
 
 router = APIRouter(tags=["risk"])
+logger = logging.getLogger(__name__)
 
 
 class RiskRunOut(BaseModel):
@@ -129,6 +131,29 @@ def get_risk_timeline(
 _SIM = CRQCTimelineSimulator()
 _BLEND = BlendedTimeline()
 
+# Optional XGBoost regressor (doc 02 §6.4): loaded once from QUBIT_RISK_XGB_DIR (default the shipped
+# models/risk-xgboost). If xgboost/model is missing, endpoints degrade to closed-form/BN only.
+_REGRESSOR: object | None = None
+_REGRESSOR_TRIED = False
+
+
+def _get_regressor():
+    global _REGRESSOR, _REGRESSOR_TRIED
+    if not _REGRESSOR_TRIED:
+        import os
+        from pathlib import Path
+
+        _REGRESSOR_TRIED = True
+        model_dir = Path(os.getenv("QUBIT_RISK_XGB_DIR", "models/risk-xgboost"))
+        try:
+            from qubit_risk.regressor.predict import RiskRegressor
+
+            if RiskRegressor.available(model_dir):
+                _REGRESSOR = RiskRegressor.load(model_dir)
+        except Exception:  # xgboost missing / load error -> graceful degradation (NFR2)
+            _REGRESSOR = None
+    return _REGRESSOR
+
 
 @router.get("/risk/timeline")
 def get_algorithm_timeline(
@@ -194,7 +219,7 @@ def get_asset_hndl(
     closed_form = harvest * p_dec
     bn_p, factors = hndl_bayes_net(cfg).p_hndl(curve, exposure, sensitivity, shelf_spec, now)
 
-    return {
+    result = {
         "asset_id": str(asset_id),
         "algorithm": asset.algorithm,
         "vulnerable": True,
@@ -209,4 +234,27 @@ def get_asset_hndl(
         "bn_closed_form_agreement": round(abs(closed_form - bn_p), 4),
         "crqc_median_year": curve.median_year,
         "persisted_score": row.risk_score,
+        "score_source": "closed-form",
     }
+
+    # XGBoost distillation tier (doc 02 §6.4): calibrated score + conformal CI + TreeSHAP top-8.
+    reg = _get_regressor()
+    if reg is not None:
+        try:
+            from qubit_risk.regressor.asset_features import build_asset_features
+            from qubit_risk.sensitivity import classify_sensitivity
+
+            sens = classify_sensitivity(asset, cfg)
+            feats = build_asset_features(asset, sens, curve, cfg, now)
+            pred = reg.predict(feats)  # type: ignore[attr-defined]
+            result["score_source"] = pred.score_source
+            result["regressor"] = {
+                "score": pred.score,
+                "ci_low": pred.ci_low,
+                "ci_high": pred.ci_high,
+                "shap_top": [{"feature": f, "contribution": c} for f, c in pred.shap_top],
+            }
+        except Exception:  # never let the regressor path break the explanation (NFR2)
+            logger.exception("regressor explanation failed; returning closed-form/BN only")
+
+    return result

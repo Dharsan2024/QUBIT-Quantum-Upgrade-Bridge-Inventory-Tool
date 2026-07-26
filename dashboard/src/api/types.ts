@@ -121,6 +121,20 @@ export interface MigrationPatch {
   applied_commit: string | null;
 }
 
+/** Top-8 TreeSHAP contribution for the XGBoost regressor (doc 02 §6.4.6). */
+export interface ShapContribution {
+  feature: string;
+  contribution: number;
+}
+
+/** XGBoost distillation tier output: calibrated score + conformal CI + SHAP (doc 02 §6.4). */
+export interface RegressorExplanation {
+  score: number;
+  ci_low: number;
+  ci_high: number;
+  shap_top: ShapContribution[];
+}
+
 /** Response of GET /assets/{id}/hndl — per-asset HNDL factor decomposition (doc 02 §6.2). */
 export interface HndlExplanation {
   asset_id: string;
@@ -138,6 +152,8 @@ export interface HndlExplanation {
   bn_closed_form_agreement?: number;
   crqc_median_year?: number | null;
   persisted_score?: number | null;
+  score_source?: string;
+  regressor?: RegressorExplanation | null;
 }
 
 /** Response of GET /scans/{id}/risk/summary — aggregate risk posture for one scan. */

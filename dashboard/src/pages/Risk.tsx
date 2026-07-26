@@ -105,6 +105,55 @@ function RiskRow({
                 — agree to {data.bn_closed_form_agreement?.toFixed(3)}. CRQC median{' '}
                 {data.crqc_median_year ?? '—'}.
               </div>
+
+              {data.regressor && (
+                <div className="mt-1 rounded-lg border border-indigo-400/20 bg-indigo-500/5 p-3">
+                  <div className="mb-2 flex items-center justify-between text-xs">
+                    <span className="font-medium text-[color:var(--color-ink)]">
+                      XGBoost score{' '}
+                      <span className="text-[color:var(--color-ink-faint)]">
+                        (90% conformal CI)
+                      </span>
+                    </span>
+                    <span className="font-mono tabular-nums">
+                      {data.regressor.score.toFixed(3)}{' '}
+                      <span className="text-[color:var(--color-ink-faint)]">
+                        [{data.regressor.ci_low.toFixed(3)}, {data.regressor.ci_high.toFixed(3)}]
+                      </span>
+                    </span>
+                  </div>
+                  <div className="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">
+                    Top SHAP contributions
+                  </div>
+                  <div className="mt-1 flex flex-col gap-1">
+                    {data.regressor.shap_top.slice(0, 6).map((s) => (
+                      <div key={s.feature} className="flex items-center gap-2 text-xs">
+                        <span className="w-40 truncate font-mono text-[color:var(--color-ink-dim)]">
+                          {s.feature}
+                        </span>
+                        <div className="relative h-1.5 flex-1 rounded-full bg-white/5">
+                          <div
+                            className="absolute top-0 h-full rounded-full"
+                            style={{
+                              left: s.contribution >= 0 ? '50%' : undefined,
+                              right: s.contribution < 0 ? '50%' : undefined,
+                              width: `${Math.min(50, Math.abs(s.contribution) * 300)}%`,
+                              background:
+                                s.contribution >= 0
+                                  ? 'var(--color-danger)'
+                                  : 'var(--color-safe)',
+                            }}
+                          />
+                        </div>
+                        <span className="w-14 text-right font-mono tabular-nums text-[color:var(--color-ink-faint)]">
+                          {s.contribution >= 0 ? '+' : ''}
+                          {s.contribution.toFixed(3)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

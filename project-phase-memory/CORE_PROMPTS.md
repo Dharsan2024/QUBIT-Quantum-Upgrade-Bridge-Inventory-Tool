@@ -57,6 +57,12 @@ Every agent starts cold; these files are its only knowledge, so keeping them cur
    + exact next step and commit BEFORE stopping. A cut-off with no log is the worst failure.
 5. **Real timestamps:** `date "+%Y-%m-%d %H:%M:%S %Z"`.
 6. **Branch + hand back** so Claude can review before/at merge.
+7. **VERIFY EVERY PUSH REACHED THE REMOTE.** A push can fail (network, HTTP 500, GitHub's 100 MB
+   file limit) yet leave work only in local git — which looks identical to success. After `git push`,
+   confirm with `git ls-remote origin -h refs/heads/main` == `git rev-parse HEAD` before claiming
+   "pushed". Do NOT trust a piped push's exit code (`| tail` masks it). NEVER `git add -f` large ML
+   artifacts (checkpoints/optimizer state) — use `.gitignore` + Git LFS. (This failed twice already;
+   see PROJECT_PHASE_MEMORY §5 2026-07-19.)
 
 ## A6. Output discipline — "caveman" (save credits, every prompt)
 Talk terse: fragments over sentences; no filler, preamble, or flattery. **Shrink what you SAY, not what you

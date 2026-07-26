@@ -190,6 +190,21 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-19 (eve-2) — FIXED broken push: 3.3 GB checkpoints blocked GitHub (Claude, Opus) — 3674302
+- **Root cause of "pushes never landed the core files" (incl. Antigravity's earlier attempt):**
+  `2d1b126` force-added `models/sensitivity-distilbert/` DistilBERT checkpoints — `optimizer.pt`
+  ×4 @ **535 MB each** + `model.safetensors` ×4 @ 268 MB (3.3 GB total). GitHub rejects any file
+  >100 MB → every push died **HTTP 500**, taking the whole pack (all source) with it. The prior
+  agent never verified the push succeeded, so it looked "done" but nothing reached the remote.
+- **Fix:** `git reset --soft aca71a8` (checkpoints only in unpushed history; 70 pushed commits were
+  clean), `git rm -r --cached models/sensitivity-distilbert`, re-commit squashed source WITHOUT the
+  checkpoints (kept the 2.28 MB risk-xgb.ubj + metrics). Push succeeded: aca71a8..3674302.
+- Verified: local==origin==3674302, 60 core src files on remote, 0 checkpoint files.
+- **LESSONS (durable):** (1) NEVER `git add -f` ML checkpoints — `models/` is gitignored for this
+  exact reason; optimizer state is huge + regenerable. (2) ALWAYS verify `git push` exit + `git rev-parse
+  origin/main` after pushing — a 500 leaves everything local. (3) The 3.3 GB is still on local disk
+  (gitignored); delete to reclaim space if needed.
+
 ### 2026-07-19 (eve) — ORCHESTRATOR REVIEW of 8 sub-agent commits + gate fixes (Claude, Opus) — 08e6fc9
 Reviewed everything landed on main after aca71a8 (context enrichment). Verdicts:
 - **risk: XGBoost conformal band + cache opt (2d1b126, 9a3552d, 74ffb74, c7c778d) → KEEP.** Gate green

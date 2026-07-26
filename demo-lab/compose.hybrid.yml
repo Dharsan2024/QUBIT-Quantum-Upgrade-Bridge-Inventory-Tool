@@ -1,0 +1,27 @@
+
+services:
+  vulnapp-python:
+    build:
+      context: vulnapp-python
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    networks:
+      - qubit-demo
+
+  nginx-hybrid:
+    build:
+      context: ../packages/qubit-bridge/images/nginx-hybrid
+      dockerfile: Dockerfile
+    ports:
+      - "8443:8443"
+    volumes:
+      - ../generated/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - vulnapp-python
+    networks:
+      - qubit-demo
+
+networks:
+  qubit-demo:
+    driver: bridge

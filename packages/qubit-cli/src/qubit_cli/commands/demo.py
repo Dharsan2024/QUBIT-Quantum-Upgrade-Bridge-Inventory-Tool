@@ -158,3 +158,31 @@ def demo_run(
         console.print(f"scratch repo kept at {repo}")
     else:
         shutil.rmtree(scratch, ignore_errors=True)
+
+@demo_app.command("bridge-4phase")
+def demo_bridge_4phase(
+    phase: Annotated[str, typer.Option("--phase", help="1|2|3|4|all")] = "all",
+    pcap_dir: Annotated[
+        Path, typer.Option("--pcap-dir", help="Output directory for pcaps")
+    ] = Path("out"),
+    canned: Annotated[bool, typer.Option("--canned", help="Use canned fixture mode")] = False,
+):
+    """Run the bridge 4-phase committee demo."""
+    from qubit_bridge.demo import run_all, run_phase_1, run_phase_2, run_phase_3, run_phase_4
+    pcap_dir.mkdir(parents=True, exist_ok=True)
+    if phase == "all":
+        run_all(pcap_dir, canned=canned)
+    elif phase == "1":
+        run_phase_1(pcap_dir)
+    elif phase == "2":
+        run_phase_2(pcap_dir, canned=canned)
+    elif phase == "3":
+        run_phase_3()
+    elif phase == "4":
+        run_phase_4(pcap_dir, canned=canned)
+
+@demo_app.command("reset")
+def demo_reset():
+    """Reset the bridge demo lab containers."""
+    from qubit_bridge.demo import reset
+    reset()

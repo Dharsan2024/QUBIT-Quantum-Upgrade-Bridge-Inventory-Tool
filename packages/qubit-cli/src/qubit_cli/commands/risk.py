@@ -196,6 +196,44 @@ def risk_train_sensitivity(
     console.print_json(data=result["holdout_per_class_f1"])
 
 
+@risk_app.command("train-regressor")
+def risk_train_regressor(
+    out: Annotated[
+        Path, typer.Option("--out", help="Model output dir")
+    ] = Path("models/risk-xgboost"),
+    n_assets: Annotated[int, typer.Option("--n-assets", help="Number of synthetic assets")] = 50000,
+    k_draws: Annotated[int, typer.Option("--k-draws", help="Monte Carlo draws per asset")] = 200,
+    seed: Annotated[int, typer.Option("--seed", help="RNG seed")] = 42,
+    n_estimators: Annotated[int, typer.Option("--n-estimators")] = 600,
+    max_depth: Annotated[int, typer.Option("--max-depth")] = 6,
+    learning_rate: Annotated[float, typer.Option("--learning-rate")] = 0.05,
+    n_jobs: Annotated[int | None, typer.Option("--n-jobs")] = None,
+) -> None:
+    """Train the XGBoost risk regressor + split-conformal calibration (doc 02 §6.4.4)."""
+    from qubit_risk.regressor.train import RegressorConfig, train
+
+    cfg = RegressorConfig(
+        out_dir=out,
+        n_assets=n_assets,
+        k_draws=k_draws,
+        seed=seed,
+        n_estimators=n_estimators,
+        max_depth=max_depth,
+        learning_rate=learning_rate,
+        n_jobs=n_jobs,
+    )
+    console.print(
+        f"[bold]Training XGBoost Regressor[/bold] -> {out} "
+        f"({n_assets} assets, {k_draws} draws)"
+    )
+    metrics = train(cfg)
+    console.print(
+        f"[green]Done.[/green] Test MAE={metrics['test_mae']:.4f}, "
+        f"Empirical Coverage={metrics['empirical_test_coverage']:.4f} "
+        f"(target {metrics['target_coverage']:.2f})"
+    )
+
+
 @risk_app.command("mosca")
 def risk_mosca(
     db: Annotated[str | None, typer.Option("--db", help="DB URL")] = None,

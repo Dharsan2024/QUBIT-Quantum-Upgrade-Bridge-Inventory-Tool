@@ -19,6 +19,8 @@ ml = [
   "transformers>=4.44",
   "torch>=2.2",
   "datasets>=2.20",
+  "xgboost>=2.0",
+  "scikit-learn>=1.4",
 ]
 
 [build-system]

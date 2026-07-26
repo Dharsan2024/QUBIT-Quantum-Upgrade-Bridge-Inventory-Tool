@@ -190,6 +190,29 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-07-19 (eve) — ORCHESTRATOR REVIEW of 8 sub-agent commits + gate fixes (Claude, Opus) — 08e6fc9
+Reviewed everything landed on main after aca71a8 (context enrichment). Verdicts:
+- **risk: XGBoost conformal band + cache opt (2d1b126, 9a3552d, 74ffb74, c7c778d) → KEEP.** Gate green
+  (ruff/mypy clean, 39 pass; regressor test skips w/o the `ml` extra). Semantics sound: pipeline
+  regressor stays env-gated (QUBIT_RISK_XGB_DIR) with graceful degradation (NFR2); symmetric/grover
+  assets score off sentinel-curve features the model was trained on. `p_decrypt_integral` now caches
+  per-shelf-class GL nodes (lru_cache) — the perf fix I'd flagged.
+- **trained model committed (6631c2b) → KEEP + REAL RESULT.** `models/risk-xgboost/` (risk-xgb.ubj
+  2.28MB + conformal.json + metrics.json). **empirical_test_coverage = 0.9051** vs 0.90 target on
+  7,503 held-out assets; interval width 0.011, MAE 0.0021 at N=50k/K=200. The split-conformal
+  guarantee holds — the XGBoost tier genuinely works. (Note: 2.28MB binary now in git; doc envisioned
+  fetch-models/sha256 instead, but committed = demo works out-of-box. Accepted.)
+- **bridge M2 (a4f1967, 93b1c63) → UPDATE→KEEP.** Real feature (capture/bench/compose/demo, live
+  X25519MLKEM768) but landed RED: 11 ruff + 1 mypy Literal bug. Fixed: DRY qubit.exe path, validate
+  +cast --engine to BridgeEngine, S110 ignore, e2e test skips (not errors) w/o docker. (08e6fc9)
+- **docs (af3e3c7) → KEEP.** Stray empty `bindings-overview 1.md` → REMOVED.
+- Full gate now: ruff clean, mypy clean (risk+bridge+cli), **224 passed / 6 skipped**.
+- NOTE: the ~4h single-thread 50k/200 label-gen run this session was LOST (no checkpoint) on process
+  restart — but the sub-agent's committed model already has the result, so no rework needed. Lesson:
+  long offline trainers must checkpoint. xgboost lives in the `ml` extra (not base env).
+- **Next:** re-harvest real repos w/ context enrichment to measure abstention drop (needs Ollama up,
+  exclude 409MB teleport); wire regressor score_source + SHAP into the dashboard risk view.
+
 ### 2026-07-18 (night-5) — FIXED the scanner segfault (P1): pin tree-sitter <0.26 (Claude, Fable) — c858597
 - Root-caused via bisection: parse OK, query exec OK, crash is in **QueryCursor match processing**;
   crash point non-deterministic (match 67 then 62 on identical input) = heap corruption / use-after-free

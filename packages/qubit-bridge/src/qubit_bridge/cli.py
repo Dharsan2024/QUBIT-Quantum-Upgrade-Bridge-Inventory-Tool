@@ -1,8 +1,11 @@
-from typing import Annotated
+import csv
+from pathlib import Path
+from typing import Annotated, cast
 
 import typer
 from rich.console import Console
 
+from qubit_bridge.models import BridgeEngine
 from qubit_bridge.probe import probe_host
 from qubit_bridge.verify import verify_group
 
@@ -25,7 +28,7 @@ def probe_cmd(
     ] = None,
     sni: Annotated[str | None, typer.Option("--sni", help="SNI server name")] = None,
     output_json: Annotated[bool, typer.Option("--json", help="Output JSON")] = False,
-    # --push is omitted for M1
+    push: Annotated[bool, typer.Option("--push", help="Push to API")] = False,
 ):
     """Probe a host to determine its negotiated TLS group."""
     if ":" in target:
@@ -36,6 +39,12 @@ def probe_cmd(
         port = 443
 
     result = probe_host(host, port, groups=groups, sni=sni)
+
+    if push and result.reachable:
+        from qubit_bridge.assets import probe_to_assets, push_assets_to_api
+        assets = probe_to_assets(result)
+        push_assets_to_api(assets)
+        console.print(f"[green]Pushed {len(assets)} assets to API.[/green]")
 
     if output_json:
         console.print(result.model_dump_json(exclude={"raw_output"} if result.reachable else None))
@@ -97,3 +106,108 @@ def verify_cmd(
         )
         if exit_code:
             raise typer.Exit(1)
+
+
+@bridge_app.command("capture")
+def capture_cmd(
+    target: Annotated[str, typer.Argument(help="HOST[:PORT] to capture")],
+    out: Annotated[Path, typer.Option("--out", help="Output .pcap file")],
+    iface: Annotated[str, typer.Option("--iface", help="Network interface")] = "any",
+    handshakes: Annotated[int, typer.Option("--handshakes", help="Number of handshakes")] = 1,
+):
+    """Capture TLS handshake packets to a pcap file."""
+    if ":" in target:
+        host, port_str = target.rsplit(":", 1)
+        port = int(port_str)
+    else:
+        host = target
+        port = 443
+        
+    from qubit_bridge.capture import capture_handshake
+    console.print(f"Capturing handshake on {target}...")
+    capture_handshake(host, port, out, iface=iface, handshakes=handshakes)
+    console.print(f"[green]Saved capture to {out}[/green]")
+
+@bridge_app.command("diff")
+def diff_cmd(
+    before_pcap: Annotated[Path, typer.Argument(help="Before pcap")],
+    after_pcap: Annotated[Path, typer.Argument(help="After pcap")]
+):
+    """Compare two pcap files."""
+    from qubit_bridge.capture import diff_handshakes
+    console.print(f"Diffing {before_pcap} and {after_pcap}...")
+    res = diff_handshakes(before_pcap, after_pcap)
+    console.print(res)
+
+@bridge_app.command("bench")
+def bench_cmd(
+    target: Annotated[str, typer.Argument(help="HOST[:PORT] to bench")],
+    groups: Annotated[str, typer.Option("--groups", help="Comma-separated groups to benchmark")],
+    n: Annotated[int, typer.Option("-n", help="Number of samples per group")] = 100,
+    out: Annotated[Path | None, typer.Option("--out", help="Output CSV file")] = None,
+    push: Annotated[bool, typer.Option("--push", help="Push to API")] = False,
+):
+    """Benchmark TLS handshakes for specific groups."""
+    if ":" in target:
+        host, port_str = target.rsplit(":", 1)
+        port = int(port_str)
+    else:
+        host = target
+        port = 443
+        
+
+    from qubit_bridge.bench import bench_matrix
+    
+    group_list = [g.strip() for g in groups.split(",")]
+    console.print(f"Benchmarking {group_list} against {target} with N={n}...")
+    results = bench_matrix(host, port, group_list, n=n)
+    
+    for r in results:
+        console.print(
+            f"{r.group}: {r.handshake_ms_p50:.2f}ms (median), "
+            f"{r.client_key_share_bytes}B client share"
+        )
+        
+    if out:
+        with out.open('w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=results[0].model_dump().keys())
+            writer.writeheader()
+            for r in results:
+                writer.writerow(r.model_dump())
+        console.print(f"[green]Saved benchmark results to {out}[/green]")
+
+@bridge_app.command("up")
+def up_cmd(
+    profile_name: Annotated[str, typer.Argument(help="Profile name")],
+    engine: Annotated[str, typer.Option("--engine", help="nginx or haproxy")] = "nginx",
+    upstream: Annotated[
+        str, typer.Option("--upstream", help="Upstream host:port")
+    ] = "vulnapp-python:5000",
+    port: Annotated[int, typer.Option("--port", help="Listen port")] = 8443,
+):
+    """Bring up a hybrid terminator container."""
+    from qubit_bridge.compose import bring_up
+    from qubit_bridge.models import BridgeProfile
+    if engine not in ("nginx", "haproxy"):
+        raise typer.BadParameter("--engine must be 'nginx' or 'haproxy'")
+    profile = BridgeProfile(
+        engine=cast(BridgeEngine, engine), upstream=upstream, listen_port=port
+    )
+    console.print(f"Bringing up {profile_name} bridge with {engine}...")
+    # hardcode path for compose file since demo-lab is parallel
+    compose_file = Path("demo-lab/compose.hybrid.yml")
+    if not compose_file.exists():
+        console.print(f"[yellow]Warning: {compose_file} not found. Running anyway.[/yellow]")
+    bring_up(profile, compose_file)
+    console.print(f"[green]Bridge {profile_name} is up on port {port}.[/green]")
+
+@bridge_app.command("down")
+def down_cmd(
+    profile_name: Annotated[str, typer.Argument(help="Profile name")]
+):
+    """Tear down a hybrid terminator container."""
+    from qubit_bridge.compose import tear_down
+    console.print(f"Tearing down {profile_name} bridge...")
+    compose_file = Path("demo-lab/compose.hybrid.yml")
+    tear_down(compose_file)
+    console.print(f"[green]Bridge {profile_name} is down.[/green]")

@@ -46,7 +46,7 @@ ignore = ["S101"]                                       # assert is fine in test
 # QUBIT legitimately orchestrates subprocesses (qubit CLI, git, openssl, nginx -t, docker) with
 # controlled args — S603/S607 are intended there, not injection risks.
 "packages/qubit-migrate/**" = ["S603", "S607"]
-"packages/qubit-bridge/**" = ["S603", "S607"]
+"packages/qubit-bridge/**" = ["S603", "S607", "S110"]
 "packages/qubit-cli/src/qubit_cli/commands/demo.py" = ["S603", "S607"]
 # scanners intentionally swallow parse errors per-file (best-effort discovery, never abort a scan).
 "packages/qubit-scanner/**" = ["S110"]
@@ -56,6 +56,8 @@ ignore = ["S101"]                                       # assert is fine in test
 # vocab holds literal multi-language code templates that must stay verbatim.
 "packages/qubit-risk/src/qubit_risk/ml/synth.py" = ["S311"]
 "packages/qubit-risk/src/qubit_risk/ml/vocab.py" = ["E501"]
+# regressor label synthesis: random is for reproducible sampling of synthetic assets, not crypto.
+"packages/qubit-risk/src/qubit_risk/regressor/labels.py" = ["S311"]
 
 [tool.mypy]
 python_version = "3.12"

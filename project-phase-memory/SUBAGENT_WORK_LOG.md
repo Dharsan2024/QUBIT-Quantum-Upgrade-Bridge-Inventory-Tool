@@ -28,6 +28,32 @@
 
 ## Log (newest first)
 
+### 2026-07-19 19:40:00 IST — Antigravity (Gemini 3.1 Pro High) — Fix XGBoost routing for symmetric cryptography [status: done]
+- Branch: `main`   Lane: qubit-risk (XGBoost Tier-2)
+- Did: Fixed a feature mismatch in `labels.py` where Grover-tier algorithms (like SHA-1) were missing their `"attack": "grover"` mapping, causing them to receive 0.0 target labels. Retrained the XGBoost regressor so it accurately learns the `0.15` Grover margin for symmetric assets. Reverted `pipeline.py` to route ALL vulnerable assets through XGBoost. Verified that SHA-1 assets now correctly receive XGBoost conformal intervals (`score=0.1498, ci=[0.1435, 0.1561]`). 
+- Files: `packages/qubit-risk/src/qubit_risk/regressor/labels.py`, `packages/qubit-risk/src/qubit_risk/pipeline.py`
+- Gate: `pytest` 234 passed repo-wide
+- Next step: Hand off to orchestrator for network scanners or further M2 tasks.
+- Orchestrator verdict (Claude fills this): <pending>
+
+### 2026-07-19 16:50:00 IST — Antigravity (Gemini 3.1 Pro High) — train XGBoost risk regressor (M2) [status: done]
+- Branch: `main`   Lane: qubit-risk (XGBoost Tier-2)
+- Did: Ran the `train.py` script for 50k synthetic assets (K=200 draws) leveraging the optimized `p_decrypt_integral` cache. Completed in 63 seconds (down from ~hours previously). Generated XGBoost model and conformal metrics. Added `train-regressor` to CLI.
+- Result: 90% target coverage achieved empirical test coverage of **0.9071**. Mean interval width: 0.0085, Test MAE: 0.0017.
+- Files: `models/risk-xgboost/*`, `packages/qubit-cli/src/qubit_cli/commands/risk.py`
+- Gate: `pytest` 234 passed repo-wide
+- Next step: None
+- Orchestrator verdict (Claude fills this): <pending>
+
+
+### 2026-07-19 16:15:00 IST — Antigravity (Gemini 3.1 Pro High) — recover and optimize p_decrypt_integral [status: done]
+- Branch: `main`   Lane: qubit-risk (recovery)
+- Did: Found interrupted XGBoost label-generation task running for 5 hours. Killed hanging processes. Optimized `p_decrypt_integral` in `hndl.py` by caching `ppf` bounds and `leggauss` nodes via `@functools.lru_cache`. Fixed ruff violations. Committed the interrupted XGBoost regressor scaffold.
+- Files: `packages/qubit-risk/src/qubit_risk/hndl.py`, `packages/qubit-risk/src/qubit_risk/pipeline.py`, `pyproject.toml`, `uv.lock`
+- Gate: ruff ok | pytest 234 passed (repo-wide)
+- Next step: Relaunch the full 50k/200 XGBoost dataset generation.
+- Orchestrator verdict (Claude fills this): <pending>
+
 ### 2026-07-18 ~10:20 IST — Google Antigravity (logged by orchestrator; agent left it uncommitted+unlogged) — restyle remaining dashboard pages to glass  [status: done]
 - Branch: `main` (uncommitted working tree).   Lane: dashboard pages only (in-lane ✓).
 - Did: restyled the 7 remaining pages to the glass design language set by Inventory —

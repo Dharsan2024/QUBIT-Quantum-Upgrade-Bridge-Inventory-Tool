@@ -64,3 +64,6 @@ Thumbs.db
 
 # Reproducible synthetic corpora (regenerate: qubit risk gen-dataset)
 datasets/
+
+# never commit DistilBERT training checkpoints (3GB+; regenerate via qubit risk train-sensitivity)
+models/sensitivity-distilbert/

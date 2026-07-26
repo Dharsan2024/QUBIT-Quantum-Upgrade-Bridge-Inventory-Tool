@@ -1,0 +1,12 @@
+{
+  "n_assets": 50000,
+  "k_draws": 200,
+  "n_train": 34997,
+  "n_cal": 7500,
+  "n_test": 7503,
+  "q_hat": 0.0063,
+  "target_coverage": 0.9,
+  "empirical_test_coverage": 0.9051,
+  "mean_interval_width": 0.0109,
+  "test_mae": 0.0021
+}

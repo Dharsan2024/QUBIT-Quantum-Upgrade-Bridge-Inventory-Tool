@@ -6,7 +6,10 @@ thin follow-up. Heuristic-only (no BERT/XGBoost yet).
 
 from __future__ import annotations
 
+import logging
+import os
 from collections.abc import Sequence
+from pathlib import Path
 
 from qubit_core import CryptoAsset, RiskAnnotation, Sensitivity
 
@@ -16,12 +19,27 @@ from .score import score_asset
 from .sensitivity import classify_sensitivity
 from .timeline import CRQCTimelineSimulator
 
+logger = logging.getLogger(__name__)
+
 
 class RiskPipeline:
     def __init__(self, config: RiskConfig | None = None) -> None:
         self.cfg = config or load_config()
         self.sim = CRQCTimelineSimulator(self.cfg)
         self._now = int(self.cfg.hardware_priors["reference_year"])
+        # Optional XGBoost regressor tier (doc 02 §6.4). Enabled only when QUBIT_RISK_XGB_DIR points
+        # at a trained model dir; otherwise the pipeline uses the heuristic/closed-form score
+        # (graceful degradation, NFR2). Loaded once here so per-asset scoring stays fast.
+        self._regressor = None
+        xgb_dir = os.getenv("QUBIT_RISK_XGB_DIR")
+        if xgb_dir:
+            from .regressor.predict import RiskRegressor
+
+            if RiskRegressor.available(Path(xgb_dir)):
+                try:
+                    self._regressor = RiskRegressor.load(Path(xgb_dir))
+                except Exception:
+                    logger.exception("XGBoost regressor load failed; falling back to closed-form")
 
     def assess(self, assets: Sequence[CryptoAsset]) -> list[CryptoAsset]:
         """Annotate assets in-place. Mutates sensitivity/risk."""
@@ -33,6 +51,18 @@ class RiskPipeline:
             is_vuln = asset.quantum_vulnerable.vulnerable
             curve = self.sim.simulate(asset.algorithm) if is_vuln else None
             sr = score_asset(asset, sens, curve, self.cfg, self._now)
+
+            # XGBoost tier: distilled score + conformal CI when a model is loaded (doc 02 §6.4).
+            score, ci_low, ci_high = sr.score, sr.ci_low, sr.ci_high
+            if self._regressor is not None and is_vuln:
+                try:
+                    from .regressor.asset_features import build_asset_features
+
+                    feats = build_asset_features(asset, sens, curve, self.cfg, self._now)
+                    pred = self._regressor.predict(feats)
+                    score, ci_low, ci_high = pred.score, pred.ci_low, pred.ci_high
+                except Exception:
+                    logger.exception("regressor.predict failed; using closed-form score")
 
             if curve is not None:
                 y = migration_years(self.cfg, asset.usage_context.value)
@@ -48,9 +78,9 @@ class RiskPipeline:
                 margin = float(self.cfg.hardware_priors["horizon_year"] - self._now)
 
             asset.risk = RiskAnnotation(
-                score=sr.score,
-                ci_low=sr.ci_low,
-                ci_high=sr.ci_high,
+                score=score,
+                ci_low=ci_low,
+                ci_high=ci_high,
                 mosca_margin_years=margin,
                 priority_rank=1,  # rank filled after sorting
             )

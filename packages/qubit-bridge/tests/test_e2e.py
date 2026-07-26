@@ -1,10 +1,27 @@
+import shutil
 import subprocess
 import time
 from pathlib import Path
 
 import pytest
 from qubit_bridge.probe import probe_host
-from testcontainers.core.container import DockerContainer
+
+
+def _docker_up() -> bool:
+    if shutil.which("docker") is None:
+        return False
+    try:
+        return subprocess.run(["docker", "info"], capture_output=True, timeout=10).returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
+# Skip the whole module (not error) when Docker or testcontainers is unavailable.
+pytest.importorskip("testcontainers")
+if not _docker_up():
+    pytest.skip("docker daemon unavailable", allow_module_level=True)
+
+from testcontainers.core.container import DockerContainer  # noqa: E402
 
 IMAGES_DIR = Path(__file__).parent.parent / "images" / "nginx-hybrid"
 

@@ -7,6 +7,9 @@
 
 ---
 
+### 2026-08-04 03:05:18 +05:30 — Copilot CLI (sub-agent)
+Read memory/design files 1–6 in order, declare identity/target lane, then continue work from next concrete action under the QUBIT workflow (branching, continuous logging, quality gate).
+
 ### 2026-07-17 06:59:46 +05:30 � OpenAI Codex
 Recover interrupted work before doing anything new: read project memory/sub-agent logs/work split, inspect git status/stash/diff/log, run health checks, judge whether the uncommitted change is complete/half-done/broken, log after every step, then continue safely.
 ### 2026-07-17 06:49:26 +05:30 — GitHub Copilot

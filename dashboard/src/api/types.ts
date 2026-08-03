@@ -152,7 +152,7 @@ export interface HndlExplanation {
   bn_closed_form_agreement?: number;
   crqc_median_year?: number | null;
   persisted_score?: number | null;
-  score_source?: string;
+  score_source?: "closed-form" | "xgb";
   regressor?: RegressorExplanation | null;
 }
 

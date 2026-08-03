@@ -24,6 +24,16 @@ function riskColor(score: number): string {
       : 'var(--color-safe)';
 }
 
+function scoreSourceLabel(source: "closed-form" | "xgb" | undefined): string {
+  if (source === "xgb") {
+    return "XGBoost (calibrated)";
+  }
+  if (source === "closed-form") {
+    return "Closed-form HNDL";
+  }
+  return "Unknown";
+}
+
 function Factor({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md bg-black/20 px-2.5 py-1.5">
@@ -105,6 +115,14 @@ function RiskRow({
                 — agree to {data.bn_closed_form_agreement?.toFixed(3)}. CRQC median{' '}
                 {data.crqc_median_year ?? '—'}.
               </div>
+              {data.score_source && (
+                <div className="text-[11px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">
+                  Score source:{" "}
+                  <span className="font-mono text-[color:var(--color-ink)]">
+                    {scoreSourceLabel(data.score_source)}
+                  </span>
+                </div>
+              )}
 
               {data.regressor && (
                 <div className="mt-1 rounded-lg border border-indigo-400/20 bg-indigo-500/5 p-3">
@@ -125,33 +143,39 @@ function RiskRow({
                   <div className="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">
                     Top SHAP contributions
                   </div>
-                  <div className="mt-1 flex flex-col gap-1">
-                    {data.regressor.shap_top.slice(0, 6).map((s) => (
-                      <div key={s.feature} className="flex items-center gap-2 text-xs">
-                        <span className="w-40 truncate font-mono text-[color:var(--color-ink-dim)]">
-                          {s.feature}
-                        </span>
-                        <div className="relative h-1.5 flex-1 rounded-full bg-white/5">
-                          <div
-                            className="absolute top-0 h-full rounded-full"
-                            style={{
-                              left: s.contribution >= 0 ? '50%' : undefined,
-                              right: s.contribution < 0 ? '50%' : undefined,
-                              width: `${Math.min(50, Math.abs(s.contribution) * 300)}%`,
-                              background:
-                                s.contribution >= 0
-                                  ? 'var(--color-danger)'
-                                  : 'var(--color-safe)',
-                            }}
-                          />
+                  {data.regressor.shap_top.length > 0 ? (
+                    <div className="mt-1 flex flex-col gap-1">
+                      {data.regressor.shap_top.slice(0, 6).map((s) => (
+                        <div key={s.feature} className="flex items-center gap-2 text-xs">
+                          <span className="w-40 truncate font-mono text-[color:var(--color-ink-dim)]">
+                            {s.feature}
+                          </span>
+                          <div className="relative h-1.5 flex-1 rounded-full bg-white/5">
+                            <div
+                              className="absolute top-0 h-full rounded-full"
+                              style={{
+                                left: s.contribution >= 0 ? '50%' : undefined,
+                                right: s.contribution < 0 ? '50%' : undefined,
+                                width: `${Math.min(50, Math.abs(s.contribution) * 300)}%`,
+                                background:
+                                  s.contribution >= 0
+                                    ? 'var(--color-danger)'
+                                    : 'var(--color-safe)',
+                              }}
+                            />
+                          </div>
+                          <span className="w-14 text-right font-mono tabular-nums text-[color:var(--color-ink-faint)]">
+                            {s.contribution >= 0 ? '+' : ''}
+                            {s.contribution.toFixed(3)}
+                          </span>
                         </div>
-                        <span className="w-14 text-right font-mono tabular-nums text-[color:var(--color-ink-faint)]">
-                          {s.contribution >= 0 ? '+' : ''}
-                          {s.contribution.toFixed(3)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-xs text-[color:var(--color-ink-dim)]">
+                      SHAP contributions unavailable for this asset.
+                    </div>
+                  )}
                 </div>
               )}
             </div>

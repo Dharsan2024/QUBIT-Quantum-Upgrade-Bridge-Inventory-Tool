@@ -28,6 +28,14 @@
 
 ## Log (newest first)
 
+### 2026-08-04 03:05:18 +05:30 — Copilot CLI runtime (AI assistant in VS Code) — Risk view: score_source + SHAP provenance [status: done]
+- Branch: `antigravity/risk-view-score-source`   Lane: dashboard / platform API view wiring (doc 05)
+- Did: Read required files in order (`PROJECT_PHASE_MEMORY`, `AGENT_WORK_SPLIT`, `CORE_PROMPTS`, `BUILD_PLAN`, design 00, design 05). Implemented dashboard Risk-page updates to explicitly surface regressor `score_source` (closed-form vs XGBoost calibrated) and added SHAP empty-state handling when contributions are unavailable.
+- Files: `dashboard/src/pages/Risk.tsx`, `dashboard/src/api/types.ts`, `project-phase-memory/USER_PROMPTS_LOG.md`, `project-phase-memory/SUBAGENT_WORK_LOG.md`
+- Gate: `npm run lint` (dashboard) ok | `npm run build` (dashboard) ok
+- Next step (if in-progress/cut-off): Hand off for orchestrator verification / merge.
+- Orchestrator verdict (Claude fills this): <pending>
+
 ### 2026-07-19 19:40:00 IST — Antigravity (Gemini 3.1 Pro High) — Fix XGBoost routing for symmetric cryptography [status: done]
 - Branch: `main`   Lane: qubit-risk (XGBoost Tier-2)
 - Did: Fixed a feature mismatch in `labels.py` where Grover-tier algorithms (like SHA-1) were missing their `"attack": "grover"` mapping, causing them to receive 0.0 target labels. Retrained the XGBoost regressor so it accurately learns the `0.15` Grover margin for symmetric assets. Reverted `pipeline.py` to route ALL vulnerable assets through XGBoost. Verified that SHA-1 assets now correctly receive XGBoost conformal intervals (`score=0.1498, ci=[0.1435, 0.1561]`). 

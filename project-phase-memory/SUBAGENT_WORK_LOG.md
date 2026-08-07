@@ -28,6 +28,21 @@
 
 ## Log (newest first)
 
+### 2026-08-07 12:15:00 UTC — Google Antigravity (Gemini 2.5 Pro) — Pydantic v2 ConfigDict fix + coverage boost to 73.7% [status: done]
+- Branch: `antigravity/m3-shipping-hardening`   Lane: qubit-api / qubit-scanner / M3 hardening
+- Did:
+  1. Fixed Pydantic v2 deprecation: `class Config` → `model_config = ConfigDict(from_attributes=True)` in `jobs.py` and `risk.py`.
+  2. Added `test_coverage_boost.py` (27 new hermetic tests) targeting 4 low-coverage scanner modules:
+     - `certs/scanner.py`: RSA PEM, EC PEM, DER, sig-algo, malformed — coverage 31% → ~80%
+     - `config/cipherstring.py`: all expand branches — coverage 48% → ~95%
+     - `network/active.py`: mocked TLS success/no-ssl/refused/timeout — coverage 48% → ~90%
+     - `code/resolve.py`: imports, string-constant folding, int literal — coverage 58% → ~75%
+  3. Total suite: 269 passed, 1 skipped; coverage 70.73% → **73.68%** (gate: 70%).
+- Files: `packages/qubit-api/src/qubit_api/routers/jobs.py`, `packages/qubit-api/src/qubit_api/routers/risk.py`, `packages/qubit-scanner/tests/test_coverage_boost.py`
+- Gate: ruff ok | mypy ok (40 files) | 269 passed, 73.7% coverage — commit `eff770b`
+- Next step: Orchestrator audit + merge to main. M3 remaining: `/simulate` what-if endpoint; human-ranking study.
+- Orchestrator verdict (Claude fills this): <pending>
+
 ### 2026-08-07 17:35:00 +05:30 — Google Antigravity (Gemini 3.6 Flash High) — Implement ENG-F7 network scan authorization guardrails & CLI [status: done]
 - Branch: `antigravity/m3-shipping-hardening`   Lane: qubit-scanner / qubit-cli / M3 hardening
 - Did: Implemented doc 06 §13 network scan authorization guardrail (`qubit_scanner.network.auth`). Enforced RFC1918/loopback auto-approval, allowlist check (`~/.config/qubit/scan-allowlist.txt`), `--authorized` requirement for non-RFC1918 public targets, and audit logging (`~/.local/state/qubit/scan-audit.log`). Integrated into `scan_network` API and added `qubit scan-network` CLI command. Added unit tests for authorization and CLI refusal.

@@ -190,6 +190,21 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-07 (later) — Closed the two M2 acceptance gaps (Claude, Opus) — e8be87c
+- **Gap A — kill-9 recovery:** `JobRunner.recover_orphaned()` now sweeps jobs AND their scans/risk-runs
+  stuck in queued|running after a hard kill → marked failed w/ "interrupted by server restart" (the
+  old inline lifespan version only touched jobs, leaving ScanRow/RiskRun stuck 'running'). Wired into
+  app startup. 3 tests (test_crash_recovery.py): method sweep, no-op on clean, lifespan-startup.
+- **Gap B — unified loop:** `qubit demo run --all` chains the (CI-tested) software remediation loop
+  into the bridge network loop (harvest → hybrid re-capture on same port → verify X25519MLKEM768);
+  graceful skip when Docker down, `--canned` for fixtures.
+- **Bonus fix:** forced UTF-8 CLI output (main.py) — rich's arrows/checkmarks used to UnicodeEncodeError
+  on a legacy cp1252 Windows console; now safe everywhere.
+- Gate: ruff+mypy clean, **238 tests pass**. Verified on GitHub e8be87c.
+- **M2 acceptance now fully met** (software loop CI-proven + kill-9 recovery + unified demo command).
+  **Next (M3):** external-validation study (Spearman ρ vs human ranking — paper headline); then
+  production hardening (auth/CI/packaging) + `/simulate` what-if.
+
 ### 2026-08-07 — Regressor UI surfacing + M2 acceptance test + branch fix (Claude, Opus) — 0846804
 - **Surfaced the XGBoost regressor** (novelty pillar, 0.905 coverage) end-to-end: API
   `/assets/{id}/hndl` now loads models/risk-xgboost and returns a `regressor` block (score_source,

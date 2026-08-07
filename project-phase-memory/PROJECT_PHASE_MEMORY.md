@@ -190,6 +190,23 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-07 — Regressor UI surfacing + M2 acceptance test + branch fix (Claude, Opus) — 0846804
+- **Surfaced the XGBoost regressor** (novelty pillar, 0.905 coverage) end-to-end: API
+  `/assets/{id}/hndl` now loads models/risk-xgboost and returns a `regressor` block (score_source,
+  score, 90% conformal CI, top-8 TreeSHAP); dashboard Risk panel shows the CI + diverging SHAP bars.
+  Graceful degradation when xgboost/model absent. Proven live (RSA-2048 → xgb, CI [0.029,0.041]).
+  (a162538)
+- **Sub-agent commit 0733e0a (Copilot/Antigravity) → KEEP:** dashboard score-source label + SHAP
+  empty-state + type tightening; gate-verified, correct identity.
+- **NEW M2 acceptance TEST** (`qubit-cli/tests/test_m2_acceptance.py`): CI-proves the full software
+  loop — real scan finds SHA-1 → risk annotates → migrate template codemod applied to a git repo →
+  **re-scan proves SHA-1 gone**. No Docker/LLM/network. (0846804)
+- **Branch hygiene:** work had landed on local branch `antigravity/risk-view-score-source` (session
+  started there); `git push origin main` silently pushed nothing. The mandatory `git ls-remote` verify
+  CAUGHT it (ON GITHUB: NO) → fast-forwarded main to include both commits, pushed, deleted the merged
+  branch. Validates the push-verify rule (see [[verify-push-reached-remote]]).
+- Gate: ruff+mypy clean, **235 tests pass**. Remote verified at 0846804.
+
 ### 2026-07-26 — Repo cleanup + astradyne email scrub (history rewrite) (Claude, Opus) — d470e5f
 - User: keep only core working components + scrub the astradyne account. Backed up first
   (`../qubit-backup-preclean-*.bundle`, all refs).

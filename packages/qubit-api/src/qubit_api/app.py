@@ -14,8 +14,6 @@ from .settings import Settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from qubit_core.db import Job
-
     from .jobs.bus import EventBus
     from .jobs.runner import JobRunner
 
@@ -25,13 +23,8 @@ async def lifespan(app: FastAPI):
     app.state.event_bus = bus
     app.state.job_runner = runner
 
-    # Crash recovery
-    with sf() as session:
-        session.query(Job).filter(Job.status.in_(["queued", "running"])).update(
-            {"status": "failed", "error": "interrupted by server restart"},
-            synchronize_session=False,
-        )
-        session.commit()
+    # Crash recovery: nothing may stay stuck in queued/running after a kill -9 (M2 acceptance).
+    runner.recover_orphaned()
 
     yield
 

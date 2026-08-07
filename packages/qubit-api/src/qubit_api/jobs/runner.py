@@ -81,6 +81,39 @@ class JobRunner:
         self._cancel_flags: dict[UUID, threading.Event] = {}
         self._tasks: set[asyncio.Task[Any]] = set()
 
+    def recover_orphaned(self) -> dict[str, int]:
+        """Recover jobs left mid-flight by a crash / kill -9 (M2 acceptance: 'recovers cleanly').
+
+        A hard kill leaves jobs (and their scans / risk runs) stuck in queued/running forever. On
+        startup we mark every such record failed with a clear message, so state is consistent and
+        the work can simply be re-run — nothing is left silently 'running'. Returns per-kind counts.
+        """
+        from qubit_core.db import RiskRun, ScanRow
+
+        interrupted = {"status": "failed", "error": "interrupted by server restart"}
+        active = ["queued", "running"]
+        with self.sf() as session:
+            jobs = (
+                session.query(Job)
+                .filter(Job.status.in_(active))
+                .update(interrupted, synchronize_session=False)
+            )
+            scans = (
+                session.query(ScanRow)
+                .filter(ScanRow.status.in_(active))
+                .update(interrupted, synchronize_session=False)
+            )
+            risk_runs = (
+                session.query(RiskRun)
+                .filter(RiskRun.status.in_(active))
+                .update({"status": "failed"}, synchronize_session=False)  # RiskRun has no error col
+            )
+            session.commit()
+        counts = {"jobs": int(jobs), "scans": int(scans), "risk_runs": int(risk_runs)}
+        if any(counts.values()):
+            logger.warning("Recovered orphaned records after restart: %s", counts)
+        return counts
+
     def _finish(
         self,
         job_id: UUID,

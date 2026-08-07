@@ -35,6 +35,12 @@ from rich.table import Table
 from qubit_cli.commands.demo import demo_app
 from qubit_cli.commands.risk import risk_app
 
+# Force UTF-8 console output so rich's Unicode (arrows/checkmarks in demo output + tables) never
+# crashes on a legacy Windows code page (cp1252); errors="replace" degrades instead of raising.
+for _stream in (sys.stdout, sys.stderr):
+    with contextlib.suppress(Exception):
+        _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+
 app = typer.Typer(
     name="qubit",
     help="QUBIT — Quantum Upgrade Bridge & Inventory Tool. Discover and inventory crypto.",

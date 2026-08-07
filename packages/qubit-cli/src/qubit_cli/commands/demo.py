@@ -48,8 +48,19 @@ def demo_run(
         str, typer.Option("--generator", help="auto | template | llm")
     ] = "auto",
     keep: Annotated[bool, typer.Option("--keep", help="Keep the scratch repo")] = False,
+    run_all_phases: Annotated[
+        bool,
+        typer.Option(
+            "--all", help="Also run the bridge network loop (hybrid re-capture; needs Docker)"
+        ),
+    ] = False,
+    canned: Annotated[bool, typer.Option("--canned", help="Bridge phases use fixtures")] = False,
 ) -> None:
-    """Scan → risk → plan → generate → approve → apply → re-scan (remediation proof)."""
+    """Scan → risk → plan → generate → approve → apply → re-scan (remediation proof).
+
+    With --all, chains the bridge network loop afterwards (the full M2 acceptance: classical harvest
+    → discovery → risk → remediate → hybrid re-capture on the same port → verify X25519MLKEM768).
+    """
     from qubit_migrate.orchestrator import MigrationOrchestrator
     from qubit_risk import RiskPipeline, load_config
 
@@ -158,6 +169,36 @@ def demo_run(
         console.print(f"scratch repo kept at {repo}")
     else:
         shutil.rmtree(scratch, ignore_errors=True)
+
+    if run_all_phases:
+        _run_bridge_phases(scratch.parent / "demo-pcaps", canned=canned)
+
+
+def _docker_available() -> bool:
+    if shutil.which("docker") is None:
+        return False
+    try:
+        return subprocess.run(["docker", "info"], capture_output=True, timeout=10).returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _run_bridge_phases(pcap_dir: Path, *, canned: bool) -> None:
+    """The network half of the M2 acceptance loop (classical harvest → hybrid re-capture)."""
+    console.print("\n[bold]── Bridge network loop (M2 §4 acceptance) ──[/bold]")
+    if not canned and not _docker_available():
+        console.print(
+            "[yellow]Docker not available — skipping the live bridge phases.[/yellow]\n"
+            "Start Docker Desktop and re-run `qubit demo run --all`, or pass --canned for fixtures."
+        )
+        return
+    from qubit_bridge.demo import run_all
+
+    pcap_dir.mkdir(parents=True, exist_ok=True)
+    run_all(pcap_dir, canned=canned)
+    console.print(
+        "[bold green]✔ Full M2 loop complete (software remediation + hybrid bridge).[/bold green]"
+    )
 
 @demo_app.command("bridge-4phase")
 def demo_bridge_4phase(

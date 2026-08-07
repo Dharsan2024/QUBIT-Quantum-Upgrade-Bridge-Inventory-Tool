@@ -7,6 +7,12 @@
 
 ---
 
+### 2026-08-07 17:27:53 +05:30 — Google Antigravity (Gemini 3.6 Flash High)
+Recover interrupted work before new work: read PROJECT_PHASE_MEMORY.md §5, SUBAGENT_WORK_LOG.md, AGENT_WORK_SPLIT.md; find interrupted work via git status/stash/diff/log; run health checks (ruff + pytest); complete in-progress changes, gate green, log and commit.
+
+### 2026-08-07 17:16:14 +05:30 — OpenAI Codex / GPT-5.6 (sub-agent)
+Read files 1–6 in order; declare identity, target area, and next action; then continue current QUBIT work under branch, continuous-log, and quality-gate discipline.
+
 ### 2026-08-07 16:29:00 +05:30 — Copilot CLI (sub-agent)
 Read memory/design files 1–6 in strict order, declare identity + best-fit area + next concrete action, then start work immediately under branch/log/gate discipline.
 

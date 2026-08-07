@@ -28,6 +28,24 @@
 
 ## Log (newest first)
 
+### 2026-08-07 17:30:00 +05:30 — Google Antigravity (Gemini 3.6 Flash High) — Recover cut-off M3 shipping hardening task [status: done]
+- Branch: `codex/m3-state-reconcile`   Lane: recovery / CI hardening
+- Did: Recovered cut-off Codex task. Resolved `pip-licenses` allowlist issue by adding `--partial-match` to `.github/workflows/ci.yml`. Ran quality gate (`ruff check .` and `pytest -q`). Verified all checks pass.
+- Files: `.github/workflows/ci.yml`, `project-phase-memory/SUBAGENT_WORK_LOG.md`
+- Gate: ruff ok | pytest 236 passed, 1 skipped | pip-licenses --partial-match ok
+- Next step: Commit changes to branch `codex/m3-state-reconcile`.
+- Orchestrator verdict (Claude fills this): <pending>
+
+### 2026-08-07 17:16:14 +05:30 — OpenAI Codex / GPT-5.6 — reconcile stale project state; begin M3 shipping hardening [status: done]
+- Branch: `codex/m3-state-reconcile`   Lane: cross-package integration / CI-packaging audit
+- Did: Read required files in order: PROJECT_PHASE_MEMORY, AGENT_WORK_SPLIT, CORE_PROMPTS, BUILD_PLAN, design 00, design 02. Found §2/§4 stale at Phase 0 despite M2 completion and current M3 work. Created the branch and reconciled §2/§4 to the verified 2026-08-07 state; M3 human rankings remain pending real raters. Added CI workflow `.github/workflows/ci.yml`, `.pre-commit-config.yaml`, `.gitleaks.toml`, and `pip-licenses`.
+- Files: `.github/workflows/ci.yml`, `.gitleaks.toml`, `.pre-commit-config.yaml`, `pyproject.toml`, `uv.lock`, `project-phase-memory/PROJECT_PHASE_MEMORY.md`, `project-phase-memory/SUBAGENT_WORK_LOG.md`, `project-phase-memory/USER_PROMPTS_LOG.md`
+- Gate: ruff ok | pytest 236 passed, 1 skipped | pip-licenses --partial-match ok
+- Recovery 2026-08-07 17:29 IST: Antigravity recovered cut-off task. Fixed license allowlist gate using `--partial-match` in `.github/workflows/ci.yml`. Executed `uv run ruff check .` (passed) and `uv run pytest -q` (236 passed, 1 skipped).
+- Next step: None
+- Orchestrator verdict (Claude fills this): <pending>
+
+
 ### 2026-08-07 16:29:00 +05:30 — Copilot CLI runtime (AI assistant in VS Code) — Start M3 risk external-validation study (Spearman) [status: done]
 - Branch: `copilot/risk-external-validation`   Lane: qubit-risk (paper experiment harness, design 02 §6.4.5 / §8.3)
 - Did: Read required files in order (`PROJECT_PHASE_MEMORY`, `AGENT_WORK_SPLIT`, `CORE_PROMPTS`, `BUILD_PLAN`, design 00, design 02). Implemented external-validation module for Bradley-Terry consensus + Spearman correlation (`qubit_risk.regressor.external_validation`), wired new CLI command `qubit risk eval --pairwise --scores`, and added risk/CLI tests for the ranking study path.

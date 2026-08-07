@@ -1,0 +1,8 @@
+title = "QUBIT fixture allowlist"
+
+[allowlist]
+description = "Deliberately vulnerable fixtures and generated demo-lab keys only"
+paths = [
+  '''^tests/fixtures/''',
+  '''^demo-lab/.*\.(pem|key|jks)$''',
+]

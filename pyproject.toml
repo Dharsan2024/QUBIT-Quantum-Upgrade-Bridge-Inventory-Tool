@@ -30,6 +30,7 @@ dev = [
   "poethepoet>=0.30",
   "httpx>=0.28",
   "testcontainers>=4.5",
+  "pip-licenses>=5",
 ]
 
 [tool.ruff]

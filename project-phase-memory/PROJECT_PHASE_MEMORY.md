@@ -61,7 +61,12 @@ the canonical decisions in `docs/BUILD_PLAN.md §4`. Trust the BUILD_PLAN when d
 
 ## 2. Current status
 
-**Phase: PRE-BUILD (planning complete, environment PARTIALLY set up, no code written).**
+**Phase: M3 hardening + paper experiments IN PROGRESS (M1 and M2 acceptance complete).**
+
+**Authoritative 2026-08-07 snapshot:** all seven packages, dashboard, live four-phase demo, crash
+recovery, XGBoost + conformal tier, and external-ranking validation harness are implemented. Repository
+quality gate: 241 tests green. The M3 human-ranking dataset still needs real independent ratings; never
+fabricate it.
 
 Build machine: Intel i7-14700HX (20c), 16 GB DDR5-5600, **NVIDIA RTX 4060 Laptop (8 GB VRAM)**, Windows 11.
 Verdict: well-suited. 7B LLM runs on the GPU (VRAM), keeping it off system RAM. The 16 GB RAM is the only
@@ -115,8 +120,8 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
 - [x] **Platform Dashboard M1 Scaffold DONE** (Antigravity):
       React 18 / Vite 8 / TailwindCSS v4 app scaffolded. 
       `Inventory` page implemented with `@tanstack/react-table` showing discovered assets.
-- [ ] Phase 2 (M2 feature-complete + live 4-phase demo).
-- [ ] Phase 3 (M3 hardening + paper experiments).
+- [x] Phase 2 (M2 feature-complete + live 4-phase demo).
+- [~] Phase 3 (M3 hardening + paper experiments).
 
 ---
 
@@ -165,6 +170,13 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
 ---
 
 ## 4. Next action when resuming
+
+**Authoritative next action (2026-08-07):** harden the shipping path: audit and complete CI/coverage,
+packaging, and security/auth guardrails per `docs/design/00-architecture-frame.md` and
+`docs/design/06-engineering-plan.md`. Keep the human-ranking study honest: collect 40 real demo-lab assets
+times 3 independent raters, then run `qubit risk eval --pairwise <ratings.csv> --scores <scores.csv>`;
+never fabricate ratings. `/risk/simulate` and dashboard sliders remain M3 stretch work after the shipping
+gate is verified. The legacy Phase 0 paragraph below is historical only.
 
 **Phase 0, step 1:** bootstrap the uv monorepo per `docs/design/06-engineering-plan.md §3.1` and land
 `qubit-core` (the binding `CryptoAsset` Pydantic + SQLAlchemy models, algorithm registry, fingerprint fn),

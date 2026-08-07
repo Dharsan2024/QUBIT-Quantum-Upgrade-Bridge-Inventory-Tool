@@ -217,3 +217,42 @@ def test_cbom_validate_invalid_file(tmp_path: Path) -> None:
 def test_cbom_validate_missing_file(tmp_path: Path) -> None:
     res = runner.invoke(app, ["cbom", "validate", str(tmp_path / "nonexistent.json")])
     assert res.exit_code == 1
+
+
+def test_risk_eval_external_passes_with_strong_xgb(tmp_path: Path) -> None:
+    pairwise = tmp_path / "pairwise.csv"
+    pairwise.write_text(
+        "\n".join(
+            [
+                "winner_id,loser_id,rater",
+                "a,b,r1",
+                "a,c,r1",
+                "a,d,r1",
+                "b,c,r1",
+                "b,d,r1",
+                "c,d,r1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    scores = tmp_path / "scores.csv"
+    scores.write_text(
+        "\n".join(
+            [
+                "asset_id,xgb_score,bn_score,static_score",
+                "a,0.95,0.85,0.30",
+                "b,0.80,0.35,0.90",
+                "c,0.30,0.60,0.70",
+                "d,0.05,0.10,0.60",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    res = runner.invoke(
+        app,
+        ["risk", "eval", "--pairwise", str(pairwise), "--scores", str(scores), "--json"],
+    )
+    assert res.exit_code == 0, res.output
+    data = json.loads(res.stdout)
+    assert data["spearman_by_model"]["xgb_score"] >= 0.7

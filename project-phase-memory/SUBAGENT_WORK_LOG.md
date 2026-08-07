@@ -28,6 +28,20 @@
 
 ## Log (newest first)
 
+### 2026-08-07 16:29:00 +05:30 — Copilot CLI runtime (AI assistant in VS Code) — Start M3 risk external-validation study (Spearman) [status: done]
+- Branch: `copilot/risk-external-validation`   Lane: qubit-risk (paper experiment harness, design 02 §6.4.5 / §8.3)
+- Did: Read required files in order (`PROJECT_PHASE_MEMORY`, `AGENT_WORK_SPLIT`, `CORE_PROMPTS`, `BUILD_PLAN`, design 00, design 02). Implemented external-validation module for Bradley-Terry consensus + Spearman correlation (`qubit_risk.regressor.external_validation`), wired new CLI command `qubit risk eval --pairwise --scores`, and added risk/CLI tests for the ranking study path.
+- Files: `packages/qubit-risk/src/qubit_risk/regressor/external_validation.py`, `packages/qubit-risk/tests/test_external_validation.py`, `packages/qubit-cli/src/qubit_cli/commands/risk.py`, `packages/qubit-cli/tests/test_cli.py`, `project-phase-memory/SUBAGENT_WORK_LOG.md`, `project-phase-memory/USER_PROMPTS_LOG.md`
+- Gate: recovery complete — repo `uv run ruff check .` passed; repo `uv run pytest -q` → 241 passed (4 existing dependency deprecation warnings). Package `ruff` / `mypy` / `pytest` gates passed.
+- Recovery 2026-08-07 16:31 IST: `uv run ruff check .` passed. `uv run pytest -q` failed: 240 passed, 1 failed — `test_external_validation_spearman_orders_models` asserts `xgb_score > bn_score`, but fixture gives both Spearman rho 1.0.
+- Recovery 2026-08-07 16:34 IST: reviewed doc 02 §6.4.5/§8.3 and implementation. Keep: generic score-column support covers XGBoost + required baselines. Fixed only the fixture: BN scores now rank `a > c > b > d`, so its rho is below XGBoost's exact consensus ranking. Preserved unrelated `generated/nginx.conf` runtime artifact.
+- Recovery 2026-08-07 16:35 IST: targeted regression gate passed — `uv run pytest packages/qubit-risk/tests/test_external_validation.py packages/qubit-cli/tests/test_cli.py -q` → 19 passed.
+- Recovery 2026-08-07 16:35 IST: package lint gate passed — `uv run ruff check packages/qubit-risk packages/qubit-cli`.
+- Recovery 2026-08-07 16:35 IST: package type gate passed — `uv run mypy packages/qubit-risk/src packages/qubit-cli/src` → 30 source files.
+- Recovery 2026-08-07 16:36 IST: package test gate passed — `uv run pytest packages/qubit-risk packages/qubit-cli -q` → 64 passed (1 existing pgmpy warning).
+- Next step: None
+- Recovery verdict (Codex, 2026-08-07 16:37 IST): KEEP — completed, fixture corrected, all gates green.
+
 ### 2026-08-04 03:05:18 +05:30 — Copilot CLI runtime (AI assistant in VS Code) — Risk view: score_source + SHAP provenance [status: done]
 - Branch: `antigravity/risk-view-score-source`   Lane: dashboard / platform API view wiring (doc 05)
 - Did: Read required files in order (`PROJECT_PHASE_MEMORY`, `AGENT_WORK_SPLIT`, `CORE_PROMPTS`, `BUILD_PLAN`, design 00, design 05). Implemented dashboard Risk-page updates to explicitly surface regressor `score_source` (closed-form vs XGBoost calibrated) and added SHAP empty-state handling when contributions are unavailable.

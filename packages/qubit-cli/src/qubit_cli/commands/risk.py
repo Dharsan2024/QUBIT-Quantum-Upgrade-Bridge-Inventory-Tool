@@ -234,6 +234,64 @@ def risk_train_regressor(
     )
 
 
+@risk_app.command("eval")
+def risk_eval_external(
+    pairwise: Annotated[
+        Path, typer.Option("--pairwise", help="CSV with winner_id,loser_id[,rater]")
+    ],
+    scores: Annotated[
+        Path, typer.Option("--scores", help="CSV with asset_id plus model score columns")
+    ],
+    min_rho: Annotated[
+        float, typer.Option("--min-rho", help="Target Spearman rho for xgb_score")
+    ] = 0.7,
+    as_json: Annotated[bool, typer.Option("--json", help="JSON output")] = False,
+) -> None:
+    """Run the M3 external-validation study (doc 02 §6.4.5) against human rankings."""
+    from qubit_risk.regressor.external_validation import evaluate_external_validation
+
+    result = evaluate_external_validation(pairwise_csv=pairwise, scores_csv=scores)
+
+    if as_json:
+        console.print_json(
+            data={
+                "n_assets": result.n_assets,
+                "n_comparisons": result.n_comparisons,
+                "spearman_by_model": result.spearman_by_model,
+            }
+        )
+    else:
+        table = Table(title="External Validation (Spearman rho vs human consensus)")
+        table.add_column("Model")
+        table.add_column("Rho", justify="right")
+        for model, rho in sorted(
+            result.spearman_by_model.items(), key=lambda kv: kv[1], reverse=True
+        ):
+            color = "green" if rho >= min_rho else "yellow"
+            table.add_row(model, f"[{color}]{rho:.4f}[/{color}]")
+        console.print(table)
+        console.print(
+            f"Compared {result.n_assets} assets from {result.n_comparisons} pairwise judgments."
+        )
+
+    xgb = result.spearman_by_model.get("xgb_score")
+    if xgb is None:
+        return
+    if xgb < min_rho:
+        err_console.print(
+            f"[red]error:[/red] xgb_score rho={xgb:.4f} is below target {min_rho:.2f}"
+        )
+        raise typer.Exit(3)
+    for baseline in ("bn_score", "static_score"):
+        baseline_val = result.spearman_by_model.get(baseline)
+        if baseline_val is not None and xgb <= baseline_val:
+            err_console.print(
+                "[red]error:[/red] xgb_score must beat baseline "
+                f"{baseline} ({xgb:.4f} <= {baseline_val:.4f})"
+            )
+            raise typer.Exit(3)
+
+
 @risk_app.command("mosca")
 def risk_mosca(
     db: Annotated[str | None, typer.Option("--db", help="DB URL")] = None,

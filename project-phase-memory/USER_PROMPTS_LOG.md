@@ -7,6 +7,9 @@
 
 ---
 
+### 2026-08-07 16:29:00 +05:30 — Copilot CLI (sub-agent)
+Read memory/design files 1–6 in strict order, declare identity + best-fit area + next concrete action, then start work immediately under branch/log/gate discipline.
+
 ### 2026-08-04 03:05:18 +05:30 — Copilot CLI (sub-agent)
 Read memory/design files 1–6 in order, declare identity/target lane, then continue work from next concrete action under the QUBIT workflow (branching, continuous logging, quality gate).
 

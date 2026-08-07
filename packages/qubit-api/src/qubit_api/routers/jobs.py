@@ -5,7 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from qubit_core.db import Job
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
@@ -33,8 +33,7 @@ class JobOut(BaseModel):
     started_at: str | None = None
     finished_at: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.get("/jobs", response_model=list[JobOut])

@@ -5,7 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from qubit_core.db import AssetRow, Job, RiskRun, ScanRow
 from qubit_core.mapping import row_to_asset
 from qubit_risk import CRQCTimelineSimulator
@@ -33,8 +33,7 @@ class RiskRunOut(BaseModel):
     started_at: str | None = None
     finished_at: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RiskRunRequest(BaseModel):

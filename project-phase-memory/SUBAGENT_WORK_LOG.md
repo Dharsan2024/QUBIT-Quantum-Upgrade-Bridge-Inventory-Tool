@@ -28,6 +28,14 @@
 
 ## Log (newest first)
 
+### 2026-08-07 17:35:00 +05:30 — Google Antigravity (Gemini 3.6 Flash High) — Implement ENG-F7 network scan authorization guardrails & CLI [status: done]
+- Branch: `antigravity/m3-shipping-hardening`   Lane: qubit-scanner / qubit-cli / M3 hardening
+- Did: Implemented doc 06 §13 network scan authorization guardrail (`qubit_scanner.network.auth`). Enforced RFC1918/loopback auto-approval, allowlist check (`~/.config/qubit/scan-allowlist.txt`), `--authorized` requirement for non-RFC1918 public targets, and audit logging (`~/.local/state/qubit/scan-audit.log`). Integrated into `scan_network` API and added `qubit scan-network` CLI command. Added unit tests for authorization and CLI refusal.
+- Files: `packages/qubit-scanner/src/qubit_scanner/network/auth.py`, `packages/qubit-scanner/src/qubit_scanner/api.py`, `packages/qubit-scanner/src/qubit_scanner/__init__.py`, `packages/qubit-scanner/tests/test_network_auth.py`, `packages/qubit-cli/src/qubit_cli/main.py`, `packages/qubit-cli/tests/test_cli.py`, `project-phase-memory/SUBAGENT_WORK_LOG.md`
+- Gate: poe check ok (ruff ok, mypy ok, 242 passed, 1 skipped)
+- Next step: Hand off to orchestrator for audit / merge to main.
+- Orchestrator verdict (Claude fills this): <pending>
+
 ### 2026-08-07 17:30:00 +05:30 — Google Antigravity (Gemini 3.6 Flash High) — Recover cut-off M3 shipping hardening task [status: done]
 - Branch: `codex/m3-state-reconcile`   Lane: recovery / CI hardening
 - Did: Recovered cut-off Codex task. Resolved `pip-licenses` allowlist issue by adding `--partial-match` to `.github/workflows/ci.yml`. Ran quality gate (`ruff check .` and `pytest -q`). Verified all checks pass.

@@ -30,9 +30,7 @@ VULN_SOURCE = "import hashlib\ndigest = hashlib.md5(data)\n"
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["git", *args], cwd=str(repo), capture_output=True, text=True, check=True
-    )
+    return subprocess.run(["git", *args], cwd=str(repo), capture_output=True, text=True, check=True)
 
 
 def _make_repo(tmp_path: Path) -> Path:

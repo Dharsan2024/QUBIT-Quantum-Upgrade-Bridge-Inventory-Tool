@@ -79,9 +79,7 @@ def eval_model_on_real(labeled_path: Path, model_dir: Path) -> dict:
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
     rows = [
-        json.loads(x)
-        for x in labeled_path.read_text(encoding="utf-8").splitlines()
-        if x.strip()
+        json.loads(x) for x in labeled_path.read_text(encoding="utf-8").splitlines() if x.strip()
     ]
     consensus_rows = [r for r in rows if r.get("consensus")]
     if not consensus_rows:

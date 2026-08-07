@@ -42,6 +42,7 @@ def probe_cmd(
 
     if push and result.reachable:
         from qubit_bridge.assets import probe_to_assets, push_assets_to_api
+
         assets = probe_to_assets(result)
         push_assets_to_api(assets)
         console.print(f"[green]Pushed {len(assets)} assets to API.[/green]")
@@ -122,22 +123,26 @@ def capture_cmd(
     else:
         host = target
         port = 443
-        
+
     from qubit_bridge.capture import capture_handshake
+
     console.print(f"Capturing handshake on {target}...")
     capture_handshake(host, port, out, iface=iface, handshakes=handshakes)
     console.print(f"[green]Saved capture to {out}[/green]")
 
+
 @bridge_app.command("diff")
 def diff_cmd(
     before_pcap: Annotated[Path, typer.Argument(help="Before pcap")],
-    after_pcap: Annotated[Path, typer.Argument(help="After pcap")]
+    after_pcap: Annotated[Path, typer.Argument(help="After pcap")],
 ):
     """Compare two pcap files."""
     from qubit_bridge.capture import diff_handshakes
+
     console.print(f"Diffing {before_pcap} and {after_pcap}...")
     res = diff_handshakes(before_pcap, after_pcap)
     console.print(res)
+
 
 @bridge_app.command("bench")
 def bench_cmd(
@@ -154,27 +159,27 @@ def bench_cmd(
     else:
         host = target
         port = 443
-        
 
     from qubit_bridge.bench import bench_matrix
-    
+
     group_list = [g.strip() for g in groups.split(",")]
     console.print(f"Benchmarking {group_list} against {target} with N={n}...")
     results = bench_matrix(host, port, group_list, n=n)
-    
+
     for r in results:
         console.print(
             f"{r.group}: {r.handshake_ms_p50:.2f}ms (median), "
             f"{r.client_key_share_bytes}B client share"
         )
-        
+
     if out:
-        with out.open('w', newline='') as f:
+        with out.open("w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=results[0].model_dump().keys())
             writer.writeheader()
             for r in results:
                 writer.writerow(r.model_dump())
         console.print(f"[green]Saved benchmark results to {out}[/green]")
+
 
 @bridge_app.command("up")
 def up_cmd(
@@ -188,11 +193,10 @@ def up_cmd(
     """Bring up a hybrid terminator container."""
     from qubit_bridge.compose import bring_up
     from qubit_bridge.models import BridgeProfile
+
     if engine not in ("nginx", "haproxy"):
         raise typer.BadParameter("--engine must be 'nginx' or 'haproxy'")
-    profile = BridgeProfile(
-        engine=cast(BridgeEngine, engine), upstream=upstream, listen_port=port
-    )
+    profile = BridgeProfile(engine=cast(BridgeEngine, engine), upstream=upstream, listen_port=port)
     console.print(f"Bringing up {profile_name} bridge with {engine}...")
     # hardcode path for compose file since demo-lab is parallel
     compose_file = Path("demo-lab/compose.hybrid.yml")
@@ -201,12 +205,12 @@ def up_cmd(
     bring_up(profile, compose_file)
     console.print(f"[green]Bridge {profile_name} is up on port {port}.[/green]")
 
+
 @bridge_app.command("down")
-def down_cmd(
-    profile_name: Annotated[str, typer.Argument(help="Profile name")]
-):
+def down_cmd(profile_name: Annotated[str, typer.Argument(help="Profile name")]):
     """Tear down a hybrid terminator container."""
     from qubit_bridge.compose import tear_down
+
     console.print(f"Tearing down {profile_name} bridge...")
     compose_file = Path("demo-lab/compose.hybrid.yml")
     tear_down(compose_file)

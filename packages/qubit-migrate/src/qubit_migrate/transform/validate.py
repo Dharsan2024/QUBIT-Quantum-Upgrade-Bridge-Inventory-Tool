@@ -258,6 +258,7 @@ def _stage_tests(
         target = work / target_rel_path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(patched_source, encoding="utf-8")
+
         def _run_in_sandbox(cmd: str) -> subprocess.CompletedProcess:
             return subprocess.run(
                 [

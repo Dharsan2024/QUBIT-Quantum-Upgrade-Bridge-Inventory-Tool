@@ -47,17 +47,17 @@ def _get_integral_cache(
         dist = stats.lognorm(s=1e-6, scale=float(fixed))
     else:
         dist = stats.lognorm(s=float(sigma_ln), scale=float(np.exp(mu_ln)))  # type: ignore
-        
+
     lo = float(dist.ppf(0.001))
     hi = float(dist.ppf(0.999))
-    
+
     if hi <= lo:
         return lo, hi, 0.0, np.array([]), np.array([])
-        
+
     nodes, weights = np.polynomial.legendre.leggauss(_GL_POINTS)
     jac = 0.5 * (hi - lo)
     ell = 0.5 * (hi - lo) * nodes + 0.5 * (hi + lo)
-    
+
     w_pdf_jac = weights * dist.pdf(ell) * jac
     return lo, hi, jac, ell, w_pdf_jac
 
@@ -67,16 +67,16 @@ def p_decrypt_integral(curve: TimelineCurve, shelf_spec: dict, now_year: int) ->
     fixed = shelf_spec.get("fixed")
     mu_ln = shelf_spec.get("mu_ln")
     sigma_ln = shelf_spec.get("sigma_ln")
-    
+
     fixed = float(fixed) if fixed is not None else None
     mu_ln = float(mu_ln) if mu_ln is not None else None
     sigma_ln = float(sigma_ln) if sigma_ln is not None else None
-    
+
     lo, hi, _jac, ell, w_pdf_jac = _get_integral_cache(fixed, mu_ln, sigma_ln)
-    
+
     if hi <= lo:  # degenerate (fixed) shelf life
         return float(_f_a_at(curve, np.array([now_year + lo]))[0])
-        
+
     integrand = w_pdf_jac * _f_a_at(curve, now_year + ell)
     return float(np.sum(integrand))
 

@@ -10,15 +10,18 @@ def _pcap_or_transcript_ref(r: ProbeResult) -> dict:
     # We return the raw transcript as evidence if pcap is not available in the model
     return {"transcript": r.raw_output}
 
+
 def _canon(alg: str, bits: int | None) -> str:
     if alg and bits:
         return f"{alg}-{bits}"
     return alg or "unknown"
 
+
 def _is_classical_pk(r: ProbeResult) -> bool:
     # Heuristic for demo
     alg = r.cert_public_key_algorithm
     return alg in ["RSA", "EC", "ECDSA"]
+
 
 def probe_to_assets(r: ProbeResult) -> list[CryptoAsset]:
     """Convert a ProbeResult to a list of CryptoAssets."""
@@ -43,29 +46,37 @@ def probe_to_assets(r: ProbeResult) -> list[CryptoAsset]:
         },
         evidence=_pcap_or_transcript_ref(r),
         discovered_at=r.probed_at,
-        risk=None, migration=None, sensitivity="unknown", shelf_life_years=None,
+        risk=None,
+        migration=None,
+        sensitivity="unknown",
+        shelf_life_years=None,
     )
-    
+
     assets = [proto]
     if r.cert_public_key_algorithm:
-        assets.append(CryptoAsset(
-            id=uuid4(), 
-            source_scanner="cert",
-            location={"host": r.host, "service": f"tcp/{r.port}"},
-            asset_type="certificate",
-            algorithm=_canon(r.cert_public_key_algorithm, r.cert_public_key_bits),
-            key_size=r.cert_public_key_bits,
-            usage_context="signature",
-            quantum_vulnerable={
-                "vulnerable": _is_classical_pk(r), 
-                "attack": "shor" if _is_classical_pk(r) else "none"
-            },
-            evidence={"cert_fingerprint_sha256": r.cert_fingerprint_sha256},
-            discovered_at=r.probed_at, 
-            risk=None, migration=None,
-            sensitivity="unknown", shelf_life_years=None,
-        ))
+        assets.append(
+            CryptoAsset(
+                id=uuid4(),
+                source_scanner="cert",
+                location={"host": r.host, "service": f"tcp/{r.port}"},
+                asset_type="certificate",
+                algorithm=_canon(r.cert_public_key_algorithm, r.cert_public_key_bits),
+                key_size=r.cert_public_key_bits,
+                usage_context="signature",
+                quantum_vulnerable={
+                    "vulnerable": _is_classical_pk(r),
+                    "attack": "shor" if _is_classical_pk(r) else "none",
+                },
+                evidence={"cert_fingerprint_sha256": r.cert_fingerprint_sha256},
+                discovered_at=r.probed_at,
+                risk=None,
+                migration=None,
+                sensitivity="unknown",
+                shelf_life_years=None,
+            )
+        )
     return assets
+
 
 def push_assets_to_api(assets: list[CryptoAsset], api_url: str = "http://localhost:8000") -> None:
     """POST assets to the QUBIT REST API."""

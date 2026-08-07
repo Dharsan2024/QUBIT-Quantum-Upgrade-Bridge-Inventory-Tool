@@ -41,12 +41,10 @@ def _vuln_counts(assets) -> dict[str, int]:
 
 @demo_app.command("run")
 def demo_run(
-    target: Annotated[
-        Path, typer.Option("--target", help="Directory to copy + migrate")
-    ] = Path("demo-lab/vulnapp-python"),
-    generator: Annotated[
-        str, typer.Option("--generator", help="auto | template | llm")
-    ] = "auto",
+    target: Annotated[Path, typer.Option("--target", help="Directory to copy + migrate")] = Path(
+        "demo-lab/vulnapp-python"
+    ),
+    generator: Annotated[str, typer.Option("--generator", help="auto | template | llm")] = "auto",
     keep: Annotated[bool, typer.Option("--keep", help="Keep the scratch repo")] = False,
     run_all_phases: Annotated[
         bool,
@@ -200,16 +198,18 @@ def _run_bridge_phases(pcap_dir: Path, *, canned: bool) -> None:
         "[bold green]✔ Full M2 loop complete (software remediation + hybrid bridge).[/bold green]"
     )
 
+
 @demo_app.command("bridge-4phase")
 def demo_bridge_4phase(
     phase: Annotated[str, typer.Option("--phase", help="1|2|3|4|all")] = "all",
-    pcap_dir: Annotated[
-        Path, typer.Option("--pcap-dir", help="Output directory for pcaps")
-    ] = Path("out"),
+    pcap_dir: Annotated[Path, typer.Option("--pcap-dir", help="Output directory for pcaps")] = Path(
+        "out"
+    ),
     canned: Annotated[bool, typer.Option("--canned", help="Use canned fixture mode")] = False,
 ):
     """Run the bridge 4-phase committee demo."""
     from qubit_bridge.demo import run_all, run_phase_1, run_phase_2, run_phase_3, run_phase_4
+
     pcap_dir.mkdir(parents=True, exist_ok=True)
     if phase == "all":
         run_all(pcap_dir, canned=canned)
@@ -222,8 +222,10 @@ def demo_bridge_4phase(
     elif phase == "4":
         run_phase_4(pcap_dir, canned=canned)
 
+
 @demo_app.command("reset")
 def demo_reset():
     """Reset the bridge demo lab containers."""
     from qubit_bridge.demo import reset
+
     reset()

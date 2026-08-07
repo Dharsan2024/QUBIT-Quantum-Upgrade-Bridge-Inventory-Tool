@@ -198,9 +198,9 @@ def risk_train_sensitivity(
 
 @risk_app.command("train-regressor")
 def risk_train_regressor(
-    out: Annotated[
-        Path, typer.Option("--out", help="Model output dir")
-    ] = Path("models/risk-xgboost"),
+    out: Annotated[Path, typer.Option("--out", help="Model output dir")] = Path(
+        "models/risk-xgboost"
+    ),
     n_assets: Annotated[int, typer.Option("--n-assets", help="Number of synthetic assets")] = 50000,
     k_draws: Annotated[int, typer.Option("--k-draws", help="Monte Carlo draws per asset")] = 200,
     seed: Annotated[int, typer.Option("--seed", help="RNG seed")] = 42,
@@ -223,8 +223,7 @@ def risk_train_regressor(
         n_jobs=n_jobs,
     )
     console.print(
-        f"[bold]Training XGBoost Regressor[/bold] -> {out} "
-        f"({n_assets} assets, {k_draws} draws)"
+        f"[bold]Training XGBoost Regressor[/bold] -> {out} ({n_assets} assets, {k_draws} draws)"
     )
     metrics = train(cfg)
     console.print(

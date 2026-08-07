@@ -54,9 +54,7 @@ def test_rsa_kex_rule_matches_and_routes_to_llm() -> None:
     assert rule is not None and rule.id == "py-rsa-kex-01"
     assert rule.codemod is None  # forces the LLM path under auto
 
-    md5 = rsa.model_copy(
-        update={"algorithm": "MD5", "usage_context": UsageContext.hash}
-    )
+    md5 = rsa.model_copy(update={"algorithm": "MD5", "usage_context": UsageContext.hash})
     weak = match_rule(md5)
     assert weak is not None and weak.id == "py-weakhash-01"  # rule order stays correct
 

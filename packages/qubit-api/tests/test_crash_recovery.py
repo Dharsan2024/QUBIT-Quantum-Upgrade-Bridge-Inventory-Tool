@@ -60,7 +60,6 @@ def test_recover_orphaned_marks_everything_failed(tmp_path: Path) -> None:
 def test_recover_is_noop_when_nothing_orphaned(tmp_path: Path) -> None:
     import asyncio
 
-
     sf = _sf(tmp_path)
     with sf() as s:  # a cleanly-finished job must not be touched
         s.add(Job(kind="scan", status="succeeded", payload={}))

@@ -221,9 +221,7 @@ def apply_patch(
         raise HTTPException(status_code=422, detail=f"repo_root {payload.repo_root} not found")
     orch = MigrationOrchestrator(session)
     try:
-        patch = orch.apply_patch(
-            patch_id, repo_root=repo_root, branch=payload.branch, actor="api"
-        )
+        patch = orch.apply_patch(patch_id, repo_root=repo_root, branch=payload.branch, actor="api")
     except Exception as e:  # EditApplyError / ValueError / subprocess errors
         raise HTTPException(status_code=422, detail=str(e)) from e
     return _patch_out(patch)

@@ -74,9 +74,7 @@ def build_asset_features(
         shelf_life_p90=sens.shelf_life_p90,
         exposure=exposure,
         usage_context=asset.usage_context.value,
-        tls_lt_1_3=bool(
-            asset.protocol_detail and (asset.protocol_detail.version or "") < "1.3"
-        ),
+        tls_lt_1_3=bool(asset.protocol_detail and (asset.protocol_detail.version or "") < "1.3"),
         cert_expired=False,
         deprecated_lib=_deprecated_lib(asset),
         bn_p_hndl=bn,

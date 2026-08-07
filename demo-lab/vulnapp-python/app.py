@@ -24,10 +24,10 @@ def index():
 def login():
     data = request.json or {}
     password = data.get("password", "")
-    
+
     # QUBIT-FIXTURE: py-weakhash-01
     password_hash = hashlib.sha1(password.encode()).hexdigest()
-    
+
     return jsonify({"status": "logged_in", "hash": password_hash})
 
 
@@ -43,17 +43,15 @@ def token():
 def encrypt():
     data = request.json or {}
     message = data.get("message", "").encode()
-    
+
     # QUBIT-FIXTURE: py-rsa-enc-01
     ciphertext = PUBLIC_KEY.encrypt(
         message,
         padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            algorithm=hashes.SHA256(),
-            label=None
-        )
+            mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None
+        ),
     )
-    
+
     return jsonify({"ciphertext": ciphertext.hex()})
 
 

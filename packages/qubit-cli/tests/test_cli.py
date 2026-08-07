@@ -256,3 +256,9 @@ def test_risk_eval_external_passes_with_strong_xgb(tmp_path: Path) -> None:
     assert res.exit_code == 0, res.output
     data = json.loads(res.stdout)
     assert data["spearman_by_model"]["xgb_score"] >= 0.7
+
+
+def test_scan_network_cli_authorization_refusal() -> None:
+    res = runner.invoke(app, ["scan-network", "8.8.8.8"])
+    assert res.exit_code == 1
+    assert "Authorization error" in res.output

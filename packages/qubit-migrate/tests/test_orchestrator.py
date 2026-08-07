@@ -85,9 +85,7 @@ def test_build_plan_reads_asset_rows() -> None:
 def test_build_plan_min_risk_filters() -> None:
     session = _session()
     project_id, scan_id = _seed_scan(session)
-    session.add(
-        asset_to_row(_vuln_asset("RSA-2048", 0.2), scan_id=scan_id, project_id=project_id)
-    )
+    session.add(asset_to_row(_vuln_asset("RSA-2048", 0.2), scan_id=scan_id, project_id=project_id))
     session.commit()
 
     plan = MigrationOrchestrator(session).build_plan(min_risk=0.9)

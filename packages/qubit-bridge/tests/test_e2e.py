@@ -51,19 +51,20 @@ def test_nginx_hybrid_tls_probe(nginx_hybrid_image):
     with DockerContainer(nginx_hybrid_image).with_exposed_ports(8443) as container:
         # Wait a moment for nginx to start and generate certs
         time.sleep(2)
-        
-        # We need the probe (which runs inside its own docker container) 
-        # to reach this server container. If testcontainers returns localhost, 
+
+        # We need the probe (which runs inside its own docker container)
+        # to reach this server container. If testcontainers returns localhost,
         # that means we need host.docker.internal or a similar trick.
         host = container.get_container_host_ip()
         if host in ("localhost", "127.0.0.1", "0.0.0.0"):
             import platform
+
             if platform.system() in ("Windows", "Darwin"):
                 host = "host.docker.internal"
             else:
                 # on linux, docker0 bridge is typically 172.17.0.1
                 host = "172.17.0.1"
-                
+
         port = container.get_exposed_port(8443)
 
         # Run the probe

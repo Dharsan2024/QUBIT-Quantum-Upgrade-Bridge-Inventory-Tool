@@ -140,6 +140,47 @@ def scan(
     raise typer.Exit(code=0 if result.assets else 3)
 
 
+@app.command(name="scan-network")
+def scan_network_cmd(
+    target: Annotated[
+        str, typer.Argument(help="Hostname or IP address to scan (e.g. 127.0.0.1 or example.com).")
+    ],
+    port: Annotated[int, typer.Option("--port", "-p", help="TLS port to enumerate.")] = 443,
+    authorized: Annotated[
+        bool,
+        typer.Option(
+            "--authorized",
+            help="Confirm authorization for non-RFC1918 public target scans.",
+        ),
+    ] = False,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable JSON instead of a table.")
+    ] = False,
+) -> None:
+    """Scan a network TLS endpoint for cryptographic posture."""
+    import asyncio
+
+    from qubit_scanner import ScanAuthorizationError, scan_network
+
+    try:
+        result = asyncio.run(scan_network([target], ports=[port], authorized=authorized))
+    except ScanAuthorizationError as exc:
+        err_console.print(f"[red]Authorization error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    if as_json:
+        console.print_json(
+            data={
+                "stats": result.stats.model_dump(),
+                "assets": [a.model_dump(mode="json") for a in result.assets],
+            }
+        )
+    else:
+        _render_table(result)
+
+    raise typer.Exit(code=0 if result.assets else 3)
+
+
 def _render_table(result) -> None:  # type: ignore[no-untyped-def]
     stats = result.stats
     console.print(

@@ -18,6 +18,12 @@ from .code import CodeScanner, language_for
 from .config.parsers import NginxConfigParser
 from .models import Detection, ScanError, ScanResult, ScanStats
 from .network.active import TlsEnumerator
+from .network.auth import (
+    ALLOWLIST_PATH,
+    AUDIT_LOG_PATH,
+    ScanAuthorizationError,
+    verify_scan_authorization,
+)
 from .normalize import normalize
 
 # Directories never worth scanning.
@@ -115,8 +121,11 @@ async def scan_network(
     ports: list[int] | None = None,
     probe_pqc: bool = True,
     rate_limit: float = 20.0,
+    authorized: bool = False,
+    allowlist_path: Path | None = None,
+    audit_path: Path | None = None,
 ) -> ScanResult:
-    """Active TLS enumeration against targets."""
+    """Active TLS enumeration against targets with doc 06 §13 authorization enforcement."""
     ports = ports or [443]
     t0 = time.perf_counter()
     result = ScanResult(stats=ScanStats())
@@ -126,6 +135,14 @@ async def scan_network(
 
     for target in targets:
         for port in ports:
+            verify_scan_authorization(
+                target,
+                port,
+                authorized=authorized,
+                allowlist_path=allowlist_path or ALLOWLIST_PATH,
+                audit_path=audit_path or AUDIT_LOG_PATH,
+            )
+
             # Active probe A (standard)
             found = await enumerator.enumerate(target, port)
             detections.extend(found)
@@ -163,4 +180,12 @@ def _collect_files(paths: list[Path], spec: pathspec.PathSpec) -> list[Path]:
     return out
 
 
-__all__ = ["ScanResult", "scan_network", "scan_paths"]
+__all__ = [
+    "ALLOWLIST_PATH",
+    "AUDIT_LOG_PATH",
+    "ScanAuthorizationError",
+    "ScanResult",
+    "scan_network",
+    "scan_paths",
+    "verify_scan_authorization",
+]

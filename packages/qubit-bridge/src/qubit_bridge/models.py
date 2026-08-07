@@ -34,6 +34,7 @@ class ProbeResult(BaseModel):
 
 class HandshakeMeasurement(BaseModel):
     """Result of benchmarking a TLS handshake."""
+
     id: UUID
     run_id: UUID
     target_host: str
@@ -57,6 +58,7 @@ class HandshakeMeasurement(BaseModel):
 
 class BridgeProfile(BaseModel):
     """Configuration for bringing up a hybrid bridge container."""
+
     engine: BridgeEngine = "nginx"
     listen_port: int = 8443
     upstream: str

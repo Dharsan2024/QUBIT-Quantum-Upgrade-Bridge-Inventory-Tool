@@ -256,9 +256,66 @@ def test_risk_eval_external_passes_with_strong_xgb(tmp_path: Path) -> None:
     assert res.exit_code == 0, res.output
     data = json.loads(res.stdout)
     assert data["spearman_by_model"]["xgb_score"] >= 0.7
+    assert data["target_model"] == "xgb_score"
+    assert data["passed_target"] is True
+
+
+def test_risk_eval_table_and_model_selection(tmp_path: Path) -> None:
+    pairwise = tmp_path / "pairwise.csv"
+    pairwise.write_text(
+        "winner_id,loser_id,rater\na,b,r1\na,c,r1\na,d,r1\nb,c,r1\nb,d,r1\nc,d,r1\n",
+        encoding="utf-8",
+    )
+    scores = tmp_path / "scores.csv"
+    scores.write_text(
+        "asset_id,xgb_score,static_score\na,0.9,0.1\nb,0.8,0.2\nc,0.3,0.8\nd,0.1,0.9\n",
+        encoding="utf-8",
+    )
+
+    # Table output (no --json) passes with default xgb target
+    res = runner.invoke(
+        app,
+        ["risk", "eval", "--pairwise", str(pairwise), "--scores", str(scores)],
+    )
+    assert res.exit_code == 0, res.output
+    assert "External Validation" in res.output
+    assert "xgb_score (target)" in res.output
+
+    # Explicit --model static_score fails target -> exit code 3
+    res_fail = runner.invoke(
+        app,
+        [
+            "risk",
+            "eval",
+            "--pairwise",
+            str(pairwise),
+            "--scores",
+            str(scores),
+            "--model",
+            "static_score",
+        ],
+    )
+    assert res_fail.exit_code == 3
+    assert "below target" in res_fail.output
+
+
+def test_risk_eval_error_cases(tmp_path: Path) -> None:
+    # Missing required flags
+    res = runner.invoke(app, ["risk", "eval"])
+    assert res.exit_code == 4
+
+    # Unknown component
+    res_bad_comp = runner.invoke(app, ["risk", "eval", "--component", "invalid"])
+    assert res_bad_comp.exit_code == 4
+
+    # Unimplemented component stub
+    res_stub = runner.invoke(app, ["risk", "eval", "--component", "bert"])
+    assert res_stub.exit_code == 0
+    assert "not yet implemented" in res_stub.output
 
 
 def test_scan_network_cli_authorization_refusal() -> None:
     res = runner.invoke(app, ["scan-network", "8.8.8.8"])
     assert res.exit_code == 1
     assert "Authorization error" in res.output
+

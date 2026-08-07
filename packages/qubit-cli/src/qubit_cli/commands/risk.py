@@ -335,3 +335,150 @@ def risk_mosca(
                 f"[{color}]{a.risk.mosca_margin_years:.1f}[/{color}]",
             )
         console.print(table)
+
+
+@risk_app.command("eval")
+def risk_eval(
+    pairwise: Annotated[
+        Path | None,
+        typer.Option(
+            "--pairwise",
+            help="CSV with columns winner_id,loser_id[,rater] — human pairwise judgments.",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+        ),
+    ] = None,
+    scores: Annotated[
+        Path | None,
+        typer.Option(
+            "--scores",
+            help="CSV with columns asset_id,<model1>[,<model2>,...] — model risk scores.",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+        ),
+    ] = None,
+    component: Annotated[
+        str | None,
+        typer.Option(
+            "--component",
+            help="Eval component: xgb | bert | bn | timeline. Default: xgb (human ranking study).",
+        ),
+    ] = None,
+    model: Annotated[
+        str | None,
+        typer.Option(
+            "--model",
+            help="Model to test against rho-target (default: xgb_score or first xgb* column).",
+        ),
+    ] = None,
+    rho_target: Annotated[
+        float,
+        typer.Option("--rho-target", help="Minimum Spearman rho to exit 0. Default: 0.7."),
+    ] = 0.7,
+    as_json: Annotated[bool, typer.Option("--json", help="JSON output")] = False,
+) -> None:
+    """Paper-experiment evaluation harness (doc 02 §6.4.5, §8.3).
+
+    Human-ranking study (default / --component xgb):
+      Compute Bradley-Terry consensus from pairwise CSV, then Spearman rho
+      between model scores (scores CSV) and human consensus.
+      Exit 0 if target model rho >= rho-target, exit 3 otherwise.
+
+    Other --component values (bert, bn, timeline) are stubs for future paper
+    experiments -- they will print a placeholder message.
+    """
+    comp = (component or "xgb").lower()
+
+    if comp not in {"xgb", "bert", "bn", "timeline"}:
+        err_console.print(
+            f"[red]error:[/red] Unknown --component {comp!r}. Use xgb|bert|bn|timeline."
+        )
+        raise typer.Exit(4)
+
+    if comp != "xgb":
+        console.print(
+            f"[yellow]info:[/yellow] --component {comp!r} experiment not yet implemented. "
+            "Only 'xgb' (human-ranking study) is wired in this release."
+        )
+        raise typer.Exit(0)
+
+    # --- xgb: human ranking study ---
+    if pairwise is None or scores is None:
+        err_console.print(
+            "[red]error:[/red] --pairwise and --scores are required for --component xgb."
+        )
+        raise typer.Exit(4)
+
+    from qubit_risk.regressor.external_validation import evaluate_external_validation
+
+    try:
+        result = evaluate_external_validation(pairwise_csv=pairwise, scores_csv=scores)
+    except ValueError as exc:
+        err_console.print(f"[red]error:[/red] {exc}")
+        raise typer.Exit(4) from exc
+
+    # Identify target model to evaluate against rho_target
+    target_model_name = model
+    if not target_model_name:
+        candidates = [m for m in result.spearman_by_model if "xgb" in m.lower()]
+        target_model_name = candidates[0] if candidates else next(iter(result.spearman_by_model))
+
+    target_rho_val = result.spearman_by_model.get(target_model_name, 0.0)
+    passed_target = target_rho_val >= rho_target
+
+    if as_json:
+        import json
+
+        console.print_json(
+            json.dumps(
+                {
+                    "n_assets": result.n_assets,
+                    "n_comparisons": result.n_comparisons,
+                    "spearman_by_model": result.spearman_by_model,
+                    "spearman_rho": result.spearman_by_model,
+                    "target_rho": rho_target,
+                    "target_model": target_model_name,
+                    "passed_target": passed_target,
+                    "all_meet_target": passed_target,
+                    "consensus_scores": result.consensus_scores,
+                }
+            )
+        )
+    else:
+        console.print(
+            f"\n[bold]External Validation (Bradley-Terry -> Spearman rho)[/bold]"
+            f"  n_assets={result.n_assets}  n_comparisons={result.n_comparisons}"
+            f"  target_rho>={rho_target}\n"
+        )
+
+        table = Table(title="Model vs Human Consensus")
+        table.add_column("Model", style="cyan")
+        table.add_column("Spearman rho", justify="right")
+        table.add_column(">= target?", justify="center")
+
+        for m_name, rho in sorted(result.spearman_by_model.items()):
+            meets = rho >= rho_target
+            color = "green" if meets else "red"
+            is_target = " (target)" if m_name == target_model_name else ""
+            table.add_row(
+                f"{m_name}{is_target}",
+                f"[{color}]{rho:.3f}[/{color}]",
+                f"[{color}]{'✓' if meets else '✗'}[/{color}]",
+            )
+        console.print(table)
+
+        if passed_target:
+            console.print(
+                f"\n[green bold]Target model '{target_model_name}' "
+                f"meets rho >= {rho_target}[/green bold]"
+                f" ({target_rho_val:.3f}) -- headline result ready for paper.\n"
+            )
+        else:
+            console.print(
+                f"\n[yellow]⚠ Target model '{target_model_name}' "
+                f"below target ({target_rho_val:.3f} < {rho_target})[/yellow]\n"
+            )
+
+    raise typer.Exit(0 if passed_target else 3)

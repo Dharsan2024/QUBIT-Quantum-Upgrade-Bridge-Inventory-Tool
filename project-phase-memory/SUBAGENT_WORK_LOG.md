@@ -28,6 +28,19 @@
 
 ## Log (newest first)
 
+### 2026-08-07 13:12:00 UTC — Google Antigravity (Gemini 3.1 Pro High) — Implement `qubit risk eval` CLI command [status: done]
+- Branch: `antigravity/m3-shipping-hardening`   Lane: qubit-cli / qubit-risk / M3 evaluation harness
+- Did:
+  1. Implemented `qubit risk eval` CLI command per doc 02 §5.1 / §6.4.5 / §8.3 spec.
+  2. Wires `evaluate_external_validation` (Bradley-Terry consensus from pairwise CSV -> Spearman rho against model scores).
+  3. Supports `--pairwise`, `--scores`, `--component` (xgb/bert/bn/timeline), `--model` target selection (auto-detects `xgb_score` / `*xgb*`), `--rho-target` (default: 0.7), `--json`, and rich formatted table output.
+  4. Exits 0 if target model meets rho-target, exits 3 if below target, exits 4 on invalid parameters.
+  5. Added comprehensive test suite in `test_cli.py` testing JSON output, rich table output, model selection, below-target exit code, and error/stub cases.
+- Files: `packages/qubit-cli/src/qubit_cli/commands/risk.py`, `packages/qubit-cli/tests/test_cli.py`
+- Gate: ruff ok | mypy ok (30 files) | 272 passed, 1 skipped (100% green) — commit `1e56f53`
+- Next step: Hand off to orchestrator for audit / merge to main.
+- Orchestrator verdict (Claude fills this): <pending>
+
 ### 2026-08-07 12:15:00 UTC — Google Antigravity (Gemini 2.5 Pro) — Pydantic v2 ConfigDict fix + coverage boost to 73.7% [status: done]
 - Branch: `antigravity/m3-shipping-hardening`   Lane: qubit-api / qubit-scanner / M3 hardening
 - Did:

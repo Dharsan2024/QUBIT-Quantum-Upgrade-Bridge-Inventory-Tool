@@ -14,7 +14,7 @@ slipped, and the measured gate result. Get timestamps from the shell: `date "+%Y
 
 | # | Deliverable (for Sep 30) | Owner (recommended) | Status |
 |---|---|---|---|
-| 1 | Real token auth (tokens + scopes, hashed store) | Claude orchestrator | ⬜ not started |
+| 1 | Real token auth (tokens + scopes, hashed store) | Claude orchestrator | ✅ done (2026-08-09) |
 | 2 | E5 migration KB (`params/migration_kb.yaml` + `/meta/migration-kb`) | Claude orchestrator | ⬜ not started |
 | 3 | E2 crypto-agility policy (`params/agility_policy.yaml` + resolver + `/meta/agility-policy`) | Claude orchestrator | ⬜ not started |
 | 4 | E1 per-asset recommendation (`/assets/{id}/recommendation` + Inventory badge) | Claude orchestrator | ⬜ not started |
@@ -51,15 +51,24 @@ Status legend: ⬜ not started · 🏃 in progress · ✅ done · ⏸ blocked ·
   docs 03 + 05, and the BUILD_PLAN module-coverage table. (Earlier this session.)
 - `[Claude orchestrator]` 2026-08-09 — **Created this `docs/project-status/` folder**, moved
   `PROJECT_STATUS_REPORT.md` here, and seeded this weekly report.
+- `[Claude orchestrator]` 2026-08-09 — **Item 1 DONE: real token auth (tokens + scopes).** Replaced the
+  single hardcoded `rw` token with a DB-backed lifecycle: new `api_tokens` table + `tokens.py` service in
+  qubit-core (sha256-hashed store, `create`/`list`/`revoke`/`resolve`, `ro`|`rw` scopes); rewrote
+  `qubit-api/auth.py` to resolve tokens from the DB with a `Principal(name, scopes)`, an
+  `enforce_scope_by_method` guard (ro→reads only, any mutating verb needs rw → 403), and a
+  backward-compatible dev-token bootstrap (honored only while the token table is empty); `whoami` now
+  returns the real token name + scopes; added `qubit serve token create|list|revoke` CLI. Fixed a latent
+  tz-aware/naive datetime bug in `resolve_token` and a latent mypy variable-reuse in `jobs/handlers.py`
+  (`row`→`risk_row`) surfaced by the combined mypy run. +13 tests (6 auth, 6 token-CLI, all green).
 
-**Slipped / not yet started:** all nine sprint deliverables above (the week was planning + docs). Auth
-(item 1) and the E5→E2→E1 substrate (items 2–4) are next.
+**Gate:** ruff clean; mypy clean per-package (qubit-core/api/cli); **283 passed, 1 skipped, 1 failed** —
+the fail is the known `qubit-bridge` e2e `host.docker.internal` timeout (environmental, flaky; tracked for
+`@pytest.mark.integration` in item 8), the skip is `xgboost` absent in the eval env. My auth work is fully
+green; nothing I touched regressed.
 
-**Gate at end of week:** unchanged from baseline (docs-only changes this week — no code touched, so
-ruff/mypy/pytest are unaffected).
-
-**Next week's focus:** start item 1 (real token auth) and item 2 (E5 migration KB) — both are Claude's
-lane (touch the core contract / security path). Hand item 8 (test hygiene) to a sub-agent in parallel.
+**Next: item 2 (E5 migration KB) → item 3 (E2 agility policy) → item 4 (E1 recommendation)** — the
+substrate + read model, Claude's lane. Item 8 (test hygiene, incl. the bridge e2e marker) is a good
+parallel sub-agent hand-off.
 
 ---
 

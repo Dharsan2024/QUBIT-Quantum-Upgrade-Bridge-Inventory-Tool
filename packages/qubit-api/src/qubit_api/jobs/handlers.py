@@ -168,15 +168,15 @@ def _run_risk_impl(
             ]
             percentiles = {"p05": curve.p05_year, "p50": curve.median_year, "p95": curve.p95_year}
         rid = risk_run.id
-        row = session.get(RiskRun, rid)
-        if row:
-            row.timeline = timeline_data
-            row.percentiles = percentiles
-            row.summary = summary
-            row.status = "succeeded"
+        risk_row = session.get(RiskRun, rid)  # distinct name: `row` above is AssetRow-typed
+        if risk_row:
+            risk_row.timeline = timeline_data
+            risk_row.percentiles = percentiles
+            risk_row.summary = summary
+            risk_row.status = "succeeded"
             from qubit_core.schemas import utcnow
 
-            row.finished_at = utcnow()
+            risk_row.finished_at = utcnow()
         session.commit()
 
     return {"risk_run_id": str(rid), "assets_annotated": len(annotated_assets)}

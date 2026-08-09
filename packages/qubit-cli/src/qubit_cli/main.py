@@ -481,8 +481,17 @@ def db_revision(
 # ---------------------------------------------------------------------------
 
 
-@app.command()
+serve_app = typer.Typer(
+    help="Start the QUBIT API server and manage its API tokens.",
+    invoke_without_command=True,
+    no_args_is_help=False,
+)
+app.add_typer(serve_app, name="serve")
+
+
+@serve_app.callback()
 def serve(
+    ctx: typer.Context,
     host: Annotated[str, typer.Option("--host", help="Bind host.")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", help="Bind port.")] = 8787,
     reload: Annotated[
@@ -490,7 +499,11 @@ def serve(
     ] = False,
     db: Annotated[str | None, _db_opt()] = None,
 ) -> None:
-    """Start the QUBIT FastAPI server (qubit-api)."""
+    """Start the QUBIT API server (qubit-api). With a subcommand (e.g. `token`), manage tokens."""
+    # A subcommand (token …) was invoked → don't start the server.
+    if ctx.invoked_subcommand is not None:
+        return
+
     if importlib.util.find_spec("qubit_api") is None:
         err_console.print(
             "[red]error:[/red] qubit-api is not installed. Install it with: uv sync --all-packages"
@@ -523,6 +536,92 @@ def serve(
         raise typer.Exit(code=exc.returncode) from exc
     except KeyboardInterrupt:
         pass
+
+
+token_app = typer.Typer(help="Create, list, and revoke API tokens (doc 05 §6.6).")
+serve_app.add_typer(token_app, name="token")
+
+
+def _token_session(db: str | None):  # type: ignore[no-untyped-def]
+    """Open a session against the resolved DB, ensuring the schema exists (idempotent)."""
+    from qubit_core.db import Base
+
+    url = _resolve_db_url(db)
+    engine = get_engine(url)
+    Base.metadata.create_all(engine)  # no-op if tables exist; creates api_tokens on a fresh DB
+    return session_factory(engine)()
+
+
+@token_app.command("create")
+def token_create(
+    name: Annotated[str, typer.Argument(help="Unique name for the token.")],
+    scope: Annotated[
+        str, typer.Option("--scope", help="Token scope: 'ro' (read-only) or 'rw' (read-write).")
+    ] = "rw",
+    db: Annotated[str | None, _db_opt()] = None,
+) -> None:
+    """Mint a new API token. The raw token is printed ONCE — store it now."""
+    from qubit_core.db import create_token
+
+    with _token_session(db) as session:
+        try:
+            created = create_token(session, name, scopes=scope)
+        except ValueError as exc:
+            err_console.print(f"[red]error:[/red] {exc}")
+            raise typer.Exit(code=1) from exc
+
+    console.print(
+        f"[green]Created[/green] token [bold]{created.name}[/bold] (scope: {created.scopes})"
+    )
+    console.print("Store this token now — it is shown only once:\n")
+    console.print(f"  [bold cyan]{created.raw}[/bold cyan]\n")
+    console.print(f'Use it as: [dim]Authorization: Bearer {created.raw}[/dim]')
+
+
+@token_app.command("list")
+def token_list(
+    db: Annotated[str | None, _db_opt()] = None,
+) -> None:
+    """List all API tokens (raw values are never stored, so only metadata is shown)."""
+    from qubit_core.db import list_tokens
+
+    with _token_session(db) as session:
+        rows = list_tokens(session)
+
+    table = Table()
+    table.add_column("Name", style="bold")
+    table.add_column("Scope")
+    table.add_column("Created")
+    table.add_column("Last used")
+    table.add_column("Status")
+    for row in rows:
+        status_txt = "[red]revoked[/red]" if row.revoked_at else "[green]active[/green]"
+        table.add_row(
+            row.name,
+            row.scopes,
+            row.created_at.strftime("%Y-%m-%d %H:%M"),
+            row.last_used_at.strftime("%Y-%m-%d %H:%M") if row.last_used_at else "—",
+            status_txt,
+        )
+    console.print(table)
+    console.print(f"{len(rows)} token(s).")
+
+
+@token_app.command("revoke")
+def token_revoke(
+    name: Annotated[str, typer.Argument(help="Name of the token to revoke.")],
+    db: Annotated[str | None, _db_opt()] = None,
+) -> None:
+    """Revoke an API token by name (irreversible; mint a new one to replace it)."""
+    from qubit_core.db import revoke_token
+
+    with _token_session(db) as session:
+        ok = revoke_token(session, name)
+
+    if not ok:
+        err_console.print(f"[yellow]no active token named '{name}' to revoke.[/yellow]")
+        raise typer.Exit(code=1)
+    console.print(f"[green]Revoked[/green] token [bold]{name}[/bold].")
 
 
 # ---------------------------------------------------------------------------

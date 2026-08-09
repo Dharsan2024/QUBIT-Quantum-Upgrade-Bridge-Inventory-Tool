@@ -148,4 +148,23 @@ class Job(Base):
     finished_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
-__all__ = ["AssetRow", "Base", "Job", "ProjectRow", "RiskRun", "ScanRow"]
+class ApiToken(Base):
+    """Bearer-token identity for the REST API (doc 05 §4.2 / §6.6).
+
+    The raw token is shown to the user exactly once at creation; only its sha256 hex is stored, so a
+    DB leak never yields a usable token. ``scopes`` is "ro" (read-only) or "rw" (read-write).
+    Additive table — no change to the frozen CryptoAsset schema.
+    """
+
+    __tablename__ = "api_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(64), unique=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # sha256 hex
+    scopes: Mapped[str] = mapped_column(String(2), default="rw")  # "ro" | "rw"
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(default=None)
+    revoked_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+__all__ = ["ApiToken", "AssetRow", "Base", "Job", "ProjectRow", "RiskRun", "ScanRow"]

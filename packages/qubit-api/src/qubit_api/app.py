@@ -42,30 +42,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     from fastapi import Depends
 
+    from .auth import enforce_scope_by_method
     from .auth import router as auth_router
-    from .auth import verify_token
+
+    # One guard on every data router: authenticates the bearer token AND enforces scope-by-method
+    # (a `ro` token may only read; any mutating verb needs `rw`). Covers current + future routes.
+    guard = [Depends(enforce_scope_by_method)]
 
     app.include_router(meta_router, prefix=settings.api_prefix)
     app.include_router(auth_router, prefix=settings.api_prefix)
-    app.include_router(
-        registry_router, prefix=settings.api_prefix, dependencies=[Depends(verify_token)]
-    )
-    app.include_router(
-        projects_router, prefix=settings.api_prefix, dependencies=[Depends(verify_token)]
-    )
-    app.include_router(
-        scans_router, prefix=settings.api_prefix, dependencies=[Depends(verify_token)]
-    )
-    app.include_router(
-        assets_router, prefix=settings.api_prefix, dependencies=[Depends(verify_token)]
-    )
-    app.include_router(
-        jobs_router, prefix=settings.api_prefix, dependencies=[Depends(verify_token)]
-    )
-    app.include_router(
-        risk_router, prefix=settings.api_prefix, dependencies=[Depends(verify_token)]
-    )
-    app.include_router(
-        migrate_router, prefix=settings.api_prefix, dependencies=[Depends(verify_token)]
-    )
+    app.include_router(registry_router, prefix=settings.api_prefix, dependencies=guard)
+    app.include_router(projects_router, prefix=settings.api_prefix, dependencies=guard)
+    app.include_router(scans_router, prefix=settings.api_prefix, dependencies=guard)
+    app.include_router(assets_router, prefix=settings.api_prefix, dependencies=guard)
+    app.include_router(jobs_router, prefix=settings.api_prefix, dependencies=guard)
+    app.include_router(risk_router, prefix=settings.api_prefix, dependencies=guard)
+    app.include_router(migrate_router, prefix=settings.api_prefix, dependencies=guard)
     return app

@@ -53,9 +53,24 @@ def run_phase_4(out_dir: Path, canned: bool = False):
     if canned:
         console.print("Canned mode: applying fixture patch.")
     else:
-        subprocess.run(
-            [_QUBIT, "migrate", "apply", "py-ecdh-kex-01", "--repo-root", "demo-lab/vulnapp-python"]
-        )
+        try:
+            from qubit_core.db.session import default_db_url, get_engine, session_factory
+            from qubit_migrate.orchestrator import MigrationOrchestrator
+            engine = get_engine(default_db_url())
+            sf = session_factory(engine)
+            with sf() as session:
+                orch = MigrationOrchestrator(session)
+                plan = orch.build_plan()
+                for task in plan.tasks:
+                    try:
+                        patch = orch.generate_patch(task.id, repo_root=Path("demo-lab/vulnapp-python"))
+                        orch.review_patch(patch.id, approve=True, actor="demo")
+                        orch.apply_patch(patch.id, repo_root=Path("demo-lab/vulnapp-python"), actor="demo")
+                    except Exception as exc:
+                        console.print(f"  Note during migration apply: {exc}")
+        except Exception as exc:
+            console.print(f"  Skipped live migration apply: {exc}")
+
 
     subprocess.run(
         ["docker", "compose", "-f", "demo-lab/compose.classical.yml", "stop", "nginx-classical"],

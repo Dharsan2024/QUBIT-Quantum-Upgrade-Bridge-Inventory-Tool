@@ -30,9 +30,7 @@ def bench_group(
         # Run s_client in an image that ALREADY has the openssl 3.5 CLI (same as probe.py). No
         # `apk add` — installing per iteration was ~25 s each and would dominate the latency it
         # is meant to measure; it also broke the offline requirement.
-        shell_cmd = (
-            f"openssl s_client -connect {docker_host}:{port} -tls1_3 -brief -groups {group}"
-        )
+        shell_cmd = f"openssl s_client -connect {docker_host}:{port} -tls1_3 -brief -groups {group}"
 
         cmd = [
             "docker",

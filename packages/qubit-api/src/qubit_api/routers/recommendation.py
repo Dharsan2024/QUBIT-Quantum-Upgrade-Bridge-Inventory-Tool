@@ -10,6 +10,7 @@ Resolution priority:
   3. agility-policy resolve_target()
   4. No recommendation if asset is not quantum-vulnerable
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Any

@@ -95,7 +95,5 @@ def test_revoked_token_is_rejected(tmp_path: Path) -> None:
 def test_unknown_token_rejected_when_tokens_exist(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     _mint(settings, "real", "rw")
-    client = TestClient(
-        create_app(settings), headers={"Authorization": "Bearer totally-made-up"}
-    )
+    client = TestClient(create_app(settings), headers={"Authorization": "Bearer totally-made-up"})
     assert client.get("/api/v1/projects").status_code == 401

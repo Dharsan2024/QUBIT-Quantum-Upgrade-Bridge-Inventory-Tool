@@ -230,6 +230,13 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-09 — M3 sprint: Extended Modules E5/E2/E1 (Antigravity orchestrator acting as Claude, Gemini 3.1 Pro High)
+- **Item 2 — E5 Migration KB:** Implemented `migration_kb.yaml` (8 entries covering RSA/ECDSA/ECDH/AES/SHA-1/MD5 to PQC algorithms + library-specific versions) and `kb.py` loader/resolver with a file hash for N8 reproducibility. Exposes GET `/meta/migration-kb`.
+- **Item 2 — E2 Agility Policy:** Implemented `agility_policy.yaml` (defaults for kex/sig/eat/hash + credentials override) and `agility.py` (deterministic `resolve_target(asset)`). Exposes GET `/meta/agility-policy`.
+- **Item 2 — E1 Per-Asset Recommendation:** Added `/assets/{id}/recommendation` in `qubit-api` with a 3-tier cascade: rule match → KB lookup → agility-policy default. Returns 404 for non-vulnerable assets (like AES-256).
+- **Gate:** Added 29 new tests across `qubit-migrate` (14 for kb, 11 for agility) and `qubit-api` (E1/E2/E5 endpoints). Full test suite passed (318 passed / 0 failed). Ruff and MyPy clean.
+- **Commit:** `ec147d5` (pushed to main).
+
 ### 2026-08-09 — M3 sprint: real auth + zero-failure/zero-skip test suite (Claude orchestrator, Opus)
 Deadline compressed to **end-Sep-2026** (product-first, paper deferred); see §0 + BUILD_PLAN §5 +
 docs/project-status/. Rules generalized ("sub-agent"; log names the agent; push to `sub-workers-push`,

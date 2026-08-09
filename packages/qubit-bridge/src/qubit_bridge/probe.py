@@ -49,9 +49,7 @@ def probe_host(
     ).strip()
 
     prober_image = image or _prober_image()
-    cmd = [
-        "docker", "run", "--rm", "--entrypoint", "", prober_image, "/bin/sh", "-c", shell_cmd
-    ]
+    cmd = ["docker", "run", "--rm", "--entrypoint", "", prober_image, "/bin/sh", "-c", shell_cmd]
 
     probed_at = datetime.now(UTC)
 

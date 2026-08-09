@@ -335,8 +335,11 @@ def test_meta_migration_kb_rsa_kex_entry(tmp_path: Path) -> None:
     client = _make_client(tmp_path)
     body = client.get("/api/v1/meta/migration-kb").json()
     rsa_kex = next(
-        (e for e in body["entries"]
-         if e["vuln"]["family"] == "RSA" and e["vuln"]["usage_context"] == "kex"),
+        (
+            e
+            for e in body["entries"]
+            if e["vuln"]["family"] == "RSA" and e["vuln"]["usage_context"] == "kex"
+        ),
         None,
     )
     assert rsa_kex is not None, "RSA kex entry must exist in KB"
@@ -487,9 +490,7 @@ def test_asset_recommendation_non_vulnerable_404(tmp_path: Path) -> None:
         session.add(row)
         session.commit()
 
-    with TestClient(
-        create_app(settings), headers={"Authorization": "Bearer tok"}
-    ) as client:
+    with TestClient(create_app(settings), headers={"Authorization": "Bearer tok"}) as client:
         resp = client.get(f"/api/v1/assets/{asset.id}/recommendation")
         assert resp.status_code == 404
 
@@ -501,3 +502,40 @@ def test_asset_recommendation_missing_asset_404(tmp_path: Path) -> None:
     with _make_client(tmp_path) as client:
         resp = client.get(f"/api/v1/assets/{uuid.uuid4()}/recommendation")
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# E3 — Dependency Graph API endpoint
+# ---------------------------------------------------------------------------
+
+
+def test_migrate_plan_graph(tmp_path: Path) -> None:
+    """GET /migrate/plans/{plan_id}/graph returns the dependency graph."""
+    client = _make_client(tmp_path)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_repo(repo, include_rsa=True, include_md5=False)
+
+    # 1. Project + Scan
+    proj_resp = client.post("/api/v1/projects", json={"name": "graph-test", "root_path": str(repo)})
+    pid = proj_resp.json()["id"]
+    scan_resp = client.post(f"/api/v1/projects/{pid}/scans", json={"targets": [str(repo)]})
+    scan_id = scan_resp.json()["scan"]["id"]
+    scan = _wait_for_scan(client, scan_id)
+    assert scan["status"] == "succeeded"
+
+    # 2. Plan
+    plan_resp = client.post("/api/v1/migrate/plans", json={"project_id": pid})
+    assert plan_resp.status_code == 201
+    plan_id = plan_resp.json()["id"]
+
+    # 3. Graph
+    graph_resp = client.get(f"/api/v1/migrate/plans/{plan_id}/graph")
+    assert graph_resp.status_code == 200, graph_resp.text
+    graph = graph_resp.json()
+
+    assert "nodes" in graph
+    assert "edges" in graph
+    assert "units" in graph
+    assert len(graph["nodes"]) > 0
+    assert len(graph["units"]) > 0

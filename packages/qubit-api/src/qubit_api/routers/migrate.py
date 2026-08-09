@@ -196,6 +196,35 @@ def list_task_patches(
     return [_patch_out(p) for p in patches]
 
 
+@router.get("/migrate/plans/{plan_id}/graph")
+def get_plan_graph(
+    plan_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+) -> dict:
+    from qubit_core import row_to_asset
+    from qubit_core.db import AssetRow, ScanRow
+    from qubit_migrate.graph.builder import build_dependency_graph
+    from qubit_migrate.graph.export import serialize_graph
+    from qubit_migrate.graph.order import migration_order
+
+    plan = session.get(MigrationPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    asset_ids = [t.asset_id for t in plan.tasks]
+    if not asset_ids:
+        return {"nodes": [], "edges": [], "units": []}
+
+    asset_rows = session.scalars(select(AssetRow).where(AssetRow.id.in_(asset_ids))).all()
+    assets = [row_to_asset(row) for row in asset_rows]
+    id_to_asset = {a.id: a for a in assets}
+
+    g = build_dependency_graph(assets)
+    units = migration_order(g, id_to_asset=id_to_asset)
+
+    return serialize_graph(g, units)
+
+
 @router.post("/migrate/patches/{patch_id}/review", response_model=PatchOut)
 def review_patch(
     patch_id: UUID,

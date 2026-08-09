@@ -575,7 +575,7 @@ def token_create(
     )
     console.print("Store this token now — it is shown only once:\n")
     console.print(f"  [bold cyan]{created.raw}[/bold cyan]\n")
-    console.print(f'Use it as: [dim]Authorization: Bearer {created.raw}[/dim]')
+    console.print(f"Use it as: [dim]Authorization: Bearer {created.raw}[/dim]")
 
 
 @token_app.command("list")

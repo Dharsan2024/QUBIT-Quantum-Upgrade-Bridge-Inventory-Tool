@@ -4,6 +4,7 @@ Versioned params file: ``params/agility_policy.yaml``.
 ``resolve_target()`` is the single authority for the PQC target when a migration
 rule does not pin one explicitly.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -24,7 +25,7 @@ _UC_BUCKET: dict[str, str] = {
     "encryption-at-rest": "encryption_at_rest",
     "signature": "signature",
     "hash": "hash",
-    "tls": "kex",       # TLS key exchange is a kex concern
+    "tls": "kex",  # TLS key exchange is a kex concern
     "token": "signature",  # token signing → signature bucket (before override applied)
 }
 

@@ -3,6 +3,7 @@
 Versioned params file: ``params/migration_kb.yaml``.
 Hash recorded in migration engine-version records (reproducibility N8).
 """
+
 from __future__ import annotations
 
 import hashlib

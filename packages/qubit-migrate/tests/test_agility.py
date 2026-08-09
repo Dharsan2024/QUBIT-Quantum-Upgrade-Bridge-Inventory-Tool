@@ -1,4 +1,5 @@
 """Tests for E2 Crypto Agility Policy (qubit_migrate.agility)."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock

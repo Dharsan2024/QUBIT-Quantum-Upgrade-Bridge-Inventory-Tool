@@ -1,4 +1,5 @@
 """Tests for E5 Migration Knowledge Base (qubit_migrate.kb)."""
+
 from __future__ import annotations
 
 from qubit_migrate.kb import (

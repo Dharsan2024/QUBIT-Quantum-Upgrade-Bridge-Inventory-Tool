@@ -318,4 +318,3 @@ def test_scan_network_cli_authorization_refusal() -> None:
     res = runner.invoke(app, ["scan-network", "8.8.8.8"])
     assert res.exit_code == 1
     assert "Authorization error" in res.output
-

@@ -108,7 +108,7 @@ cd qubit
 # Bring up the entire stack
 docker compose up
 ```
-* The Dashboard will be available at `http://localhost:5173`.
+* The Dashboard will be available at `http://localhost`.
 * The API will be available at `http://localhost:8000`.
 
 ### 3. Using the CLI Locally

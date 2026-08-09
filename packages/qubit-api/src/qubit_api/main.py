@@ -5,6 +5,9 @@ import uvicorn
 from .app import create_app
 from .settings import Settings
 
+from qubit_core.log import configure_logging
+configure_logging()
+
 app = create_app()
 
 

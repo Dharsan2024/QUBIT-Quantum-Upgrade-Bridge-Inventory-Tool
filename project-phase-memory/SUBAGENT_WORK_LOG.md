@@ -28,6 +28,14 @@
 
 ## Log (newest first)
 
+### 2026-08-09 07:01:00 UTC — Google Antigravity (Gemini 3.1 Pro High) — Packaging and ops (docker compose + logging) [status: done]
+- Branch: `sub-workers-push`   Lane: `ops` / `qubit-api`
+- Did: Implemented packaging and operations per E-Suite hardening requirements. Created `Dockerfile.api` for the backend and `dashboard/Dockerfile` with `nginx.conf` for the frontend. Added root `docker-compose.yml` to orchestrate the full stack. Implemented a minimal structured JSON logger in `qubit_core.log` and wired it into `qubit-api/main.py`. Updated `README.md` Quickstart ports. Full test suite and `docker compose config` pass.
+- Files: `Dockerfile.api`, `dashboard/Dockerfile`, `dashboard/nginx.conf`, `docker-compose.yml`, `packages/qubit-core/src/qubit_core/log.py`, `packages/qubit-api/src/qubit_api/main.py`, `README.md`
+- Gate: pytest 325 passed (100% green)
+- Next step: Hand off to orchestrator. E-Suite Hardening (packaging/test hygiene) is now complete.
+- Orchestrator verdict (Claude fills this): <pending>
+
 ### 2026-08-09 06:55:00 UTC — Google Antigravity (Gemini 3.1 Pro High) — Implement E4 Governance UI Module [status: done]
 - Branch: `sub-workers-push`   Lane: `qubit-migrate` / `qubit-api` (E4 Governance)
 - Did: Implemented the E4 Governance module. Added `check_governance` logic enforcing multi-admin approval for sensitive patches (2 for phi, 1 for public). Integrated it into `apply_patch` within `qubit_migrate/orchestrator.py`. Added API endpoint `GET /migrate/tasks/{task_id}/governance` and exposed `governance_policy.yaml`. Fixed regressions in the test suite by correctly mocking SQLAlchemy DB dependencies. Full test suite passes.

@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      - QUBIT_DB_URL=sqlite:///./qubit.db
+      - QUBIT_API_TOKEN=${QUBIT_API_TOKEN:-dev_token}
+    volumes:
+      - qubit_data:/app
+    # Set to true if you want to mount the codebase for live reload
+    # volumes:
+    #   - .:/app
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  qubit_data:

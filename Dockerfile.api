@@ -1,0 +1,20 @@
+FROM python:3.12-slim
+
+# Install uv
+RUN pip install --no-cache-dir uv==0.10.9
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the workspace configuration and lockfile
+COPY pyproject.toml uv.lock ./
+COPY packages/ ./packages/
+
+# Sync the workspace (frozen to respect lockfile)
+RUN uv sync --frozen
+
+# Expose the API port
+EXPOSE 8000
+
+# Start the application using uv to run the CLI
+CMD ["uv", "run", "qubit", "serve", "api", "--host", "0.0.0.0", "--port", "8000"]

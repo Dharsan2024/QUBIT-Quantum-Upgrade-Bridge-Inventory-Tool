@@ -84,13 +84,14 @@ Timeline compressed 2026-08-09: single continuous sprint to end-Sep 2026 for a *
 **paper + formal experiment suites deferred to after the deadline** (see §0 deadline + `docs/BUILD_PLAN §5`
 + `docs/project-status/`). Weekly progress: `docs/project-status/WEEKLY_REPORT.md`.
 
-**Authoritative 2026-08-09 snapshot (commit `b4c070c`):** all seven packages, dashboard, live four-phase
-demo, crash recovery, XGBoost + conformal tier, and external-ranking validation harness are implemented.
-Quality gate: **271 passed · 1 skipped · 1 failed** on `uv run pytest packages -q` — the fail is the
-`qubit-bridge` e2e probe timing out on `host.docker.internal` under WSL2 docker networking (environmental,
-not a regression; fix = mark it `@pytest.mark.integration`); the skip is `xgboost` absent in the eval env.
-Docker (v29.6.1) + Ollama (`qwen2.5-coder:7b`) confirmed up 2026-08-09. The M3 human-ranking dataset still
-needs real independent ratings (deferred with the paper); never fabricate it.
+**Authoritative 2026-08-09 snapshot (commit `838542b`):** all seven packages + dashboard + live four-phase
+demo + crash recovery + XGBoost/conformal tier + external-ranking harness implemented. **Sprint items 1–7
+done:** real token auth (DB tokens + ro/rw scopes + CLI); extended modules **E5** migration KB, **E2**
+agility policy, **E1** per-asset recommendation, **E3** dependency-graph API+UI, **E4** governance gate+UI;
+**packaging** (docker-compose + Dockerfiles + structured logging). Quality gate: **325 passed · 0 failed ·
+0 skipped**; ruff + ruff-format + mypy (per-pkg) clean. The earlier e2e failure (bridge probe `apk add`
+timeout) and xgboost skip were both fixed. Docker (v29.6.1) + Ollama (`qwen2.5-coder:7b`) up. The M3
+human-ranking dataset still needs real independent ratings (deferred with the paper); never fabricate it.
 
 Build machine: Intel i7-14700HX (20c), 16 GB DDR5-5600, **NVIDIA RTX 4060 Laptop (8 GB VRAM)**, Windows 11.
 Verdict: well-suited. 7B LLM runs on the GPU (VRAM), keeping it off system RAM. The 16 GB RAM is the only
@@ -195,16 +196,16 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
 
 ## 4. Next action when resuming
 
-**Authoritative next action (2026-08-09) — Sep-30 hardening sprint, in order:** (1) **real token auth**
-(tokens + scopes, hashed store) per `docs/design/05-platform-api-dashboard.md §6.6` — Claude's lane
-(security path); (2) **E5 migration KB** then **E2 agility policy** then **E1 recommendation** (the
-substrate + read model, `docs/design/08-extended-modules.md §2`) — Claude leads (touch the core contract);
-(3) hand a sub-agent, in parallel: **E3 dependency-graph serializer + graph tab**, **E4 governance UI**,
-**packaging / `docker compose up` on a clean machine**, and **test-hygiene** (mark bridge e2e
-`integration`; add `xgboost` to the eval env). Update `docs/project-status/WEEKLY_REPORT.md` each week,
-**naming the agent** on every entry. **Deferred to after Sep 30:** the paper, the four experiment suites,
-the real-human-ranking study (`qubit risk eval --pairwise …` — never fabricate ratings), and
-`/risk/simulate`. The legacy Phase 0 paragraph below is historical only.
+**Authoritative next action (2026-08-09, updated) — Sep-30 hardening sprint. Items 1–7 DONE** (real auth;
+E5/E2/E1/E3/E4; packaging). **Remaining (item 9 + polish):** (1) **demo readiness** — rehearse
+`qubit demo run --all` end-to-end on the live stack (docker + Ollama both up) + record a **backup demo
+video**; (2) **verify `docker compose up`** brings the full stack up on a clean checkout (<10 min excl.
+model pull) — the compose file + Dockerfiles exist but haven't been run clean-room; (3) **dashboard polish**
++ deferred UI (sparklines, treemap, CBOM tree, trends/scan-diff) — good sub-agent hand-off to
+`sub-workers-push`. Weekly roll-up is **Mondays only** in `docs/project-status/WEEKLY_REPORT.md`; per-step
+logging stays here (§5) / `SUBAGENT_WORK_LOG.md`, **naming the agent**. **Deferred to after Sep 30:** the
+paper, the four experiment suites, the real-human-ranking study (`qubit risk eval --pairwise …` — never
+fabricate ratings), and `/risk/simulate`. The legacy Phase 0 paragraph below is historical only.
 
 **Phase 0, step 1:** bootstrap the uv monorepo per `docs/design/06-engineering-plan.md §3.1` and land
 `qubit-core` (the binding `CryptoAsset` Pydantic + SQLAlchemy models, algorithm registry, fingerprint fn),
@@ -229,6 +230,19 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 ---
 
 ## 5. CHANGELOG (newest first — every agent appends here)
+
+### 2026-08-09 (later) — ORCHESTRATOR REVIEW: 6 sub-worker commits (E3/E4/packaging/UI) → UPDATE→KEEP, merged 838542b (Claude, Opus)
+Reviewed `sub-workers-push` `6267321..e8162e8` (Antigravity): **E3** graph serializer + `GET /migrate/plans/{id}/graph`;
+**E4** governance (`governance.py` + `governance_policy.yaml`: phi/financial→2, default→1) + `GET /migrate/tasks/{id}/governance`;
+**packaging** (`Dockerfile.api`, `dashboard/Dockerfile`+`nginx.conf`, `docker-compose.yml`, `qubit_core.log`);
+**E3/E4 dashboard UI**; **2 phase-4 demo fixes**. E5/E2/E1 already on origin/main (`6191df4`), verified at tip.
+- **Verdict UPDATE→KEEP (all).** Real + tested, frozen schema untouched. BUT sub-agent "gate green" was
+  pytest-only — full gate was dirty: 20 ruff errors, `ruff format` drift (5 files), **1 real mypy union-attr
+  bug** in `governance.py` (`AssetRow.sensitivity` is a str column → dead `.value` narrowing). Fixed all.
+- **Repaired a corrupted memory file:** `SUBAGENT_WORK_LOG.md` had a 447-byte UTF-16-LE block spliced into the
+  UTF-8 file (NUL bytes) → decoded + re-encoded, no content lost.
+- Gate: ruff + ruff-format + mypy per-pkg clean; **325 pytest / 0 fail / 0 skip**. FF-merged to main `838542b`,
+  pushed + verified. Sprint items 3–7 (E2/E1/E3/E4 + packaging) landed.
 
 ### 2026-08-09 — M3 sprint: Extended Modules E5/E2/E1 (Antigravity orchestrator acting as Claude, Gemini 3.1 Pro High)
 - **Item 2 — E5 Migration KB:** Implemented `migration_kb.yaml` (8 entries covering RSA/ECDSA/ECDH/AES/SHA-1/MD5 to PQC algorithms + library-specific versions) and `kb.py` loader/resolver with a file hash for N8 reproducibility. Exposes GET `/meta/migration-kb`.

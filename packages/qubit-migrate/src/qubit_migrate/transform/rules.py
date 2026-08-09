@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -36,14 +37,29 @@ class MigrationRule(BaseModel):
         return v
 
 
-def load_rules(rules_dir: Path | None = None) -> list[MigrationRule]:
-    """Load all *.yaml rule files from the rules directory."""
-    base = rules_dir or RULES_DIR
+@lru_cache(maxsize=8)
+def _load_rules_cached(base: Path) -> tuple[MigrationRule, ...]:
+    """Parse + validate every *.yaml rule under ``base`` once (cached per directory).
+
+    The rule pack is static per install, so re-reading/parsing it on every call (e.g. one
+    `GET /assets/{id}/recommendation` per asset) is wasted disk I/O + YAML parsing. Returns an
+    immutable tuple so the cache can't be mutated by a caller. Tests that write a temporary rule
+    dir should call ``load_rules.cache_clear()``.
+    """
     rules: list[MigrationRule] = []
     for path in sorted(base.glob("*.yaml")):
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         rules.append(MigrationRule.model_validate(data))
-    return rules
+    return tuple(rules)
+
+
+def load_rules(rules_dir: Path | None = None) -> list[MigrationRule]:
+    """Load all *.yaml rule files from the rules directory (cached; see ``_load_rules_cached``)."""
+    return list(_load_rules_cached(rules_dir or RULES_DIR))
+
+
+# Expose cache_clear() on the public name, matching the KB/agility loaders' test contract.
+load_rules.cache_clear = _load_rules_cached.cache_clear  # type: ignore[attr-defined]
 
 
 def match_rule(

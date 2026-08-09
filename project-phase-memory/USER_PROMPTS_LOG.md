@@ -7,6 +7,9 @@
 
 ---
 
+### 2026-08-09 (session, IST) — Claude (orchestrator, Opus 4.8)
+Multi-part session. In order: (1) add the literature-survey extra features to the design + update BUILD_PLAN + write a project completion/production-readiness/improvements report. (2) Deadline slashed to **end of September 2026** — change all dates; keep Claude as sole orchestrator + categorize any other agent generically as "sub-agent" in the rules (don't name Antigravity); every log entry must specify which agent did the work; move the status report into a new `project-status/` folder + add a weekly report; test docker/ollama. (3) Weekly report is **Mondays only** (a roll-up), normal per-work logging stays in phase-memory/sub-agent-log as before; **zero failures + zero skips** — fix all problems immediately (docker is running). (4) Any agent may push, but to a `sub-workers-push` branch; only Claude verifies + merges to main. (5) Every commit/push must appear as authored by **Dharsan L <dharsanlingadurai24@gmail.com>**. (6) Continue building the project (built real token auth). (7) [B2 Orchestrator Resume] review the sub-branch work Antigravity pushed → verdict keep/update/remove → merge. (8) Re-check everything, deep-check all sub-agent work + improve low efficiency, and confirm all logs are filed correctly.
+
 ### 2026-08-07 17:30:44 +05:30 — Google Antigravity (Gemini 3.6 Flash High)
 Read memory files 1–6 in order; declare identity + target area + next concrete action; start M3 shipping hardening (ENG-F7 network scan authorization guardrail + audit logging + scan-network CLI command) under branch, continuous log, and quality gate discipline.
 

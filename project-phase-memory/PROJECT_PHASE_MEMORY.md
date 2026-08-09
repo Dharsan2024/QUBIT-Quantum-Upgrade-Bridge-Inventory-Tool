@@ -231,6 +231,22 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-09 (audit) — Deep re-check of sub-agent work: efficiency + correctness improvements + log hygiene (Claude, Opus)
+Full re-audit after merging the E3/E4/packaging batch. Gate re-confirmed: ruff + ruff-format + mypy (all 7
+pkgs) clean, 325 pytest / 0 fail / 0 skip; no NUL corruption in any doc; main == sub-workers-push. Deep read
+of the sub-agent modules (not just "tests pass") surfaced two real quality issues, both fixed:
+- **EFFICIENCY:** `qubit_migrate.transform.rules.load_rules()` re-read + re-parsed + re-validated every rule
+  YAML from disk on EVERY call (incl. one per `GET /assets/{id}/recommendation`), while the KB + agility
+  loaders were already `@lru_cache`d. Added `@lru_cache` (via `_load_rules_cached` returning a tuple) +
+  exposed `load_rules.cache_clear()` matching the KB/agility test contract.
+- **CORRECTNESS:** the E1 recommendation endpoint wrapped each cascade tier (rule/KB/agility) in a blanket
+  `except Exception: pass`, silently masking real bugs and degrading to a lower-confidence answer. Removed
+  all three; a genuine error now surfaces as 500 (cascade fall-through still works via the `is not None`
+  checks). Also dropped a fragile `asset.confidence.value` hack (str, never had `.value`) → clean 1.0.
+- **LOGS:** filled the 5 inline `<pending>` orchestrator verdicts on the 2026-08-09 sub-agent entries
+  (were lost in the earlier file-restore) and back-filled the missing 2026-08-09 prompts in USER_PROMPTS_LOG.
+Gate after changes: ruff/format/mypy clean, 325 pass / 0 fail / 0 skip. Verdict on the batch stands: KEEP.
+
 ### 2026-08-09 (later) — ORCHESTRATOR REVIEW: 6 sub-worker commits (E3/E4/packaging/UI) → UPDATE→KEEP, merged 838542b (Claude, Opus)
 Reviewed `sub-workers-push` `6267321..e8162e8` (Antigravity): **E3** graph serializer + `GET /migrate/plans/{id}/graph`;
 **E4** governance (`governance.py` + `governance_policy.yaml`: phi/financial→2, default→1) + `GET /migrate/tasks/{id}/governance`;

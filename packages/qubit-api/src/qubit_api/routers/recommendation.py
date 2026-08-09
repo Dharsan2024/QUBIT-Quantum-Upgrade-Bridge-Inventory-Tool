@@ -78,75 +78,63 @@ def get_asset_recommendation(
     family = _family_from_algorithm(asset.algorithm)
     uc = asset.usage_context.value
 
-    # --- 1. Try migration rule ---
-    try:
-        from qubit_migrate.transform.rules import load_rules, match_rule
+    # Cascade: rule → KB → agility policy. Each tier returns only on a match and otherwise falls
+    # through to the next; a genuine error inside a tier (import failure, bug) is NOT swallowed —
+    # it surfaces as a 500 rather than silently degrading to a lower-confidence recommendation.
+    from qubit_migrate.agility import resolve_target
+    from qubit_migrate.kb import lookup_kb
+    from qubit_migrate.transform.rules import load_rules, match_rule
 
-        rule = match_rule(asset, load_rules())
-        if rule is not None:
-            tgt = rule.target
-            lib: dict = tgt.get("library") or {}
-            lib_name = lib.get("name", "") if isinstance(lib, dict) else str(lib)
-            lib_ver = lib.get("min_version", "") if isinstance(lib, dict) else ""
-            pqc = tgt.get("pqc_target") or tgt.get("algorithm", "")
-            mode = "hybrid" if "hybrid" in pqc.lower() else "pure"
-            return AssetRecommendation(
-                asset_id=asset.id,
-                current=current,
-                target={"algorithm": pqc, "mode": mode, "parameter_set": pqc},
-                library={"name": lib_name, "min_version": lib_ver},
-                rationale=rule.semantic_note or f"Apply {rule.title}",
-                source="rule",
-                confidence=(
-                    asset.confidence.value  # type: ignore[attr-defined]
-                    if hasattr(asset.confidence, "value")
-                    else 1.0
-                ),
-            )
-    except Exception:  # pragma: no cover  # noqa: S110
-        pass  # fall through to KB
+    # --- 1. Migration rule (highest confidence — a hand-authored, tested transform) ---
+    rule = match_rule(asset, load_rules())
+    if rule is not None:
+        tgt = rule.target
+        lib = tgt.get("library") or {}
+        lib_name = lib.get("name", "") if isinstance(lib, dict) else str(lib)
+        lib_ver = lib.get("min_version", "") if isinstance(lib, dict) else ""
+        pqc = tgt.get("pqc_target") or tgt.get("algorithm", "")
+        mode = "hybrid" if "hybrid" in pqc.lower() else "pure"
+        return AssetRecommendation(
+            asset_id=asset.id,
+            current=current,
+            target={"algorithm": pqc, "mode": mode, "parameter_set": pqc},
+            library={"name": lib_name, "min_version": lib_ver},
+            rationale=rule.semantic_note or f"Apply {rule.title}",
+            source="rule",
+            confidence=1.0,
+        )
 
-    # --- 2. Try migration KB ---
-    try:
-        from qubit_migrate.kb import lookup_kb
+    # --- 2. Migration KB (family + usage_context lookup) ---
+    kb_entry = lookup_kb(family, uc)
+    if kb_entry is not None:
+        py_lib = kb_entry.library.python
+        return AssetRecommendation(
+            asset_id=asset.id,
+            current=current,
+            target=kb_entry.target.model_dump(),
+            library={
+                "name": py_lib.name if py_lib else "",
+                "min_version": py_lib.min_version if py_lib else "",
+            },
+            rationale=kb_entry.guidance,
+            source="kb",
+            confidence=0.9,
+        )
 
-        kb_entry = lookup_kb(family, uc)
-        if kb_entry is not None:
-            py_lib = kb_entry.library.python
-            return AssetRecommendation(
-                asset_id=asset.id,
-                current=current,
-                target=kb_entry.target.model_dump(),
-                library={
-                    "name": py_lib.name if py_lib else "",
-                    "min_version": py_lib.min_version if py_lib else "",
-                },
-                rationale=kb_entry.guidance,
-                source="kb",
-                confidence=0.9,
-            )
-    except Exception:  # pragma: no cover  # noqa: S110
-        pass  # fall through to agility policy
+    # --- 3. Agility policy defaults/overrides (lowest confidence fallback) ---
+    policy_target = resolve_target(asset)
+    if policy_target is not None:
+        return AssetRecommendation(
+            asset_id=asset.id,
+            current=current,
+            target=policy_target.model_dump(),
+            library={},
+            rationale=policy_target.rationale or "Derived from crypto agility policy defaults.",
+            source="agility-policy",
+            confidence=0.7,
+        )
 
-    # --- 3. Agility policy fallback ---
-    try:
-        from qubit_migrate.agility import resolve_target
-
-        policy_target = resolve_target(asset)
-        if policy_target is not None:
-            return AssetRecommendation(
-                asset_id=asset.id,
-                current=current,
-                target=policy_target.model_dump(),
-                library={},
-                rationale=policy_target.rationale or "Derived from crypto agility policy defaults.",
-                source="agility-policy",
-                confidence=0.7,
-            )
-    except Exception:  # pragma: no cover  # noqa: S110
-        pass
-
-    # No recommendation possible
+    # No tier produced a recommendation.
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"No recommendation available for algorithm '{asset.algorithm}' in context '{uc}'.",

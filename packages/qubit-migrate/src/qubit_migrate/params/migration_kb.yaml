@@ -1,0 +1,181 @@
+version: "2026.08"
+# Migration Knowledge Base — single source of truth for vulnerable-algorithm → PQC target mappings.
+# Fields:
+#   vuln:    {family: str, usage_context: str}   — matched case-insensitively against CryptoAsset
+#   target:  {algorithm, mode, hybrid_group?, category, fips}
+#   library: {python: {name, min_version}, java: {name, min_version}}
+#   guidance: str  — human-readable migration note
+#
+# Order matters: more specific entries should appear first.
+# Hash of this file is recorded in the migration engine-version record (reproducibility, N8).
+
+entries:
+  - vuln:
+      family: RSA
+      usage_context: kex
+    target:
+      algorithm: ML-KEM-768
+      mode: hybrid
+      hybrid_group: X25519MLKEM768
+      parameter_set: ML-KEM-768
+      category: 3
+      fips: FIPS-203
+    library:
+      python:
+        name: cryptography
+        min_version: "49"
+      java:
+        name: bouncycastle
+        min_version: "1.79"
+    guidance: >
+      RSA key transport is Shor-breakable and HNDL-exposed. Replace with an ML-KEM-768
+      KEM-DEM pattern (hybrid X25519+ML-KEM-768 during the transition). Use
+      `cryptography>=49` (`mlkem.MLKEM768PrivateKey.generate()`). Existing RSA ciphertexts
+      must be re-encrypted. Do NOT inject liboqs-python into target repos (offline-sandbox break).
+
+  - vuln:
+      family: RSA
+      usage_context: signature
+    target:
+      algorithm: ML-DSA-65
+      mode: pure
+      parameter_set: ML-DSA-65
+      category: 3
+      fips: FIPS-204
+    library:
+      python:
+        name: cryptography
+        min_version: "49"
+      java:
+        name: bouncycastle
+        min_version: "1.84"
+    guidance: >
+      RSA signatures are Shor-breakable. Replace with ML-DSA-65 (FIPS-204, CRYSTALS-Dilithium
+      level-3). No mainstream JOSE library registers an ML-DSA algorithm identifier in 2026 —
+      patch the signing primitive, not the JOSE layer.
+
+  - vuln:
+      family: RSA
+      usage_context: encryption-at-rest
+    target:
+      algorithm: ML-KEM-768
+      mode: hybrid
+      hybrid_group: X25519MLKEM768
+      parameter_set: ML-KEM-768
+      category: 3
+      fips: FIPS-203
+    library:
+      python:
+        name: cryptography
+        min_version: "49"
+      java:
+        name: bouncycastle
+        min_version: "1.79"
+    guidance: >
+      RSA encryption-at-rest is Shor-breakable and HNDL-exposed. Migrate to ML-KEM-768 KEM-DEM
+      (hybrid X25519+ML-KEM-768). Requires re-encryption of all stored ciphertext.
+
+  - vuln:
+      family: ECDSA
+      usage_context: signature
+    target:
+      algorithm: ML-DSA-65
+      mode: pure
+      parameter_set: ML-DSA-65
+      category: 3
+      fips: FIPS-204
+    library:
+      python:
+        name: cryptography
+        min_version: "49"
+      java:
+        name: bouncycastle
+        min_version: "1.84"
+    guidance: >
+      ECDSA is Shor-breakable. Replace with ML-DSA-65 (FIPS-204, category-3 security).
+      No mainstream JOSE library registers an ML-DSA alg in 2026 — patch the signing
+      primitive layer.
+
+  - vuln:
+      family: ECDH
+      usage_context: kex
+    target:
+      algorithm: ML-KEM-768
+      mode: hybrid
+      hybrid_group: X25519MLKEM768
+      parameter_set: ML-KEM-768
+      category: 3
+      fips: FIPS-203
+    library:
+      python:
+        name: cryptography
+        min_version: "49"
+      java:
+        name: bouncycastle
+        min_version: "1.79"
+    guidance: >
+      ECDH key exchange is Shor-breakable and HNDL-exposed. Adopt X25519MLKEM768 (hybrid
+      X25519 + ML-KEM-768) during the PQC transition; pure ML-KEM-768 when X.509 / PKI
+      support catches up.
+
+  - vuln:
+      family: AES
+      usage_context: encryption-at-rest
+    target:
+      algorithm: AES-256
+      mode: pure
+      parameter_set: AES-256
+      category: 1
+      fips: FIPS-197
+    library:
+      python:
+        name: cryptography
+        min_version: "38"
+      java:
+        name: bouncycastle
+        min_version: "1.70"
+    guidance: >
+      Grover's algorithm halves the effective key length of AES: AES-128 → 64-bit post-quantum
+      security. Upgrade to AES-256 (128-bit post-quantum security, FIPS-197). This is a
+      symmetric key-length upgrade, not a KEM change; no re-encryption beyond key rotation.
+
+  - vuln:
+      family: SHA-1
+      usage_context: hash
+    target:
+      algorithm: SHA3-256
+      mode: pure
+      parameter_set: SHA3-256
+      category: 2
+      fips: FIPS-202
+    library:
+      python:
+        name: cryptography
+        min_version: "38"
+      java:
+        name: bouncycastle
+        min_version: "1.70"
+    guidance: >
+      SHA-1 is classically broken (collision attacks) and Grover-weakened. Replace with
+      SHA3-256 (FIPS-202, 128-bit post-quantum collision resistance). SHA-256 is acceptable
+      if SHA-3 cannot be adopted (256-bit output → 128-bit Grover resistance).
+
+  - vuln:
+      family: MD5
+      usage_context: hash
+    target:
+      algorithm: SHA3-256
+      mode: pure
+      parameter_set: SHA3-256
+      category: 2
+      fips: FIPS-202
+    library:
+      python:
+        name: cryptography
+        min_version: "38"
+      java:
+        name: bouncycastle
+        min_version: "1.70"
+    guidance: >
+      MD5 is classically broken (collision + pre-image attacks) and provides negligible
+      post-quantum security. Replace with SHA3-256 (FIPS-202) immediately.

@@ -309,3 +309,195 @@ def test_custom_api_token_is_honored(tmp_path: Path) -> None:
         assert ok.status_code == 200
         wrong = client.get("/api/v1/projects", headers={"Authorization": "Bearer default-token"})
         assert wrong.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# E5 — Migration Knowledge Base endpoint
+# ---------------------------------------------------------------------------
+
+
+def test_meta_migration_kb_structure(tmp_path: Path) -> None:
+    """GET /meta/migration-kb returns versioned KB with at least 6 entries (no auth needed)."""
+    client = _make_client(tmp_path)
+    resp = client.get("/api/v1/meta/migration-kb")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "version" in body
+    assert body["version"].startswith("20")  # e.g. "2026.08"
+    assert "file_hash_sha256" in body
+    assert len(body["file_hash_sha256"]) == 64
+    assert body["entry_count"] >= 6
+    assert len(body["entries"]) == body["entry_count"]
+
+
+def test_meta_migration_kb_rsa_kex_entry(tmp_path: Path) -> None:
+    """The RSA kex entry maps to ML-KEM-768 hybrid."""
+    client = _make_client(tmp_path)
+    body = client.get("/api/v1/meta/migration-kb").json()
+    rsa_kex = next(
+        (e for e in body["entries"]
+         if e["vuln"]["family"] == "RSA" and e["vuln"]["usage_context"] == "kex"),
+        None,
+    )
+    assert rsa_kex is not None, "RSA kex entry must exist in KB"
+    assert rsa_kex["target"]["algorithm"] == "ML-KEM-768"
+    assert rsa_kex["target"]["mode"] == "hybrid"
+
+
+# ---------------------------------------------------------------------------
+# E2 — Agility Policy endpoint
+# ---------------------------------------------------------------------------
+
+
+def test_meta_agility_policy_structure(tmp_path: Path) -> None:
+    """GET /meta/agility-policy returns versioned policy with kex/signature defaults."""
+    client = _make_client(tmp_path)
+    resp = client.get("/api/v1/meta/agility-policy")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["version"].startswith("20")
+    assert "kex" in body["defaults"]
+    assert "signature" in body["defaults"]
+    assert body["defaults"]["kex"]["target"] == "ML-KEM-768"
+    assert body["defaults"]["kex"]["mode"] == "hybrid"
+    assert body["defaults"]["signature"]["target"] == "ML-DSA-65"
+    assert body["defaults"]["signature"]["mode"] == "pure"
+
+
+def test_meta_agility_policy_no_auth_required(tmp_path: Path) -> None:
+    """Agility policy is public meta info — no bearer token required."""
+    db_path = tmp_path / "q.db"
+    settings = Settings(
+        db_url=f"sqlite:///{db_path.as_posix()}",
+        create_schema_on_startup=True,
+    )
+    with TestClient(create_app(settings)) as client:
+        resp = client.get("/api/v1/meta/agility-policy")
+        assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# E1 — Per-asset Recommendation endpoint
+# ---------------------------------------------------------------------------
+
+
+def test_asset_recommendation_rsa_kex(tmp_path: Path) -> None:
+    """A scanned RSA-2048 asset returns a rule-matched or KB-matched recommendation."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_repo(repo, include_rsa=True, include_md5=False)
+
+    with _make_client(tmp_path) as client:
+        # Create project + scan
+        proj_resp = client.post(
+            "/api/v1/projects",
+            json={"name": "rec-test", "root_path": str(repo)},
+        )
+        assert proj_resp.status_code == 201
+        pid = proj_resp.json()["id"]
+        scan_resp = client.post(
+            f"/api/v1/projects/{pid}/scans",
+            json={"targets": [str(repo)]},
+        )
+        assert scan_resp.status_code == 202
+        scan_id = scan_resp.json()["scan"]["id"]
+        scan = _wait_for_scan(client, scan_id)
+        assert scan["status"] == "succeeded"
+
+        # Get assets for this scan
+        assets_resp = client.get(f"/api/v1/scans/{scan_id}/assets")
+        assert assets_resp.status_code == 200
+        assets = assets_resp.json()["items"]
+        rsa_asset = next((a for a in assets if "RSA" in a["algorithm"]), None)
+        assert rsa_asset is not None, "RSA asset must be detected"
+
+        # Get recommendation
+        rec_resp = client.get(f"/api/v1/assets/{rsa_asset['id']}/recommendation")
+        assert rec_resp.status_code == 200, rec_resp.text
+        rec = rec_resp.json()
+        assert rec["asset_id"] == rsa_asset["id"]
+        assert rec["current"]["algorithm"] == rsa_asset["algorithm"]
+        assert "ML-KEM" in rec["target"]["algorithm"] or "ML-DSA" in rec["target"]["algorithm"]
+        assert rec["source"] in {"rule", "kb", "agility-policy"}
+        assert 0.0 <= rec["confidence"] <= 1.0
+
+
+def test_asset_recommendation_non_vulnerable_404(tmp_path: Path) -> None:
+    """A non-vulnerable asset (e.g. AES-256) returns 404 — no action needed."""
+    import uuid
+
+    from qubit_core import CryptoAsset, asset_to_row
+    from qubit_core.db import get_engine, session_factory
+    from qubit_core.schemas import (
+        AssetType,
+        Confidence,
+        Evidence,
+        QuantumAttack,
+        QuantumVulnerability,
+        Sensitivity,
+        SourceScanner,
+        UsageContext,
+    )
+
+    db_path = tmp_path / "q2.db"
+    settings = Settings(
+        db_url=f"sqlite:///{db_path.as_posix()}",
+        create_schema_on_startup=True,
+        api_token="tok",
+    )
+    engine = get_engine(settings.db_url)
+    sf = session_factory(engine)
+
+    # Build a non-vulnerable asset and write it to DB
+    scan_id = uuid.uuid4()
+    project_id = uuid.uuid4()
+    asset = CryptoAsset(
+        id=uuid.uuid4(),
+        source_scanner=SourceScanner.code,
+        asset_type=AssetType.algorithm_use,
+        algorithm="AES-256",
+        key_size=256,
+        usage_context=UsageContext.encryption_at_rest,
+        sensitivity=Sensitivity.unknown,
+        quantum_vulnerable=QuantumVulnerability(vulnerable=False, attack=QuantumAttack.none),
+        evidence=Evidence(snippet="AES256 = True"),
+        confidence=Confidence.high,
+    )
+    from qubit_core.db import Base
+
+    Base.metadata.create_all(engine)
+    with sf() as session:
+        from qubit_core.db import ProjectRow, ScanRow
+
+        proj_row = ProjectRow(id=project_id, name="p", slug="p")
+        session.add(proj_row)
+        session.flush()  # flush project first to satisfy scan FK
+
+        scan_row = ScanRow(
+            id=scan_id,
+            project_id=project_id,
+            seq=1,
+            targets=[],
+            status="succeeded",
+        )
+        session.add(scan_row)
+        session.flush()  # flush scan before asset
+
+        row = asset_to_row(asset, scan_id=scan_id, project_id=project_id)
+        session.add(row)
+        session.commit()
+
+    with TestClient(
+        create_app(settings), headers={"Authorization": "Bearer tok"}
+    ) as client:
+        resp = client.get(f"/api/v1/assets/{asset.id}/recommendation")
+        assert resp.status_code == 404
+
+
+def test_asset_recommendation_missing_asset_404(tmp_path: Path) -> None:
+    """A completely unknown asset ID returns 404."""
+    import uuid
+
+    with _make_client(tmp_path) as client:
+        resp = client.get(f"/api/v1/assets/{uuid.uuid4()}/recommendation")
+        assert resp.status_code == 404

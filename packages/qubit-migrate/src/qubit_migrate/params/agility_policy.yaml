@@ -1,0 +1,68 @@
+version: "2026.08"
+# Crypto Agility Policy — defines the organisation's PQC migration stance.
+# Fields:
+#   defaults:  usage-context buckets: kex | signature | encryption_at_rest | hash
+#   overrides: [{match: {usage_context?, sensitivity?}, set: {mode, target, ...}}]
+#              evaluated in order before defaults; first match wins.
+#
+# This file's hash is recorded in migration engine-version records (reproducibility, N8).
+# Editing this policy is a params-file change (git-reviewed), NOT a runtime mutation endpoint.
+
+defaults:
+  kex:
+    mode: hybrid
+    target: ML-KEM-768
+    hybrid_group: X25519MLKEM768
+    parameter_set: ML-KEM-768
+    category: 3
+    fips: FIPS-203
+    rationale: >
+      Adopt hybrid X25519+ML-KEM-768 for KEX during the PQC transition. Hybrid mode
+      provides classical+post-quantum security simultaneously; pure ML-KEM when PKI support
+      is established.
+
+  signature:
+    mode: pure
+    target: ML-DSA-65
+    parameter_set: ML-DSA-65
+    category: 3
+    fips: FIPS-204
+    rationale: >
+      Adopt pure ML-DSA-65 for new signatures. No mainstream JOSE library registers an
+      ML-DSA alg identifier in 2026 — patch the signing primitive, not the JOSE layer.
+
+  encryption_at_rest:
+    mode: pure
+    target: AES-256
+    parameter_set: AES-256
+    category: 1
+    fips: FIPS-197
+    rationale: >
+      Grover halves symmetric key strength. Double symmetric key length: AES-128 → AES-256.
+      This is a key-length upgrade; no asymmetric KEM required.
+
+  hash:
+    mode: pure
+    target: SHA3-256
+    parameter_set: SHA3-256
+    category: 2
+    fips: FIPS-202
+    rationale: >
+      Grover weakens symmetric hash strength. Upgrade weak hashes (MD5, SHA-1) to SHA3-256
+      (FIPS-202). SHA-256 is acceptable if SHA-3 cannot be adopted.
+
+# Override examples: sensitivity- or context-scoped exceptions.
+# To enable multi-approval governance, add to E4 params/governance_policy.yaml instead.
+overrides:
+  - match:
+      usage_context: token
+      sensitivity: credentials
+    set:
+      mode: pure
+      target: ML-DSA-65
+      parameter_set: ML-DSA-65
+      category: 3
+      fips: FIPS-204
+      rationale: >
+        Token/credential signing requires non-repudiation + long-term assurance;
+        hybrid mode adds unnecessary complexity. Use pure ML-DSA-65.

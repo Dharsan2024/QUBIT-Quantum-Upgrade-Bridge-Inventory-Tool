@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           enable-cache: true
-      - run: uv sync --all-packages --group dev
+      - run: uv sync --all-packages --group dev --extra ml
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - name: Type check workspace packages
@@ -68,7 +68,7 @@ jobs:
         with:
           python-version: "3.12"
           enable-cache: true
-      - run: uv sync --all-packages --group dev
+      - run: uv sync --all-packages --group dev --extra ml
       - run: >-
           uv run pip-licenses
           --partial-match

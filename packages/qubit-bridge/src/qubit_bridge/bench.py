@@ -8,6 +8,7 @@ from pathlib import Path
 
 from qubit_bridge.capture import capture_handshake, extract_key_share_sizes
 from qubit_bridge.models import HandshakeMeasurement
+from qubit_bridge.probe import _prober_image
 from qubit_bridge.registry import is_hybrid
 
 
@@ -26,11 +27,11 @@ def bench_group(
         # In Docker Desktop, localhost inside the container resolves to the container itself.
         docker_host = "host.docker.internal" if host in ("localhost", "127.0.0.1") else host
 
-        # We invoke s_client directly via docker alpine, similar to probe.py
+        # Run s_client in an image that ALREADY has the openssl 3.5 CLI (same as probe.py). No
+        # `apk add` — installing per iteration was ~25 s each and would dominate the latency it
+        # is meant to measure; it also broke the offline requirement.
         shell_cmd = (
-            "apk add --no-cache openssl > /dev/null 2>&1 && "
-            f"openssl s_client -connect {docker_host}:{port} -tls1_3 -brief "
-            f"-groups {group}"
+            f"openssl s_client -connect {docker_host}:{port} -tls1_3 -brief -groups {group}"
         )
 
         cmd = [
@@ -39,7 +40,7 @@ def bench_group(
             "--rm",
             "--entrypoint",
             "",
-            "nginx:alpine",
+            _prober_image(),
             "/bin/sh",
             "-c",
             shell_cmd,

@@ -52,23 +52,24 @@ def test_nginx_hybrid_tls_probe(nginx_hybrid_image):
         # Wait a moment for nginx to start and generate certs
         time.sleep(2)
 
-        # We need the probe (which runs inside its own docker container)
-        # to reach this server container. If testcontainers returns localhost,
-        # that means we need host.docker.internal or a similar trick.
+        # The probe runs openssl s_client inside its OWN container, so it must reach this server
+        # container via the host's published port. testcontainers gives the host IP + mapped port;
+        # a loopback host is rewritten to host.docker.internal by probe_host (Docker Desktop), and
+        # to the docker bridge gateway on Linux.
         host = container.get_container_host_ip()
         if host in ("localhost", "127.0.0.1", "0.0.0.0"):
             import platform
 
             if platform.system() in ("Windows", "Darwin"):
-                host = "host.docker.internal"
+                host = "localhost"  # probe_host maps this -> host.docker.internal
             else:
                 # on linux, docker0 bridge is typically 172.17.0.1
                 host = "172.17.0.1"
 
         port = container.get_exposed_port(8443)
 
-        # Run the probe
-        result = probe_host(host, int(port))
+        # Probe from the SAME image we just built (it ships the openssl 3.5 CLI), so no apk-add.
+        result = probe_host(host, int(port), image=nginx_hybrid_image)
 
         logs = container.get_logs()
         assert result.reachable is True, (

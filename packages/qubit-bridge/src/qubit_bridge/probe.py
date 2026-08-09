@@ -1,6 +1,7 @@
 """TLS handshake probing using openssl s_client."""
 
 import logging
+import os
 import re
 import subprocess
 from datetime import UTC, datetime
@@ -10,6 +11,17 @@ from qubit_bridge.registry import codepoint, is_hybrid
 
 logger = logging.getLogger(__name__)
 
+# The probe runs `openssl s_client` inside a container that already ships OpenSSL 3.5.x with the
+# CLI (host OpenSSL may be older / lack X25519MLKEM768). We do NOT `apk add` at probe time — that
+# needs network on every call (breaking the offline requirement) and its ~25 s install blew the
+# probe timeout, making every probe return unreachable. The default image is the hybrid-bridge
+# image the project already builds (openssl CLI present); override with QUBIT_PROBER_IMAGE.
+DEFAULT_PROBER_IMAGE = "qubit-nginx-hybrid:latest"
+
+
+def _prober_image() -> str:
+    return os.environ.get("QUBIT_PROBER_IMAGE", DEFAULT_PROBER_IMAGE)
+
 
 def probe_host(
     host: str,
@@ -17,13 +29,14 @@ def probe_host(
     *,
     groups: str | None = None,
     sni: str | None = None,
-    timeout: float = 10.0,
+    timeout: float = 15.0,
+    image: str | None = None,
 ) -> ProbeResult:
-    """Probe the target using openssl s_client to extract TLS handshake facts."""
+    """Probe the target using openssl s_client to extract TLS handshake facts.
 
-    # We use docker run nginx:alpine to guarantee OpenSSL 3.5.x environment
-    # since host OS (Windows/Linux) might have older OpenSSL without X25519MLKEM768 support.
-
+    ``image`` (or ``$QUBIT_PROBER_IMAGE``) selects the container that runs openssl; it must already
+    have the openssl CLI (OpenSSL 3.5+ for X25519MLKEM768). No package is installed at probe time.
+    """
     server_name = sni or host
     groups_arg = f"-groups {groups}" if groups else ""
 
@@ -31,12 +44,14 @@ def probe_host(
     docker_host = "host.docker.internal" if host in ("localhost", "127.0.0.1") else host
 
     shell_cmd = (
-        "apk add --no-cache openssl > /dev/null 2>&1 && "
         f"openssl s_client -connect {docker_host}:{port} -tls1_3 -brief "
         f"-servername {server_name} {groups_arg}"
     ).strip()
 
-    cmd = ["docker", "run", "--rm", "--entrypoint", "", "nginx:alpine", "/bin/sh", "-c", shell_cmd]
+    prober_image = image or _prober_image()
+    cmd = [
+        "docker", "run", "--rm", "--entrypoint", "", prober_image, "/bin/sh", "-c", shell_cmd
+    ]
 
     probed_at = datetime.now(UTC)
 

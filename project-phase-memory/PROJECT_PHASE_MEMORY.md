@@ -230,6 +230,26 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-09 — M3 sprint: real auth + zero-failure/zero-skip test suite (Claude orchestrator, Opus)
+Deadline compressed to **end-Sep-2026** (product-first, paper deferred); see §0 + BUILD_PLAN §5 +
+docs/project-status/. Rules generalized ("sub-agent"; log names the agent; push to `sub-workers-push`,
+only Claude merges to `main`; all commits authored as Dharsan L). Literature survey folded into design
+(new docs/design/08-extended-modules.md + BUILD_PLAN coverage table). Commits: `e82287b` (docs+re-timeline),
+`03abcf6` (one-identity rule), `5ea58e4` (real auth).
+- **Item 1 — real token auth (doc 05 §6.6):** additive `api_tokens` table + `qubit_core.db.tokens` service
+  (sha256 store, create/list/revoke/resolve, ro|rw, tz-safe last_used). qubit-api `auth.py` → DB-backed
+  `Principal(name,scopes)` + `enforce_scope_by_method` guard (ro=reads only; mutating verb needs rw → 403);
+  dev-token bootstrap only while token table empty. CLI `qubit serve token create|list|revoke`. +13 tests.
+- **Item 8 — killed the 1 failure + 1 skip (user: zero failures/skips):** ROOT CAUSE of the qubit-bridge
+  e2e failure = `probe_host`/`bench` ran `apk add openssl` in `nginx:alpine` on every call (~25 s > 10 s
+  timeout, and offline-hostile). Fix: run `openssl s_client` in an image that already ships the OpenSSL
+  3.5 CLI (default `qubit-nginx-hybrid`, env `QUBIT_PROBER_IMAGE`, param `image=`), no install; e2e now
+  passes in ~4.5 s and genuinely verifies the X25519MLKEM768 handshake. Installed `xgboost` (+ `--extra ml`
+  in CI both jobs) so the regressor test runs instead of skipping.
+- **Gate:** ruff clean; mypy clean per-package; **full local suite 289 passed / 0 failed / 0 skipped**.
+  Docker (29.6.1) + Ollama (qwen2.5-coder:7b) up. Weekly report is Mondays-only (roll-up); this §5 is the
+  per-step log.
+
 ### 2026-08-09 — ORCHESTRATOR REVIEW: 7 M3 sub-agent commits → KEEP all, merged (Claude, Opus) — 1e75498
 Reviewed the `antigravity/m3-shipping-hardening` branch (superset of `codex/m3-state-reconcile` +
 `copilot/risk-external-validation` — both were ancestors, 0 unique commits). No frozen qubit-core/ or

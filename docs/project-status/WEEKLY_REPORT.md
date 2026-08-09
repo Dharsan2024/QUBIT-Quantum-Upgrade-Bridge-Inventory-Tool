@@ -5,10 +5,13 @@ Sep 30 — the research paper is deferred to after the deadline. See
 [PROJECT_STATUS_REPORT.md](PROJECT_STATUS_REPORT.md) for the point-in-time snapshot and
 [BUILD_PLAN §5](../BUILD_PLAN.md) for the sprint scope.
 
-**How to use this file:** add one dated section per week (newest at the top). Every line of work **names
-the agent that did it** — role + tool/model, e.g. `[Claude orchestrator]` or `[sub-agent — Gemini Pro
-High]` — per the logging rule in `AGENT_WORK_SPLIT.md §0` rule 7. Keep it honest: report what landed, what
-slipped, and the measured gate result. Get timestamps from the shell: `date "+%Y-%m-%d %H:%M:%S %Z"`.
+**How to use this file — WEEKLY CADENCE ONLY (Mondays).** Write exactly **one** dated section per week,
+on **Monday**, summarizing the week just finished (newest at the top). This file is a weekly roll-up, NOT
+a running log — do **not** append to it after each task. Day-to-day work is logged as usual in
+`project-phase-memory/PROJECT_PHASE_MEMORY.md §5` (Claude) / `SUBAGENT_WORK_LOG.md` (sub-agents); the
+Monday entry here distills those. Every line **names the agent that did it** — role + tool/model, e.g.
+`[Claude orchestrator]` or `[sub-agent — Gemini Pro High]` (logging rule, `AGENT_WORK_SPLIT.md §0` rule 7).
+Report what landed, what slipped, and the measured gate result. Timestamps: `date "+%Y-%m-%d %H:%M:%S %Z"`.
 
 **Sprint burndown (update the status each week):**
 
@@ -21,7 +24,7 @@ slipped, and the measured gate result. Get timestamps from the shell: `date "+%Y
 | 5 | E3 dependency graph surfaced (`/plans/{id}/graph` + graph tab) | sub-agent | ⬜ not started |
 | 6 | E4 governance sign-off + policy gate | sub-agent | ⬜ not started |
 | 7 | Packaging + `docker compose up` verified on a clean machine + README quickstart | sub-agent | ⬜ not started |
-| 8 | Test hygiene: mark bridge e2e `integration`; add `xgboost` to eval env; keep cov ≥70% | sub-agent | ⬜ not started |
+| 8 | Test hygiene: fix bridge e2e probe; add `xgboost` to eval env; keep cov ≥70% | sub-agent | ✅ done (2026-08-09) |
 | 9 | Demo readiness: `qubit demo run --all` rehearsed + backup demo video | Claude + sub-agent | ⬜ not started |
 
 Status legend: ⬜ not started · 🏃 in progress · ✅ done · ⏸ blocked · ✂️ cut to cut-line.
@@ -37,38 +40,29 @@ Status legend: ⬜ not started · 🏃 in progress · ✅ done · ⏸ blocked ·
   networking (environmental, not a code regression); the 1 skip = `xgboost` not installed in the eval env.
 - Docker daemon (v29.6.1) and Ollama (`qwen2.5-coder:7b`) confirmed **up** on 2026-08-09.
 
-**Done this week:**
-- `[Claude orchestrator]` 2026-08-09 — **Re-planned the whole timeline to the new end-of-September
-  deadline** (product-first, paper deferred): rewrote `BUILD_PLAN §5` into a single continuous hardening
-  sprint, marked Phase 0/1/2 complete, moved the paper + experiment suites to "deferred post-deadline".
-- `[Claude orchestrator]` 2026-08-09 — **Generalized the multi-agent rules**: Claude stays the sole
-  orchestrator; all non-Claude agents are now referred to generically as "sub-agents" in the rules
-  (`CORE_PROMPTS.md`, `AGENT_WORK_SPLIT.md`, `PROJECT_PHASE_MEMORY §0`); the specific tool/model table is
-  kept as *reference only*. Strengthened the logging rule so **every log entry names the agent** (role +
-  tool/model).
-- `[Claude orchestrator]` 2026-08-09 — **Folded the literature survey into the design**: new
+**Summary of the week (weekly roll-up — see PROJECT_PHASE_MEMORY §5 for the per-step log):**
+- `[Claude orchestrator]` **Re-planned to the end-of-September deadline** (product-first, paper deferred):
+  `BUILD_PLAN §5` rewritten into one continuous hardening sprint; Phases 0/1/2 marked complete; paper +
+  experiment suites moved to "deferred post-deadline".
+- `[Claude orchestrator]` **Generalized the multi-agent rules** (Claude sole orchestrator; all others are
+  generic "sub-agents"), strengthened logging to name the agent, and added the branch rule (sub-agents push
+  to `sub-workers-push`; only Claude merges to `main`) + the one-identity rule (all commits authored as
+  Dharsan L).
+- `[Claude orchestrator]` **Folded the literature survey into the design**: new
   `docs/design/08-extended-modules.md` (M1–M12 coverage map + additive designs E1–E5), additive edits to
-  docs 03 + 05, and the BUILD_PLAN module-coverage table. (Earlier this session.)
-- `[Claude orchestrator]` 2026-08-09 — **Created this `docs/project-status/` folder**, moved
-  `PROJECT_STATUS_REPORT.md` here, and seeded this weekly report.
-- `[Claude orchestrator]` 2026-08-09 — **Item 1 DONE: real token auth (tokens + scopes).** Replaced the
-  single hardcoded `rw` token with a DB-backed lifecycle: new `api_tokens` table + `tokens.py` service in
-  qubit-core (sha256-hashed store, `create`/`list`/`revoke`/`resolve`, `ro`|`rw` scopes); rewrote
-  `qubit-api/auth.py` to resolve tokens from the DB with a `Principal(name, scopes)`, an
-  `enforce_scope_by_method` guard (ro→reads only, any mutating verb needs rw → 403), and a
-  backward-compatible dev-token bootstrap (honored only while the token table is empty); `whoami` now
-  returns the real token name + scopes; added `qubit serve token create|list|revoke` CLI. Fixed a latent
-  tz-aware/naive datetime bug in `resolve_token` and a latent mypy variable-reuse in `jobs/handlers.py`
-  (`row`→`risk_row`) surfaced by the combined mypy run. +13 tests (6 auth, 6 token-CLI, all green).
+  docs 03 + 05, BUILD_PLAN module-coverage table; created `docs/project-status/` + this report.
+- `[Claude orchestrator]` **Item 1 — real token auth (DB tokens + ro/rw scopes + `qubit serve token` CLI).**
+- `[Claude orchestrator]` **Item 8 — test hygiene: eliminated the failure and the skip.** Fixed the
+  `qubit-bridge` e2e probe (root cause: `probe_host`/`bench` did `apk add openssl` in `nginx:alpine` on
+  every call — ~25 s, over the 10 s timeout, and offline-hostile; now runs openssl in an image that already
+  ships the 3.5 CLI, no install) and installed `xgboost` so the regressor test runs.
 
-**Gate:** ruff clean; mypy clean per-package (qubit-core/api/cli); **283 passed, 1 skipped, 1 failed** —
-the fail is the known `qubit-bridge` e2e `host.docker.internal` timeout (environmental, flaky; tracked for
-`@pytest.mark.integration` in item 8), the skip is `xgboost` absent in the eval env. My auth work is fully
-green; nothing I touched regressed.
+**Gate (end of week):** ruff clean; mypy clean per-package; **full suite green — 0 failures, 0 skips**
+(`289 passed`), Docker + Ollama up. Details in PROJECT_PHASE_MEMORY §5.
 
-**Next: item 2 (E5 migration KB) → item 3 (E2 agility policy) → item 4 (E1 recommendation)** — the
-substrate + read model, Claude's lane. Item 8 (test hygiene, incl. the bridge e2e marker) is a good
-parallel sub-agent hand-off.
+**Next week:** item 2 (E5 migration KB) → item 3 (E2 agility policy) → item 4 (E1 recommendation) — the
+substrate + read model, Claude's lane. Items 5–7 (E3 graph, E4 governance, packaging) are good parallel
+sub-agent hand-offs.
 
 ---
 

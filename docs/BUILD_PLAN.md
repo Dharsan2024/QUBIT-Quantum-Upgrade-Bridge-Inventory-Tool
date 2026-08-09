@@ -3,8 +3,8 @@
 **QUBIT: A Quantum Upgrade Bridge & Inventory Tool for HNDL Risk Modeling and Automated Cryptographic Migration**
 
 Team: Dharsan L (43614012), Akshay Kumar S (43614004) · Guide: Dr. P. Shanmuga Prabha · BE-CSE Cybersecurity, Batch 2023–2027.
-Deliverable: a **full working open-source product** (not a prototype) + an Annexure-1/SCOPUS research paper.
-Window: Phase 1 Jul–Nov 2026 · Phase 2 Dec 2026–Mar 2027 · Final defence ~Apr 2027.
+Deliverable: a **full working open-source product** (not a prototype). The Annexure-1/SCOPUS research paper + formal experiment suites are **deferred to after the deadline** (see the revised timeline below).
+**Deadline (revised 2026-08-09): end of September 2026.** The build is a single continuous sprint from now (2026-08-09) to **2026-09-30**, targeting a *hardened working product* by Sep 30; the paper follows afterward. (The original Jul 2026–Apr 2027 phased/exam-break calendar in doc 06 §11 is now historical/reference only — this window supersedes it.)
 
 This file is the executive plan. It sits on top of a set of implementable engineering designs — read them in this order:
 
@@ -18,6 +18,7 @@ This file is the executive plan. It sits on top of a set of implementable engine
 | [05-platform-api-dashboard](design/05-platform-api-dashboard.md) | **Normative REST registry**, DB, JobRunner, React dashboard, CLI |
 | [06-engineering-plan](design/06-engineering-plan.md) | **Capacity authority**: repo/CI/CD, testing, evaluation, week-by-week timeline, team split |
 | [07-ecosystem-factcheck](design/07-ecosystem-factcheck.md) | Web-verified July-2026 PQC ecosystem facts (versions, standards) with sources |
+| [08-extended-modules](design/08-extended-modules.md) | **Literature-survey coverage map** (M1–M12 → QUBIT) + additive designs for the 5 surfacing gaps (E1–E5) |
 
 Every design was written, then adversarially reviewed for feasibility + factual correctness (with live web verification), then fixed. The cross-document contradictions that review surfaced are resolved by the canonical decisions in §4 below.
 
@@ -56,14 +57,48 @@ These are binding on all subsystem docs; where an older draft disagreed, this ta
 7. **Python `ssl` groups API** (`SSLContext.set_groups` / `SSLSocket.group`) is a **Python 3.15** feature (verified), not 3.14 — always gated on `hasattr(ssl.SSLSocket, "group")`. The canonical negotiated-group check is a raw-ClientHello / `openssl s_client` parse, never a stdlib dependency.
 8. **PQC target libraries in generated patches:** Python → `cryptography>=49` (`mlkem.MLKEM768PrivateKey.generate()`); Java → BouncyCastle `>=1.79` (recommend 1.84). `liboqs-python` is **not** injected into target repos (its first-import C build breaks the offline sandbox and Windows machines).
 
+## 4.1 Literature-grounded module coverage
+
+A 16-paper literature survey groups the PQC-migration field into twelve capability modules (M1–M12).
+QUBIT's positioning is that it is the *unified* platform spanning them. This table maps each survey
+module to the QUBIT code that satisfies it (honest status; full design in [doc 08](design/08-extended-modules.md)):
+
+| Survey module | Status | QUBIT home (verified path) |
+|---|---|---|
+| M1 discovery/inventory | **built** | `packages/qubit-scanner/` |
+| M2 CBOM generation | **built** | `packages/qubit-core/…/cbom/export.py` (CycloneDX 1.7) |
+| M3 quantum-risk quantification | **built** | `packages/qubit-risk/…/timeline/` (Monte-Carlo CRQC + survey blend) |
+| M4 HNDL / shelf-life model | **built** | `packages/qubit-risk/…/hndl.py` |
+| M5 migration dependency analysis | **partial → E3** | `packages/qubit-migrate/…/graph/{builder,order}.py` (internal-only) |
+| M6 governance & CI/CD workflow | **partial → E4** | migrate review/approve + `.github/workflows/ci.yml` |
+| M7 crypto agility | **partial → E2** | registry replacement map + rule `pqc_target` (no policy file) |
+| M8 automated remediation | **built** | `packages/qubit-migrate/…/transform/` |
+| M9 patch validation/safety gate | **built** | `packages/qubit-migrate/…/transform/validate.py` + sandbox |
+| M10 hybrid PQC runtime proof | **built** | `packages/qubit-bridge/` (X25519MLKEM768) |
+| M11 embedded/ARM PQC impl | **out of scope** | — (hardware impl; deliberate non-goal, doc 08 §3) |
+| M12 prioritization/scheduling | **built** | `packages/qubit-migrate/…/queue/{effort,priority}.py` |
+| algorithm recommendation (surfaced) | **partial → E1** | rule `target` + `MigrationAnnotation.recommendation` (not exposed) |
+
+Eight modules are shipped + tested; three (M5/M6/M7 + the recommendation surface) exist internally but
+are **not surfaced** to the user — the additive **E1–E5** features (doc 08 §2) close exactly that gap and
+are folded into M3 below. M11 is a deliberate, documented non-goal (software-migration platform, not a
+hardware crypto-implementation project).
+
 ## 5. Phased execution plan
+
+> **⏱ Revised timeline (2026-08-09) — deadline end of September 2026.** Phases 0, 1, and 2 are **complete**
+> (`main` @ current HEAD; see [PROJECT_STATUS_REPORT](project-status/PROJECT_STATUS_REPORT.md)). Remaining
+> work is a **single continuous sprint, 2026-08-09 → 2026-09-30**, folded into the revised "Phase 3 —
+> Hardening sprint" below. The paper + formal experiment suites are **deferred to after Sep 30**. The
+> original phased/exam-break calendar (dates in the completed-phase headings, and doc 06 §11) is now
+> historical; where it disagrees with this banner, this banner wins.
 
 Person-weeks (pw) below are the *committed* baseline; 1 pw ≈ 35 focused hours. Full week-by-week detail and the two-person split live in [06-engineering-plan §11–12](design/06-engineering-plan.md).
 
-### Phase 0 — Foundation (Weeks 1–2, Jul 2026)
+### Phase 0 — Foundation ✅ COMPLETE (originally Weeks 1–2, Jul 2026)
 Bootstrap the uv monorepo, CI (`ruff`/`mypy`/`pytest`/coverage/licenses/gitleaks), the `qubit-pqc-base` Docker image (OpenSSL 3.5), branch protection, PyPI name reservation. Land `qubit-core`: the binding `CryptoAsset` Pydantic + SQLAlchemy models, the canonical algorithm registry, and the fingerprint function. **Freeze the `CryptoAsset` schema here** (additive changes only afterward) — everything downstream depends on it. Exit: `uv sync && uv run poe check` green on both laptops and in CI.
 
-### Phase 1 — M1 Walking skeleton (Weeks 3–9 → First Review ~mid-Sep 2026)
+### Phase 1 — M1 Walking skeleton ✅ COMPLETE (originally Weeks 3–9)
 The thin end-to-end slice, one command deep:
 - **Scanner:** Python + Java code scanning (~40 rules), normalization + dedup + **evidence redaction**, minimal CBOM 1.7 export.
 - **Risk:** heuristic sensitivity classifier + Monte-Carlo CRQC timeline v0 (anchor-tested against Webber/Gidney figures) + static risk score + Mosca margin.
@@ -74,7 +109,7 @@ The thin end-to-end slice, one command deep:
 
 **M1 acceptance:** `qubit scan demo-lab/vulnapp-python --cbom out.json` → DB rows + schema-valid CBOM; dashboard lists them with filters; a template patch flips one asset to `verified`; the First-Review demo runs from a runbook.
 
-### Phase 2 — M2 Feature-complete baseline (Weeks 10–18 → Second Review ~late Nov 2026)
+### Phase 2 — M2 Feature-complete baseline ✅ COMPLETE (originally Weeks 10–18)
 Every subsystem reaches its committed baseline and the **full 4-phase demo runs live**:
 - **Scanner:** + Go, config scanner, active TLS enumeration with PQC group probing, cert/key, PQC-API detection rules, `--no-db`, the `symbols/imports` evidence contract, CBOM import.
 - **Risk:** survey-blended timeline, 5-node Bayesian net, DistilBERT sensitivity classifier (**ship/no-ship gate Oct 15**), XGBoost primary path + split-conformal CIs, degradation ladder.
@@ -85,25 +120,65 @@ Every subsystem reaches its committed baseline and the **full 4-phase demo runs 
 
 **M2 acceptance:** one `qubit demo run --all` (or `--canned`) executes capture → scan/CBOM → risk dashboard → LLM patch reviewed/applied → hybrid re-capture on the same port → re-scan proves remediation; `kill -9` mid-scan recovers cleanly.
 
-### Break (Weeks 19–20) — exams; CI-only.
+### Phase 3 — Hardening sprint 🏃 IN PROGRESS (2026-08-09 → 2026-09-30, the deadline)
 
-### Phase 3 — M3 Hardening + paper (Weeks 21–32, Dec 2026–Feb 2027)
-Baselines (CryptoGuard, CogniCrypt) in containers; the four experiment suites (**E1** scanner P/R/F1 vs baselines + ablation, **E2** risk calibration, **E3** patch pass@k, **E4** hybrid-handshake overhead via pcap-timestamp + `tc netem`); `v0.9.0` to PyPI + GHCR; docs site; deferred stretch items (Java LLM rules, HAProxy, Apache/Terraform, `/risk/simulate`, dashboard analytics extras) as time allows. **Paper submitted ~W32** to an Annexure-1 venue.
+The single remaining sprint. Goal: a **hardened, self-hostable working product** by Sep 30 — *not* the
+paper. Scope is ordered by shippable-product value; the paper/experiment items are explicitly pushed to
+"deferred (post-deadline)" below. Weekly progress is tracked in
+[docs/project-status/WEEKLY_REPORT.md](project-status/WEEKLY_REPORT.md).
 
-### Phase 4 — Defence (Weeks 33–40, Mar–Apr 2027)
-`v1.0.0`, thesis chapters, two rehearsals + a **backup demo video** (demo-failure insurance), viva prep.
+**In-scope for Sep 30 (product hardening):**
+- **Auth:** real token auth — token+scope lifecycle (`qubit serve token`, `ro`/`rw`, hashed store),
+  replacing the single dev token. *Highest security-hardening leverage.*
+- **Extended-module features E1–E5** (literature-survey surfacing gaps — additive, frozen-schema-safe,
+  all reuse existing code; full design [doc 08 §2](design/08-extended-modules.md)). Order follows the
+  substrate dependency (E5+E2 → E1 → E3/E4):
+
+  | # | Feature | One-line acceptance | Cut-line (drop under time pressure) |
+  |---|---|---|---|
+  | E5 | Migration knowledge base (`params/migration_kb.yaml`) | `GET /meta/migration-kb` returns versioned entries; hash recorded in engine-version record | **never-cut** (substrate for E1/E2) |
+  | E2 | Crypto agility policy (`params/agility_policy.yaml` + resolver) | `resolve_target(asset, policy)` deterministic; `GET /meta/agility-policy` renders it | **never-cut** (substrate for E1) |
+  | E1 | Per-asset algorithm recommendation | `GET /assets/{id}/recommendation` returns target+library+rationale for every vulnerable asset; Inventory drawer badge | keep endpoint, badge can defer |
+  | E3 | Dependency graph surfaced (API + viz) | `GET /plans/{id}/graph` serializes nodes/edges/units; Migration-queue graph tab | **cut to endpoint-only** (drop the interactive viz) |
+  | E4 | Governance sign-off + policy gate | apply blocked with `409 governance_gate` when policy unmet; approver `actor` logged; approvals strip in UI | **cut to single-approval + actor logging** |
+
+- **Packaging + ops:** `pip install qubit-cli` from a clean clone + `docker compose up` full stack verified
+  on a fresh machine; a minimal structured-logging story; README quickstart.
+- **Test-suite hygiene:** mark the bridge e2e probe test `@pytest.mark.integration` (§ status report); add
+  `xgboost` to the eval env so the regressor test runs in the gate; keep coverage ≥70% on core packages.
+- **Demo readiness:** `qubit demo run --all` rehearsed + a **backup demo video** (demo-failure insurance).
+
+Each item ships with its quality gate (`uv run ruff check <pkg> && uv run mypy <pkg>/src && uv run pytest <pkg> -q`); none edit the frozen `CryptoAsset` schema.
+
+**Product acceptance (Sep 30):** on a clean machine, `docker compose up` (or `pip install`) yields a
+working product in <10 min (excl. model pull); real token auth enforced; the 4-phase demo runs end-to-end;
+CI green incl. coverage gate; E5+E2+E1 landed (E3/E4 at least to their cut-line).
+
+### Deferred to after the deadline (paper track — NOT required for Sep 30)
+Baselines (CryptoGuard, CogniCrypt) in containers; the four **experiment suites** (scanner P/R/F1 vs
+baselines + ablation, risk calibration, patch pass@k, hybrid-handshake overhead via pcap-timestamp +
+`tc netem` — historically also labelled E1–E4, distinct from the extended-module features E1–E5 above);
+running the external-validation study with **real human rankings** for the paper's Spearman-ρ; `v0.9.0`/
+`v1.0.0` to PyPI + GHCR; docs site; the SCOPUS/Annexure-1 **paper**; thesis chapters + viva prep. These
+resume after the Sep 30 product deadline.
 
 ## 6. What makes this a product, not a prototype
 
 `pip install qubit-cli` + `docker compose up` both work from a clean clone; CI is green with ≥70% coverage on the three core packages; every scan/risk run records engine versions for reproducibility; the CBOM validates against the official ECMA-424 schema; the whole thing runs offline with a local LLM and no telemetry; and a third party can add a detection rule or a migration rule as pure YAML + fixtures and watch it flow through the pipeline.
 
-## 7. What makes it publishable
+## 7. What makes it publishable (paper track — deferred post-deadline)
+
+> The paper is now **deferred to after the Sep 30, 2026 product deadline** (see §5). This section records
+> the publishable claim so it is ready to pick up once the hardened product ships.
 
 The novelty is the **synthesis** no prior work combines (confirmed against the 2026 ecosystem in doc 07): CRQC Monte-Carlo hardware simulation **fused with** programmatic AST discovery into a continuous, calibrated HNDL score; **local-LLM** AST-to-PQC code transformation with a safety-gated verification pipeline (a bad patch can never merge — the honest claim even at a 55% LLM success rate); and automated CycloneDX CBOM output tying it to emerging compliance mandates. The evaluation (E1–E4) measures each claim against real baselines on real benchmarks, with all figures regenerable from `experiments/run_all.py`.
 
 ## 8. Top risks and how the plan absorbs them
 
-- **Two people, six subsystems, placement season.** → Front-load M1 into the July–August break; pre-ordered cut-lines (C1–C8 in doc 06 + per-doc cut-lines); the never-cut cores fit the 44 pw budget with ~4 pw slack.
+- **Compressed deadline (Sep 30, 2026) with M3 hardening still open.** → M2 is already complete, so the
+  product story exists today; the sprint only *hardens* it. Scope is ordered by product value with
+  pre-ordered cut-lines (E3→endpoint-only, E4→single-approval, plus the per-doc cut-lines); the paper is
+  deferred so it cannot compete with shipping the product.
 - **LLM patch quality on student hardware.** → Deterministic template transforms guarantee the demo without a GPU; the validation gate makes *safety* the claim; success rate is a finding either way.
 - **Subsystem interfaces slipping.** → Fixture-first development (recorded/hand-written scans, canned RiskResult) unblocks the API and dashboard from day 1; the normative REST registry + `demo-lab/SPEC.md` + the frozen `CryptoAsset` schema are the contracts.
 - **Demo fails live.** → `--canned` mode + a pre-recorded backup video.

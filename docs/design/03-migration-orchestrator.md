@@ -53,6 +53,29 @@ The Migration Orchestrator turns a risk-ranked inventory of quantum-vulnerable c
 - No GNN and no QUBO scheduling in the product path (research plan lists them; both are cut to "future work" — plain `networkx` heuristics fully carry the demo and the paper's contribution).
 - No cloud IaC providers beyond demo-lab Terraform (we do not assert AWS/GCP PQC LB policies we cannot verify).
 
+### 1.5 M3+ extension hooks (literature-survey additive features — see doc 08)
+
+The [literature-survey coverage design](08-extended-modules.md) surfaces three capabilities that this
+orchestrator already *computes internally* but does not yet expose. These are **additive** — they reuse
+the code below, add no new graph/FSM logic, and do not touch the frozen `CryptoAsset` schema:
+
+- **E3 — surface the dependency graph.** `graph/builder.py` + `graph/order.py` already build the
+  `nx.DiGraph` and its SCC condensation to compute `order_index` (§6.1). E3 adds a serializer in
+  `graph/export.py` (already listed in §2's component tree as "JSON / DOT / dashboard payloads") and a
+  read-only `GET /plans/{id}/graph` so the structure that produced the queue becomes visible.
+- **E1 — surface per-asset algorithm recommendation.** The rule-matcher (`transform/rules.py`) + the
+  algorithm registry already decide the PQC target; E1 exposes it as an `AssetRecommendation` read model
+  (`GET /assets/{id}/recommendation`) instead of it only being visible inside a migration item.
+- **E5 — consolidate the migration knowledge base.** The vuln-algo → PQC-target → library → guidance
+  mapping currently living in rule `semantic_note` prose is consolidated into a versioned
+  `params/migration_kb.yaml`; rule notes become references to KB entries (a later dedup refactor, not a
+  rule-pack rewrite). **E2** (`params/agility_policy.yaml`) adds the hybrid-vs-pure policy that E1 falls
+  back to when a rule does not pin a target; **E4** layers governance sign-off gates over the existing
+  apply guardrail (doc-05 §6.5) — neither rewrites the state machine.
+
+Full designs, params-file shapes, and endpoint specs are in [doc 08 §2](08-extended-modules.md); tracking
+and cut-lines are in [BUILD_PLAN.md](../BUILD_PLAN.md).
+
 ---
 
 ## 2. Component breakdown

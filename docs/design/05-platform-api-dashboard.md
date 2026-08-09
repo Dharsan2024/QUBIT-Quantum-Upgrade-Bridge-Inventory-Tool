@@ -486,6 +486,25 @@ Auth column: 🔓 = anonymous, 🔑ro = any valid token, 🔑rw = write-scope to
 
 **Requested additions consumed by sibling docs:** `POST /scans/{sid}/assets/batch` (bridge `--push`, doc 04); `POST /scans/{sid}/risk/simulate` (doc 02, M3 stretch); `/bridge/measurements` (doc 04, M3). **No `/demo/*` endpoints exist** — the 4-phase demo is orchestrated by the host CLI only; a containerized API driving `docker compose` would require a docker-socket mount (root-equivalent), which we refuse.
 
+**Extended-module endpoints (M3+, additive — see [doc 08](../design/08-extended-modules.md)):** the
+literature-survey coverage design surfaces capabilities the engines already compute internally. These are
+**pure reads** (plus one additive precondition on the existing apply guardrail); they add no new DB tables
+and do not touch the binding schema. Added here as normative rows so sibling docs consume one shape:
+
+| Method | Path | Auth | Purpose / notes |
+|---|---|---|---|
+| GET | `/assets/{aid}/recommendation` | 🔑ro | **E1** — `AssetRecommendation` read model: current algo → target `{algorithm, mode:pure\|hybrid, parameter_set}`, `library{name,min_version}`, `rationale`, `source`, `confidence`. Assembled from the doc-03 rule-matcher + registry + KB (E5) + agility policy (E2); no DB table |
+| GET | `/plans/{plan_id}/graph` | 🔑ro | **E3** — serialized dependency graph: `{nodes[], edges[{kind,confidence}], units[{is_cycle}]}` from doc-03 `graph/export.py`; reuses `build_dependency_graph`/`migration_order` |
+| GET | `/migrations/{mid}/governance` | 🔑ro | **E4** — gate state for the item (`{required_approvals, have, blocked_by}`); evaluated against `params/governance_policy.yaml` |
+| GET | `/meta/agility-policy` | 🔑ro | **E2** — active `agility_policy.yaml` (version + defaults + overrides) for the Settings page |
+| GET | `/meta/migration-kb` | 🔑ro | **E5** — active `migration_kb.yaml` entries (PQC migration reference table) |
+
+E4 also adds an **additive precondition** to the apply guardrail (§6.5): the governance policy gate is
+checked before the write; an unmet gate returns `409 governance_gate`. `/migrations/{mid}/approve`
+records the acting token name (`actor`) on the `MigrationEvent` (additive metadata, doc 03 owns the
+table). All five endpoints are 🔑ro pure reads; the agility policy and KB are edited as git-reviewed
+params files, not via runtime mutation endpoints (reproducibility, N8).
+
 SSE event format (`sse-starlette`), consumed by `EventSource` with `Last-Event-ID` replay from an in-memory ring buffer (size 1024; on gap, client refetches via REST):
 
 ```
@@ -772,6 +791,20 @@ State rules: **all server data via TanStack Query** (`staleTime` 15 s; job-linke
 7. **CBOM** (`/p/:pid/cbom`): summary (component counts by `assetType`, spec version 1.7 badge, serialNumber); collapsible JSON tree (custom `<details>`-based component, no extra dep); buttons: Download JSON, Validate (shows validator findings), Copy `curl` command.
 8. **Scans & Jobs** (`/p/:pid/scans`): scan history table (seq, label, status, assets, duration) with per-scan actions (assets / CBOM / delete / compare→`/scans/{sid}/diff` view showing added/removed/persisting); live jobs panel with progress bars fed by SSE.
 9. **Settings** (`/settings`): server URL + token (test button → `/auth/whoami`), theme toggle, danger zone (delete project).
+
+**M3+ extended-module surfaces (additive, from [doc 08 §2](../design/08-extended-modules.md); no new pages, cut-line-eligible where noted):**
+- **E1 recommendation** — a "→ target (mode) · library≥ver" badge with a rationale tooltip in the
+  Inventory drawer (page 2) and the Migration detail header (page 6), fed by `/assets/{aid}/recommendation`.
+- **E3 dependency graph** — a **Dependency Graph** tab on the Migration queue page (page 5): directed
+  graph, nodes colored by risk, edges labeled by kind, cycles boxed as migration units; node click →
+  migration detail. Fed by `/plans/{plan_id}/graph`. *Cut-line-eligible* (JSON endpoint kept even if the
+  interactive viz defers).
+- **E4 governance** — an approvals strip on the Migration detail page (who approved / what's still
+  required) and a red "blocked by governance policy" state on Apply, fed by `/migrations/{mid}/governance`.
+  *Cut-line-eligible* below single-approval + actor logging.
+- **E2 agility policy / E5 migration KB** — read-only reference tables on the Settings page from
+  `/meta/agility-policy` and `/meta/migration-kb`. *Never-cut* (small; they document the policy the
+  recommendations stand on).
 
 ### 6.8 Serving model
 

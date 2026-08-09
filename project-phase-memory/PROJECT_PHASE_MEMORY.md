@@ -14,6 +14,11 @@
   Ignore the two-person split when planning work; everything is done by one person + AI agents.
 - **No breaks in the build.** Do NOT pace work around the academic calendar / exam breaks that appear in
   `docs/design/06-engineering-plan.md §11`. Building is continuous. That week-by-week table is reference only.
+- **DEADLINE (revised 2026-08-09): end of September 2026.** Single continuous sprint **2026-08-09 → 2026-09-30**.
+  Target = a **hardened, self-hostable working product** by Sep 30 (real auth, packaging, `docker compose up`,
+  extended modules E1–E5, demo-ready). The **research paper + formal experiment suites are DEFERRED to after
+  Sep 30** — they must not compete with shipping the product. The original Jul 2026–Apr 2027 phased calendar
+  is now historical; this window supersedes it. See `docs/BUILD_PLAN.md §5` + `docs/project-status/`.
 - **Agent-assisted.** The agent writes the bulk of the code; the human orchestrates, reviews, and tests.
   So the "~44 person-week" budget in the design docs is NOT the real constraint — throughput is gated by
   human review/integration time, not by hand-coding hours. Treat effort estimates as relative sizing only.
@@ -32,10 +37,17 @@
   Quantum account, no quantum hardware, no quantum cloud service is required to build or run it. The
   qiskit/cirq/pennylane/qutip skills are only for an OPTIONAL paper illustration (a local-simulator
   Shor/Grover figure, qiskit-aer, no IBM account) — decide in Phase 3, not needed for the product.
-- **Active agents: Claude (orchestrator) + Google Antigravity (sub-agent).** OpenAI Codex + GitHub Copilot
-  are OUT OF CREDITS — not in rotation. Model is **assign best-fit, don't block anyone, orchestrator verifies
-  on return** (AGENT_WORK_SPLIT.md / CORE_PROMPTS.md). Antigravity runs Gemini 3.5 Flash / Gemini 3.1 Pro /
-  Claude Sonnet 4.6 / Claude Opus 4.6 / GPT-OSS 120B — pick by difficulty (Flash = cheap/bulk).
+- **Agent model: Claude = the main orchestrator; every other agent = a sub-agent.** The rules refer to
+  non-Claude agents generically as **"sub-agents"** — the workflow does not depend on which specific tool a
+  sub-agent is (it may be any agentic IDE/CLI running any capable model). Model is **assign best-fit, don't
+  block anyone, orchestrator (Claude) verifies on return** (AGENT_WORK_SPLIT.md / CORE_PROMPTS.md).
+  **Every log entry MUST name which agent did the work** (e.g. "sub-agent / Gemini 3.1 Pro High" or "Claude
+  orchestrator"). A concrete tool/model reference table is kept in AGENT_WORK_SPLIT.md §1 as *reference only*
+  (not part of the rules).
+- **Push discipline (branch rule):** sub-agents commit AND push their work — but **only to the shared
+  branch `sub-workers-push`, NEVER to `main`.** **Only Claude (the orchestrator) verifies and merges
+  `sub-workers-push` → `main`** on return (then verifies the push reached the remote). See
+  `AGENT_WORK_SPLIT.md §0 rule 3` + `§4` and `CORE_PROMPTS.md`.
 - **OUTPUT DISCIPLINE (caveman):** every agent replies terse (fragments, no filler) to save credits — but
   code, commands, diffs, paths, and LOG ENTRIES stay exact + complete, and no required step (gate, logging,
   verification) is ever dropped for brevity. Baked into all CORE_PROMPTS prompts.
@@ -61,12 +73,18 @@ the canonical decisions in `docs/BUILD_PLAN.md §4`. Trust the BUILD_PLAN when d
 
 ## 2. Current status
 
-**Phase: M3 hardening + paper experiments IN PROGRESS (M1 and M2 acceptance complete).**
+**Phase: PRODUCT-HARDENING SPRINT IN PROGRESS (M1 + M2 acceptance complete). DEADLINE 2026-09-30.**
+Timeline compressed 2026-08-09: single continuous sprint to end-Sep 2026 for a **hardened product**;
+**paper + formal experiment suites deferred to after the deadline** (see §0 deadline + `docs/BUILD_PLAN §5`
++ `docs/project-status/`). Weekly progress: `docs/project-status/WEEKLY_REPORT.md`.
 
-**Authoritative 2026-08-07 snapshot:** all seven packages, dashboard, live four-phase demo, crash
-recovery, XGBoost + conformal tier, and external-ranking validation harness are implemented. Repository
-quality gate: 241 tests green. The M3 human-ranking dataset still needs real independent ratings; never
-fabricate it.
+**Authoritative 2026-08-09 snapshot (commit `b4c070c`):** all seven packages, dashboard, live four-phase
+demo, crash recovery, XGBoost + conformal tier, and external-ranking validation harness are implemented.
+Quality gate: **271 passed · 1 skipped · 1 failed** on `uv run pytest packages -q` — the fail is the
+`qubit-bridge` e2e probe timing out on `host.docker.internal` under WSL2 docker networking (environmental,
+not a regression; fix = mark it `@pytest.mark.integration`); the skip is `xgboost` absent in the eval env.
+Docker (v29.6.1) + Ollama (`qwen2.5-coder:7b`) confirmed up 2026-08-09. The M3 human-ranking dataset still
+needs real independent ratings (deferred with the paper); never fabricate it.
 
 Build machine: Intel i7-14700HX (20c), 16 GB DDR5-5600, **NVIDIA RTX 4060 Laptop (8 GB VRAM)**, Windows 11.
 Verdict: well-suited. 7B LLM runs on the GPU (VRAM), keeping it off system RAM. The 16 GB RAM is the only
@@ -171,12 +189,16 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
 
 ## 4. Next action when resuming
 
-**Authoritative next action (2026-08-07):** harden the shipping path: audit and complete CI/coverage,
-packaging, and security/auth guardrails per `docs/design/00-architecture-frame.md` and
-`docs/design/06-engineering-plan.md`. Keep the human-ranking study honest: collect 40 real demo-lab assets
-times 3 independent raters, then run `qubit risk eval --pairwise <ratings.csv> --scores <scores.csv>`;
-never fabricate ratings. `/risk/simulate` and dashboard sliders remain M3 stretch work after the shipping
-gate is verified. The legacy Phase 0 paragraph below is historical only.
+**Authoritative next action (2026-08-09) — Sep-30 hardening sprint, in order:** (1) **real token auth**
+(tokens + scopes, hashed store) per `docs/design/05-platform-api-dashboard.md §6.6` — Claude's lane
+(security path); (2) **E5 migration KB** then **E2 agility policy** then **E1 recommendation** (the
+substrate + read model, `docs/design/08-extended-modules.md §2`) — Claude leads (touch the core contract);
+(3) hand a sub-agent, in parallel: **E3 dependency-graph serializer + graph tab**, **E4 governance UI**,
+**packaging / `docker compose up` on a clean machine**, and **test-hygiene** (mark bridge e2e
+`integration`; add `xgboost` to the eval env). Update `docs/project-status/WEEKLY_REPORT.md` each week,
+**naming the agent** on every entry. **Deferred to after Sep 30:** the paper, the four experiment suites,
+the real-human-ranking study (`qubit risk eval --pairwise …` — never fabricate ratings), and
+`/risk/simulate`. The legacy Phase 0 paragraph below is historical only.
 
 **Phase 0, step 1:** bootstrap the uv monorepo per `docs/design/06-engineering-plan.md §3.1` and land
 `qubit-core` (the binding `CryptoAsset` Pydantic + SQLAlchemy models, algorithm registry, fingerprint fn),

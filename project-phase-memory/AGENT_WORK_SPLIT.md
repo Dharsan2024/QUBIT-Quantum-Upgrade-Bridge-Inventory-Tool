@@ -14,6 +14,16 @@
 2. **Everything is provisional until the orchestrator verifies it.** When the human returns to Claude, it
    reviews every sub-agent change (KEEP / UPDATE / REMOVE) via the ORCHESTRATOR RESUME prompt
    (`CORE_PROMPTS.md B2`). This verification gate — not prohibitions — is what keeps the project safe.
+3a. **All commits are authored as `Dharsan L <dharsanlingadurai24@gmail.com>` — no exceptions.** Regardless
+   of which agent (Claude or any sub-agent) makes a commit, it must appear as authored + committed by
+   **Dharsan L <dharsanlingadurai24@gmail.com>**. This repo's local git config already pins it; on any fresh
+   clone/machine, set it FIRST: `git config user.name "Dharsan L" && git config user.email "dharsanlingadurai24@gmail.com"`.
+   Never commit under an agent/tool identity or any other email (and never the old astradyne email — see §0 of
+   PROJECT_PHASE_MEMORY). Verify before pushing: `git log -1 --format='%an <%ae>'` must print exactly
+   `Dharsan L <dharsanlingadurai24@gmail.com>`; if a wrong-identity commit slipped in, fix it with
+   `git commit --amend --reset-author` (or `git rebase --exec 'git commit --amend --reset-author --no-edit'`
+   for several) before pushing.
+
 3. **Sub-agents push to `sub-workers-push`, NEVER to `main`.** Any agent MAY commit and **push** its work —
    but sub-agents push only to the shared integration branch **`sub-workers-push`** (branch it from `main`
    if it doesn't exist: `git checkout main && git pull && git checkout -B sub-workers-push`; otherwise
@@ -114,7 +124,7 @@ Sub-agent: `git checkout sub-workers-push && git pull` (branch from `main` if it
 → quality gate green → log → commit → **`git push origin sub-workers-push`** → hand back. **Sub-agents
 never touch `main`.** Claude (on return): `git checkout main`, review `sub-workers-push` (boundaries + gate
 + semantics) → KEEP/UPDATE/REMOVE → merge the good work into `main`, fix/drop the rest → push `main` →
-verify the push reached the remote (rule 7 / A5.7). After a clean merge, `sub-workers-push` can be reset to
+verify the push reached the remote (A5.8). After a clean merge, `sub-workers-push` can be reset to
 `main` (`git checkout sub-workers-push && git reset --hard main && git push --force-with-lease`) so the next
 batch starts fresh.
 

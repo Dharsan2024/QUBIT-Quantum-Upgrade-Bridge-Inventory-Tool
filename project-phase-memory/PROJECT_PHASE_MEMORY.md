@@ -51,8 +51,14 @@
 - **OUTPUT DISCIPLINE (caveman):** every agent replies terse (fragments, no filler) to save credits — but
   code, commands, diffs, paths, and LOG ENTRIES stay exact + complete, and no required step (gate, logging,
   verification) is ever dropped for brevity. Baked into all CORE_PROMPTS prompts.
-- **Git identity:** commits use `Dharsan L <dharsanlingadurai24@gmail.com>` — do NOT use the astradyne
-  email. (Commits before 2026-07-17 evening carry the old astradyne email; not rewritten — pushed history.)
+- **Git identity (ALL agents, no exception):** EVERY commit — by Claude or ANY sub-agent — is authored +
+  committed as `Dharsan L <dharsanlingadurai24@gmail.com>`. The agent/tool identity NEVER appears in git
+  history; a push from any agent must look like it came from Dharsan L. This repo's local git config already
+  pins it; on any fresh clone/machine set it FIRST:
+  `git config user.name "Dharsan L" && git config user.email "dharsanlingadurai24@gmail.com"`. Verify before
+  pushing (`git log -1 --format='%an <%ae>'`); fix a slip with `git commit --amend --reset-author`. Do NOT
+  use the astradyne email. (Commits before 2026-07-17 evening carry the old astradyne email; not rewritten —
+  pushed history.)
 
 ---
 

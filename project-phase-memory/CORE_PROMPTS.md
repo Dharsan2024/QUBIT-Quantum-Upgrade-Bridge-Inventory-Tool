@@ -60,13 +60,20 @@ Every agent starts cold; these files are its only knowledge, so keeping them cur
    If low on credits/context, log partial progress + exact next step and commit BEFORE stopping. A cut-off
    with no log is the worst failure.
 5. **Real timestamps:** `date "+%Y-%m-%d %H:%M:%S %Z"`.
-6. **Branch + hand back** so Claude can review before/at merge.
-7. **VERIFY EVERY PUSH REACHED THE REMOTE.** A push can fail (network, HTTP 500, GitHub's 100 MB
+6. **Branch + hand back** so Claude can review before/at merge. Sub-agents push to `sub-workers-push`
+   (never `main`); only Claude merges to `main` (A4 / AGENT_WORK_SPLIT §4).
+7. **ONE COMMIT IDENTITY — always `Dharsan L <dharsanlingadurai24@gmail.com>`.** Every commit by ANY agent
+   (Claude or sub-agent) must be authored + committed as **Dharsan L <dharsanlingadurai24@gmail.com>** — the
+   agent identity never appears in git history. On a fresh clone/machine set it first:
+   `git config user.name "Dharsan L" && git config user.email "dharsanlingadurai24@gmail.com"`. Verify with
+   `git log -1 --format='%an <%ae>'` before pushing; fix a wrong-identity commit with
+   `git commit --amend --reset-author` before it leaves the machine. Never use the old astradyne email.
+8. **VERIFY EVERY PUSH REACHED THE REMOTE.** A push can fail (network, HTTP 500, GitHub's 100 MB
    file limit) yet leave work only in local git — which looks identical to success. After `git push`,
-   confirm with `git ls-remote origin -h refs/heads/main` == `git rev-parse HEAD` before claiming
-   "pushed". Do NOT trust a piped push's exit code (`| tail` masks it). NEVER `git add -f` large ML
-   artifacts (checkpoints/optimizer state) — use `.gitignore` + Git LFS. (This failed twice already;
-   see PROJECT_PHASE_MEMORY §5 2026-07-19.)
+   confirm with `git ls-remote origin -h refs/heads/<branch>` == `git rev-parse HEAD` before claiming
+   "pushed" (sub-agents check `sub-workers-push`; Claude checks `main`). Do NOT trust a piped push's exit
+   code (`| tail` masks it). NEVER `git add -f` large ML artifacts (checkpoints/optimizer state) — use
+   `.gitignore` + Git LFS. (This failed twice already; see PROJECT_PHASE_MEMORY §5 2026-07-19.)
 
 ## A6. Output discipline — "caveman" (save credits, every prompt)
 Talk terse: fragments over sentences; no filler, preamble, or flattery. **Shrink what you SAY, not what you
@@ -116,6 +123,10 @@ RULES (all agents):
 - Conform to the frame (docs/design/00) + BUILD_PLAN §4. If two docs disagree, BUILD_PLAN wins. CryptoAsset
   schema is FROZEN (additive only). Import from qubit_core; match doc 05's REST registry.
 - Quality gate before "done": `uv run ruff check <pkg> && uv run mypy <pkg>/src && uv run pytest <pkg> -q` (green).
+- GIT IDENTITY (all agents, no exception): commit as `Dharsan L <dharsanlingadurai24@gmail.com>` — the agent
+  identity NEVER appears in history. Fresh clone? set it first:
+  `git config user.name "Dharsan L" && git config user.email "dharsanlingadurai24@gmail.com"`. Push to
+  `sub-workers-push`, never `main` (only Claude merges to main). Verify identity + push (A5.7/A5.8).
 - Windows 11 (i7-14700HX / 16 GB / RTX 4060). Ollama native on GPU, not Docker. Use `uv run ...` (Python 3.12 pinned).
 - OUTPUT DISCIPLINE (caveman): reply terse — fragments, no filler/preamble/flattery. Shrink what you SAY,
   not what you DO. Keep code/commands/diffs/paths/logs exact + complete; never drop a required step to be brief.
@@ -154,7 +165,7 @@ and complete.
      endpoint matches doc 05 exactly? auth/settings actually threaded?)
 4. DECIDE (final say): KEEP -> merge; UPDATE -> fix then merge; REMOVE -> revert/discard, redo or re-assign.
 5. Merge good work from `sub-workers-push` → `main` (you are the ONLY agent that merges to `main`);
-   fix/discard the rest; commit; push `main`; VERIFY the push reached the remote (A5.7). Optionally reset
+   fix/discard the rest; commit; push `main`; VERIFY the push reached the remote (A5.8). Optionally reset
    `sub-workers-push` to `main` so the next sub-agent batch starts clean.
 6. LOG: KEEP/UPDATE/REMOVE verdict (+reason) on each SUBAGENT_WORK_LOG entry; PROJECT_PHASE_MEMORY §5 entry;
    update §2 + §4; append this prompt to USER_PROMPTS_LOG (timestamp). Then continue.

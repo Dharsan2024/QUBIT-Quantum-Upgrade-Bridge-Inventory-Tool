@@ -281,6 +281,10 @@ class MigrationOrchestrator:
         if not task:
             raise ValueError("Task not found")
 
+        # 0. Guard: Governance Policy Gate
+        from qubit_migrate.governance import check_governance
+        check_governance(task.id, self.session)
+
         # 1. Guard: Check git repo is clean
         import subprocess
 

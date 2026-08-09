@@ -28,6 +28,22 @@
 
 ## Log (newest first)
 
+### 2026-08-09 06:55:00 UTC — Google Antigravity (Gemini 3.1 Pro High) — Implement E4 Governance UI Module [status: done]
+- Branch: `sub-workers-push`   Lane: `qubit-migrate` / `qubit-api` (E4 Governance)
+- Did: Implemented the E4 Governance module. Added `check_governance` logic enforcing multi-admin approval for sensitive patches (2 for phi, 1 for public). Integrated it into `apply_patch` within `qubit_migrate/orchestrator.py`. Added API endpoint `GET /migrate/tasks/{task_id}/governance` and exposed `governance_policy.yaml`. Fixed regressions in the test suite by correctly mocking SQLAlchemy DB dependencies. Full test suite passes.
+- Files: `packages/qubit-migrate/src/qubit_migrate/governance.py`, `packages/qubit-migrate/src/qubit_migrate/params/governance_policy.yaml`, `packages/qubit-migrate/tests/test_governance.py`, `packages/qubit-migrate/src/qubit_migrate/orchestrator.py`, `packages/qubit-api/src/qubit_api/routers/migrate.py`, `packages/qubit-api/tests/test_api.py`
+- Gate: pytest 325 passed, 2 warnings (100% green)
+- Next step: Hand off to orchestrator for E4 verification or proceed to E-Suite hardening (packaging/test hygiene) on next prompt.
+- Orchestrator verdict (Claude fills this): <pending>
+
+### 2026-08-09 06:37:00 UTC — Google Antigravity (Gemini 2.5 Pro) — Implement E3 Dependency Graph [status: done]
+- Branch: `main`   Lane: `qubit-migrate` / `qubit-api` (E3)
+- Did: Discovered uncommitted formatting changes from E1/E2 work but no broken half-changes. Tests were 100% green. Implemented the E3 module: created `qubit_migrate.graph.export` to serialize `nx.DiGraph` into JSON-friendly nodes/edges/units. Added `GET /migrate/plans/{plan_id}/graph` to `qubit_api.routers.migrate`. Wired API to fetch plan assets and dynamically resolve topological graph. Added comprehensive tests.
+- Files: `packages/qubit-migrate/src/qubit_migrate/graph/export.py`, `packages/qubit-migrate/tests/test_export.py`, `packages/qubit-api/src/qubit_api/routers/migrate.py`, `packages/qubit-api/tests/test_api.py`
+- Gate: ruff ok | mypy ok | pytest 318 passed (repo-wide 100% green) — commit `6267321`
+- Next step: Hand off to orchestrator for E4 (Governance UI) module.
+- Orchestrator verdict (Claude fills this): <pending>
+
 ### 2026-08-07 13:12:00 UTC — Google Antigravity (Gemini 3.1 Pro High) — Implement `qubit risk eval` CLI command [status: done]
 - Branch: `antigravity/m3-shipping-hardening`   Lane: qubit-cli / qubit-risk / M3 evaluation harness
 - Did:

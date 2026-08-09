@@ -530,12 +530,49 @@ def test_migrate_plan_graph(tmp_path: Path) -> None:
     plan_id = plan_resp.json()["id"]
 
     # 3. Graph
-    graph_resp = client.get(f"/api/v1/migrate/plans/{plan_id}/graph")
-    assert graph_resp.status_code == 200, graph_resp.text
-    graph = graph_resp.json()
+    response = client.get(f"/api/v1/migrate/plans/{plan_id}/graph")
+    assert response.status_code == 200
+    data = response.json()
+    assert "nodes" in data
+    assert "edges" in data
+    assert "units" in data
+    assert len(data["nodes"]) > 0
 
-    assert "nodes" in graph
-    assert "edges" in graph
-    assert "units" in graph
-    assert len(graph["nodes"]) > 0
-    assert len(graph["units"]) > 0
+def test_governance_endpoint(tmp_path: Path):
+    # Setup asset and task
+    client = _make_client(tmp_path)
+    from uuid import uuid4
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from qubit_core.db import AssetRow, ProjectRow, ScanRow
+    from qubit_migrate.state.models import MigrationTask, MigrationPlan, MigrationUnit
+    
+    db_path = tmp_path / "qubit-api.db"
+    engine = create_engine(f"sqlite:///{db_path.as_posix()}")
+    with Session(engine) as db_session:
+        project = ProjectRow(id=uuid4(), name="t", slug="t")
+        db_session.add(project)
+        db_session.flush()
+        scan = ScanRow(id=uuid4(), project_id=project.id, seq=1, status="succeeded")
+        db_session.add(scan)
+        db_session.flush()
+
+        asset_id = uuid4()
+        db_session.add(AssetRow(id=asset_id, project_id=project.id, scan_id=scan.id, fingerprint="abc", source_scanner="code", asset_type="key", algorithm="RSA", sensitivity="public"))
+        plan = MigrationPlan(id=uuid4())
+        db_session.add(plan)
+        db_session.flush()
+        unit = MigrationUnit(id=uuid4(), plan_id=plan.id)
+        db_session.add(unit)
+        db_session.flush()
+        task = MigrationTask(id=uuid4(), plan_id=plan.id, unit_id=unit.id, asset_id=asset_id, state="pending")
+        db_session.add(task)
+        db_session.commit()
+        task_id = task.id
+
+    response = client.get(f"/api/v1/migrate/tasks/{task_id}/governance")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "blocked"
+    assert data["required"] == 1
+    assert data["current"] == 0

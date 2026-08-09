@@ -1,0 +1,11 @@
+version: "2026.08"
+gates:
+  - match:
+      sensitivity: ["phi", "financial"]
+    require:
+      approvals: 2
+      apply_scope: "rw"
+  - match:
+      default: true
+    require:
+      approvals: 1

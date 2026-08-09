@@ -225,6 +225,21 @@ def get_plan_graph(
     return serialize_graph(g, units)
 
 
+@router.get("/migrate/tasks/{task_id}/governance")
+def get_task_governance(
+    task_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+) -> dict:
+    from qubit_migrate.state.models import MigrationTask
+    from qubit_migrate.governance import evaluate_gate
+
+    task = session.get(MigrationTask, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return evaluate_gate(task, session)
+
+
 @router.post("/migrate/patches/{patch_id}/review", response_model=PatchOut)
 def review_patch(
     patch_id: UUID,
@@ -252,5 +267,8 @@ def apply_patch(
     try:
         patch = orch.apply_patch(patch_id, repo_root=repo_root, branch=payload.branch, actor="api")
     except Exception as e:  # EditApplyError / ValueError / subprocess errors
-        raise HTTPException(status_code=422, detail=str(e)) from e
+        msg = str(e)
+        if "Governance gate blocked" in msg:
+            raise HTTPException(status_code=409, detail=msg) from e
+        raise HTTPException(status_code=422, detail=msg) from e
     return _patch_out(patch)

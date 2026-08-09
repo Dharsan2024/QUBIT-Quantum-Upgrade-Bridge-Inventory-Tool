@@ -28,6 +28,20 @@
 
 ## Log (newest first)
 
+### 2026-08-09 (later) — ORCHESTRATOR REVIEW of the 6 sub-worker commits `6267321`..`e8162e8` (Claude, Opus)
+Reviewed everything on `sub-workers-push` not yet in `main` (E3 graph serializer + endpoint; E4 governance
+logic + policy + endpoint; docker-compose/Dockerfiles + `qubit_core.log` structured logging; E3/E4 dashboard
+UI; 2 phase-4 demo bridge fixes). E5/E2/E1 (`6191df4`) were already on `origin/main` and pass the full gate
+at the reviewed tip. **Verdict: UPDATE→KEEP (all).** Functionality is real + tested (325 pytest green), but
+the sub-agent's "gate green" was pytest-only — the FULL gate was NOT clean: **20 ruff errors, `ruff format`
+drift on 5 files, and 1 real mypy `union-attr` bug** in `governance.py::_get_required_approvals` (asset
+`sensitivity` is a str column, so the `.value` narrowing was dead + type-unsafe). Orchestrator fixes: removed
+the dead `.value` branch + unused `PatchProposal` import, wrapped all E501s, ran `ruff format`. Frozen
+`CryptoAsset` schema untouched. Also **repaired a corrupted memory file**: this SUBAGENT_WORK_LOG.md had a
+447-byte UTF-16-LE block spliced into the UTF-8 file (NUL bytes) from a sub-agent write — decoded + re-encoded
+to UTF-8, no content lost. Final gate: ruff + ruff-format + mypy (per-pkg) clean, **325 pytest passed / 0
+failed / 0 skipped**. Merged to `main`. Per-entry verdicts below are covered by this block.
+
 ### 2026-08-09 07:25:00 UTC — Google Antigravity (Gemini 3.6 Flash High) — Fix `qubit demo run` phase 4 patch ID bug [status: done]
 - Branch: `sub-workers-push`   Lane: `qubit-bridge` / `qubit-cli`
 - Did: Fixed a UUID parsing error in `qubit_bridge.demo.run_phase_4` where hardcoded string `"py-ecdh-kex-01"` was passed to `qubit migrate apply`. Updated it to dynamically generate, approve, and apply patches using `MigrationOrchestrator`. Verified `qubit demo run --canned` passes end-to-end.
@@ -267,12 +281,10 @@
   Codex defect): bare `"RSA"` literals (Cipher.getInstance("RSA"), JWT RS256) need a family-level registry
   entry in qubit-core so they keep their Shor-vulnerable verdict instead of degrading to UNKNOWN(RSA).
   Fix applied by Claude in the same session; Codex's rules kept as-is.
-[ 2 0 2 6 - 0 7 - 1 8 T 0 0 : 2 7 : 3 6 Z ]   A N T I G R A V I T Y :   c o m p l e t e d   q u b i t - b r i d g e   M 1   ( h y b r i d   T L S   t e r m i n a t o r   +   p r o b e   t o o l s ) .   T e s t s   p a s s i n g .   R e a d y   f o r   M 2   n e t w o r k   s c a n n e r s .  
- [ 2 0 2 6 - 0 7 - 1 8 T 0 0 : 3 6 : 0 6 Z ]   A N T I G R A V I T Y :   c o m p l e t e d   d a s h b o a r d   M 1   s c a f f o l d   ( R e a c t   1 8   /   V i t e   8   /   T a i l w i n d   v 4 ) .   R e a d y   f o r   M 2   n e t w o r k   s c a n n e r s .  
- -   A n t i g r a v i t y   /   G e m i n i   3 . 1   P r o   H i g h :   C o m p l e t e d   M 2   N e t w o r k ,   C o n f i g ,   a n d   C e r t   S c a n n e r s ,   i n c l u d i n g   P Q C   A P I   r u l e   d e t e c t i o n   a n d   t e s t s .   T e s t s   p a s s ,   c o v e r a g e   m a i n t a i n e d .  
- 
-
-### 2026-08-09 — Orchestrator verdicts (Claude, Opus) on antigravity/m3-shipping-hardening
+[2026-07-18T00:27:36Z] ANTIGRAVITY: completed qubit-bridge M1 (hybrid TLS terminator + probe tools). Tests passing. Ready for M2 network scanners.
+[2026-07-18T00:36:06Z] ANTIGRAVITY: completed dashboard M1 scaffold (React 18 / Vite 8 / Tailwind v4). Ready for M2 network scanners.
+- Antigravity / Gemini 3.1 Pro High: Completed M2 Network, Config, and Cert Scanners, including PQC API rule detection and tests. Tests pass, coverage maintained.
+ਊ### 2026-08-09 — Orchestrator verdicts (Claude, Opus) on antigravity/m3-shipping-hardening
 Reviewed 7 commits (external-validation, risk-eval CLI, network-auth ENG-F7, CI/gitleaks/pre-commit,
 Pydantic-v2+coverage, 2 docs). **ALL KEEP** — gate green (267 tests), no frozen-core/docs edits, both
 headline features real (Bradley-Terry+Spearman; RFC1918/allowlist scan guardrail). Merged FF to main

@@ -202,7 +202,7 @@ def get_plan_graph(
     session: Annotated[Session, Depends(get_session)],
 ) -> dict:
     from qubit_core import row_to_asset
-    from qubit_core.db import AssetRow, ScanRow
+    from qubit_core.db import AssetRow
     from qubit_migrate.graph.builder import build_dependency_graph
     from qubit_migrate.graph.export import serialize_graph
     from qubit_migrate.graph.order import migration_order
@@ -230,8 +230,8 @@ def get_task_governance(
     task_id: UUID,
     session: Annotated[Session, Depends(get_session)],
 ) -> dict:
-    from qubit_migrate.state.models import MigrationTask
     from qubit_migrate.governance import evaluate_gate
+    from qubit_migrate.state.models import MigrationTask
 
     task = session.get(MigrationTask, task_id)
     if not task:

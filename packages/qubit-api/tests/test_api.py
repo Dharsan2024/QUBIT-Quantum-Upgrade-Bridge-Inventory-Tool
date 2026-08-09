@@ -538,15 +538,17 @@ def test_migrate_plan_graph(tmp_path: Path) -> None:
     assert "units" in data
     assert len(data["nodes"]) > 0
 
+
 def test_governance_endpoint(tmp_path: Path):
     # Setup asset and task
     client = _make_client(tmp_path)
     from uuid import uuid4
+
+    from qubit_core.db import AssetRow, ProjectRow, ScanRow
+    from qubit_migrate.state.models import MigrationPlan, MigrationTask, MigrationUnit
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
-    from qubit_core.db import AssetRow, ProjectRow, ScanRow
-    from qubit_migrate.state.models import MigrationTask, MigrationPlan, MigrationUnit
-    
+
     db_path = tmp_path / "qubit-api.db"
     engine = create_engine(f"sqlite:///{db_path.as_posix()}")
     with Session(engine) as db_session:
@@ -558,14 +560,27 @@ def test_governance_endpoint(tmp_path: Path):
         db_session.flush()
 
         asset_id = uuid4()
-        db_session.add(AssetRow(id=asset_id, project_id=project.id, scan_id=scan.id, fingerprint="abc", source_scanner="code", asset_type="key", algorithm="RSA", sensitivity="public"))
+        db_session.add(
+            AssetRow(
+                id=asset_id,
+                project_id=project.id,
+                scan_id=scan.id,
+                fingerprint="abc",
+                source_scanner="code",
+                asset_type="key",
+                algorithm="RSA",
+                sensitivity="public",
+            )
+        )
         plan = MigrationPlan(id=uuid4())
         db_session.add(plan)
         db_session.flush()
         unit = MigrationUnit(id=uuid4(), plan_id=plan.id)
         db_session.add(unit)
         db_session.flush()
-        task = MigrationTask(id=uuid4(), plan_id=plan.id, unit_id=unit.id, asset_id=asset_id, state="pending")
+        task = MigrationTask(
+            id=uuid4(), plan_id=plan.id, unit_id=unit.id, asset_id=asset_id, state="pending"
+        )
         db_session.add(task)
         db_session.commit()
         task_id = task.id

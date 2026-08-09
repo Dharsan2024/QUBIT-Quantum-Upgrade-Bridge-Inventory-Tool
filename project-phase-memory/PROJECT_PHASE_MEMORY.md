@@ -231,6 +231,25 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-09 (packaging verify) — `docker compose up` actually runs: fixed 5 real bugs the sub-agent never caught (Claude, Opus)
+The sub-agent wrote `docker-compose.yml` + `Dockerfile.api` + dashboard `Dockerfile`/`nginx.conf` and logged
+"docker compose config pass" — but never BUILT or RAN them. Building + running clean-room surfaced 5 bugs
+that each broke the stack:
+1. `Dockerfile.api` CMD `qubit serve api …` — `serve` is a Typer callback, no `api` subcommand → parse error.
+   Now runs the ASGI app directly: `uv run uvicorn qubit_api.main:app`.
+2. `uv sync --frozen` installed only the root project's deps, NOT the workspace members → `uvicorn` missing →
+   container exited (2) "Failed to spawn: uvicorn". Fixed to `uv sync --frozen --all-packages`.
+3. `nginx.conf` used `$proxy_addrs` (undefined nginx var) → nginx refused to start. → `$proxy_add_x_forwarded_for`.
+4. `nginx.conf` `proxy_pass http://api:8000/` stripped the `/api` prefix, but the API is mounted at `/api/v1`
+   → every dashboard call 404. Fixed to preserve the full path + build the dashboard with `VITE_API_BASE=/api/v1`
+   (was a hardcoded `http://127.0.0.1:8787/api/v1` baked at build → unreachable in-container).
+5. `docker-compose.yml` mounted a named volume over `/app` (clobbering the installed code) + ambiguous DB
+   path. → volume moved to `/data`, `QUBIT_DB_URL=sqlite:////data/qubit.db`, dropped obsolete `version:`.
+Verified LIVE: dashboard `/`→200; `/api/v1/health`→`{"status":"ok","db":"ok"}`; `/version`→200; `whoami`
+(bootstrap token)→200; POST project→201 + read-back→200 (DB persists on volume); no-token POST→401 (auth
+enforced through the proxy). Both images build; both containers stay up. Sprint item 7 (packaging) now
+genuinely done, not just written.
+
 ### 2026-08-09 (audit) — Deep re-check of sub-agent work: efficiency + correctness improvements + log hygiene (Claude, Opus)
 Full re-audit after merging the E3/E4/packaging batch. Gate re-confirmed: ruff + ruff-format + mypy (all 7
 pkgs) clean, 325 pytest / 0 fail / 0 skip; no NUL corruption in any doc; main == sub-workers-push. Deep read

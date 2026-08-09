@@ -2,18 +2,23 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies (lockfile-frozen)
 COPY package.json package-lock.json ./
 RUN npm ci
+
+# Build with a RELATIVE API base so the browser calls same-origin /api/v1, which nginx
+# reverse-proxies to the api container. VITE_* vars are baked in at build time.
+ARG VITE_API_BASE=/api/v1
+ENV VITE_API_BASE=$VITE_API_BASE
 
 # Copy source and build
 COPY . .
 RUN npm run build
 
 FROM nginx:alpine
-# Copy built assets
+# Static build output
 COPY --from=builder /app/dist /usr/share/nginx/html
-# Copy custom nginx config
+# SPA + /api reverse-proxy config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80

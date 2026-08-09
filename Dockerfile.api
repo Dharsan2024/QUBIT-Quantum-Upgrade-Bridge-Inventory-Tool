@@ -1,20 +1,26 @@
 FROM python:3.12-slim
 
-# Install uv
+# uv for reproducible, lockfile-frozen installs
 RUN pip install --no-cache-dir uv==0.10.9
 
-# Set the working directory
 WORKDIR /app
 
-# Copy the workspace configuration and lockfile
+# Copy workspace config + lockfile first for layer caching, then the packages.
 COPY pyproject.toml uv.lock ./
 COPY packages/ ./packages/
 
-# Sync the workspace (frozen to respect lockfile)
-RUN uv sync --frozen
+# Install ALL workspace members per the lockfile. `--all-packages` is required so qubit-api and
+# its runtime deps (uvicorn, fastapi, …) are installed — a bare `uv sync` installs only the root
+# project's deps, leaving `uvicorn` missing and the CMD failing with "Failed to spawn: uvicorn".
+RUN uv sync --frozen --all-packages
 
-# Expose the API port
+# DB lives on a writable volume dir (see docker-compose.yml), NOT under /app (which holds the
+# installed code and is not a mount point).
+ENV QUBIT_DB_URL=sqlite:////data/qubit.db
+RUN mkdir -p /data
+
 EXPOSE 8000
 
-# Start the application using uv to run the CLI
-CMD ["uv", "run", "qubit", "serve", "api", "--host", "0.0.0.0", "--port", "8000"]
+# Run the ASGI app object directly (qubit_api.main:app). Binding 0.0.0.0 inside the container is
+# intentional — the container network is the isolation boundary; only the published port is exposed.
+CMD ["uv", "run", "uvicorn", "qubit_api.main:app", "--host", "0.0.0.0", "--port", "8000"]

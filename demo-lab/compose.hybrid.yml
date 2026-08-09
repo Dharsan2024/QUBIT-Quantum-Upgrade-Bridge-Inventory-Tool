@@ -10,6 +10,10 @@ services:
       - qubit-demo
 
   nginx-hybrid:
+    # Explicit tag so both compose and the probe agree on the image name (the probe runs
+    # `openssl s_client` inside this image — it ships the OpenSSL 3.5 CLI). Without this,
+    # compose auto-names it `<project>-nginx-hybrid` and the probe's default tag isn't built.
+    image: qubit-nginx-hybrid:latest
     build:
       context: ../packages/qubit-bridge/images/nginx-hybrid
       dockerfile: Dockerfile

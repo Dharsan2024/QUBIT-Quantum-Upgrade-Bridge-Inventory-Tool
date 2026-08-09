@@ -231,6 +231,27 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-09 (demo rehearsal) — `qubit demo run` rehearsed live; fixed probe image tag + phase-4 honesty + false push (Claude, Opus)
+Rehearsed the flagship demo on the live stack (Docker + Ollama up). Findings + fixes:
+- **Software loop works live both ways:** `--generator template` remediates SHA-1 (re-scan 1→0);
+  `--generator auto` remediates BOTH RSA-2048 (real Ollama LLM patch, all validation stages pass) and
+  SHA-1 → re-scan 1→0/1→0. Genuine end-to-end remediation proof.
+- **BUG (probe exit 125):** `bridge probe`/`verify` defaulted to image `qubit-nginx-hybrid:latest`, but
+  `demo-lab/compose.hybrid.yml` let compose auto-name the image (`demo-lab-nginx-hybrid`) → the probe's
+  image didn't exist → `docker run` exit 125 → every probe "unreachable". Fix: pinned
+  `image: qubit-nginx-hybrid:latest` on the compose service so compose + probe agree. After fix:
+  `bridge verify --expect X25519MLKEM768` → **PASS** (TLS1.3, hybrid PQC group negotiated on the wire).
+- **HONESTY (phase-4):** the bridge loop's "REMEDIATE" phase tried to re-apply patches to the checked-in
+  `demo-lab/vulnapp-python` (dirty git tree) → 4 cryptic "Note: Dirty git tree" lines, remediating nothing.
+  Reworked `run_phase_4` to state plainly that remediation is proven by the software loop (clean scratch
+  repo) and this phase proves the *runtime* PQC swap — no more hollow/failing apply attempts.
+- **BUG (false success):** `bridge probe --push` printed "Pushed N assets" even when the API was
+  unreachable (`WinError 10061`). `push_assets_to_api` now returns bool; CLI prints success only on true,
+  else "API unreachable". +2 tests.
+- **Known limitation (documented, not a code bug):** `tshark` not installed → pcap capture/diff phases
+  emit empty files with a clear warning; the PQC proof (probe/verify via openssl) does not need pcap.
+Gate: ruff + format + mypy clean; **327 passed / 0 failed / 0 skipped**.
+
 ### 2026-08-09 (packaging verify) — `docker compose up` actually runs: fixed 5 real bugs the sub-agent never caught (Claude, Opus)
 The sub-agent wrote `docker-compose.yml` + `Dockerfile.api` + dashboard `Dockerfile`/`nginx.conf` and logged
 "docker compose config pass" — but never BUILT or RAN them. Building + running clean-room surfaced 5 bugs

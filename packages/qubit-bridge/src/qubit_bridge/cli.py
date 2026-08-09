@@ -44,8 +44,10 @@ def probe_cmd(
         from qubit_bridge.assets import probe_to_assets, push_assets_to_api
 
         assets = probe_to_assets(result)
-        push_assets_to_api(assets)
-        console.print(f"[green]Pushed {len(assets)} assets to API.[/green]")
+        if push_assets_to_api(assets):
+            console.print(f"[green]Pushed {len(assets)} assets to API.[/green]")
+        else:
+            console.print("[yellow]Assets not pushed (API unreachable).[/yellow]")
 
     if output_json:
         console.print(result.model_dump_json(exclude={"raw_output"} if result.reachable else None))

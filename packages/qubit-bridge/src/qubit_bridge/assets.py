@@ -78,8 +78,12 @@ def probe_to_assets(r: ProbeResult) -> list[CryptoAsset]:
     return assets
 
 
-def push_assets_to_api(assets: list[CryptoAsset], api_url: str = "http://localhost:8000") -> None:
-    """POST assets to the QUBIT REST API."""
+def push_assets_to_api(assets: list[CryptoAsset], api_url: str = "http://localhost:8000") -> bool:
+    """POST assets to the QUBIT REST API. Returns True on success, False if the push failed.
+
+    Returning a bool (rather than swallowing the error) lets the caller avoid reporting a false
+    success when the API is unreachable.
+    """
     url = f"{api_url}/api/v1/assets/batch"
     payload = [a.model_dump(mode="json") for a in assets]
     try:
@@ -87,3 +91,5 @@ def push_assets_to_api(assets: list[CryptoAsset], api_url: str = "http://localho
         resp.raise_for_status()
     except httpx.HTTPError as e:
         print(f"Warning: Failed to push assets to {url}: {e}")
+        return False
+    return True

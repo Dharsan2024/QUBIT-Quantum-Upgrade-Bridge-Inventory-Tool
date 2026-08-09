@@ -48,30 +48,23 @@ def run_phase_3():
 
 
 def run_phase_4(out_dir: Path, canned: bool = False):
-    """REMEDIATE + HYBRID RE-CAPTURE."""
+    """REMEDIATE + HYBRID RE-CAPTURE.
+
+    The code-level remediation proof (scan → LLM/template patch → re-scan shows the vulnerable asset
+    gone) is the SOFTWARE loop `qubit demo run` (fresh scratch repo). This bridge phase proves the
+    RUNTIME half: the same service on the same port now negotiates the hybrid PQC group. We do not
+    re-apply code patches to the shared, checked-in `demo-lab/vulnapp-python` tree here — that would
+    require a dirty-tree write to a git-tracked dir; the software loop already showed remediation on
+    a clean scratch copy.
+    """
     console.print("[bold]Phase 4 — REMEDIATE + HYBRID RE-CAPTURE[/bold]")
     if canned:
-        console.print("Canned mode: applying fixture patch.")
+        console.print("Canned mode: hybrid re-capture from fixtures.")
     else:
-        try:
-            from qubit_core.db.session import default_db_url, get_engine, session_factory
-            from qubit_migrate.orchestrator import MigrationOrchestrator
-
-            engine = get_engine(default_db_url())
-            sf = session_factory(engine)
-            with sf() as session:
-                orch = MigrationOrchestrator(session)
-                plan = orch.build_plan()
-                repo_root = Path("demo-lab/vulnapp-python")
-                for task in plan.tasks:
-                    try:
-                        patch = orch.generate_patch(task.id, repo_root=repo_root)
-                        orch.review_patch(patch.id, approve=True, actor="demo")
-                        orch.apply_patch(patch.id, repo_root=repo_root, actor="demo")
-                    except Exception as exc:
-                        console.print(f"  Note during migration apply: {exc}")
-        except Exception as exc:
-            console.print(f"  Skipped live migration apply: {exc}")
+        console.print(
+            "Remediation already proven by the software loop (see the re-scan table above); "
+            "this phase proves the runtime PQC swap on the same port."
+        )
 
     subprocess.run(
         ["docker", "compose", "-f", "demo-lab/compose.classical.yml", "stop", "nginx-classical"],

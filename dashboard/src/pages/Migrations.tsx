@@ -11,11 +11,17 @@ import {
   ChevronDown,
   ChevronRight,
   Wand2,
+  GitFork,
+  ShieldCheck,
+  ShieldAlert,
+  List,
 } from 'lucide-react';
 import {
   createPlan,
+  fetchPlanGraph,
   fetchPlanQueue,
   fetchPlans,
+  fetchTaskGovernance,
   fetchTaskPatches,
   generatePatch,
   reviewPatch,
@@ -45,6 +51,12 @@ function TaskRow({ task }: { task: MigrationTask }) {
     enabled: open,
   });
 
+  const { data: governance } = useQuery({
+    queryKey: ['governance', task.id],
+    queryFn: () => fetchTaskGovernance(task.id),
+    enabled: open,
+  });
+
   const gen = useMutation({
     mutationFn: () => generatePatch(task.id, generator),
     onSuccess: () => {
@@ -59,6 +71,7 @@ function TaskRow({ task }: { task: MigrationTask }) {
       reviewPatch(patchId, approve),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['patches', task.id] });
+      qc.invalidateQueries({ queryKey: ['governance', task.id] });
       qc.invalidateQueries({ queryKey: ['migrate-queue'] });
     },
   });
@@ -133,6 +146,30 @@ function TaskRow({ task }: { task: MigrationTask }) {
       {open && (
         <tr>
           <td colSpan={7} className="bg-black/15 px-6 py-4">
+            {governance && (
+              <div className="mb-3 flex items-center justify-between rounded-lg border border-[color:var(--glass-border)] bg-black/20 px-3 py-2 text-xs">
+                <div className="flex items-center gap-2">
+                  {governance.gate_status === 'passed' ? (
+                    <ShieldCheck className="h-4 w-4 text-[color:var(--color-safe)]" />
+                  ) : (
+                    <ShieldAlert className="h-4 w-4 text-amber-400" />
+                  )}
+                  <span className="font-medium text-[color:var(--color-ink)]">Governance Policy:</span>
+                  <span className="text-[color:var(--color-ink-dim)]">
+                    {governance.current_approvals} / {governance.required_approvals} approvals ({governance.sensitivity} sensitivity)
+                  </span>
+                </div>
+                <span
+                  className={
+                    governance.gate_status === 'passed'
+                      ? 'chip chip-safe'
+                      : 'chip chip-warn'
+                  }
+                >
+                  {governance.gate_status}
+                </span>
+              </div>
+            )}
             {!patches?.length && (
               <div className="text-xs text-[color:var(--color-ink-faint)]">
                 No patches yet — generate one.
@@ -212,8 +249,88 @@ function TaskRow({ task }: { task: MigrationTask }) {
   );
 }
 
+function DependencyGraphView({ planId }: { planId: string }) {
+  const { data: graph, isLoading, isError, error } = useQuery({
+    queryKey: ['plan-graph', planId],
+    queryFn: () => fetchPlanGraph(planId),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="glass-card flex items-center justify-center gap-3 p-12 text-[color:var(--color-ink-dim)] text-sm">
+        <RefreshCw className="h-4 w-4 animate-spin" /> Loading dependency graph…
+      </div>
+    );
+  }
+
+  if (isError || !graph) {
+    return (
+      <div className="glass-card border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
+        {error instanceof Error ? error.message : 'Failed to load graph'}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="glass-card p-4 flex items-center justify-between text-xs text-[color:var(--color-ink-dim)]">
+        <div>
+          <span className="font-semibold text-[color:var(--color-ink)]">{graph.nodes.length}</span> Assets ·{' '}
+          <span className="font-semibold text-[color:var(--color-ink)]">{graph.edges.length}</span> Dependencies ·{' '}
+          <span className="font-semibold text-[color:var(--color-ink)]">{graph.units.length}</span> Execution Units
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400"></span> Sequential</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400"></span> Cycle / Parallel Unit</span>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {graph.units.map((unit, idx) => (
+          <div key={unit.unit_id} className="glass-card p-4 flex flex-col gap-3 border-l-4 border-l-indigo-400">
+            <div className="flex items-center justify-between text-xs border-b border-[color:var(--glass-border)] pb-2">
+              <span className="font-mono font-semibold text-indigo-300">Unit #{idx + 1} ({unit.unit_id.slice(0, 8)})</span>
+              {unit.is_cycle && <span className="chip chip-warn">Cycle Condensation</span>}
+            </div>
+            <div className="flex flex-col gap-2">
+              {unit.members.map((memberId) => {
+                const node = graph.nodes.find((n) => n.id === memberId || n.asset_id === memberId);
+                const edgesFrom = graph.edges.filter((e) => e.source === memberId);
+                return (
+                  <div key={memberId} className="rounded border border-[color:var(--glass-border)] bg-black/20 p-2.5 text-xs">
+                    <div className="flex items-center justify-between font-mono">
+                      <span className="text-[color:var(--color-ink)]">{node?.algorithm ?? 'Asset'}</span>
+                      <span className="text-[color:var(--color-ink-faint)]">rank #{node?.order_index ?? idx}</span>
+                    </div>
+                    {node?.usage_context && (
+                      <div className="mt-1 text-[11px] text-[color:var(--color-ink-faint)]">
+                        Context: {node.usage_context}
+                      </div>
+                    )}
+                    {edgesFrom.length > 0 && (
+                      <div className="mt-2 border-t border-[color:var(--glass-border)] pt-1 text-[11px] text-indigo-300/80">
+                        Depends on: {edgesFrom.map((e) => e.target.slice(0, 8)).join(', ')} ({edgesFrom[0].kind ?? 'dependency'})
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        {graph.units.length === 0 && (
+          <div className="glass-card col-span-2 p-8 text-center text-xs text-[color:var(--color-ink-faint)]">
+            No graph dependencies detected.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Migrations() {
   const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState<'queue' | 'graph'>('queue');
 
   const plansQ = useQuery({ queryKey: ['migrate-plans'], queryFn: fetchPlans });
   const activePlan = plansQ.data?.find((p) => p.status === 'active') ?? plansQ.data?.[0];
@@ -242,18 +359,42 @@ export function Migrations() {
               : 'Build a plan from risk-annotated assets, then generate and review patches.'}
           </p>
         </div>
-        <button
-          onClick={() => build.mutate()}
-          disabled={build.isPending}
-          className="glass-input flex items-center gap-2 border-indigo-400/40 text-sm font-medium hover:border-indigo-400/70 disabled:opacity-50"
-        >
-          {build.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )}
-          Build Plan
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-lg border border-[color:var(--glass-border)] bg-black/20 p-1 text-xs">
+            <button
+              onClick={() => setActiveTab('queue')}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${
+                activeTab === 'queue'
+                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30'
+                  : 'text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-ink)]'
+              }`}
+            >
+              <List className="h-3.5 w-3.5" /> Queue
+            </button>
+            <button
+              onClick={() => setActiveTab('graph')}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${
+                activeTab === 'graph'
+                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30'
+                  : 'text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-ink)]'
+              }`}
+            >
+              <GitFork className="h-3.5 w-3.5" /> Dependency Graph
+            </button>
+          </div>
+          <button
+            onClick={() => build.mutate()}
+            disabled={build.isPending}
+            className="glass-input flex items-center gap-2 border-indigo-400/40 text-sm font-medium hover:border-indigo-400/70 disabled:opacity-50"
+          >
+            {build.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            Build Plan
+          </button>
+        </div>
       </header>
 
       {(plansQ.isError || build.isError) && (
@@ -278,7 +419,11 @@ export function Migrations() {
         </div>
       )}
 
-      {activePlan?.status === 'active' && (
+      {activePlan?.status === 'active' && activeTab === 'graph' && (
+        <DependencyGraphView planId={activePlan.id} />
+      )}
+
+      {activePlan?.status === 'active' && activeTab === 'queue' && (
         <div className="glass-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-[color:var(--color-ink-dim)]">
@@ -340,3 +485,4 @@ export function Migrations() {
     </AnimatedPage>
   );
 }
+

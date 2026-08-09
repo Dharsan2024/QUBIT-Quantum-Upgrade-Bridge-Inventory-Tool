@@ -28,6 +28,14 @@
 
 ## Log (newest first)
 
+### 2026-08-09 07:21:00 UTC — Google Antigravity (Gemini 3.6 Flash High) — Surface E3 Dependency Graph & E4 Governance UI in Dashboard [status: done]
+- Branch: `sub-workers-push`   Lane: `dashboard` / `qubit-api`
+- Did: Implemented the frontend UI surfaces for extended modules E3 (Dependency Graph) and E4 (Governance Policy). Added `GraphNode`, `GraphEdge`, `GraphUnit`, `PlanGraphResponse`, and `GovernanceGateResponse` interfaces to `types.ts`. Added `fetchPlanGraph` and `fetchTaskGovernance` to `client.ts`. Updated `Migrations.tsx` with a view switcher (`Queue` | `Dependency Graph`), a full dependency graph breakdown by execution unit, and inline governance policy approval gates (`ShieldCheck` / `ShieldAlert`). Verified React/TS build (`tsc -b && vite build`) and backend tests (325 passed).
+- Files: `dashboard/src/api/types.ts`, `dashboard/src/api/client.ts`, `dashboard/src/pages/Migrations.tsx`
+- Gate: `npm run build` ok | pytest 325 passed (100% green)
+- Next step: Hand off to orchestrator for verification / merge to main.
+- Orchestrator verdict (Claude fills this): <pending>
+
 ### 2026-08-09 07:01:00 UTC — Google Antigravity (Gemini 3.1 Pro High) — Packaging and ops (docker compose + logging) [status: done]
 - Branch: `sub-workers-push`   Lane: `ops` / `qubit-api`
 - Did: Implemented packaging and operations per E-Suite hardening requirements. Created `Dockerfile.api` for the backend and `dashboard/Dockerfile` with `nginx.conf` for the frontend. Added root `docker-compose.yml` to orchestrate the full stack. Implemented a minimal structured JSON logger in `qubit_core.log` and wired it into `qubit-api/main.py`. Updated `README.md` Quickstart ports. Full test suite and `docker compose config` pass.

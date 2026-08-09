@@ -178,3 +178,42 @@ export interface TimelineResponse {
   p95_year: number;
   n_trials: number;
 }
+
+export interface GraphNode {
+  id: string;
+  asset_id: string;
+  algorithm?: string;
+  usage_context?: string;
+  risk_score?: number;
+  unit_id?: string;
+  order_index?: number;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  kind?: string;
+  confidence?: number;
+}
+
+export interface GraphUnit {
+  unit_id: string;
+  members: string[];
+  is_cycle?: boolean;
+}
+
+export interface PlanGraphResponse {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  units: GraphUnit[];
+}
+
+export interface GovernanceGateResponse {
+  gate_status: string;
+  required_approvals: number;
+  current_approvals: number;
+  approvers: string[];
+  sensitivity: string;
+  reasons: string[];
+}
+

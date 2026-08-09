@@ -157,6 +157,14 @@ export async function reviewPatch(
   return send<MigrationPatch>(`/migrate/patches/${patchId}/review`, "POST", { approve, note });
 }
 
+export async function fetchPlanGraph(planId: string): Promise<import("./types").PlanGraphResponse> {
+  return send<import("./types").PlanGraphResponse>(`/migrate/plans/${planId}/graph`);
+}
+
+export async function fetchTaskGovernance(taskId: string): Promise<import("./types").GovernanceGateResponse> {
+  return send<import("./types").GovernanceGateResponse>(`/migrate/tasks/${taskId}/governance`);
+}
+
 // ── CBOM ─────────────────────────────────────────────────────────────────────
 /** CycloneDX 1.7 CBOM document for a scan. */
 export async function fetchCbom(scanId: string): Promise<Record<string, unknown>> {

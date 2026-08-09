@@ -202,6 +202,28 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-09 — ORCHESTRATOR REVIEW: 7 M3 sub-agent commits → KEEP all, merged (Claude, Opus) — 1e75498
+Reviewed the `antigravity/m3-shipping-hardening` branch (superset of `codex/m3-state-reconcile` +
+`copilot/risk-external-validation` — both were ancestors, 0 unique commits). No frozen qubit-core/ or
+docs/design/ edits. Full gate green: ruff + mypy (6 pkgs) clean, **267 passed / 6 skipped**.
+- **657dee4 external ranking validation → KEEP.** `regressor/external_validation.py`: fits a
+  Bradley-Terry consensus from pairwise human comparisons (MLE w/ jacobian), computes Spearman ρ per
+  model vs consensus (doc 02 §6.4.5 headline experiment). Real, tested.
+- **1e56f53 `qubit risk eval` CLI → KEEP.** Wires external validation to the CLI (pairwise/scores CSV).
+- **7e383e7 network-scan auth guardrail (ENG-F7) → KEEP.** `scanner/network/auth.py`:
+  `verify_scan_authorization` allows only RFC1918/loopback OR allowlisted+`authorized=True`, else raises;
+  audit logging; `scan-network` CLI. Genuine safety gate against unauthorized internet scanning.
+- **677cff0 CI + gitleaks + pre-commit + license → KEEP.** `.github/workflows/ci.yml` runs
+  ruff+format+mypy(per-pkg)+pytest(not integration/llm/online)+dashboard build+coverage. Production hardening.
+- **eff770b Pydantic v2 ConfigDict + coverage 73.7% (+27 tests) → KEEP.** Fixes deprecated `class Config`;
+  no frozen-schema change; gate green.
+- 2 docs(memory) commits → KEEP.
+- Merged FF to main (1cf4483..1e75498), pushed + ls-remote-verified; deleted all 3 merged branches
+  (local + remote antigravity). SUBAGENT_WORK_LOG verdicts appended.
+- **M3 progress:** external-validation study DONE (was the flagged headline); CI/gitleaks/pre-commit
+  hardening DONE; network-scan safety DONE. **Next M3:** real auth (tokens+scopes) + `/simulate` what-if;
+  run the actual validation with real human rankings for the paper number.
+
 ### 2026-08-07 (later) — Closed the two M2 acceptance gaps (Claude, Opus) — e8be87c
 - **Gap A — kill-9 recovery:** `JobRunner.recover_orphaned()` now sweeps jobs AND their scans/risk-runs
   stuck in queued|running after a hard kill → marked failed w/ "interrupted by server restart" (the

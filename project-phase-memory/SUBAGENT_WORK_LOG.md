@@ -28,6 +28,14 @@
 
 ## Log (newest first)
 
+### 2026-08-09 07:25:00 UTC — Google Antigravity (Gemini 3.6 Flash High) — Fix `qubit demo run` phase 4 patch ID bug [status: done]
+- Branch: `sub-workers-push`   Lane: `qubit-bridge` / `qubit-cli`
+- Did: Fixed a UUID parsing error in `qubit_bridge.demo.run_phase_4` where hardcoded string `"py-ecdh-kex-01"` was passed to `qubit migrate apply`. Updated it to dynamically generate, approve, and apply patches using `MigrationOrchestrator`. Verified `qubit demo run --canned` passes end-to-end.
+- Files: `packages/qubit-bridge/src/qubit_bridge/demo.py`
+- Gate: pytest 325 passed (100% green) — commit `3344a74`
+- Next step: Hand off to orchestrator for verification / merge to main.
+- Orchestrator verdict (Claude fills this): <pending>
+
 ### 2026-08-09 07:21:00 UTC — Google Antigravity (Gemini 3.6 Flash High) — Surface E3 Dependency Graph & E4 Governance UI in Dashboard [status: done]
 - Branch: `sub-workers-push`   Lane: `dashboard` / `qubit-api`
 - Did: Implemented the frontend UI surfaces for extended modules E3 (Dependency Graph) and E4 (Governance Policy). Added `GraphNode`, `GraphEdge`, `GraphUnit`, `PlanGraphResponse`, and `GovernanceGateResponse` interfaces to `types.ts`. Added `fetchPlanGraph` and `fetchTaskGovernance` to `client.ts`. Updated `Migrations.tsx` with a view switcher (`Queue` | `Dependency Graph`), a full dependency graph breakdown by execution unit, and inline governance policy approval gates (`ShieldCheck` / `ShieldAlert`). Verified React/TS build (`tsc -b && vite build`) and backend tests (325 passed).

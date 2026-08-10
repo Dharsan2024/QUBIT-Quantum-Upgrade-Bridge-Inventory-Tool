@@ -41,6 +41,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.create_schema_on_startup:
         Base.metadata.create_all(engine)
 
+    # CORS: the desktop app's WebView loads the dashboard from tauri://localhost (or
+    # http://tauri.localhost on Windows WebView2), which is a DIFFERENT origin from the API on
+    # 127.0.0.1:8787. Without these headers the browser blocks every request and the window shows
+    # "Failed to fetch" even though the API is healthy. Allow the tauri + localhost dev origins.
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"^(tauri://localhost|https?://tauri\.localhost|http://(localhost|127\.0\.0\.1)(:\d+)?)$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     from fastapi import Depends
 
     from .auth import enforce_scope_by_method

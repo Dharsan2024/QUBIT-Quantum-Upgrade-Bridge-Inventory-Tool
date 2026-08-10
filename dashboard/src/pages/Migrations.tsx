@@ -403,7 +403,7 @@ export function Migrations() {
             const e = build.error ?? plansQ.error;
             return e instanceof Error ? e.message : 'request failed';
           })()}
-          <span className="text-[color:var(--color-ink-faint)]"> Is the API running on :8787?</span>
+          <span className="text-[color:var(--color-ink-faint)]"> Is the API reachable?</span>
         </div>
       )}
 

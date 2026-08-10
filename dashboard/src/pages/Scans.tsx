@@ -43,7 +43,8 @@ export function Scans() {
   const qc = useQueryClient();
   const setScanId = useUiStore((s) => s.setScanId);
   const setProjectId = useUiStore((s) => s.setProjectId);
-  const [target, setTarget] = useState('demo-lab');
+  // Default to the sample apps mounted into the API container (docker-compose: ./demo-lab:/samples).
+  const [target, setTarget] = useState('/samples');
 
   const {
     data: scans,
@@ -63,7 +64,7 @@ export function Scans() {
   });
 
   const newScan = useMutation({
-    mutationFn: (paths: string[]) => createScan(`scan-${Date.now()}`, paths),
+    mutationFn: (paths: string[]) => createScan(paths),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
   });
 
@@ -150,7 +151,7 @@ export function Scans() {
           {isError && (
             <div className="glass-card border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
               Could not load scans: {error instanceof Error ? error.message : 'unknown error'}.
-              <span className="text-[color:var(--color-ink-faint)]"> Is the API running on :8787?</span>
+              <span className="text-[color:var(--color-ink-faint)]"> Is the API reachable?</span>
             </div>
           )}
 

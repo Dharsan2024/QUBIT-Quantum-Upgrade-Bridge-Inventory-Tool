@@ -96,7 +96,12 @@ export function Layout() {
           </div>
           <div className="flex items-center gap-3">
             <span className="chip chip-safe">CycloneDX 1.7</span>
-            <button className="glass-input text-sm font-medium hover:border-indigo-400/60">New scan</button>
+            <Link
+              to="/scans"
+              className="glass-input text-sm font-medium hover:border-indigo-400/60"
+            >
+              New scan
+            </Link>
           </div>
         </header>
 

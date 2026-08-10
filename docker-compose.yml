@@ -14,6 +14,9 @@ services:
     volumes:
       # Persist the DB only — do NOT mount over /app (that holds the installed app code).
       - qubit_data:/data
+      # A real, always-present sample target so the dashboard's "New Scan" works out of the box
+      # (its default path is /samples). Read-only — the demo apps are only ever scanned, not written.
+      - ./demo-lab:/samples:ro
     # Not published to the host: the dashboard's nginx reverse-proxies to it on the compose network.
     expose:
       - "8000"

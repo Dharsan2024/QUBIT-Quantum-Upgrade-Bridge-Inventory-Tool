@@ -75,10 +75,23 @@ export async function fetchScan(scanId: string): Promise<ScanSummary> {
   return send<ScanSummary>(`/scans/${scanId}`);
 }
 
-/** Create an ad-hoc project + scan for the given target paths (risk analysis runs inline). */
-export async function createScan(name: string, targets: string[]): Promise<ScanSummary> {
-  const project = await send<{ id: string }>("/projects", "POST", { name });
-  const resp = await send<{ scan: ScanSummary }>(`/projects/${project.id}/scans`, "POST", {
+const DASHBOARD_PROJECT = "Dashboard scans";
+
+/** Find the single stable dashboard project, creating it once. Previously every scan minted a new
+ *  `scan-<timestamp>` project, which piled up dozens of empty junk projects. */
+async function ensureDashboardProject(): Promise<string> {
+  const projects = await fetchProjects();
+  const existing = projects.find((p) => p.name === DASHBOARD_PROJECT);
+  if (existing) return existing.id;
+  const created = await send<{ id: string }>("/projects", "POST", { name: DASHBOARD_PROJECT });
+  return created.id;
+}
+
+/** Scan the given target paths into the stable dashboard project (risk analysis runs inline).
+ *  Surfaces the API's error (e.g. "scan target does not exist") to the caller instead of hiding it. */
+export async function createScan(targets: string[]): Promise<ScanSummary> {
+  const projectId = await ensureDashboardProject();
+  const resp = await send<{ scan: ScanSummary }>(`/projects/${projectId}/scans`, "POST", {
     targets,
     run_risk: true,
   });

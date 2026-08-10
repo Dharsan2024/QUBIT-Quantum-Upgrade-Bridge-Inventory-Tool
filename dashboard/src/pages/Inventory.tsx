@@ -119,7 +119,7 @@ export function Inventory() {
       {isError && (
         <div className="glass-card border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
           Could not load inventory: {error instanceof Error ? error.message : 'unknown error'}.
-          <span className="text-[color:var(--color-ink-faint)]"> Is the API running on :8787?</span>
+          <span className="text-[color:var(--color-ink-faint)]"> Is the API reachable?</span>
         </div>
       )}
 

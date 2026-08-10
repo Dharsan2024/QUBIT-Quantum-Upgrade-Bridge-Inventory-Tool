@@ -132,7 +132,9 @@ class Job(Base):
     kind: Mapped[str] = mapped_column(String(16))  # scan|risk|plan|patch|verify|cbom_import
     status: Mapped[str] = mapped_column(String(12), default="queued", index=True)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("projects.id"), index=True, default=None
+        # CASCADE so deleting a project (which always has ≥1 Job from its scans) doesn't hit a
+        # FOREIGN KEY constraint failure — DELETE /projects/{id} was 500ing without this.
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True, default=None
     )
     ref_id: Mapped[uuid.UUID | None] = mapped_column(
         default=None

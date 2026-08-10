@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import logging
+import shutil
+import subprocess
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -11,9 +14,27 @@ from qubit_core.db import AssetRow, ProjectRow, ScanRow
 from qubit_risk.pipeline import RiskPipeline
 from qubit_scanner import scan_paths
 
+from ..services import is_git_url
 from .runner import ProgressReporter
 
 logger = logging.getLogger(__name__)
+
+
+def _clone_git_target(url: str) -> Path:
+    """Shallow-clone a remote repo to a temp dir and return the checkout path.
+
+    Mirrors the CLI's `qubit run` git support so the dashboard/API can scan a repo URL too.
+    """
+    dest = Path(tempfile.mkdtemp(prefix="qubit-apiclone-")) / "repo"
+    proc = subprocess.run(  # noqa: S603
+        ["git", "clone", "--depth", "1", url, str(dest)],  # noqa: S607
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    if proc.returncode != 0:
+        raise ValueError(f"git clone failed for {url}: {proc.stderr.strip() or 'clone error'}")
+    return dest
 
 
 def _scan_progress_callback(reporter: ProgressReporter) -> Callable[[str, int, int], None]:
@@ -43,7 +64,14 @@ def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[st
             roots.append(Path(project.root_path).resolve())
 
         resolved_targets: list[Path] = []
+        clone_dirs: list[Path] = []  # temp git clones to remove after the scan
         for raw in targets:
+            if is_git_url(raw):
+                reporter.update(0.05, "cloning", f"Cloning {raw}")
+                clone = _clone_git_target(raw)
+                clone_dirs.append(clone.parent)
+                resolved_targets.append(clone)
+                continue
             path = Path(raw).expanduser().resolve()
             if not path.exists():
                 raise ValueError(f"Scan target does not exist: {raw}")
@@ -56,13 +84,17 @@ def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[st
     # The design says `progress=reporter.on_scan_progress`, we'll pass it if supported,
     # but currently qubit_scanner might not have it. Let's pass it anyway as `progress`.
     try:
-        result = scan_paths(
-            resolved_targets, repo=project.slug, progress=_scan_progress_callback(reporter)
-        )
-    except TypeError:
-        # Fallback if qubit_scanner.scan_paths doesn't accept 'progress'
-        reporter.update(0.1, "scanning", "Starting scan (progress callback unsupported)")
-        result = scan_paths(resolved_targets, repo=project.slug)
+        try:
+            result = scan_paths(
+                resolved_targets, repo=project.slug, progress=_scan_progress_callback(reporter)
+            )
+        except TypeError:
+            # Fallback if qubit_scanner.scan_paths doesn't accept 'progress'
+            reporter.update(0.1, "scanning", "Starting scan (progress callback unsupported)")
+            result = scan_paths(resolved_targets, repo=project.slug)
+    finally:
+        for d in clone_dirs:  # always clean up temp git clones, even on scan failure
+            shutil.rmtree(d, ignore_errors=True)
 
     reporter.checkpoint()
 

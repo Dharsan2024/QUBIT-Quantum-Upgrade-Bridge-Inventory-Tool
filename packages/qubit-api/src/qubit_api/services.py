@@ -83,13 +83,24 @@ def annotate_scan_risk(session: Session, scan_id: UUID) -> int:
     return count
 
 
+def is_git_url(s: str) -> bool:
+    """True if the target is a remote git repo URL rather than a local path."""
+    s = s.strip()
+    return s.startswith(("http://", "https://", "git@", "ssh://", "git://")) or s.endswith(".git")
+
+
 def validate_targets(project: ProjectRow, targets: list[str]) -> list[Path]:
+    """Router pre-check. Git URLs pass through (cloned later in the scan handler); local paths
+    must exist and stay inside the project root when one is set."""
     roots: list[Path] = []
     if project.root_path:
         roots.append(Path(project.root_path).resolve())
 
     resolved_targets: list[Path] = []
     for raw in targets:
+        if is_git_url(raw):
+            resolved_targets.append(Path(raw))  # placeholder; handler clones it
+            continue
         path = Path(raw).expanduser().resolve()
         if not path.exists():
             raise HTTPException(

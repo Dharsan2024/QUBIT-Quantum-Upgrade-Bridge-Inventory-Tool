@@ -28,6 +28,32 @@ def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=str(repo), capture_output=True, check=True)  # noqa: S603, S607
 
 
+def _is_git_url(s: str) -> bool:
+    """True if the target looks like a remote git repo rather than a local path."""
+    s = s.strip()
+    return s.startswith(("http://", "https://", "git@", "ssh://", "git://")) or s.endswith(".git")
+
+
+def _clone_repo(url: str) -> Path:
+    """Shallow-clone a remote repo into a temp dir and return the checkout path.
+
+    Raises typer.Exit on failure with the git error surfaced (no silent hang — the old UI just
+    spun forever because it never actually cloned).
+    """
+    dest = Path(tempfile.mkdtemp(prefix="qubit-clone-")) / "repo"
+    console.print(f"[bold]Cloning[/bold] {url} …")
+    proc = subprocess.run(  # noqa: S603
+        ["git", "clone", "--depth", "1", url, str(dest)],  # noqa: S607
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    if proc.returncode != 0:
+        err_console.print(f"[red]clone failed:[/red] {proc.stderr.strip() or 'git clone error'}")
+        raise typer.Exit(2)
+    return dest
+
+
 def _risk_table(annotated) -> Table:  # type: ignore[no-untyped-def]
     table = Table(title="Risk-scored cryptographic assets (highest first)")
     table.add_column("Rank", justify="right")
@@ -60,9 +86,9 @@ def _risk_table(annotated) -> Table:  # type: ignore[no-untyped-def]
 
 
 def run(
-    path: Annotated[
-        Path | None,
-        typer.Argument(help="File or folder to scan. Omit to be prompted."),
+    target: Annotated[
+        str | None,
+        typer.Argument(help="Local file/folder OR a git repo URL. Omit to be prompted."),
     ] = None,
     generator: Annotated[
         str, typer.Option("--generator", help="Patch engine: auto | template | llm")
@@ -71,23 +97,35 @@ def run(
         bool, typer.Option("--yes", "-y", help="Skip the migrate confirmation prompt.")
     ] = False,
 ) -> None:
-    """Scan a path, show its HNDL risk, then offer to migrate it to post-quantum crypto."""
-    # 1. Ask for a path if not given.
-    if path is None:
-        answer = typer.prompt("Path to scan (file or folder)", default=".")
-        path = Path(answer).expanduser()
-    if not path.exists():
-        err_console.print(f"[red]error:[/red] path not found: {path}")
-        raise typer.Exit(2)
+    """Scan a local path OR a git repo, show its HNDL risk, then offer to migrate it to PQC.
 
-    # 2. Scan (real tree-sitter scanner).
-    console.print(f"\n[bold]Scanning[/bold] {path} …")
+    Git repos are shallow-cloned to a temp dir; if you choose to migrate, the (patched) clone is
+    kept and its location is printed — otherwise it is discarded.
+    """
+    # 1. Ask for a target if not given.
+    if target is None:
+        target = typer.prompt("Path or git URL to scan", default=".")
+
+    # 2. Resolve: clone a git URL, or use the local path.
+    cloned = _is_git_url(target)
+    if cloned:
+        path = _clone_repo(target)
+    else:
+        path = Path(target).expanduser()
+        if not path.exists():
+            err_console.print(f"[red]error:[/red] path not found: {path}")
+            raise typer.Exit(2)
+
+    # 3. Scan (real tree-sitter scanner).
+    console.print(f"\n[bold]Scanning[/bold] {path if not cloned else target} …")
     result = scan_paths([path], repo=str(path))
     if not result.assets:
         console.print("[green]No cryptographic assets found.[/green]")
+        if cloned:
+            shutil.rmtree(path.parent, ignore_errors=True)
         raise typer.Exit(0)
 
-    # 3. Risk-score every asset (real HNDL pipeline).
+    # 4. Risk-score every asset (real HNDL pipeline).
     from qubit_risk import RiskPipeline, load_config
 
     annotated = RiskPipeline(load_config()).assess(result.assets)
@@ -96,12 +134,17 @@ def run(
     vuln = [a for a in annotated if a.quantum_vulnerable.vulnerable]
     if not vuln:
         console.print("\n[green]Nothing quantum-vulnerable — no migration needed.[/green]")
+        if cloned:
+            shutil.rmtree(path.parent, ignore_errors=True)
         raise typer.Exit(0)
     console.print(f"\n[bold]{len(vuln)}[/bold] of {len(annotated)} assets are quantum-vulnerable.")
 
-    # 4. Offer to migrate.
+    # 5. Offer to migrate.
     if not yes and not typer.confirm("Migrate these to post-quantum crypto now?", default=True):
-        console.print("Skipped migration. Re-run with the same path when ready.")
+        console.print("Skipped migration.")
+        if cloned:
+            shutil.rmtree(path.parent, ignore_errors=True)  # discard the clone (user declined)
+            console.print("[dim]Cloned copy discarded.[/dim]")
         raise typer.Exit(0)
 
     _migrate(path, generator, result)

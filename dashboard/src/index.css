@@ -29,6 +29,11 @@
   --radius-sm: 12px;
   --shadow-lg: 0 24px 70px -20px rgba(0, 0, 0, 0.65);
   --shadow-md: 0 12px 40px -16px rgba(0, 0, 0, 0.55);
+  /* Motion vocabulary (shared — extend these, don't fork). Strong UI easings; the built-in
+     CSS ones are too weak. Values are canonical, not hand-rolled. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);      /* entrances/exits */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);  /* on-screen movement */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);   /* iOS-like drawer curve */
 }
 
 * { box-sizing: border-box; }
@@ -132,8 +137,14 @@ body {
     background-clip: text;
     color: transparent;
   }
-  .nav-pill { border: 1px solid transparent; transition: all 0.2s ease; }
+  .nav-pill { border: 1px solid transparent; transition: background 0.2s ease, border-color 0.2s ease, transform 0.12s var(--ease-out); }
   .nav-pill:hover { background: rgba(255, 255, 255, 0.05); }
+  /* Press feedback (Purpose: feedback). Near-imperceptible per the frequency tier — nav is used
+     tens of times/day, so this must be fast + subtle, never a showy bounce. transform-only. */
+  .nav-pill:active, .glass-input:active { transform: scale(0.98); }
+  @media (prefers-reduced-motion: reduce) {
+    .nav-pill:active, .glass-input:active { transform: none; }
+  }
   .nav-pill-active {
     background: linear-gradient(120deg, rgba(99, 102, 241, 0.22), rgba(34, 211, 238, 0.12));
     border-color: rgba(99, 102, 241, 0.35);
@@ -158,7 +169,7 @@ body {
   color: var(--color-ink);
   padding: 0.55rem 0.85rem;
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.12s var(--ease-out);
 }
 .glass-input:focus {
   border-color: rgba(99, 102, 241, 0.6);

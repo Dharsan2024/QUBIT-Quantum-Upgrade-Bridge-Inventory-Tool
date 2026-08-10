@@ -13,24 +13,42 @@ use tauri::Manager;
 
 struct ApiProcess(Mutex<Option<Child>>);
 
-/// Locate the monorepo root: two levels up from src-tauri (dashboard/src-tauri -> repo root),
-/// overridable with QUBIT_REPO_ROOT for a packaged install.
-fn repo_root() -> std::path::PathBuf {
+/// Find the monorepo root (the dir containing `pyproject.toml` + `packages/`).
+///
+/// A GUI-launched .exe's *current working directory* is NOT its own folder (Windows sets it to
+/// System32 or the shortcut's target), so walking up from `current_dir()` fails — that was the
+/// "Failed to fetch" bug: `uv run` launched in the wrong dir and the API never bound. We therefore
+/// search up from the EXE's own path first (`current_exe()`), then the cwd, and finally honor an
+/// explicit `QUBIT_REPO_ROOT` override.
+fn repo_root() -> Option<std::path::PathBuf> {
     if let Ok(p) = std::env::var("QUBIT_REPO_ROOT") {
-        return std::path::PathBuf::from(p);
-    }
-    // At dev/build time the exe runs from target/…; fall back to the current dir's ancestors that
-    // contain pyproject.toml + a `packages` dir.
-    let mut dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    loop {
-        if dir.join("pyproject.toml").exists() && dir.join("packages").is_dir() {
-            return dir;
-        }
-        match dir.parent() {
-            Some(p) => dir = p.to_path_buf(),
-            None => return std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+        let p = std::path::PathBuf::from(p);
+        if p.join("pyproject.toml").exists() {
+            return Some(p);
         }
     }
+    let mut starts: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            starts.push(parent.to_path_buf());
+        }
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        starts.push(cwd);
+    }
+    for start in starts {
+        let mut dir = start;
+        loop {
+            if dir.join("pyproject.toml").exists() && dir.join("packages").is_dir() {
+                return Some(dir);
+            }
+            match dir.parent() {
+                Some(p) => dir = p.to_path_buf(),
+                None => break,
+            }
+        }
+    }
+    None
 }
 
 fn spawn_api(root: &std::path::Path) -> std::io::Result<Child> {
@@ -52,13 +70,23 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .manage(ApiProcess(Mutex::new(None)))
         .setup(|app| {
-            let root = repo_root();
-            match spawn_api(&root) {
-                Ok(child) => {
-                    *app.state::<ApiProcess>().0.lock().unwrap() = Some(child);
-                }
-                Err(e) => {
-                    eprintln!("QUBIT: failed to start the API ({e}). Is `uv` installed and on PATH?");
+            match repo_root() {
+                Some(root) => match spawn_api(&root) {
+                    Ok(child) => {
+                        *app.state::<ApiProcess>().0.lock().unwrap() = Some(child);
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "QUBIT: failed to start the API from {}: {e}. Is `uv` on PATH?",
+                            root.display()
+                        );
+                    }
+                },
+                None => {
+                    eprintln!(
+                        "QUBIT: could not locate the project root (pyproject.toml + packages/). \
+                         Set QUBIT_REPO_ROOT to the repo path and relaunch."
+                    );
                 }
             }
             Ok(())

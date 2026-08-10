@@ -25,6 +25,7 @@ from .network.auth import (
     verify_scan_authorization,
 )
 from .normalize import normalize
+from .secrets import SecretScanner
 
 # Directories never worth scanning.
 _DEFAULT_IGNORES = [
@@ -54,11 +55,12 @@ def scan_paths(
     """Scan files and directories for cryptographic assets in source code, configs, and certs."""
     t0 = time.perf_counter()
     catalog = catalog or RuleCatalog.load()
-    scanners = scanners or {"code", "config", "cert"}
+    scanners = scanners or {"code", "config", "cert", "secret"}
 
     code_scanner = CodeScanner(catalog)
     config_scanner = NginxConfigParser()
     cert_scanner = CertScanner()
+    secret_scanner = SecretScanner()
     spec = pathspec.PathSpec.from_lines("gitignore", _DEFAULT_IGNORES)
 
     files = _collect_files(paths, spec)
@@ -94,6 +96,12 @@ def scan_paths(
                 if found:
                     detections.extend(found)
                     result.stats.files_scanned += 1
+
+            # HNDL exposure-surface scanner: secrets, keys, tokens, PII (beyond crypto algorithms)
+            if "secret" in scanners:
+                found = secret_scanner.scan_file(f, repo=repo)
+                if found:
+                    detections.extend(found)
 
         except Exception as e:  # never let one file abort the scan
             result.errors.append(ScanError(file=str(f), reason=repr(e)))

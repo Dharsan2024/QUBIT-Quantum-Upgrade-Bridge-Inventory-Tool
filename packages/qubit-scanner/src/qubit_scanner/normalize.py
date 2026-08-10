@@ -35,15 +35,23 @@ _VALID_ASSET_TYPE = {a.value for a in AssetType}
 
 
 def normalize(det: Detection, *, occurrence: int = 1) -> CryptoAsset:
-    canon = algorithms.resolve(det.raw_algorithm, det.key_size)
-    if canon is not None:
-        algorithm = canon.canonical
-        qv = canon.quantum_vulnerable()
-        key_size = det.key_size or canon.key_size
-    else:
-        algorithm = f"UNKNOWN({det.raw_algorithm})"
+    # HNDL exposure-surface findings (secrets, sensitive data) aren't crypto algorithms — skip the
+    # algorithm registry and label them by what they are, so they don't become "UNKNOWN(...)".
+    if det.asset_type in {"secret", "sensitive-data"}:
+        algorithm = det.raw_algorithm  # e.g. "AWS Access Key", "Hardcoded password", "PII: email"
         qv = QuantumVulnerability(vulnerable=False, attack=QuantumAttack.none)
         key_size = det.key_size
+        canon = None
+    else:
+        canon = algorithms.resolve(det.raw_algorithm, det.key_size)
+        if canon is not None:
+            algorithm = canon.canonical
+            qv = canon.quantum_vulnerable()
+            key_size = det.key_size or canon.key_size
+        else:
+            algorithm = f"UNKNOWN({det.raw_algorithm})"
+            qv = QuantumVulnerability(vulnerable=False, attack=QuantumAttack.none)
+            key_size = det.key_size
 
     clean = redaction.redact_snippet(det.evidence_snippet)
     raw_ctx = det.evidence_context or {}
@@ -60,7 +68,9 @@ def normalize(det: Detection, *, occurrence: int = 1) -> CryptoAsset:
 
     usage = det.usage_context if det.usage_context in _VALID_USAGE else "unknown"
     asset_type = det.asset_type if det.asset_type in _VALID_ASSET_TYPE else "algorithm-use"
-    confidence = det.confidence if canon is not None else "low"
+    # Crypto findings drop to "low" when unresolved; HNDL findings keep the detector's confidence.
+    is_hndl = det.asset_type in {"secret", "sensitive-data"}
+    confidence = det.confidence if (canon is not None or is_hndl) else "low"
 
     asset = CryptoAsset(
         source_scanner=SourceScanner(det.scanner)

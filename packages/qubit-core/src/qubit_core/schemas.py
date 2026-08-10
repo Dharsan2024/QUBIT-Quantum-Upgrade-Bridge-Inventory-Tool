@@ -42,6 +42,11 @@ class AssetType(StrEnum):
     certificate = "certificate"
     key = "key"
     library = "library"
+    # HNDL exposure surface (additive): what a harvest-now-decrypt-later attacker gains once
+    # quantum breaks the crypto protecting it — not just weak algorithms, but the secrets and
+    # sensitive data that weak/again-decryptable crypto exposes.
+    secret = "secret"  # noqa: S105 — enum value: hardcoded keys/tokens/passwords in source/config
+    sensitive_data = "sensitive-data"  # PII / PHI / financial data handled in code
 
 
 class UsageContext(StrEnum):

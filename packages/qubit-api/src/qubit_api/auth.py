@@ -54,8 +54,17 @@ def authenticate(
             raise _unauthorized()
         return Principal(name=row.name, scopes=row.scopes)
 
-    # Bootstrap: no DB tokens yet → honor the single dev token as rw.
-    if secrets.compare_digest(raw, settings.api_token):
+    # Bootstrap (no DB tokens yet = fresh/local/desktop install): honor the configured dev token
+    # OR either well-known dev default. This makes the desktop app resilient to a dashboard bundle
+    # that was built with a different default token — a token mismatch there previously surfaced as
+    # "Failed to fetch" (401) even though the API was up. Once a real token is minted
+    # (`qubit serve token create`), this bootstrap path is disabled and only DB tokens authenticate.
+    known_dev_tokens = {
+        settings.api_token,
+        "dev_token",  # docker-compose + desktop default
+        "qubit-dev-token-do-not-use-in-prod",  # legacy bundle default
+    }
+    if any(secrets.compare_digest(raw, t) for t in known_dev_tokens):
         return Principal(name="bootstrap-dev-token", scopes="rw")
     raise _unauthorized()
 

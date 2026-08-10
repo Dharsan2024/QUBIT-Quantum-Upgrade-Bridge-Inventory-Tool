@@ -60,4 +60,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(risk_router, prefix=settings.api_prefix, dependencies=guard)
     app.include_router(migrate_router, prefix=settings.api_prefix, dependencies=guard)
     app.include_router(recommendation_router, prefix=settings.api_prefix, dependencies=guard)
+
+    _mount_dashboard(app, settings)
     return app
+
+
+def _mount_dashboard(app: FastAPI, settings: Settings) -> None:
+    """Serve the dashboard SPA at `/` when a built dist is configured + present (native app mode).
+
+    Mounted last so it never shadows `/api/*`. An SPA fallback returns index.html for any
+    non-API path so client-side routes (e.g. /inventory) work on refresh.
+    """
+    from pathlib import Path
+
+    if not settings.dashboard_dist:
+        return
+    dist = Path(settings.dashboard_dist)
+    index = dist / "index.html"
+    if not index.is_file():
+        return
+
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    # Hashed asset files (JS/CSS) under /assets, served with correct content types.
+    assets = dist / "assets"
+    if assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(assets)), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def _spa(full_path: str) -> FileResponse:
+        # Serve a real static file if it exists (favicon, etc.); otherwise the SPA shell.
+        candidate = dist / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(str(candidate))
+        return FileResponse(str(index))

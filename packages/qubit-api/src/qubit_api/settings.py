@@ -14,3 +14,7 @@ class Settings(BaseSettings):
     bind_host: str = "127.0.0.1"
     bind_port: int = 8787
     create_schema_on_startup: bool = True
+    # Optional: absolute path to the dashboard's built `dist/`. When set (and present), the API
+    # serves the dashboard SPA at `/` so `qubit serve` is the whole app in one native process —
+    # no container, so the scanner can read local paths (X:\...) and clone git repos.
+    dashboard_dist: str | None = None

@@ -1,92 +1,100 @@
 @echo off
 REM ============================================================================
-REM  QUBIT one-click launcher (Windows)
+REM  QUBIT desktop (native) launcher - Windows
+REM
+REM  Runs the API + dashboard NATIVELY on your machine (one process), so the
+REM  scanner can read local paths (X:\...) AND clone git repos - which the
+REM  container build could not do. Docker + Ollama are still used BY this native
+REM  API for the migration sandbox and the LLM patch tier.
+REM
 REM  Double-click this file. It will:
-REM    1. make sure Docker Desktop is running (start it + wait if not),
-REM    2. check for a local Ollama (optional — only the LLM patch tier needs it),
-REM    3. bring up the full stack (API + dashboard) with `docker compose up`,
-REM    4. wait until the API is healthy,
-REM    5. open the dashboard in your browser.
-REM  Close this window (or run `docker compose down`) to stop everything.
+REM    1. install Python deps (first run only),
+REM    2. build the dashboard (first run only),
+REM    3. start the native API serving the dashboard at http://127.0.0.1:8787,
+REM    4. open it in an app window.
+REM  Close the console window to stop it.
 REM ============================================================================
 setlocal
 cd /d "%~dp0"
-title QUBIT
+title QUBIT desktop
+
+set "PORT=8787"
+set "URL=http://127.0.0.1:%PORT%"
+set "DIST=%CD%\dashboard\dist"
+REM The dashboard bundle's default token; keep in sync with QUBIT_API_TOKEN below.
+set "QUBIT_API_TOKEN=dev_token"
+set "QUBIT_DASHBOARD_DIST=%DIST%"
 
 echo(
-echo   QUBIT - Quantum Upgrade Bridge ^& Inventory Tool
-echo   ------------------------------------------------
+echo   QUBIT - Quantum Upgrade Bridge ^& Inventory Tool  (native desktop)
+echo   ----------------------------------------------------------------
 
-REM --- 1. Docker ---------------------------------------------------------------
-echo   [1/5] Checking Docker...
+REM --- 1. Python deps (uv) -----------------------------------------------------
+where uv >nul 2>&1
+if errorlevel 1 (
+  echo   ERROR: `uv` not found. Install it: https://docs.astral.sh/uv/  then re-run.
+  pause & exit /b 1
+)
+if not exist ".venv" (
+  echo   [1/4] Installing Python packages (first run - a few minutes)...
+  call uv sync --all-packages
+) else (
+  echo   [1/4] Python packages present.
+)
+
+REM --- 2. Dashboard build ------------------------------------------------------
+if not exist "%DIST%\index.html" (
+  echo   [2/4] Building the dashboard (first run)...
+  pushd dashboard
+  if not exist "node_modules" ( call npm install )
+  set "VITE_API_BASE=/api/v1"
+  set "VITE_API_TOKEN=dev_token"
+  call npm run build
+  popd
+) else (
+  echo   [2/4] Dashboard build present.
+)
+
+REM --- 3. Optional: note Docker/Ollama (used by migration + LLM tiers) ---------
 docker info >nul 2>&1
 if errorlevel 1 (
-  echo         Docker not running - starting Docker Desktop...
-  if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
-    start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
-  ) else (
-    echo         ERROR: Docker Desktop not found. Install it from https://www.docker.com/products/docker-desktop
-    pause
-    exit /b 1
-  )
-  echo         Waiting for Docker to be ready ^(up to ~90s^)...
-  set /a _tries=0
-  :waitdocker
-  timeout /t 3 >nul
-  docker info >nul 2>&1
-  if not errorlevel 1 goto dockerready
-  set /a _tries+=1
-  if %_tries% geq 30 (
-    echo         ERROR: Docker did not become ready. Open Docker Desktop manually, then re-run.
-    pause
-    exit /b 1
-  )
-  goto waitdocker
+  echo   Note: Docker not running - migration sandbox validation will be limited.
+) else (
+  echo   Docker is available (used for migration sandbox).
 )
-:dockerready
-echo         Docker is ready.
-
-REM --- 2. Ollama (optional) ----------------------------------------------------
-echo   [2/5] Checking Ollama ^(optional - only the LLM patch tier uses it^)...
 curl -s -o nul --max-time 3 http://localhost:11434/api/tags
 if errorlevel 1 (
-  echo         Ollama not detected. Template migrations still work; for LLM patches run: ollama serve
-) else (
-  echo         Ollama is up.
+  echo   Note: Ollama not detected - LLM patches need it; template patches still work.
 )
 
-REM --- 3. Bring up the stack ---------------------------------------------------
-echo   [3/5] Starting the QUBIT stack ^(first run builds images - may take a few minutes^)...
-docker compose up -d --build
-if errorlevel 1 (
-  echo         ERROR: `docker compose up` failed. See the output above.
-  pause
-  exit /b 1
-)
+REM --- 4. Start the native API (serves the dashboard too) ----------------------
+echo   [3/4] Starting QUBIT at %URL% ...
+start "QUBIT API" /min cmd /c "uv run uvicorn qubit_api.main:app --host 127.0.0.1 --port %PORT%"
 
-REM --- 4. Wait for the API to be healthy ---------------------------------------
-echo   [4/5] Waiting for the API to be healthy...
-set /a _tries=0
-:waitapi
-timeout /t 2 >nul
-curl -s -o nul --max-time 3 http://localhost:8080/api/v1/health
-if not errorlevel 1 goto apiready
-set /a _tries+=1
-if %_tries% geq 30 (
-  echo         WARNING: API health check timed out. The dashboard may still be starting.
-  goto openui
-)
-goto waitapi
-:apiready
-echo         API is healthy.
+echo   [4/4] Waiting for it to be ready...
+set /a _t=0
+:wait
+timeout /t 1 >nul
+curl -s -o nul --max-time 2 %URL%/api/v1/health
+if not errorlevel 1 goto ready
+set /a _t+=1
+if %_t% geq 40 ( echo   WARNING: startup slow - opening anyway. & goto open )
+goto wait
+:ready
+echo   Ready.
 
-REM --- 5. Open the dashboard ---------------------------------------------------
-:openui
-echo   [5/5] Opening the dashboard...
-start "" http://localhost:8080
+:open
+REM Prefer an app-mode window (no browser chrome); fall back to the default browser.
+set "EDGE=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
+set "CHROME=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+if exist "%EDGE%" ( start "" "%EDGE%" --app=%URL% ) ^
+else if exist "%CHROME%" ( start "" "%CHROME%" --app=%URL% ) ^
+else ( start "" %URL% )
+
 echo(
-echo   QUBIT is running at http://localhost:8080
-echo   To stop it: docker compose down   ^(or close Docker Desktop^)
+echo   QUBIT is running at %URL%
+echo   The scanner runs natively - you can scan any local path (e.g. X:\projects\...)
+echo   or paste a git repo URL. Close this window to stop QUBIT.
 echo(
 pause
 endlocal

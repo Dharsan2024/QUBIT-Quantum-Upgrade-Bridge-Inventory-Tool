@@ -19,8 +19,9 @@ uv run qubit run https://github.com/org/repo.git   # clone + scan a repo
 ## Option B — native Tauri window (a real installable .exe)
 
 A Tauri shell (`dashboard/src-tauri/`) that opens the dashboard in a native window and spawns the
-QUBIT API as a child process on startup. It is fully scaffolded; building the `.exe` needs the Rust
-MSVC toolchain.
+QUBIT API as a child process on startup. **Built + verified on Windows** (2026-08-10): the build
+produces `qubit-desktop.exe` and an NSIS installer `QUBIT_0.1.0_x64-setup.exe`; on launch it opens
+the window, spawns the native API on `127.0.0.1:8787`, and the dashboard loads (health → 200).
 
 ### One-time prerequisites
 

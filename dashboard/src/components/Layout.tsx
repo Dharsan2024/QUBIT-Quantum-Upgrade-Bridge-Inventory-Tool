@@ -38,11 +38,11 @@ export function Layout() {
       <div className="aurora" aria-hidden />
       <div className="grain" aria-hidden />
 
-      {/* Sidebar */}
-      <aside className="glass relative z-10 m-3 mr-0 flex w-64 flex-shrink-0 flex-col rounded-[var(--radius)]">
-        <div className="flex h-16 items-center gap-3 px-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-indigo-400/40 bg-gradient-to-br from-indigo-500/30 to-cyan-400/20 shadow-[0_8px_24px_-8px_rgba(99,102,241,0.7)]">
-            <ShieldCheck className="h-5 w-5 text-indigo-200" />
+      {/* Sidebar — macOS vibrancy panel */}
+      <aside className="sidebar-vibrancy relative z-10 m-3 mr-0 flex w-60 flex-shrink-0 flex-col rounded-[var(--radius)]">
+        <div className="flex h-14 items-center gap-3 px-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[color:var(--color-accent)]/40 bg-gradient-to-br from-[color:var(--color-accent)]/30 to-[color:var(--color-accent-2)]/20 shadow-[0_8px_24px_-8px_rgba(10,132,255,0.7)]">
+            <ShieldCheck className="h-5 w-5 text-[color:var(--color-accent-2)]" />
           </div>
           <div>
             <div className="text-gradient text-lg font-semibold leading-none tracking-tight">QUBIT</div>
@@ -63,13 +63,13 @@ export function Layout() {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  'nav-pill flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium',
+                  'nav-pill flex items-center gap-2.5 rounded-[8px] px-3 py-2 text-[13px] font-medium',
                   active
                     ? 'nav-pill-active'
                     : 'text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-ink)]',
                 )}
               >
-                <Icon className={cn('h-[18px] w-[18px]', active ? 'text-cyan-300' : 'text-slate-500')} />
+                <Icon className={cn('h-[17px] w-[17px]', active ? 'text-white' : 'text-[color:var(--color-ink-faint)]')} />
                 {item.label}
               </Link>
             );

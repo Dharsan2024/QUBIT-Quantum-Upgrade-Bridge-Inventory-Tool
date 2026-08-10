@@ -231,6 +231,22 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-10 — E1 recommendation surfaced in the dashboard (completes E1 end-to-end) (Claude, Opus)
+Read the design docs + BUILD_PLAN §5 to find genuinely-unfinished sprint work. The E1 endpoint
+(`GET /assets/{id}/recommendation`) was built + tested but had NO dashboard surface (BUILD_PLAN marked
+the badge "can defer"; it was the only E-feature with no UI). Wired it in:
+- `dashboard/src/api/types.ts`: `AssetRecommendation` type matching the API read model.
+- `dashboard/src/api/client.ts`: `fetchRecommendation(assetId)` (404 on non-vulnerable is handled as
+  "no recommendation", not an error).
+- `dashboard/src/components/AssetTable.tsx`: click any inventory row → right-side glass drawer showing
+  current algo, **target (→ ML-KEM/argon2id/… + mode)**, library ≥ min-version, source chip (rule|kb|
+  agility-policy), confidence, and rationale. Non-vulnerable rows show "quantum-safe — no migration".
+Verified LIVE through the docker stack: scanned assets → `GET /assets/{id}/recommendation` returns a
+real payload (e.g. SHA-1 → argon2id, argon2-cffi≥23.1.0, source=rule, conf=1.0). Dashboard `tsc -b &&
+vite build` clean; no Python touched (ruff clean). Also corrected the stale WEEKLY_REPORT burndown
+(items 2–7,9 were done but still showed ⬜). Sprint items 1–8 done; item 9 = rehearsed, backup video is
+the only manual remainder.
+
 ### 2026-08-09 (demo rehearsal) — `qubit demo run` rehearsed live; fixed probe image tag + phase-4 honesty + false push (Claude, Opus)
 Rehearsed the flagship demo on the live stack (Docker + Ollama up). Findings + fixes:
 - **Software loop works live both ways:** `--generator template` remediates SHA-1 (re-scan 1→0);

@@ -217,3 +217,20 @@ export interface GovernanceGateResponse {
   reasons: string[];
 }
 
+/** Response of GET /assets/{id}/recommendation — per-asset PQC recommendation (E1, doc 08 §2). */
+export interface AssetRecommendation {
+  asset_id: string;
+  current: {
+    algorithm: string;
+    key_size?: number | null;
+    usage_context: string;
+    quantum_vulnerable: boolean;
+    attack: string;
+  };
+  target: Record<string, unknown>; // {algorithm, mode: "pure"|"hybrid", parameter_set, ...}
+  library: { name?: string; min_version?: string };
+  rationale: string;
+  source: "rule" | "kb" | "agility-policy";
+  confidence: number;
+}
+

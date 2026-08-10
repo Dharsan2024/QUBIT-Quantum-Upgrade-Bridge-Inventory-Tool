@@ -18,14 +18,14 @@ Report what landed, what slipped, and the measured gate result. Timestamps: `dat
 | # | Deliverable (for Sep 30) | Owner (recommended) | Status |
 |---|---|---|---|
 | 1 | Real token auth (tokens + scopes, hashed store) | Claude orchestrator | ✅ done (2026-08-09) |
-| 2 | E5 migration KB (`params/migration_kb.yaml` + `/meta/migration-kb`) | Claude orchestrator | ⬜ not started |
-| 3 | E2 crypto-agility policy (`params/agility_policy.yaml` + resolver + `/meta/agility-policy`) | Claude orchestrator | ⬜ not started |
-| 4 | E1 per-asset recommendation (`/assets/{id}/recommendation` + Inventory badge) | Claude orchestrator | ⬜ not started |
-| 5 | E3 dependency graph surfaced (`/plans/{id}/graph` + graph tab) | sub-agent | ⬜ not started |
-| 6 | E4 governance sign-off + policy gate | sub-agent | ⬜ not started |
-| 7 | Packaging + `docker compose up` verified on a clean machine + README quickstart | sub-agent | ⬜ not started |
+| 2 | E5 migration KB (`params/migration_kb.yaml` + `/meta/migration-kb`) | sub-agent → Claude review | ✅ done (2026-08-09) |
+| 3 | E2 crypto-agility policy (`params/agility_policy.yaml` + resolver + `/meta/agility-policy`) | sub-agent → Claude review | ✅ done (2026-08-09) |
+| 4 | E1 per-asset recommendation (`/assets/{id}/recommendation` + Inventory drawer) | sub-agent (API) + Claude (drawer) | ✅ done (2026-08-10 — API + dashboard drawer) |
+| 5 | E3 dependency graph surfaced (`/plans/{id}/graph` + graph tab) | sub-agent → Claude review | ✅ done (2026-08-09) |
+| 6 | E4 governance sign-off + policy gate | sub-agent → Claude review | ✅ done (2026-08-09) |
+| 7 | Packaging + `docker compose up` verified on a clean machine + README quickstart | sub-agent + Claude fix/verify | ✅ done (2026-08-09 — 5 bugs fixed, run live) |
 | 8 | Test hygiene: fix bridge e2e probe; add `xgboost` to eval env; keep cov ≥70% | sub-agent | ✅ done (2026-08-09) |
-| 9 | Demo readiness: `qubit demo run --all` rehearsed + backup demo video | Claude + sub-agent | ⬜ not started |
+| 9 | Demo readiness: `qubit demo run --all` rehearsed + backup demo video | Claude + sub-agent | 🏃 rehearsed live ✅ (2026-08-09); backup video pending (manual) |
 
 Status legend: ⬜ not started · 🏃 in progress · ✅ done · ⏸ blocked · ✂️ cut to cut-line.
 

@@ -121,6 +121,14 @@ export async function fetchAssetHndl(assetId: string): Promise<HndlExplanation> 
   return send<HndlExplanation>(`/assets/${assetId}/hndl`);
 }
 
+// E1 per-asset PQC recommendation. The API returns 404 for a non-vulnerable asset (no action
+// needed) — callers should treat ApiError(404) as "no recommendation", not an error.
+export async function fetchRecommendation(
+  assetId: string,
+): Promise<import("./types").AssetRecommendation> {
+  return send<import("./types").AssetRecommendation>(`/assets/${assetId}/recommendation`);
+}
+
 export async function fetchRiskSummary(scanId: string): Promise<RiskSummary> {
   return send<RiskSummary>(`/scans/${scanId}/summary`);
 }

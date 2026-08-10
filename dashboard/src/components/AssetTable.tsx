@@ -1,6 +1,10 @@
+import { useState } from 'react';
 import { useReactTable, getCoreRowModel, flexRender } from '@tanstack/react-table';
 import type { ColumnDef } from '@tanstack/react-table';
+import { useQuery } from '@tanstack/react-query';
+import { X, Lightbulb } from 'lucide-react';
 import type { CryptoAsset } from '../api/types';
+import { fetchRecommendation, ApiError } from '../api/client';
 
 function VerdictChip({ asset }: { asset: CryptoAsset }) {
   const qv = asset.quantum_vulnerable;
@@ -75,8 +79,104 @@ const columns: ColumnDef<CryptoAsset>[] = [
   },
 ];
 
+function RecommendationDrawer({ asset, onClose }: { asset: CryptoAsset; onClose: () => void }) {
+  // Only vulnerable assets have a recommendation; the API 404s otherwise (treated as "no action").
+  const enabled = asset.quantum_vulnerable.vulnerable;
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['recommendation', asset.id],
+    queryFn: () => fetchRecommendation(asset.id),
+    enabled,
+    retry: false,
+  });
+  const notFound = isError && error instanceof ApiError && error.status === 404;
+  const target = data?.target as { algorithm?: string; mode?: string } | undefined;
+
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <aside className="glass-card relative z-50 flex h-full w-full max-w-md flex-col gap-4 overflow-y-auto rounded-none p-6">
+        <header className="flex items-start justify-between">
+          <div>
+            <div className="font-mono text-lg font-semibold">{asset.algorithm}</div>
+            <div className="text-xs uppercase tracking-wide text-[color:var(--color-ink-faint)]">
+              {asset.usage_context} · {asset.quantum_vulnerable.vulnerable ? `vuln · ${asset.quantum_vulnerable.attack}` : 'quantum-safe'}
+            </div>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-white/10" aria-label="Close">
+            <X className="h-5 w-5" />
+          </button>
+        </header>
+
+        {asset.location.file_path && (
+          <div className="font-mono text-xs text-[color:var(--color-ink-dim)]">
+            {asset.location.file_path}
+            {asset.location.line ? `:${asset.location.line}` : ''}
+          </div>
+        )}
+
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <Lightbulb className="h-4 w-4 text-amber-300" /> PQC Recommendation
+          </div>
+
+          {!enabled && (
+            <p className="text-sm text-[color:var(--color-ink-dim)]">
+              This asset is quantum-safe — no migration needed.
+            </p>
+          )}
+          {enabled && isLoading && (
+            <p className="text-sm text-[color:var(--color-ink-faint)]">Loading recommendation…</p>
+          )}
+          {enabled && notFound && (
+            <p className="text-sm text-[color:var(--color-ink-dim)]">
+              No recommendation available for this algorithm/context.
+            </p>
+          )}
+          {enabled && isError && !notFound && (
+            <p className="text-sm text-rose-300">
+              Could not load: {error instanceof Error ? error.message : 'unknown error'}
+            </p>
+          )}
+          {data && (
+            <div className="flex flex-col gap-3">
+              <div className="glass-input flex items-center justify-between gap-3 py-2">
+                <span className="text-xs text-[color:var(--color-ink-faint)]">Target</span>
+                <span className="font-mono text-sm font-medium text-emerald-200">
+                  → {target?.algorithm ?? '—'}
+                  {target?.mode ? ` (${target.mode})` : ''}
+                </span>
+              </div>
+              {(data.library?.name || data.library?.min_version) && (
+                <div className="glass-input flex items-center justify-between gap-3 py-2">
+                  <span className="text-xs text-[color:var(--color-ink-faint)]">Library</span>
+                  <span className="font-mono text-sm">
+                    {data.library.name}
+                    {data.library.min_version ? ` ≥ ${data.library.min_version}` : ''}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="chip chip-safe">source: {data.source}</span>
+                <span className="text-[color:var(--color-ink-faint)]">
+                  confidence {data.confidence.toFixed(2)}
+                </span>
+              </div>
+              {data.rationale && (
+                <p className="text-sm leading-relaxed text-[color:var(--color-ink-dim)]">
+                  {data.rationale}
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+      </aside>
+    </div>
+  );
+}
+
 export function AssetTable({ data }: { data: CryptoAsset[] }) {
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
+  const [selected, setSelected] = useState<CryptoAsset | null>(null);
 
   return (
     <div className="glass-card overflow-hidden">
@@ -98,7 +198,11 @@ export function AssetTable({ data }: { data: CryptoAsset[] }) {
           </thead>
           <tbody>
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-b border-white/5 transition-colors hover:bg-white/5">
+              <tr
+                key={row.id}
+                onClick={() => setSelected(row.original)}
+                className="cursor-pointer border-b border-white/5 transition-colors hover:bg-white/5"
+              >
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="whitespace-nowrap px-5 py-3.5">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -119,6 +223,7 @@ export function AssetTable({ data }: { data: CryptoAsset[] }) {
           </tbody>
         </table>
       </div>
+      {selected && <RecommendationDrawer asset={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }

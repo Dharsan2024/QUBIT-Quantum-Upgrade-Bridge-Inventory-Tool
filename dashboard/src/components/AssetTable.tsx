@@ -93,8 +93,9 @@ function RecommendationDrawer({ asset, onClose }: { asset: CryptoAsset; onClose:
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <aside className="glass-card relative z-50 flex h-full w-full max-w-md flex-col gap-4 overflow-y-auto rounded-none p-6">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      {/* Opaque panel (not .glass-card — a translucent bg lets the table bleed through). */}
+      <aside className="relative z-50 flex h-full w-full max-w-md flex-col gap-4 overflow-y-auto border-l border-white/10 bg-[#0d1424] p-6 shadow-2xl">
         <header className="flex items-start justify-between">
           <div>
             <div className="font-mono text-lg font-semibold">{asset.algorithm}</div>

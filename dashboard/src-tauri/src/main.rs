@@ -13,19 +13,61 @@ use tauri::Manager;
 
 struct ApiProcess(Mutex<Option<Child>>);
 
+/// True if `dir` is the QUBIT monorepo root.
+fn is_repo_root(dir: &std::path::Path) -> bool {
+    dir.join("pyproject.toml").exists() && dir.join("packages").is_dir()
+}
+
+/// Path to the persisted config that remembers the repo root (survives an install to AppData).
+fn config_path() -> Option<std::path::PathBuf> {
+    let base = std::env::var("APPDATA")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var("HOME").ok().map(std::path::PathBuf::from))?;
+    Some(base.join("QUBIT").join("repo_root.txt"))
+}
+
+fn read_saved_root() -> Option<std::path::PathBuf> {
+    let p = config_path()?;
+    let content = std::fs::read_to_string(p).ok()?;
+    let dir = std::path::PathBuf::from(content.trim());
+    if is_repo_root(&dir) {
+        Some(dir)
+    } else {
+        None
+    }
+}
+
+fn save_root(root: &std::path::Path) {
+    if let Some(p) = config_path() {
+        if let Some(parent) = p.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(p, root.to_string_lossy().as_bytes());
+    }
+}
+
 /// Find the monorepo root (the dir containing `pyproject.toml` + `packages/`).
 ///
-/// A GUI-launched .exe's *current working directory* is NOT its own folder (Windows sets it to
-/// System32 or the shortcut's target), so walking up from `current_dir()` fails — that was the
-/// "Failed to fetch" bug: `uv run` launched in the wrong dir and the API never bound. We therefore
-/// search up from the EXE's own path first (`current_exe()`), then the cwd, and finally honor an
-/// explicit `QUBIT_REPO_ROOT` override.
+/// Resolution order:
+///   1. `QUBIT_REPO_ROOT` env override,
+///   2. a saved config file (%APPDATA%\QUBIT\repo_root.txt) — this is how an INSTALLED copy in
+///      AppData (outside the source tree) finds the project after a first in-tree run,
+///   3. searching up from the exe's own path, then the cwd.
+///
+/// A GUI-launched .exe's working dir is System32, and an installed exe lives outside the repo — so
+/// neither cwd nor exe-path find it once installed. When (3) does find it (e.g. running the
+/// freshly-built exe from target/release inside the tree), we persist it via (2) for next time.
 fn repo_root() -> Option<std::path::PathBuf> {
     if let Ok(p) = std::env::var("QUBIT_REPO_ROOT") {
         let p = std::path::PathBuf::from(p);
-        if p.join("pyproject.toml").exists() {
+        if is_repo_root(&p) {
+            save_root(&p);
             return Some(p);
         }
+    }
+    if let Some(p) = read_saved_root() {
+        return Some(p);
     }
     let mut starts: Vec<std::path::PathBuf> = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
@@ -39,7 +81,8 @@ fn repo_root() -> Option<std::path::PathBuf> {
     for start in starts {
         let mut dir = start;
         loop {
-            if dir.join("pyproject.toml").exists() && dir.join("packages").is_dir() {
+            if is_repo_root(&dir) {
+                save_root(&dir);
                 return Some(dir);
             }
             match dir.parent() {

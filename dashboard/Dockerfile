@@ -10,6 +10,10 @@ RUN npm ci
 # reverse-proxies to the api container. VITE_* vars are baked in at build time.
 ARG VITE_API_BASE=/api/v1
 ENV VITE_API_BASE=$VITE_API_BASE
+# Default bearer token baked into the bundle. MUST match the api service's QUBIT_API_TOKEN
+# (docker-compose.yml) or every request 401s "Invalid API token" out of the box.
+ARG VITE_API_TOKEN=dev_token
+ENV VITE_API_TOKEN=$VITE_API_TOKEN
 
 # Copy source and build
 COPY . .

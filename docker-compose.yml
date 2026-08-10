@@ -22,6 +22,10 @@ services:
     build:
       context: ./dashboard
       dockerfile: Dockerfile
+      args:
+        # Bake the SAME default token the api service uses, so the dashboard authenticates
+        # out of the box (both default to dev_token; override QUBIT_API_TOKEN to change both).
+        VITE_API_TOKEN: ${QUBIT_API_TOKEN:-dev_token}
     ports:
       - "8080:80"
     depends_on:

@@ -1,0 +1,4 @@
+# Rust build output (large, regenerated)
+/target
+# Tauri-generated schema/config
+/gen

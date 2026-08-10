@@ -185,8 +185,8 @@ export interface GraphNode {
   algorithm?: string;
   usage_context?: string;
   risk_score?: number;
-  unit_id?: string;
-  order_index?: number;
+  unit_id?: number | null; // integer index into units[] (API emits a number, not a string)
+  order_index?: number | null;
 }
 
 export interface GraphEdge {
@@ -197,7 +197,7 @@ export interface GraphEdge {
 }
 
 export interface GraphUnit {
-  unit_id: string;
+  unit_id: number; // integer index (API: enumerate() of units)
   members: string[];
   is_cycle?: boolean;
 }

@@ -287,9 +287,9 @@ function DependencyGraphView({ planId }: { planId: string }) {
 
       <div className="grid gap-4 md:grid-cols-2">
         {graph.units.map((unit, idx) => (
-          <div key={unit.unit_id} className="glass-card p-4 flex flex-col gap-3 border-l-4 border-l-indigo-400">
+          <div key={String(unit.unit_id)} className="glass-card p-4 flex flex-col gap-3 border-l-4 border-l-indigo-400">
             <div className="flex items-center justify-between text-xs border-b border-[color:var(--glass-border)] pb-2">
-              <span className="font-mono font-semibold text-indigo-300">Unit #{idx + 1} ({unit.unit_id.slice(0, 8)})</span>
+              <span className="font-mono font-semibold text-indigo-300">Unit #{idx + 1}</span>
               {unit.is_cycle && <span className="chip chip-warn">Cycle Condensation</span>}
             </div>
             <div className="flex flex-col gap-2">

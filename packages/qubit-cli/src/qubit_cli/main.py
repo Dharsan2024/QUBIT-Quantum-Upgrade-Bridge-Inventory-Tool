@@ -34,6 +34,7 @@ from rich.table import Table
 
 from qubit_cli.commands.demo import demo_app
 from qubit_cli.commands.risk import risk_app
+from qubit_cli.commands.run import run as run_cmd
 
 # Force UTF-8 console output so rich's Unicode (arrows/checkmarks in demo output + tables) never
 # crashes on a legacy Windows code page (cp1252); errors="replace" degrades instead of raising.
@@ -82,6 +83,10 @@ def _resolve_db_url(db: str | None) -> str:
 def version() -> None:
     """Print the QUBIT version."""
     console.print(f"QUBIT {core_version}")
+
+
+# The one interactive flow: ask for a path → scan → risk score → migrate.
+app.command(name="run")(run_cmd)
 
 
 # ---------------------------------------------------------------------------

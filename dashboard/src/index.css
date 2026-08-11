@@ -1,50 +1,48 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   QUBIT — world-class glassmorphism design system (Claude design)
-   Dark, quiet, premium. Liquid-glass surfaces over a living aurora field.
+   QUBIT — "Quantum Terminal" design system.
+   A dark, high-contrast security-instrument aesthetic: near-black canvas with a
+   faint engineering grid, a luminous cyan→violet quantum accent, monospace data,
+   and thin luminous-edged cards. Distinct from generic glassmorphism.
+
+   Design tokens are theme-aware. Class names (glass-card, glass, glass-input,
+   chip) are preserved so every page adopts the new look with no per-page rewrite.
    ========================================================================== */
 
 @theme {
-  /* macOS-style dark palette — a touch cooler + deeper than pure black, like a vibrancy window. */
-  --color-bg: #0a0b0e;
-  --color-ink: #f5f6f8;         /* label */
-  --color-ink-dim: #a7adba;     /* secondary label */
-  --color-ink-faint: #6b7280;   /* tertiary label */
-  --color-accent: #0a84ff;      /* macOS system blue (dark) */
-  --color-accent-2: #64d2ff;    /* system cyan */
-  --color-accent-3: #bf5af2;    /* system purple */
-  --color-danger: #ff453a;      /* system red */
-  --color-warn: #ff9f0a;        /* system orange */
-  --color-safe: #30d158;        /* system green */
-  /* SF Pro is the macOS system font; fall back to the OS UI font on Windows/Linux. */
-  --font-sans: -apple-system, "SF Pro Text", "SF Pro Display", BlinkMacSystemFont, "Inter",
-    "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --color-bg: #070a10;
+  --color-ink: #e9eef7;
+  --color-ink-dim: #9aa6ba;
+  --color-ink-faint: #5d6a80;
+  --color-accent: #38e0ff;     /* quantum cyan */
+  --color-accent-2: #7c5cff;   /* quantum violet */
+  --color-accent-3: #22d3ee;
+  --color-danger: #ff5d6c;
+  --color-warn: #ffb020;
+  --color-safe: #35e0a1;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
 }
 
 :root {
-  /* macOS "vibrancy" materials: subtle translucent fills with a hairline top highlight + blur. */
-  --glass-bg: rgba(255, 255, 255, 0.055);
-  --glass-bg-strong: rgba(255, 255, 255, 0.085);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-highlight: rgba(255, 255, 255, 0.18);
-  --glass-blur: 30px;              /* deeper blur = more "frosted glass" like macOS sidebars */
-  --sidebar-bg: rgba(22, 24, 30, 0.72);
-  --radius: 12px;                  /* macOS window/control radii are tighter than the old 18px */
-  --radius-sm: 8px;
-  --shadow-lg: 0 20px 60px -18px rgba(0, 0, 0, 0.7);
-  --shadow-md: 0 8px 30px -12px rgba(0, 0, 0, 0.55);
-  /* Motion vocabulary (shared — extend these, don't fork). Strong UI easings; the built-in
-     CSS ones are too weak. Values are canonical, not hand-rolled. */
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);      /* entrances/exits */
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);  /* on-screen movement */
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);   /* iOS-like drawer curve */
+  /* surfaces — thin luminous edges over a deep panel */
+  --panel: rgba(255, 255, 255, 0.028);
+  --panel-2: rgba(255, 255, 255, 0.05);
+  --edge: rgba(255, 255, 255, 0.08);
+  --edge-lume: rgba(56, 224, 255, 0.35);   /* accent-tinted hairline on hover/active */
+  --glow: 0 0 0 1px rgba(56, 224, 255, 0.08), 0 18px 50px -22px rgba(56, 224, 255, 0.25);
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow-lg: 0 26px 70px -24px rgba(0, 0, 0, 0.8);
+  --shadow-md: 0 10px 34px -16px rgba(0, 0, 0, 0.65);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --sidebar-bg: rgba(12, 16, 24, 0.66);
 }
 
 * { box-sizing: border-box; }
-
 html, body, #root { height: 100%; }
-
 body {
   margin: 0;
   font-family: var(--font-sans);
@@ -52,153 +50,175 @@ body {
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  font-feature-settings: "cv01", "ss01";  /* SF-style alternates where available */
 }
-
-/* SF-style optical typography: large text tracks tighter (negative letter-spacing), the hallmark
-   of San Francisco. Headings become display-weight + condensed tracking. */
 h1, h2, h3 { letter-spacing: -0.02em; }
-h1 { letter-spacing: -0.03em; }
 
-/* ---- the living aurora background (the "liquid" feel) --------------------- */
+/* ---- ambient background: deep radial wash + faint engineering grid --------- */
 .aurora {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
+  position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
   background:
-    radial-gradient(60% 50% at 15% 10%, rgba(99, 102, 241, 0.22), transparent 60%),
-    radial-gradient(50% 45% at 85% 15%, rgba(34, 211, 238, 0.16), transparent 60%),
-    radial-gradient(55% 50% at 75% 85%, rgba(168, 85, 247, 0.18), transparent 62%),
-    radial-gradient(45% 40% at 20% 90%, rgba(56, 189, 248, 0.12), transparent 60%);
-  filter: blur(8px);
+    radial-gradient(70% 55% at 12% 0%, rgba(56, 224, 255, 0.10), transparent 60%),
+    radial-gradient(60% 50% at 92% 8%, rgba(124, 92, 255, 0.10), transparent 62%),
+    radial-gradient(90% 70% at 50% 120%, rgba(124, 92, 255, 0.06), transparent 70%);
 }
-.aurora::before {
-  content: "";
-  position: absolute;
-  inset: -40%;
-  background:
-    radial-gradient(38% 38% at 30% 35%, rgba(99, 102, 241, 0.28), transparent 60%),
-    radial-gradient(32% 32% at 70% 60%, rgba(168, 85, 247, 0.22), transparent 60%);
-  animation: drift 26s ease-in-out infinite alternate;
+.aurora::after {
+  content: ""; position: absolute; inset: 0; opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(80% 80% at 50% 30%, #000 55%, transparent 100%);
 }
-@keyframes drift {
-  0%   { transform: translate3d(-4%, -2%, 0) rotate(0deg) scale(1.05); }
-  100% { transform: translate3d(5%, 4%, 0) rotate(12deg) scale(1.15); }
-}
-/* fine grain over everything to kill banding, add texture */
-.grain {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-@media (prefers-reduced-motion: reduce) {
-  .aurora::before { animation: none; }
-}
+.grain { display: none; }
 
-/* ---- glass surfaces ------------------------------------------------------- */
 @layer components {
-  .glass {
+  /* ---- panels ---- */
+  .glass, .glass-card, .liquid-panel {
     position: relative;
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur)) saturate(160%);
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
-    border: 1px solid var(--glass-border);
-    box-shadow:
-      var(--shadow-md),
-      inset 0 1px 0 0 var(--glass-highlight),
-      inset 0 -1px 0 0 rgba(255, 255, 255, 0.02);
+    background: var(--panel);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
   }
-  .glass-strong { background: var(--glass-bg-strong); }
-
-  /* macOS sidebar: heavier frost, slightly opaque, hairline right divider — reads as a native
-     vibrancy pane rather than a translucent card. */
-  .sidebar-vibrancy {
-    background: var(--sidebar-bg);
-    backdrop-filter: blur(40px) saturate(180%);
-    -webkit-backdrop-filter: blur(40px) saturate(180%);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-md), inset 0 1px 0 0 var(--glass-highlight);
-  }
+  .glass-strong { background: var(--panel-2); }
 
   .glass-card {
-    border-radius: var(--radius);
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur)) saturate(160%);
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-md), inset 0 1px 0 0 var(--glass-highlight);
-    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+    transition: transform 0.22s var(--ease-out), border-color 0.22s ease, box-shadow 0.22s ease;
   }
   .glass-card:hover {
     transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.18);
-    box-shadow: var(--shadow-lg), inset 0 1px 0 0 var(--glass-highlight);
+    border-color: var(--edge-lume);
+    box-shadow: var(--glow), var(--shadow-lg);
   }
 
-  /* legacy alias kept so existing pages upgrade for free */
-  .liquid-panel {
-    position: relative;
-    border-radius: var(--radius);
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur)) saturate(160%);
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-lg), inset 0 1px 0 0 var(--glass-highlight);
+  .sidebar-vibrancy {
+    background: var(--sidebar-bg);
+    backdrop-filter: blur(30px) saturate(150%);
+    -webkit-backdrop-filter: blur(30px) saturate(150%);
+    border: 1px solid var(--edge);
+    box-shadow: var(--shadow-md);
   }
-}
 
-@layer utilities {
+  /* luminous quantum wordmark */
   .text-gradient {
-    background: linear-gradient(120deg, var(--color-accent), var(--color-accent-2) 55%, var(--color-accent-3));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    background: linear-gradient(100deg, var(--color-accent), var(--color-accent-2) 70%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  .nav-pill { border: 1px solid transparent; transition: background 0.2s ease, border-color 0.2s ease, transform 0.12s var(--ease-out); }
-  .nav-pill:hover { background: rgba(255, 255, 255, 0.05); }
-  /* Press feedback (Purpose: feedback). Near-imperceptible per the frequency tier — nav is used
-     tens of times/day, so this must be fast + subtle, never a showy bounce. transform-only. */
-  .nav-pill:active, .glass-input:active { transform: scale(0.98); }
+
+  /* ---- sidebar nav ---- */
+  .nav-pill {
+    border: 1px solid transparent;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease,
+      transform 0.12s var(--ease-out);
+  }
+  .nav-pill:hover { background: rgba(255, 255, 255, 0.045); }
+  .nav-pill:active, .glass-input:active { transform: scale(0.985); }
+  .nav-pill-active {
+    background: linear-gradient(100deg, rgba(56, 224, 255, 0.16), rgba(124, 92, 255, 0.14));
+    border-color: var(--edge-lume);
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(56, 224, 255, 0.15), 0 8px 22px -14px rgba(56, 224, 255, 0.6);
+  }
+  .nav-pill-active:hover { background: linear-gradient(100deg, rgba(56, 224, 255, 0.2), rgba(124, 92, 255, 0.18)); }
   @media (prefers-reduced-motion: reduce) {
     .nav-pill:active, .glass-input:active { transform: none; }
   }
-  /* macOS Finder-style selection: a solid system-blue fill, white label. Clean, not gradient-y. */
-  .nav-pill-active {
-    background: var(--color-accent);
-    border-color: transparent;
-    color: #fff;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+
+  /* ---- form controls / buttons ---- */
+  .glass-input {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius-sm);
+    color: var(--color-ink);
+    padding: 0.5rem 0.8rem;
+    outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s var(--ease-out);
   }
-  .nav-pill-active:hover { background: var(--color-accent); }
+  .glass-input:hover { border-color: rgba(255, 255, 255, 0.16); }
+  .glass-input:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(56, 224, 255, 0.18);
+  }
+
+  /* ---- chips / status pills ---- */
   .chip {
     display: inline-flex; align-items: center; gap: 0.35rem;
-    padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
-    border: 1px solid var(--glass-border); background: var(--glass-bg);
+    font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600;
+    padding: 0.16rem 0.55rem; border-radius: 6px; letter-spacing: 0.01em;
+    border: 1px solid transparent; white-space: nowrap;
   }
-  .chip-danger { color: var(--color-danger); border-color: rgba(251, 113, 133, 0.4); background: rgba(251, 113, 133, 0.1); }
-  .chip-warn   { color: var(--color-warn);   border-color: rgba(251, 191, 36, 0.4);  background: rgba(251, 191, 36, 0.1); }
-  .chip-safe   { color: var(--color-safe);   border-color: rgba(52, 211, 153, 0.4);  background: rgba(52, 211, 153, 0.1); }
+  .chip-safe   { color: var(--color-safe);   background: rgba(53, 224, 161, 0.12); border-color: rgba(53, 224, 161, 0.3); }
+  .chip-warn   { color: var(--color-warn);   background: rgba(255, 176, 32, 0.12); border-color: rgba(255, 176, 32, 0.3); }
+  .chip-danger { color: var(--color-danger); background: rgba(255, 93, 108, 0.12); border-color: rgba(255, 93, 108, 0.3); }
 }
 
-/* ---- form controls, scrollbars, selection -------------------------------- */
-.glass-input {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-ink);
-  padding: 0.55rem 0.85rem;
-  outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.12s var(--ease-out);
-}
-.glass-input:focus {
-  border-color: rgba(99, 102, 241, 0.6);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-}
-::selection { background: rgba(99, 102, 241, 0.4); color: #fff; }
+/* ---- scrollbars ---- */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); background-clip: content-box; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(56, 224, 255, 0.3); background-clip: content-box; }
+::selection { background: rgba(56, 224, 255, 0.28); }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 4px; }
+
+/* ============================================================================
+   Boot screen + deps banner
+   ========================================================================== */
+.boot-screen {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  background:
+    radial-gradient(70% 60% at 50% 0%, rgba(56, 224, 255, 0.12), transparent 60%),
+    radial-gradient(60% 60% at 50% 120%, rgba(124, 92, 255, 0.1), transparent 65%),
+    var(--color-bg);
+  z-index: 100;
+}
+.boot-card {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 0.5rem; padding: 2.4rem 2.6rem; max-width: 420px;
+}
+.boot-logo {
+  display: grid; place-items: center; width: 60px; height: 60px; border-radius: 16px;
+  color: #061018; margin-bottom: 0.4rem;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
+  box-shadow: 0 0 40px -6px rgba(56, 224, 255, 0.55);
+  animation: bootpulse 2.4s var(--ease-in-out) infinite;
+}
+@keyframes bootpulse { 0%, 100% { box-shadow: 0 0 40px -6px rgba(56, 224, 255, 0.5); } 50% { box-shadow: 0 0 56px -2px rgba(124, 92, 255, 0.6); } }
+@media (prefers-reduced-motion: reduce) { .boot-logo { animation: none; } }
+.boot-title { font-size: 1.7rem; font-weight: 800; letter-spacing: 0.08em; }
+.boot-sub { font-size: 0.85rem; color: var(--color-ink-faint); margin-bottom: 1.4rem; }
+.boot-status {
+  display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-mono);
+  font-size: 0.85rem; color: var(--color-accent);
+}
+.boot-hint { font-size: 0.8rem; color: var(--color-ink-dim); line-height: 1.5; margin: 0.4rem 0 0; }
+.boot-hint code, .boot-status code { font-family: var(--font-mono); color: var(--color-ink); }
+.boot-retry {
+  margin-top: 1.2rem; display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.82rem; font-weight: 600; color: var(--color-ink);
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--edge);
+  border-radius: 8px; padding: 0.5rem 0.9rem; cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.boot-retry:hover { border-color: var(--edge-lume); background: rgba(56, 224, 255, 0.08); }
+.boot-foot {
+  margin-top: 1.6rem; font-family: var(--font-mono); font-size: 0.68rem;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-ink-faint);
+}
+
+.deps-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  flex-wrap: wrap; margin: 0 0.75rem 0.5rem; padding: 0.7rem 1rem;
+  border: 1px solid rgba(255, 176, 32, 0.32); background: rgba(255, 176, 32, 0.08);
+  border-radius: 10px; font-size: 0.82rem; color: var(--color-ink-dim);
+}
+.deps-items { display: flex; flex-direction: column; gap: 0.35rem; }
+.deps-item { display: flex; align-items: center; gap: 0.5rem; }
+.deps-item code { font-family: var(--font-mono); color: var(--color-ink); }
+.deps-recheck {
+  display: inline-flex; align-items: center; gap: 0.4rem; flex: none;
+  font-size: 0.78rem; font-weight: 600; color: var(--color-warn);
+  background: rgba(255, 176, 32, 0.12); border: 1px solid rgba(255, 176, 32, 0.35);
+  border-radius: 8px; padding: 0.4rem 0.8rem; cursor: pointer;
+}
+.deps-recheck:disabled { opacity: 0.6; cursor: default; }

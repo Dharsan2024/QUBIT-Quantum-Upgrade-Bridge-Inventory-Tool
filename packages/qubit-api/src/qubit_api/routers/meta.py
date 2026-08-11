@@ -16,6 +16,47 @@ def health() -> dict[str, str]:
     return {"status": "ok", "db": "ok", "version": __version__}
 
 
+@router.get("/health/deps")
+def health_deps() -> dict[str, Any]:
+    """Report optional-dependency reachability so the app can prompt the user to start them.
+
+    Docker (migration sandbox) and Ollama (LLM patch tier) are OPTIONAL — scanning + risk +
+    template migration all work without them — so this never fails; it just reports up/down.
+    Anonymous (no auth): the boot screen calls it before a token is set.
+    """
+    import shutil
+    import subprocess
+    import urllib.request
+
+    def _docker_up() -> bool:
+        if shutil.which("docker") is None:
+            return False
+        try:
+            return (
+                subprocess.run(
+                    ["docker", "info"],  # noqa: S607
+                    capture_output=True,
+                    timeout=4,
+                ).returncode
+                == 0
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            return False
+
+    def _ollama_up() -> bool:
+        try:
+            with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=3) as r:
+                return r.status == 200
+        except Exception:
+            return False
+
+    return {
+        "api": "ok",
+        "docker": _docker_up(),
+        "ollama": _ollama_up(),
+    }
+
+
 @router.get("/version")
 def version() -> dict[str, str]:
     return {

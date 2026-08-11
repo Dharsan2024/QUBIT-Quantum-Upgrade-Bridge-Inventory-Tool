@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { DepsBanner } from './BootGate';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -98,13 +99,14 @@ export function Layout() {
             <span className="chip chip-safe">CycloneDX 1.7</span>
             <Link
               to="/scans"
-              className="glass-input text-sm font-medium hover:border-indigo-400/60"
+              className="glass-input text-sm font-medium hover:border-[color:var(--edge-lume)]"
             >
               New scan
             </Link>
           </div>
         </header>
 
+        <DepsBanner />
         <main className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
           <div className="mx-auto max-w-[1400px]">
             <Outlet />

@@ -118,7 +118,7 @@ function TaskRow({ task }: { task: MigrationTask }) {
               <button
                 onClick={() => gen.mutate()}
                 disabled={gen.isPending}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-400/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-400/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-[color:var(--color-accent)] transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
               >
                 {gen.isPending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -289,7 +289,7 @@ function DependencyGraphView({ planId }: { planId: string }) {
         {graph.units.map((unit, idx) => (
           <div key={String(unit.unit_id)} className="glass-card p-4 flex flex-col gap-3 border-l-4 border-l-indigo-400">
             <div className="flex items-center justify-between text-xs border-b border-[color:var(--glass-border)] pb-2">
-              <span className="font-mono font-semibold text-indigo-300">Unit #{idx + 1}</span>
+              <span className="font-mono font-semibold text-[color:var(--color-accent)]">Unit #{idx + 1}</span>
               {unit.is_cycle && <span className="chip chip-warn">Cycle Condensation</span>}
             </div>
             <div className="flex flex-col gap-2">
@@ -308,7 +308,7 @@ function DependencyGraphView({ planId }: { planId: string }) {
                       </div>
                     )}
                     {edgesFrom.length > 0 && (
-                      <div className="mt-2 border-t border-[color:var(--glass-border)] pt-1 text-[11px] text-indigo-300/80">
+                      <div className="mt-2 border-t border-[color:var(--glass-border)] pt-1 text-[11px] text-[color:var(--color-accent)]/80">
                         Depends on: {edgesFrom.map((e) => e.target.slice(0, 8)).join(', ')} ({edgesFrom[0].kind ?? 'dependency'})
                       </div>
                     )}
@@ -365,7 +365,7 @@ export function Migrations() {
               onClick={() => setActiveTab('queue')}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${
                 activeTab === 'queue'
-                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30'
+                  ? 'bg-indigo-500/20 text-[color:var(--color-accent)] border border-indigo-400/30'
                   : 'text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-ink)]'
               }`}
             >
@@ -375,7 +375,7 @@ export function Migrations() {
               onClick={() => setActiveTab('graph')}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${
                 activeTab === 'graph'
-                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30'
+                  ? 'bg-indigo-500/20 text-[color:var(--color-accent)] border border-indigo-400/30'
                   : 'text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-ink)]'
               }`}
             >
@@ -474,11 +474,11 @@ export function Migrations() {
       )}
 
       <div className="glass-card flex items-start gap-3 border-indigo-400/20 bg-indigo-500/5 p-4 text-xs text-[color:var(--color-ink-faint)]">
-        <Terminal className="mt-0.5 h-4 w-4 flex-shrink-0 text-indigo-300" />
+        <Terminal className="mt-0.5 h-4 w-4 flex-shrink-0 text-[color:var(--color-accent)]" />
         <div>
           Applying approved patches to a working tree runs via{' '}
-          <span className="font-mono text-indigo-300">qubit migrate apply</span> (or{' '}
-          <span className="font-mono text-indigo-300">POST /migrate/patches/&#123;id&#125;/apply</span>{' '}
+          <span className="font-mono text-[color:var(--color-accent)]">qubit migrate apply</span> (or{' '}
+          <span className="font-mono text-[color:var(--color-accent)]">POST /migrate/patches/&#123;id&#125;/apply</span>{' '}
           with a repo root) so git safety checks run against the target checkout.
         </div>
       </div>

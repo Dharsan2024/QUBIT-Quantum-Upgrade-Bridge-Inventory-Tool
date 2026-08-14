@@ -29,7 +29,7 @@ export function MigrationDetail() {
         <h1 className="text-2xl font-semibold tracking-tight">Migration via the CLI</h1>
         <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">
           Plan, generate, and review run interactively on the{' '}
-          <Link to="/migrations" className="text-indigo-300 hover:text-indigo-200">
+          <Link to="/migrations" className="text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-2)]">
             Migration Queue
           </Link>{' '}
           page. The equivalent <span className="font-mono">qubit migrate</span> CLI flow below also
@@ -41,11 +41,11 @@ export function MigrationDetail() {
       <div className="glass-card flex flex-col divide-y divide-[color:var(--glass-border)]">
         {STEPS.map((s, i) => (
           <div key={s.cmd} className="flex items-start gap-4 p-5">
-            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-indigo-400/30 bg-indigo-500/10 text-sm font-semibold text-indigo-300">
+            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-indigo-400/30 bg-indigo-500/10 text-sm font-semibold text-[color:var(--color-accent)]">
               {i + 1}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 overflow-x-auto rounded-lg border border-[color:var(--glass-border)] bg-black/40 px-3 py-2 font-mono text-sm text-indigo-300">
+              <div className="flex items-center gap-2 overflow-x-auto rounded-lg border border-[color:var(--glass-border)] bg-black/40 px-3 py-2 font-mono text-sm text-[color:var(--color-accent)]">
                 <Terminal className="h-4 w-4 flex-shrink-0" />
                 {s.cmd}
               </div>

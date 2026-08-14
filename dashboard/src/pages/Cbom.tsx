@@ -47,7 +47,7 @@ export function Cbom() {
       {!activeScanId && (
         <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">
           No scans yet.{' '}
-          <Link to="/scans" className="text-indigo-300 hover:text-indigo-200">
+          <Link to="/scans" className="text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-2)]">
             Run a scan
           </Link>{' '}
           to generate a CBOM.
@@ -95,7 +95,7 @@ export function Cbom() {
             <h3 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-[color:var(--color-ink-dim)]">
               <Terminal className="h-4 w-4" /> CLI Export Equivalent
             </h3>
-            <div className="overflow-x-auto rounded-lg border border-[color:var(--glass-border)] bg-black/40 p-4 font-mono text-sm text-indigo-300">
+            <div className="overflow-x-auto rounded-lg border border-[color:var(--glass-border)] bg-black/40 p-4 font-mono text-sm text-[color:var(--color-accent)]">
               qubit cbom export {activeScan?.targets.join(' ') ?? '<path>'} --format json
             </div>
           </div>

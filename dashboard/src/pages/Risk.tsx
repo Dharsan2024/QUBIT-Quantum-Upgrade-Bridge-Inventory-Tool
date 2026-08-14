@@ -261,7 +261,7 @@ export function Risk() {
       {!activeScanId && (
         <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">
           No scans yet.{' '}
-          <Link to="/scans" className="text-indigo-300 hover:text-indigo-200">
+          <Link to="/scans" className="text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-2)]">
             Run a scan
           </Link>{' '}
           to compute risk.
@@ -282,7 +282,7 @@ export function Risk() {
 
       {data && (
         <>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="stagger grid grid-cols-2 gap-5 md:grid-cols-4">
             <Kpi
               label="Total Assets"
               value={total}

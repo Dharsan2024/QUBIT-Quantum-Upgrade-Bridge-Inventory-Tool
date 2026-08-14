@@ -107,8 +107,10 @@ export function Layout() {
         </header>
 
         <DepsBanner />
-        <main className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-          <div className="mx-auto max-w-[1400px]">
+        {/* Fill the window: content used to be capped at 1400px and hug the top, leaving huge dead
+            space on a wide screen. Now it spans the full width with comfortable gutters. */}
+        <main className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 lg:px-10">
+          <div className="mx-auto w-full max-w-[1920px]">
             <Outlet />
           </div>
         </main>

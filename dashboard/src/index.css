@@ -50,8 +50,17 @@ body {
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Readability: text was cramped + small. Larger base size and roomier line-height so dense
+     security data is comfortable to read across a wide window. */
+  font-size: 16px;
+  line-height: 1.6;
 }
-h1, h2, h3 { letter-spacing: -0.02em; }
+h1, h2, h3 { letter-spacing: -0.02em; line-height: 1.2; }
+h1 { font-size: clamp(1.9rem, 1.2rem + 1.4vw, 2.6rem); }
+h2 { font-size: clamp(1.25rem, 1rem + 0.6vw, 1.6rem); }
+p { max-width: 78ch; }          /* comfortable measure for prose */
+table { font-size: 0.95rem; }
+td, th { padding-block: 0.85rem; }   /* airier rows — dense tables were hard to scan */
 
 /* ---- ambient background: deep radial wash + faint engineering grid --------- */
 .aurora {
@@ -84,13 +93,53 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   }
   .glass-strong { background: var(--panel-2); }
 
+  /* 3D flow: cards sit in a perspective scene and lift toward the viewer on hover with a slight
+     tilt, so the interface reads as layered depth rather than flat rectangles. transform+opacity
+     only (GPU), and disabled under reduced-motion. */
   .glass-card {
-    transition: transform 0.22s var(--ease-out), border-color 0.22s ease, box-shadow 0.22s ease;
+    transform-style: preserve-3d;
+    will-change: transform;
+    transition: transform 0.32s var(--ease-out), border-color 0.24s ease, box-shadow 0.32s ease;
   }
   .glass-card:hover {
-    transform: translateY(-2px);
+    transform: perspective(900px) translate3d(0, -4px, 12px) rotateX(1.4deg);
     border-color: var(--edge-lume);
     box-shadow: var(--glow), var(--shadow-lg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .glass-card, .glass-card:hover { transform: none; transition: border-color 0.2s ease; }
+  }
+
+  /* Staggered reveal for grids/lists — children fade+rise in sequence (decorative, never blocking). */
+  .stagger > * { animation: riseIn 0.5s var(--ease-out) both; }
+  .stagger > *:nth-child(1) { animation-delay: 0.02s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.07s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.12s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.17s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.22s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.27s; }
+  .stagger > *:nth-child(n+7) { animation-delay: 0.32s; }
+  @keyframes riseIn {
+    from { opacity: 0; transform: translate3d(0, 14px, -20px) scale(0.985); }
+    to   { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stagger > * { animation: none; }
+  }
+
+  /* Big numeric metrics — the KPI tiles should read instantly across the room (demo/presentation). */
+  .metric { font-family: var(--font-mono); font-size: clamp(1.7rem, 1.1rem + 1.2vw, 2.4rem); font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; }
+  /* Tighter tracking + no mid-word breaks: wide tracking made labels like "QUANTUM-VULNERABLE"
+     wrap onto two lines inside a tile. */
+  .metric-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-ink-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    hyphens: none;
   }
 
   .sidebar-vibrancy {

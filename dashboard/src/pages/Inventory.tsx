@@ -19,13 +19,13 @@ function Kpi({
   accent: string;
 }) {
   return (
-    <div className="glass-card flex items-center gap-4 p-4">
-      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${accent}`}>{icon}</div>
-      <div>
-        <div className="text-2xl font-semibold leading-none">{value}</div>
-        <div className="mt-1 text-xs uppercase tracking-wide text-[color:var(--color-ink-faint)]">
-          {label}
-        </div>
+    <div className="glass-card flex items-center gap-5 p-6">
+      <div className={`flex h-14 w-14 flex-none items-center justify-center rounded-xl ${accent}`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="metric">{value}</div>
+        <div className="metric-label mt-1.5">{label}</div>
       </div>
     </div>
   );
@@ -65,7 +65,7 @@ export function Inventory() {
         </div>
         <button
           onClick={() => refetch()}
-          className="glass-input flex items-center gap-2 text-sm font-medium hover:border-indigo-400/60"
+          className="glass-input flex items-center gap-2 text-sm font-medium hover:border-[color:var(--edge-lume)]"
           disabled={!activeScanId}
         >
           <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
@@ -73,29 +73,29 @@ export function Inventory() {
         </button>
       </header>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="stagger grid grid-cols-2 gap-5 md:grid-cols-4">
         <Kpi
           label="Total assets"
           value={data?.total ?? 0}
-          icon={<Boxes className="h-5 w-5 text-indigo-200" />}
+          icon={<Boxes className="h-6 w-6 text-indigo-200" />}
           accent="bg-indigo-500/20 border border-indigo-400/30"
         />
         <Kpi
           label="Quantum-vulnerable"
           value={vulnerable}
-          icon={<ShieldAlert className="h-5 w-5 text-rose-200" />}
+          icon={<ShieldAlert className="h-6 w-6 text-rose-200" />}
           accent="bg-rose-500/20 border border-rose-400/30"
         />
         <Kpi
           label="Shor-breakable"
           value={shor}
-          icon={<Zap className="h-5 w-5 text-amber-200" />}
+          icon={<Zap className="h-6 w-6 text-amber-200" />}
           accent="bg-amber-500/20 border border-amber-400/30"
         />
         <Kpi
           label="Quantum-safe"
           value={safe}
-          icon={<ShieldCheck className="h-5 w-5 text-emerald-200" />}
+          icon={<ShieldCheck className="h-6 w-6 text-emerald-200" />}
           accent="bg-emerald-500/20 border border-emerald-400/30"
         />
       </div>
@@ -103,7 +103,7 @@ export function Inventory() {
       {!activeScanId && (
         <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">
           No scans yet.{' '}
-          <Link to="/scans" className="text-indigo-300 hover:text-indigo-200">
+          <Link to="/scans" className="text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-2)]">
             Run a scan
           </Link>{' '}
           to populate the inventory.

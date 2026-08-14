@@ -42,7 +42,7 @@ export function Projects() {
         </div>
         <button
           onClick={() => navigate('/scans')}
-          className="glass-input flex items-center gap-2 text-sm font-medium hover:border-indigo-400/60"
+          className="glass-input flex items-center gap-2 text-sm font-medium hover:border-[color:var(--edge-lume)]"
         >
           <Plus className="h-4 w-4" />
           New Scan
@@ -68,7 +68,7 @@ export function Projects() {
           No projects yet. Start by running a scan on the{' '}
           <button
             onClick={() => navigate('/scans')}
-            className="text-indigo-300 hover:text-indigo-200"
+            className="text-[color:var(--color-accent)] hover:text-[color:var(--color-accent-2)]"
           >
             Scans
           </button>{' '}
@@ -76,7 +76,7 @@ export function Projects() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="stagger grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {projects.map((project) => {
           const scans = scansByProject.get(project.id) ?? [];
           const latest = scans.find((s) => s.status === 'succeeded') ?? scans[0];

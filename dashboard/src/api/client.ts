@@ -14,7 +14,10 @@ import type {
 // Base URL + bearer token. Both overridable at build time (Vite env) or at runtime (localStorage,
 // set by the Login page). The default token matches qubit-api's dev default so local runs work
 // out of the box; production overrides via QUBIT_API_TOKEN on the server + login on the client.
-const API_BASE =
+/** Absolute base by default. IMPORTANT: in the Tauri desktop app the dashboard is bundled and loads
+ *  from `tauri.localhost`, so a RELATIVE base (e.g. "/api/v1") resolves to tauri.localhost and every
+ *  request fails with "Failed to fetch". Always keep this absolute for the desktop build. */
+export const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ?? "http://127.0.0.1:8787/api/v1";
 const DEFAULT_TOKEN =
   (import.meta.env.VITE_API_TOKEN as string | undefined) ?? "qubit-dev-token-do-not-use-in-prod";

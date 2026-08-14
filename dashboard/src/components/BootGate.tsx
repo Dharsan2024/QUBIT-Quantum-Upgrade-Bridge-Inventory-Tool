@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ShieldCheck, Loader2, Container, Cpu, RefreshCw } from 'lucide-react';
+import { API_BASE } from '../api/client';
 
 /**
  * Boot gate: the app's API is a child process that takes a few seconds to bind. Rendering the
@@ -10,9 +11,11 @@ import { ShieldCheck, Loader2, Container, Cpu, RefreshCw } from 'lucide-react';
 
 type Deps = { docker: boolean; ollama: boolean };
 
+// Use the SAME absolute base the API client uses. A relative URL would resolve against
+// tauri.localhost (the desktop window's origin) and never reach the local engine.
 async function ping(): Promise<boolean> {
   try {
-    const r = await fetch('/api/v1/health', { cache: 'no-store' });
+    const r = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
     return r.ok;
   } catch {
     return false;
@@ -21,7 +24,7 @@ async function ping(): Promise<boolean> {
 
 async function fetchDeps(): Promise<Deps | null> {
   try {
-    const r = await fetch('/api/v1/health/deps', { cache: 'no-store' });
+    const r = await fetch(`${API_BASE}/health/deps`, { cache: 'no-store' });
     if (!r.ok) return null;
     const d = await r.json();
     return { docker: !!d.docker, ollama: !!d.ollama };

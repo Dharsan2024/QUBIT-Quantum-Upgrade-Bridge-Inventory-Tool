@@ -96,12 +96,34 @@ fn repo_root() -> Option<std::path::PathBuf> {
 
 fn spawn_api(root: &std::path::Path) -> std::io::Result<Child> {
     let dist = root.join("dashboard").join("dist");
-    Command::new("uv")
-        .current_dir(root)
-        .args([
-            "run", "uvicorn", "qubit_api.main:app",
-            "--host", "127.0.0.1", "--port", "8787",
-        ])
+    let args = [
+        "qubit_api.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8787",
+    ];
+
+    // Prefer the venv's uvicorn directly: it removes the `uv run` resolution layer and two extra
+    // process hops, which measurably shortens cold start (the app previously took ~26s to bind vs
+    // ~3s warm). Fall back to `uv run` when there's no venv (fresh clone).
+    let venv_uvicorn = root.join(".venv").join("Scripts").join("uvicorn.exe");
+    let venv_uvicorn_nix = root.join(".venv").join("bin").join("uvicorn");
+    let mut cmd = if venv_uvicorn.is_file() {
+        let mut c = Command::new(venv_uvicorn);
+        c.args(args);
+        c
+    } else if venv_uvicorn_nix.is_file() {
+        let mut c = Command::new(venv_uvicorn_nix);
+        c.args(args);
+        c
+    } else {
+        let mut c = Command::new("uv");
+        c.arg("run").arg("uvicorn").args(args);
+        c
+    };
+
+    cmd.current_dir(root)
         // Serve the dashboard from the API too (single origin) + keep the bundle's default token.
         .env("QUBIT_DASHBOARD_DIST", dist)
         .env("QUBIT_API_TOKEN", "dev_token")

@@ -134,7 +134,9 @@ class Job(Base):
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         # CASCADE so deleting a project (which always has ≥1 Job from its scans) doesn't hit a
         # FOREIGN KEY constraint failure — DELETE /projects/{id} was 500ing without this.
-        ForeignKey("projects.id", ondelete="CASCADE"), index=True, default=None
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        index=True,
+        default=None,
     )
     ref_id: Mapped[uuid.UUID | None] = mapped_column(
         default=None

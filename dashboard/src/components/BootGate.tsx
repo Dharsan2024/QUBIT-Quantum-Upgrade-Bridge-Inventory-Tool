@@ -59,7 +59,9 @@ export function BootGate({ children }: { children: React.ReactNode }) {
 
   if (ready) return <>{children}</>;
 
-  const slow = elapsed >= 12;
+  // Cold start (fresh process tree + AV scan of the venv) can legitimately take ~20-30s, so only
+  // surface the troubleshooting hint well past that — otherwise a normal boot looks like a failure.
+  const slow = elapsed >= 35;
 
   return (
     <div className="boot-screen">

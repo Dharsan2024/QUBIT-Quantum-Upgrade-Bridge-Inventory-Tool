@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatedPage } from '../components/AnimatedPage';
 import {
@@ -256,6 +256,14 @@ export function Scans() {
                         >
                           Open
                         </button>
+                        {scan.status === 'succeeded' && (
+                          <Link
+                            to={`/report/${scan.id}`}
+                            className="label-caps mr-4 text-[color:var(--color-accent-2)] transition-colors hover:text-[color:var(--color-accent)]"
+                          >
+                            Report
+                          </Link>
+                        )}
 
                         {/* Two-step delete: first click shows confirm, second click deletes */}
                         {confirmId === scan.id ? (

@@ -525,3 +525,17 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
   border-radius: var(--radius); padding: 0.42rem 0.8rem; cursor: pointer;
 }
 .deps-recheck:disabled { opacity: 0.6; cursor: default; }
+
+/* ============================================================================
+   Print — used by the Report page's "Print / Save as PDF" (window.print()).
+   The app chrome (sidebar, top rail, ambient background) belongs to Layout, a parent of
+   whatever page is printing, so it has to be suppressed globally rather than per-page. Pages
+   opt into a printable body with a `.qubit-print` block (see pages/Report.tsx); everything
+   else stays print:hidden via Tailwind's print: variant at the call site.
+   ========================================================================== */
+@media print {
+  .aurora, .grain, aside, header, .deps-banner { display: none !important; }
+  html, body, #root { height: auto !important; background: #fff !important; }
+  main { overflow: visible !important; height: auto !important; padding: 0 !important; }
+  .qubit-print { background: #fff; }
+}

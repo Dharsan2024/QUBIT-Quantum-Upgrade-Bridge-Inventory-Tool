@@ -6,6 +6,7 @@ import { Inventory } from './pages/Inventory';
 import { Migrations } from './pages/Migrations';
 import { Scans } from './pages/Scans';
 import { Cbom } from './pages/Cbom';
+import { Report } from './pages/Report';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { Risk, Timeline } from './pages/lazy';
@@ -91,6 +92,10 @@ export const router = createBrowserRouter([
       {
         path: 'p/:pid/cbom',
         element: <Cbom />,
+      },
+      {
+        path: 'report/:scanId',
+        element: <Report />,
       },
     ],
   },

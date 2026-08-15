@@ -15,9 +15,10 @@ import {
   KeyRound,
   Download,
   Filter,
+  FileText,
+  Search,
 } from 'lucide-react';
 import type { CryptoAsset } from '../api/types';
-import { Search } from 'lucide-react';
 
 
 type RiskFilter = 'all' | 'critical' | 'high' | 'medium' | 'low';
@@ -113,6 +114,12 @@ export function Inventory() {
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
             Refresh
           </button>
+          {activeScanId && (
+            <Link to={`/report/${activeScanId}`} className="hud-btn hud-btn-ghost">
+              <FileText className="h-3.5 w-3.5" />
+              Detailed Report
+            </Link>
+          )}
           <Link to="/cbom" className="hud-btn">
             <Download className="h-3.5 w-3.5" />
             Export CBOM

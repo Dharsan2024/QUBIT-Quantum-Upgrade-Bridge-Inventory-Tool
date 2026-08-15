@@ -36,6 +36,7 @@ const NAV_ITEMS = [
 /** Routes reachable from inside a page but absent from the sidebar — the rail still names them. */
 const OFF_NAV_LABELS: { prefix: string; label: string }[] = [
   { prefix: '/cbom', label: 'CBOM Export' },
+  { prefix: '/report', label: 'Detailed Report' },
 ];
 
 export function Layout() {

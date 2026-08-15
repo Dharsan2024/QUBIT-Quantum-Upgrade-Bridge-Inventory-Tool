@@ -224,26 +224,25 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
 
 ## 4. Next action when resuming
 
-**Authoritative next action (2026-08-15) — Sep-30 hardening sprint.** Items 1–7 DONE (real auth;
-E5/E2/E1/E3/E4; packaging). The desktop app, the HNDL exposure surface, and the JARVIS HUD redesign are
-DONE and verified on the installed binary (see §2 + §5 `2026-08-15`).
+**Authoritative next action (2026-08-15 evening) — Sep-30 hardening sprint.** Items 1–7 DONE (real auth;
+E5/E2/E1/E3/E4; packaging). The desktop app, the HNDL exposure surface, the JARVIS HUD redesign, the
+in-app detailed report + HTML/PDF export, the native folder picker + CBOM export, and registry hygiene
+are all DONE and verified on the installed binary (see §2 + §5 `2026-08-15 (evening)`).
 
 **Remaining, highest value first:**
-1. **In-app detailed report + HTML/PDF export.** The human explicitly asked for "a detailed report for
-   all the scans and risk score" and chose **both** in-app *and* exportable. NOT STARTED. This is the
-   single largest outstanding product gap.
-2. **CBOM "Download JSON" inside WebView2 is UNVERIFIED.** The button uses a blob + `<a download>`;
-   WebView2 may swallow it. Verify by clicking it in the installed app; if it fails, write the file
-   through the engine or the Tauri fs API instead. (`qubit cbom export` on the CLI does work.)
-3. **A native folder picker for the scan target** (the Stitch mock shows "Browse"). Needs
-   `@tauri-apps/plugin-dialog` + Rust registration + capability — a real feature addition, not a re-skin.
-4. **Clean-room `docker compose up`** — the compose file + Dockerfiles exist but have never been run on
+1. **Clean-room `docker compose up`** — the compose file + Dockerfiles exist but have never been run on
    a fresh checkout. NOTE: the product is desktop-first now, so this is for the *self-hostable* claim
    only; do not let it pull the UI back toward a web target.
-5. **Backup demo video** (manual, the human's action) + one `qubit demo run --all` rehearsal per
+2. **Backup demo video** (manual, the human's action) + one `qubit demo run --all` rehearsal per
    milestone.
-6. **Registry hygiene:** ~12 empty projects from agent testing (`native-test`, `proof-rc2`, `app-test`,
-   …) clutter the Projects page. Deleting them mutates the human's registry — **ask first**.
+3. **Bundle size**: Plotly is now lazy-loaded (main bundle 604KB) but its own chunk is still 4.6MB
+   unminified — fine since it only loads on Risk/Timeline, but worth a lighter charting lib if this
+   ships to constrained machines.
+4. **No automated frontend test suite exists.** Every dashboard bug this session (pagination, dialog
+   capabilities, timeline picker) was caught by manual/Playwright verification, not CI. Worth
+   evaluating vitest + React Testing Library once the UI stabilizes, so regressions like the
+   page/size↔limit/offset mismatch (§5 2026-08-15 evening, item 6) get caught before a live scan
+   surfaces them.
 
 Weekly roll-up is **Mondays only** in `docs/project-status/WEEKLY_REPORT.md` (last: 2026-08-10; next due
 **2026-08-17**); per-step logging stays here (§5) / `SUBAGENT_WORK_LOG.md`, **naming the agent**.
@@ -274,6 +273,78 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 ---
 
 ## 5. CHANGELOG (newest first — every agent appends here)
+
+### 2026-08-15 (evening) — "Do all the enhancements": 6 items, 3 genuine production bugs found + fixed (Claude, Sonnet 5)
+Worked through the full punch list from the prior testing pass. Every item surfaced a real,
+previously-undiscovered bug — none of this was cosmetic polish.
+
+1. **Registry cleanup** (confirmed with the human first — destructive). Deleted the 12 zero-scan
+   test projects. **This is what surfaced item 2**: 9 of the 12 deletes 500'd.
+2. **Root-caused the DELETE /projects/{id} 500** all the way to its source instead of patching
+   around it: `jobs.project_id`'s `ON DELETE CASCADE` was fixed in the Python model (with a
+   comment literally saying "was 500ing without this") but **the fix was never migrated** —
+   `Base.metadata.create_all()` only creates missing tables, never alters existing ones, and
+   nothing in `qubit_api.app.create_app()` ever ran `alembic upgrade head`. Wrote migration
+   `29c500adeb13` (raw-SQL table rebuild — Alembic batch mode's `copy_from` was tried first and,
+   verified empirically, silently drops `ondelete` from the rebuilt table), wired
+   `qubit_core.db.migrate` into API startup so this class of bug can't recur silently for
+   existing installations, applied it to the human's real live database (backed up, WAL
+   checkpointed, verified identical row counts before/after), and added two regression tests
+   that build a database at the OLD revision and prove the bug is real before proving the fix
+   works. All 12 projects then deleted cleanly; registry now holds exactly the 6 with real data.
+3. **Lazy-loaded Plotly** (Risk/Timeline only) — main bundle 5,265KB → 604KB, 8.7x cut for every
+   other page.
+4. **The CBOM download button and the new folder-picker were both completely non-functional**,
+   not just "unverified" as previously flagged. Root-caused via Playwright-over-CDP (WebView2's
+   own remote-debugging port) after OS-level UI automation proved unreliable in this environment
+   (a concurrent agent session kept stealing window focus). The real error, found by invoking the
+   dialog plugin's raw IPC command directly: `dialog.open not allowed on window "main" ... URL:
+   http://127.0.0.1:8787/, allowed on: [URL: local]`. Tauri v2 scopes a capability to the
+   `tauri://localhost` origin by default; this app deliberately serves the dashboard from the API
+   itself on `127.0.0.1:8787` (main.rs: "single origin"), so every dialog/fs command was
+   unreachable from the window the app actually runs in. Fixed with an explicit `"remote":
+   {"urls": [...]}` capability scope. Added `@tauri-apps/plugin-dialog` + `plugin-fs`, a native
+   folder-picker on Scans, and replaced CBOM's blob-download trick with a real save dialog +
+   `writeTextFile`. Verified via real button clicks (not synthetic calls) on a debug build (Rust
+   console visible) and the final installed release binary: genuine native "Select a folder to
+   scan" / "Save As" windows (confirmed via Win32 `EnumWindows`), and a completed save round-trip
+   — 3056 real bytes of CycloneDX JSON landed on disk.
+5. **Built the in-app detailed report + HTML/PDF export** (`/report/:scanId`) — the outstanding
+   item from "Both" chosen earlier for report format. Aggregates scan/risk/timeline/migration
+   data already available via existing endpoints (no new backend surface). Two export paths: a
+   self-contained standalone HTML file via the new `saveTextFile()` helper, and `window.print()`
+   against a dedicated light-themed print view (Microsoft Print to PDF handles the "PDF" half, no
+   PDF library needed) — the app chrome is hidden globally via `@media print` since it lives in
+   `Layout`, a parent of whatever page prints. Found + fixed two bugs while building it: the
+   "which algorithm gets the timeline" picker chose whichever vulnerable algorithm had the most
+   hits with no regard for whether `/risk/timeline` has a curve for it (Grover-only algorithms
+   like SHA-1 don't — 404), and the print view's headings inherited the HUD's cyan glow since
+   they render inside the live app DOM rather than a separate document.
+6. **Stress-tested "Load more" pagination with a real 260-asset scan** (a synthetic 130-file
+   corpus — every real scan so far had well under 50 assets, so this path had never actually been
+   exercised) — and it failed. **Root cause: `fetchScanAssets` had been sending `page`/`size`
+   query params that the server has never had** (it takes `limit`/`offset` — confirmed against
+   `schemas.py`'s `Page[T]`). FastAPI silently ignores unrecognized params rather than rejecting
+   them, so every request app-wide silently fell back to the server's default `limit=50`
+   regardless of what the client asked for, and the TypeScript `Paginated<T>` type had
+   `page`/`size` fields that never existed on any real response — nothing caught the mismatch at
+   compile time. `getNextPageParam` computed `undefined * undefined < total` = `NaN < total` =
+   false, so "Load more" could never appear, for any scan, ever, no matter how large. This bug
+   predates this session; it's not something introduced today. Fixed `Paginated<T>`,
+   `fetchScanAssets`, Inventory's offset-based pagination, and added the same truncation caveat
+   to Report.tsx (which also single-page-fetches up to 200). Verified precisely: before the fix,
+   "Showing 50 of 260" with no way to see the rest; after, "Showing 200 of 260" → Load more →
+   "Showing 260 of 260", zero console errors.
+
+Also restored `.python-version` (a second, unrelated accidental deletion found in the working
+tree at the start of this block).
+
+Gate across all six: `tsc -b` clean, `oxlint` clean, ruff+mypy clean on qubit-core/qubit-api
+(checked per-package — combined invocation surfaces an unrelated pre-existing cross-package mypy
+quirk in `jobs/runner.py`, confirmed via `git stash` to predate this session), **335 pytest
+passed · 0 failed · 0 skipped**. Six commits (`4e17836`..`a66c19a`), each independently gated,
+pushed to `main` and `sub-workers-push`, verified via `git ls-remote`. Final installed binary:
+cold start to API-ready 5.8s.
 
 ### 2026-08-15 (later) — Tested the app, found the working tree didn't compile; fixed + verified live (Claude, Sonnet 5)
 On "test the app, fix any issues, report what can be improved": found substantial **uncommitted**

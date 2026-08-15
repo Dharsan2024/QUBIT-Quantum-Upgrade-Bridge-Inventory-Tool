@@ -13,7 +13,7 @@ import {
   ShieldCheck,
   WifiOff,
 } from 'lucide-react';
-import { fetchHealth, fetchHealthDeps, getToken, setToken, whoami } from '../api/client';
+import { fetchHealth, fetchHealthDeps, getToken, setToken, whoami, getApiBase, setApiBase } from '../api/client';
 
 /** One labelled readout row inside a HUD panel. */
 function Row({
@@ -42,6 +42,7 @@ function Row({
 
 export function Settings() {
   const [token, setTokenInput] = useState(getToken());
+  const [apiBase, setApiBaseInput] = useState(getApiBase());
   const [status, setStatus] = useState<'idle' | 'checking' | 'ok' | 'fail'>('idle');
   const [detail, setDetail] = useState('');
 
@@ -55,6 +56,7 @@ export function Settings() {
 
   const verify = async () => {
     setToken(token.trim());
+    setApiBase(apiBase.trim());
     setStatus('checking');
     try {
       const who = await whoami();
@@ -94,14 +96,13 @@ export function Settings() {
             <label className="metric-label mb-2 block">API endpoint</label>
             <input
               type="text"
-              value={import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8787/api/v1'}
-              readOnly
+              value={apiBase}
+              onChange={(e) => setApiBaseInput(e.target.value)}
               className="glass-input w-full px-4 py-2.5"
             />
             <p className="mt-2 text-xs text-[color:var(--color-ink-faint)]">
-              Baked at build time via{' '}
-              <span className="font-mono text-[color:var(--color-accent-soft)]">VITE_API_BASE</span>.
-              The desktop app starts this engine itself as a child process.
+              Defaults to <span className="font-mono text-[color:var(--color-accent-soft)]">VITE_API_BASE</span>.
+              The desktop app starts this engine itself as a child process. Override here to point at a remote cluster.
             </p>
           </div>
 

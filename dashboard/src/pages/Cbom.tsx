@@ -5,6 +5,29 @@ import { Download, Terminal, FileJson, RefreshCw } from 'lucide-react';
 import { fetchCbom } from '../api/client';
 import { useActiveScan } from '../hooks/useActiveScan';
 
+// Minimal JSON syntax highlighter for the CBOM preview. Escapes HTML-significant characters
+// BEFORE tokenizing, so nothing in the JSON payload (e.g. a certificate DN containing "<" or "&")
+// can inject markup through the dangerouslySetInnerHTML below.
+function syntaxHighlight(json: string): string {
+  const escaped = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return escaped.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+    (match) => {
+      let cls = 'text-[color:var(--color-safe)]'; // strings
+      if (/^"/.test(match)) {
+        if (/:$/.test(match)) cls = 'text-[color:var(--color-accent)]'; // keys
+      } else if (/^(?:true|false)$/.test(match)) {
+        cls = 'text-[color:var(--color-accent-2)]'; // booleans
+      } else if (match === 'null') {
+        cls = 'text-[color:var(--color-ink-dim)]'; // null
+      } else {
+        cls = 'text-[color:var(--color-accent-3)]'; // numbers
+      }
+      return `<span class="${cls}">${match}</span>`;
+    },
+  );
+}
+
 export function Cbom() {
   const { activeScanId, activeScan } = useActiveScan();
 
@@ -97,9 +120,10 @@ export function Cbom() {
       {data && (
         <div className="glass-card overflow-hidden p-0">
           <div className="label-caps border-b border-[color:var(--edge)] px-5 py-3">Preview</div>
-          <pre className="max-h-[420px] overflow-auto p-5 font-mono text-xs leading-relaxed text-[color:var(--color-ink-dim)]">
-            {pretty}
-          </pre>
+          <pre 
+            className="max-h-[420px] overflow-auto p-5 font-mono text-xs leading-relaxed text-[color:var(--color-ink-dim)]"
+            dangerouslySetInnerHTML={{ __html: syntaxHighlight(pretty) }}
+          />
         </div>
       )}
     </AnimatedPage>

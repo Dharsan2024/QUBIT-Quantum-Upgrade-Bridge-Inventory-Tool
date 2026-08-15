@@ -17,8 +17,17 @@ import type {
 /** Absolute base by default. IMPORTANT: in the Tauri desktop app the dashboard is bundled and loads
  *  from `tauri.localhost`, so a RELATIVE base (e.g. "/api/v1") resolves to tauri.localhost and every
  *  request fails with "Failed to fetch". Always keep this absolute for the desktop build. */
-export const API_BASE =
-  (import.meta.env.VITE_API_BASE as string | undefined) ?? "http://127.0.0.1:8787/api/v1";
+export function getApiBase(): string {
+  if (typeof window !== "undefined") {
+    const override = localStorage.getItem("qubit_api_base");
+    if (override) return override;
+  }
+  return (import.meta.env.VITE_API_BASE as string | undefined) ?? "http://127.0.0.1:8787/api/v1";
+}
+
+export function setApiBase(base: string) {
+  localStorage.setItem("qubit_api_base", base);
+}
 const DEFAULT_TOKEN =
   (import.meta.env.VITE_API_TOKEN as string | undefined) ?? "qubit-dev-token-do-not-use-in-prod";
 
@@ -40,7 +49,7 @@ export class ApiError extends Error {
 }
 
 async function send<T>(path: string, method = "GET", body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${getToken()}`,
@@ -124,9 +133,12 @@ export async function fetchScanAssets(
   scanId: string,
   page = 1,
   size = 100,
+  q = '',
 ): Promise<Paginated<CryptoAsset>> {
   try {
-    return await send<Paginated<CryptoAsset>>(`/scans/${scanId}/assets?page=${page}&size=${size}`);
+    const params = new URLSearchParams({ page: String(page), size: String(size) });
+    if (q.trim()) params.set('q', q.trim());
+    return await send<Paginated<CryptoAsset>>(`/scans/${scanId}/assets?${params.toString()}`);
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return { items: [], total: 0, page, size };
     throw e;

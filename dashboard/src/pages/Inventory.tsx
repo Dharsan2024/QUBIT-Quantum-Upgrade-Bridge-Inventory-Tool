@@ -1,12 +1,12 @@
-import type { ReactNode } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { fetchScanAssets, fetchScans } from '../api/client';
 import { useUiStore } from '../stores/ui';
 import { pickActiveScan } from '../hooks/useActiveScan';
 import { AssetTable } from '../components/AssetTable';
 import { AnimatedPage } from '../components/AnimatedPage';
+import { Kpi } from '../components/Kpi';
 import {
   RefreshCw,
   ShieldAlert,
@@ -17,41 +17,8 @@ import {
   Filter,
 } from 'lucide-react';
 import type { CryptoAsset } from '../api/types';
+import { Search } from 'lucide-react';
 
-/**
- * HUD readout tile: label on top, oversized figure bottom-left, ghosted glyph bottom-right,
- * with the panel's hairline tinted to the tile's semantic colour (DESIGN.md summary stats).
- */
-function Kpi({
-  label,
-  value,
-  icon,
-  color,
-}: {
-  label: string;
-  value: string | number;
-  icon: ReactNode;
-  color: string;
-}) {
-  return (
-    <div
-      className="glass-card flex h-32 flex-col justify-between p-5"
-      style={{ borderColor: `color-mix(in srgb, ${color} 32%, transparent)` }}
-    >
-      <span className="metric-label" style={{ color }}>
-        {label}
-      </span>
-      <div className="flex items-end justify-between gap-3">
-        <span className="metric" style={{ color }}>
-          {value}
-        </span>
-        <span className="opacity-25" style={{ color }}>
-          {icon}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 type RiskFilter = 'all' | 'critical' | 'high' | 'medium' | 'low';
 type TypeFilter = 'all' | 'crypto' | 'hndl';
@@ -73,20 +40,44 @@ export function Inventory() {
   const scanId = useUiStore((s) => s.scanId);
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQ, setSearchQ] = useState(''); // debounced value sent to API
+
+  // 350 ms debounce — avoids a fetch on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQ(searchInput), 350);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   // Resolve which scan to show — same rule every page uses (see pickActiveScan).
   const { data: scans } = useQuery({ queryKey: ['scans'], queryFn: fetchScans });
   const activeScanId = pickActiveScan(scans, scanId);
   const activeScan = scans?.find((s) => s.id === activeScanId);
 
-  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ['assets', activeScanId],
-    queryFn: () => fetchScanAssets(activeScanId as string),
+  // 200 is the server's hard page cap (see routers/assets.py `limit: le=200`), so most real
+  // scans load in one page. When a scan exceeds that, the KPI breakdown below is flagged as
+  // partial rather than silently under-counting.
+  const PAGE_SIZE = 200;
+  const { data, isLoading, isError, error, refetch, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ['assets', activeScanId, searchQ],
+    queryFn: ({ pageParam }) => fetchScanAssets(activeScanId as string, pageParam, PAGE_SIZE, searchQ),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const hasMore = lastPage.page * lastPage.size < lastPage.total;
+      return hasMore ? lastPage.page + 1 : undefined;
+    },
     enabled: !!activeScanId,
   });
 
-  // Memoised so the filter below has a stable input (`data?.items ?? []` allocates each render).
-  const items: CryptoAsset[] = useMemo(() => data?.items ?? [], [data?.items]);
+  // Flatten the paginated pages into a single items array
+  const items: CryptoAsset[] = useMemo(() => {
+    if (!data) return [];
+    return data.pages.flatMap((p) => p.items);
+  }, [data]);
+  const totalAssets = data?.pages[0]?.total ?? 0;
+  // True once every asset for this scan has been fetched — before that, the breakdown tiles
+  // below only reflect the loaded pages and must say so rather than imply a full count.
+  const allLoaded = items.length >= totalAssets;
   const vulnerable = items.filter((a) => a.quantum_vulnerable.vulnerable).length;
   const hndl = items.filter(isHndl).length;
   const safe = items.filter((a) => !a.quantum_vulnerable.vulnerable && !isHndl(a)).length;
@@ -132,29 +123,35 @@ export function Inventory() {
       <div className="stagger grid grid-cols-2 gap-5 lg:grid-cols-4">
         <Kpi
           label="Total assets"
-          value={data?.total ?? 0}
+          value={totalAssets}
           icon={<Boxes className="h-9 w-9" />}
           color="var(--color-accent)"
         />
         <Kpi
-          label="Quantum-vulnerable"
+          label={allLoaded ? 'Quantum-vulnerable' : 'Quantum-vulnerable*'}
           value={vulnerable}
           icon={<ShieldAlert className="h-9 w-9" />}
           color="var(--color-danger)"
         />
         <Kpi
-          label="HNDL exposures"
+          label={allLoaded ? 'HNDL exposures' : 'HNDL exposures*'}
           value={hndl}
           icon={<KeyRound className="h-9 w-9" />}
           color="var(--color-accent-2)"
         />
         <Kpi
-          label="Quantum-safe"
+          label={allLoaded ? 'Quantum-safe' : 'Quantum-safe*'}
           value={safe}
           icon={<ShieldCheck className="h-9 w-9" />}
           color="var(--color-safe)"
         />
       </div>
+      {!allLoaded && (
+        <p className="metric-label -mt-2 normal-case tracking-normal text-[color:var(--color-warn)]">
+          * Based on the {items.length} of {totalAssets} assets loaded so far — load more below
+          for the full breakdown.
+        </p>
+      )}
 
       {!activeScanId && (
         <div className="glass-card p-10 text-center text-sm text-[color:var(--color-ink-dim)]">
@@ -185,6 +182,17 @@ export function Inventory() {
           <div className="glass no-ticks flex flex-wrap items-center justify-between gap-4 px-5 py-3">
             <div className="flex flex-wrap items-center gap-4">
               <Filter className="h-3.5 w-3.5 text-[color:var(--color-accent)]/50" />
+              {/* Server-side full-text search: algorithm, file path, evidence snippet */}
+              <label className="label-caps flex items-center gap-2">
+                <Search className="h-3.5 w-3.5 text-[color:var(--color-accent)]/60" />
+                <input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search algorithm, path…"
+                  className="glass-input py-1 text-xs w-44"
+                  spellCheck={false}
+                />
+              </label>
               <label className="label-caps flex items-center gap-2">
                 Risk
                 <select
@@ -213,10 +221,25 @@ export function Inventory() {
               </label>
             </div>
             <div className="label-caps">
-              Showing {shown.length} of {data.total} entries
+              Showing {shown.length} of {totalAssets} entries
             </div>
           </div>
           <AssetTable data={shown} />
+          {hasNextPage && (
+            <div className="flex justify-center p-4 border-t border-[color:var(--edge)]">
+              <button
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="hud-btn"
+              >
+                {isFetchingNextPage ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Load more'
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </AnimatedPage>

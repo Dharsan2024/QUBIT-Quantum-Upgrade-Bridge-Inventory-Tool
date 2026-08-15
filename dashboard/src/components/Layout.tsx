@@ -9,10 +9,15 @@ import {
   FileCode2,
   ShieldCheck,
   Rocket,
+  Radar,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { DepsBanner, DepsLeds } from './BootGate';
+import { PageErrorBoundary } from './PageErrorBoundary';
+import { useQuery } from '@tanstack/react-query';
+import { fetchScans } from '../api/client';
+import { useUiStore } from '../stores/ui';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -31,7 +36,6 @@ const NAV_ITEMS = [
 /** Routes reachable from inside a page but absent from the sidebar — the rail still names them. */
 const OFF_NAV_LABELS: { prefix: string; label: string }[] = [
   { prefix: '/cbom', label: 'CBOM Export' },
-  { prefix: '/m/', label: 'Migration Detail' },
 ];
 
 export function Layout() {
@@ -44,6 +48,14 @@ export function Layout() {
     current?.label ??
     OFF_NAV_LABELS.find((o) => normalizedPath.startsWith(o.prefix))?.label ??
     'Command';
+
+  // Resolve the active scan for HUD context chip — reuses the shared React Query cache.
+  const scanId = useUiStore((s) => s.scanId);
+  const { data: scans } = useQuery({ queryKey: ['scans'], queryFn: fetchScans });
+  const activeScan = scans?.find((s) => s.id === scanId);
+
+  // Pages where showing scan context makes sense (not projects list or settings).
+  const showScanContext = activeScan && !['/', '/settings'].includes(normalizedPath);
 
   return (
     <div className="relative flex h-screen w-full overflow-hidden text-[color:var(--color-ink)]">
@@ -118,6 +130,19 @@ export function Layout() {
             <span className="text-[color:var(--color-ink-faint)]">QUBIT</span>
             <span className="text-[color:var(--color-ink-faint)]">//</span>
             <span className="truncate text-[color:var(--color-accent-soft)]">{railLabel}</span>
+            {/* Active scan context chip — only on data pages when a scan is loaded */}
+            {showScanContext && (
+              <>
+                <span className="text-[color:var(--color-ink-faint)]">·</span>
+                <span
+                  className="flex items-center gap-1 rounded-[2px] border border-[color:var(--color-accent)]/25 bg-[color:var(--color-accent)]/10 px-2 py-0.5 font-mono text-[10px] text-[color:var(--color-accent)]"
+                  title={`Active scan: ${activeScan.targets.join(', ')}`}
+                >
+                  <Radar className="h-2.5 w-2.5" />
+                  scan #{activeScan.seq}
+                </span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-5">
             <DepsLeds />
@@ -130,10 +155,14 @@ export function Layout() {
         </header>
 
         <DepsBanner />
-        {/* Fill the window: content spans the full width with comfortable gutters. */}
+        {/* Fill the window: content spans the full width with comfortable gutters.
+            PageErrorBoundary resets per-pathname so navigating away from a broken page
+            always starts fresh. */}
         <main className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 lg:px-8">
           <div className="mx-auto w-full max-w-[1920px]">
-            <Outlet />
+            <PageErrorBoundary key={location.pathname}>
+              <Outlet />
+            </PageErrorBoundary>
           </div>
         </main>
       </div>

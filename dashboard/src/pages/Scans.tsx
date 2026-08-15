@@ -12,6 +12,8 @@ import {
   Trash2,
   GitBranch,
   FolderOpen,
+  AlertTriangle,
+  Ban,
 } from 'lucide-react';
 import { createScan, deleteScan, fetchScans } from '../api/client';
 import { useUiStore } from '../stores/ui';
@@ -85,6 +87,22 @@ export function Scans() {
     mutationFn: (id: string) => deleteScan(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
   });
+
+  /** Track which scan ID is in the "pending confirm" state (first-click shows confirm chip). */
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  const handleDeleteClick = (scan: ScanSummary) => {
+    if (confirmId === scan.id) {
+      // Second click — confirmed, proceed with deletion
+      setConfirmId(null);
+      removeScan.mutate(scan.id);
+    } else {
+      // First click — enter confirm state
+      setConfirmId(scan.id);
+    }
+  };
+
+  const cancelConfirm = () => setConfirmId(null);
 
   const openScan = (scan: ScanSummary) => {
     setScanId(scan.id);
@@ -224,14 +242,47 @@ export function Scans() {
                         >
                           Open
                         </button>
-                        <button
-                          onClick={() => removeScan.mutate(scan.id)}
-                          className="text-[color:var(--color-danger)]/70 transition-colors hover:text-[color:var(--color-danger)]"
-                          title="Delete scan"
-                          aria-label={`Delete scan #${scan.seq}`}
-                        >
-                          <Trash2 className="inline h-4 w-4" />
-                        </button>
+
+                        {/* Two-step delete: first click shows confirm, second click deletes */}
+                        {confirmId === scan.id ? (
+                          <span className="inline-flex items-center gap-2">
+                            <button
+                              onClick={() => handleDeleteClick(scan)}
+                              disabled={removeScan.isPending}
+                              className="label-caps flex items-center gap-1 text-[color:var(--color-danger)] transition-colors hover:text-[color:var(--color-danger)]/80"
+                              title="Confirm deletion"
+                            >
+                              <AlertTriangle className="inline h-3.5 w-3.5" />
+                              Confirm
+                            </button>
+                            <button
+                              onClick={cancelConfirm}
+                              className="text-[color:var(--color-ink-faint)] transition-colors hover:text-[color:var(--color-ink)]"
+                              title="Cancel"
+                              aria-label="Cancel delete"
+                            >
+                              <Ban className="inline h-4 w-4" />
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleDeleteClick(scan)}
+                            disabled={
+                              removeScan.isPending ||
+                              scan.status === 'running' ||
+                              scan.status === 'queued'
+                            }
+                            className="text-[color:var(--color-danger)]/70 transition-colors hover:text-[color:var(--color-danger)] disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={
+                              scan.status === 'running' || scan.status === 'queued'
+                                ? 'Cannot delete a running scan'
+                                : 'Delete scan'
+                            }
+                            aria-label={`Delete scan #${scan.seq}`}
+                          >
+                            <Trash2 className="inline h-4 w-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -5,7 +5,6 @@ import { Inventory } from './pages/Inventory';
 import { Risk } from './pages/Risk';
 import { Timeline } from './pages/Timeline';
 import { Migrations } from './pages/Migrations';
-import { MigrationDetail } from './pages/MigrationDetail';
 import { Scans } from './pages/Scans';
 import { Cbom } from './pages/Cbom';
 import { Settings } from './pages/Settings';
@@ -60,10 +59,6 @@ export const router = createBrowserRouter([
       {
         path: 'p/:pid/migrations',
         element: <Migrations />,
-      },
-      {
-        path: 'm/:mid',
-        element: <MigrationDetail />,
       },
       {
         path: 'scans',

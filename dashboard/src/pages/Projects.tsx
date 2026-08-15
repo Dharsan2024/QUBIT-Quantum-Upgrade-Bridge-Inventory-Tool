@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatedPage } from '../components/AnimatedPage';
 import { FolderGit2, Activity, FileScan, Plus, RefreshCw } from 'lucide-react';
@@ -14,12 +15,15 @@ export function Projects() {
   const projectsQ = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const scansQ = useQuery({ queryKey: ['scans'], queryFn: fetchScans });
 
-  const scansByProject = new Map<string, ScanSummary[]>();
-  for (const s of scansQ.data ?? []) {
-    const list = scansByProject.get(s.project_id) ?? [];
-    list.push(s);
-    scansByProject.set(s.project_id, list);
-  }
+  const scansByProject = useMemo(() => {
+    const map = new Map<string, ScanSummary[]>();
+    for (const s of scansQ.data ?? []) {
+      const list = map.get(s.project_id) ?? [];
+      list.push(s);
+      map.set(s.project_id, list);
+    }
+    return map;
+  }, [scansQ.data]);
 
   const openLatest = (projectId: string) => {
     const scans = (scansByProject.get(projectId) ?? []).filter((s) => s.status === 'succeeded');

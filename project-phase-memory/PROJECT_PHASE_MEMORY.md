@@ -84,14 +84,42 @@ Timeline compressed 2026-08-09: single continuous sprint to end-Sep 2026 for a *
 **paper + formal experiment suites deferred to after the deadline** (see §0 deadline + `docs/BUILD_PLAN §5`
 + `docs/project-status/`). Weekly progress: `docs/project-status/WEEKLY_REPORT.md`.
 
-**Authoritative 2026-08-09 snapshot (commit `838542b`):** all seven packages + dashboard + live four-phase
-demo + crash recovery + XGBoost/conformal tier + external-ranking harness implemented. **Sprint items 1–7
-done:** real token auth (DB tokens + ro/rw scopes + CLI); extended modules **E5** migration KB, **E2**
-agility policy, **E1** per-asset recommendation, **E3** dependency-graph API+UI, **E4** governance gate+UI;
-**packaging** (docker-compose + Dockerfiles + structured logging). Quality gate: **325 passed · 0 failed ·
-0 skipped**; ruff + ruff-format + mypy (per-pkg) clean. The earlier e2e failure (bridge probe `apk add`
-timeout) and xgboost skip were both fixed. Docker (v29.6.1) + Ollama (`qwen2.5-coder:7b`) up. The M3
-human-ranking dataset still needs real independent ratings (deferred with the paper); never fabricate it.
+**Authoritative 2026-08-15 snapshot (commit `9c5f520`, branch `main`).** Measured, not estimated:
+**14,192 Python LOC** across 7 packages (`packages/*/src`), **3,827 TS/TSX LOC** dashboard, **176 Rust LOC**
+(Tauri shell), **251 test functions → 332 pytest cases: 332 passed · 0 failed · 0 skipped**;
+ruff + ruff-format + mypy (per-pkg) clean; dashboard `tsc -b` + `oxlint` + `vite build` clean.
+Docker (v29.6.1) + Ollama (`qwen2.5-coder:7b`) up and both reported live by `/health/deps`.
+
+**Three architectural changes landed 2026-08-10 → 2026-08-15 — read these before planning anything:**
+1. **QUBIT is now a NATIVE WINDOWS DESKTOP APP, not a web app.** A Tauri 2 shell
+   (`dashboard/src-tauri/`) bundles the dashboard and spawns the FastAPI engine as a child process
+   (`.venv/Scripts/uvicorn.exe qubit_api.main:app`). Installed at
+   `%LOCALAPPDATA%\QUBIT\qubit-desktop.exe`; installer at
+   `dashboard/src-tauri/target/release/bundle/nsis/QUBIT_0.1.0_x64-setup.exe`. **Cold start to
+   API-ready: 4.2 s** (0.8 s warm). The human's binding instruction: *"this isnt a web app anymore
+   just the local windows app so only work for that"* — do NOT add web-only paths or CDN
+   dependencies. `API_BASE` must stay **absolute** (the WebView origin is `tauri.localhost`, so a
+   relative base silently breaks every request), and fonts/assets must be bundled, never fetched.
+2. **Detection now covers the whole HNDL exposure surface, not only crypto assets.** New
+   `qubit_scanner.secrets` scanner: **11 high-precision secret/PII patterns** (AWS/GitHub/Slack/
+   Google/Stripe keys, JWT, PEM, hardcoded passwords, email/CC/SSN) alongside **34 crypto detection
+   rules across 8 catalog YAMLs** (python/go/java). Additive `AssetType.secret` /
+   `AssetType.sensitive-data`; each finding carries an `hndl_narrative` explaining how it is
+   exploited once a CRQC exists. `CryptoAsset` schema stayed FROZEN (additive only).
+3. **The UI is the Stitch "Quantum Command" JARVIS HUD** (source of truth:
+   `stich design/stitch_jarvis_global_design_system_interface/quantum_command/DESIGN.md`).
+   Implemented in `dashboard/src/index.css` under the pre-existing class names, so pages re-skin
+   without per-page rewrites. See §5 `2026-08-15` for the full spec + the 11 defects it uncovered.
+
+Also new: **`qubit run`** — the interactive one-command flow (prompt for a path *or git URL* → scan →
+risk score → confirm → migrate on a scratch git copy → before/after table; a declined clone is
+discarded). This is the presentation-safe fallback if the GUI misbehaves.
+
+**Sprint items 1–7 done** (from the 2026-08-09 plan): real token auth (DB tokens + ro/rw scopes + CLI);
+extended modules **E5** migration KB, **E2** agility policy, **E1** per-asset recommendation,
+**E3** dependency-graph API+UI, **E4** governance gate+UI; **packaging** (docker-compose + Dockerfiles +
+structured logging). The M3 human-ranking dataset still needs real independent ratings (deferred with the
+paper); **never fabricate it**.
 
 Build machine: Intel i7-14700HX (20c), 16 GB DDR5-5600, **NVIDIA RTX 4060 Laptop (8 GB VRAM)**, Windows 11.
 Verdict: well-suited. 7B LLM runs on the GPU (VRAM), keeping it off system RAM. The 16 GB RAM is the only
@@ -196,16 +224,32 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
 
 ## 4. Next action when resuming
 
-**Authoritative next action (2026-08-09, updated) — Sep-30 hardening sprint. Items 1–7 DONE** (real auth;
-E5/E2/E1/E3/E4; packaging). **Remaining (item 9 + polish):** (1) **demo readiness** — rehearse
-`qubit demo run --all` end-to-end on the live stack (docker + Ollama both up) + record a **backup demo
-video**; (2) **verify `docker compose up`** brings the full stack up on a clean checkout (<10 min excl.
-model pull) — the compose file + Dockerfiles exist but haven't been run clean-room; (3) **dashboard polish**
-+ deferred UI (sparklines, treemap, CBOM tree, trends/scan-diff) — good sub-agent hand-off to
-`sub-workers-push`. Weekly roll-up is **Mondays only** in `docs/project-status/WEEKLY_REPORT.md`; per-step
-logging stays here (§5) / `SUBAGENT_WORK_LOG.md`, **naming the agent**. **Deferred to after Sep 30:** the
-paper, the four experiment suites, the real-human-ranking study (`qubit risk eval --pairwise …` — never
-fabricate ratings), and `/risk/simulate`. The legacy Phase 0 paragraph below is historical only.
+**Authoritative next action (2026-08-15) — Sep-30 hardening sprint.** Items 1–7 DONE (real auth;
+E5/E2/E1/E3/E4; packaging). The desktop app, the HNDL exposure surface, and the JARVIS HUD redesign are
+DONE and verified on the installed binary (see §2 + §5 `2026-08-15`).
+
+**Remaining, highest value first:**
+1. **In-app detailed report + HTML/PDF export.** The human explicitly asked for "a detailed report for
+   all the scans and risk score" and chose **both** in-app *and* exportable. NOT STARTED. This is the
+   single largest outstanding product gap.
+2. **CBOM "Download JSON" inside WebView2 is UNVERIFIED.** The button uses a blob + `<a download>`;
+   WebView2 may swallow it. Verify by clicking it in the installed app; if it fails, write the file
+   through the engine or the Tauri fs API instead. (`qubit cbom export` on the CLI does work.)
+3. **A native folder picker for the scan target** (the Stitch mock shows "Browse"). Needs
+   `@tauri-apps/plugin-dialog` + Rust registration + capability — a real feature addition, not a re-skin.
+4. **Clean-room `docker compose up`** — the compose file + Dockerfiles exist but have never been run on
+   a fresh checkout. NOTE: the product is desktop-first now, so this is for the *self-hostable* claim
+   only; do not let it pull the UI back toward a web target.
+5. **Backup demo video** (manual, the human's action) + one `qubit demo run --all` rehearsal per
+   milestone.
+6. **Registry hygiene:** ~12 empty projects from agent testing (`native-test`, `proof-rc2`, `app-test`,
+   …) clutter the Projects page. Deleting them mutates the human's registry — **ask first**.
+
+Weekly roll-up is **Mondays only** in `docs/project-status/WEEKLY_REPORT.md` (last: 2026-08-10; next due
+**2026-08-17**); per-step logging stays here (§5) / `SUBAGENT_WORK_LOG.md`, **naming the agent**.
+**Deferred to after Sep 30:** the paper, the four experiment suites, the real-human-ranking study
+(`qubit risk eval --pairwise …` — never fabricate ratings), and `/risk/simulate`.
+The legacy Phase 0 paragraph below is historical only.
 
 **Phase 0, step 1:** bootstrap the uv monorepo per `docs/design/06-engineering-plan.md §3.1` and land
 `qubit-core` (the binding `CryptoAsset` Pydantic + SQLAlchemy models, algorithm registry, fingerprint fn),
@@ -230,6 +274,54 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 ---
 
 ## 5. CHANGELOG (newest first — every agent appends here)
+
+### 2026-08-15 (later) — Tested the app, found the working tree didn't compile; fixed + verified live (Claude, Sonnet 5)
+On "test the app, fix any issues, report what can be improved": found substantial **uncommitted**
+feature work already sitting in the working tree (not mine, no SUBAGENT_WORK_LOG entry, source
+unknown) — server-side search + pagination on Inventory, two-step confirm-delete on Scans, a
+hard-failure boot screen after ~2 min, a user-settable API endpoint in Settings, a shared `Kpi`
+component, a `PageErrorBoundary`, CBOM JSON syntax highlighting, and an N+1 query fix in
+`scan_trends`. Reviewed every diff, then ran the actual gates instead of trusting it:
+
+- **`tsc -b` failed outright** — `Inventory.tsx` still read `data.total` after the switch to
+  `useInfiniteQuery` (total now lives per-page at `data.pages[0].total`); `BootGate.tsx` passed
+  `refetch` directly as an `onClick` (React's `MouseEvent` vs react-query's `RefetchOptions` —
+  two occurrences); an unused `Deps` type was left behind. **The app would not have built.**
+- **KPI undercount bug:** Vulnerable/HNDL/Safe tiles on Inventory summed only the *loaded* page,
+  so a scan with >100 assets would silently under-report and the count would creep up as the
+  user scrolled, with no indication it was partial. Fixed by bumping the fetch size to 200 (the
+  server's hard cap — `routers/assets.py limit: le=200`, confirmed by reading the endpoint) so
+  the common case loads in one page, and adding a visible `*` + caveat line for the rare case
+  where it doesn't.
+- **Settings lockout trap:** `BootGate` wraps the whole router, including `/settings`. The new
+  API-endpoint override persists to `localStorage` — point it at an unreachable host and the
+  *only* screen that could undo it becomes unreachable too. Boot-gate's failure screen now
+  detects a non-default endpoint and offers "Reset to local engine" before the plain retry.
+- **Boot-gate's own math was wrong:** the comment and the on-screen copy both said "~90 seconds"
+  before giving up; computed the actual backoff (80 tries, 0.5s→1.5s ramp, capped) — it's
+  **~117s**. Fixed both to state the real number instead of a wrong one.
+- Dead reference: `Layout`'s off-nav label map still pointed `/m/` at the just-deleted
+  `MigrationDetail` route.
+- Minor: unnecessary regex escape + non-token Tailwind colors (`violet-400`/`teal-400`) in the
+  new CBOM syntax highlighter, now on the HUD palette.
+- Restored `.python-version` (deleted in the working tree, unrelated to any of this) — uv would
+  otherwise be free to resolve system Python 3.14, which the risk engine's pinned deps
+  (pgmpy/torch) can't run on.
+
+**Verified live, not just compiled clean:** ran the dev server against the real API and drove it
+with Playwright — confirmed the actual `/assets?q=` request fires debounced on search; traced an
+initially-suspicious match (RSA-2048 matching a "SHA" query) to real evidence-text substring
+search (the OAEP padding call sits within the evidence window of a SHA256 reference) — not a
+bug. Confirmed the two-step delete confirm/cancel dance. Hit `GET /projects/{id}/trends` directly
+and checked the numbers against a real 2-scan project to confirm the N+1 fix didn't change the
+output. Swept all 8 pages twice (before/after) with zero console errors both times. Rebuilt +
+silently reinstalled the desktop exe and re-verified on the installed binary: cold start to
+API-ready **5.6s**, all three LEDs green, search box present, KPIs correct against live data.
+
+Gate: `tsc -b` clean, `oxlint` clean, **332 pytest passed · 0 failed · 0 skipped**, ruff+mypy
+clean on qubit-api. Files: `dashboard/src/{api/client,components/{BootGate,Layout,Kpi,
+PageErrorBoundary},pages/{Cbom,Inventory,Projects,Risk,Scans,Settings},router}.tsx`,
+`packages/qubit-api/src/qubit_api/services.py`, `.python-version` (restored).
 
 ### 2026-08-15 — Stitch "Quantum Command" HUD design implemented across the whole desktop app (Claude, Opus 5)
 The human ran Stitch and dropped its output into `stich design/stitch_jarvis_global_design_system_interface/`

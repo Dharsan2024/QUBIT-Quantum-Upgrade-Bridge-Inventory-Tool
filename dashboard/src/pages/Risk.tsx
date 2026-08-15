@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import Plot from 'react-plotly.js';
+import { Kpi } from '../components/Kpi';
 import {
   Shield,
   TrendingUp,
@@ -190,37 +190,6 @@ function RiskRow({
   );
 }
 
-/** HUD readout tile — label above, oversized figure below, ghosted glyph at the right. */
-function Kpi({
-  label,
-  value,
-  icon,
-  color,
-}: {
-  label: string;
-  value: string | number;
-  icon: ReactNode;
-  color: string;
-}) {
-  return (
-    <div
-      className="glass-card flex h-32 flex-col justify-between p-5"
-      style={{ borderColor: `color-mix(in srgb, ${color} 32%, transparent)` }}
-    >
-      <span className="metric-label" style={{ color }}>
-        {label}
-      </span>
-      <div className="flex items-end justify-between gap-3">
-        <span className="metric" style={{ color }}>
-          {value}
-        </span>
-        <span className="opacity-25" style={{ color }}>
-          {icon}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 /** Segmented risk readout, matching the inventory table's HUD bar. */
 function SegBar({ score }: { score: number }) {

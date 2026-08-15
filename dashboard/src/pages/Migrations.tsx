@@ -27,11 +27,12 @@ import {
   reviewPatch,
 } from '../api/client';
 import type { MigrationTask } from '../api/types';
+import { displayAlgorithm } from '../lib/assetLabels';
 
 function StateChip({ state }: { state: string }) {
   const cls =
     state === 'ready'
-      ? 'chip'
+      ? 'chip chip-info'
       : state === 'applied' || state === 'done' || state === 'approved'
         ? 'chip chip-safe'
         : state === 'failed'
@@ -80,25 +81,28 @@ function TaskRow({ task }: { task: MigrationTask }) {
 
   return (
     <>
-      <tr className="transition-colors hover:bg-black/10">
+      <tr className="data-row">
         <td className="px-4 py-3">
           <button
             onClick={() => setOpen(!open)}
-            className="text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)]"
+            className="text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-accent)]"
+            aria-label={open ? 'Collapse task' : 'Expand task'}
           >
             {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </button>
         </td>
-        <td className="px-4 py-3 font-mono text-xs text-[color:var(--color-ink)]">
+        <td className="px-4 py-3 text-xs text-[color:var(--color-accent-soft)]">
           {task.file_path ? `${task.file_path.split(/[\\/]/).slice(-2).join('/')}${task.line ? `:${task.line}` : ''}` : '—'}
         </td>
         <td className="px-4 py-3">
-          <span className="inline-flex rounded border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-xs text-[color:var(--color-danger)]">
-            {task.algorithm ?? '?'}
+          <span className="chip chip-danger" title={task.algorithm ?? undefined}>
+            {task.algorithm ? displayAlgorithm(task.algorithm) : '?'}
           </span>
         </td>
-        <td className="px-4 py-3 font-mono text-xs">{task.rule_id ?? '—'}</td>
-        <td className="px-4 py-3 text-xs tabular-nums">{task.priority.toFixed(3)}</td>
+        <td className="px-4 py-3 text-xs text-[color:var(--color-ink-dim)]">{task.rule_id ?? '—'}</td>
+        <td className="px-4 py-3 text-xs tabular-nums text-[color:var(--color-accent)]">
+          {task.priority.toFixed(3)}
+        </td>
         <td className="px-4 py-3">
           <StateChip state={task.state} />
         </td>
@@ -118,7 +122,7 @@ function TaskRow({ task }: { task: MigrationTask }) {
               <button
                 onClick={() => gen.mutate()}
                 disabled={gen.isPending}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-400/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-[color:var(--color-accent)] transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
+                className="hud-btn px-3 py-1.5"
               >
                 {gen.isPending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -205,14 +209,24 @@ function TaskRow({ task }: { task: MigrationTask }) {
                       <button
                         onClick={() => review.mutate({ patchId: latest.id, approve: true })}
                         disabled={review.isPending}
-                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 font-medium text-[color:var(--color-safe)] hover:bg-emerald-500/20"
+                        className="hud-btn px-3 py-1.5"
+                        style={{
+                          borderColor: 'var(--color-safe)',
+                          color: 'var(--color-safe)',
+                          background: 'color-mix(in srgb, var(--color-safe) 12%, transparent)',
+                        }}
                       >
                         <Check className="h-3.5 w-3.5" /> Approve
                       </button>
                       <button
                         onClick={() => review.mutate({ patchId: latest.id, approve: false })}
                         disabled={review.isPending}
-                        className="inline-flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 font-medium text-rose-300 hover:bg-rose-500/20"
+                        className="hud-btn px-3 py-1.5"
+                        style={{
+                          borderColor: 'var(--color-danger)',
+                          color: 'var(--color-danger)',
+                          background: 'color-mix(in srgb, var(--color-danger) 12%, transparent)',
+                        }}
                       >
                         <X className="h-3.5 w-3.5" /> Reject
                       </button>
@@ -273,43 +287,69 @@ function DependencyGraphView({ planId }: { planId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="glass-card p-4 flex items-center justify-between text-xs text-[color:var(--color-ink-dim)]">
-        <div>
-          <span className="font-semibold text-[color:var(--color-ink)]">{graph.nodes.length}</span> Assets ·{' '}
-          <span className="font-semibold text-[color:var(--color-ink)]">{graph.edges.length}</span> Dependencies ·{' '}
-          <span className="font-semibold text-[color:var(--color-ink)]">{graph.units.length}</span> Execution Units
+      <div className="glass-card flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+        <div className="flex flex-wrap items-center gap-6">
+          {[
+            { n: graph.nodes.length, l: 'Assets', c: 'var(--color-accent)' },
+            { n: graph.edges.length, l: 'Dependencies', c: 'var(--color-accent-2)' },
+            { n: graph.units.length, l: 'Execution units', c: 'var(--color-safe)' },
+          ].map((s) => (
+            <div key={s.l} className="flex items-baseline gap-2">
+              <span className="metric text-[1.5rem]" style={{ color: s.c }}>
+                {s.n}
+              </span>
+              <span className="metric-label">{s.l}</span>
+            </div>
+          ))}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400"></span> Sequential</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400"></span> Cycle / Parallel Unit</span>
+        <div className="flex items-center gap-4">
+          <span className="chip chip-safe">Sequential</span>
+          <span className="chip chip-warn">Cycle / parallel unit</span>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-5 xl:grid-cols-2 2xl:grid-cols-3">
         {graph.units.map((unit, idx) => (
-          <div key={String(unit.unit_id)} className="glass-card p-4 flex flex-col gap-3 border-l-4 border-l-indigo-400">
-            <div className="flex items-center justify-between text-xs border-b border-[color:var(--glass-border)] pb-2">
-              <span className="font-mono font-semibold text-[color:var(--color-accent)]">Unit #{idx + 1}</span>
-              {unit.is_cycle && <span className="chip chip-warn">Cycle Condensation</span>}
+          <div
+            key={String(unit.unit_id)}
+            className="glass-card flex flex-col gap-3 p-5"
+            style={{
+              borderLeft: `3px solid ${unit.is_cycle ? 'var(--color-warn)' : 'var(--color-accent)'}`,
+            }}
+          >
+            <div className="flex items-center justify-between border-b border-[color:var(--edge)] pb-2.5">
+              <span className="label-caps text-[color:var(--color-accent)]">
+                Unit #{idx + 1} · {unit.members.length} member{unit.members.length === 1 ? '' : 's'}
+              </span>
+              {unit.is_cycle && <span className="chip chip-warn">Cycle condensation</span>}
             </div>
             <div className="flex flex-col gap-2">
               {unit.members.map((memberId) => {
                 const node = graph.nodes.find((n) => n.id === memberId || n.asset_id === memberId);
                 const edgesFrom = graph.edges.filter((e) => e.source === memberId);
                 return (
-                  <div key={memberId} className="rounded border border-[color:var(--glass-border)] bg-black/20 p-2.5 text-xs">
-                    <div className="flex items-center justify-between font-mono">
-                      <span className="text-[color:var(--color-ink)]">{node?.algorithm ?? 'Asset'}</span>
-                      <span className="text-[color:var(--color-ink-faint)]">rank #{node?.order_index ?? idx}</span>
+                  <div
+                    key={memberId}
+                    className="rounded-[3px] border border-[color:var(--edge)] bg-black/40 p-3 transition-colors hover:border-[color:var(--edge-lume)]"
+                  >
+                    <div className="flex items-center justify-between gap-3 font-mono text-xs">
+                      <span
+                        className="truncate text-[color:var(--color-accent-soft)]"
+                        title={node?.algorithm}
+                      >
+                        {node?.algorithm ? displayAlgorithm(node.algorithm) : 'Asset'}
+                      </span>
+                      <span className="flex-none text-[color:var(--color-ink-faint)]">
+                        rank #{node?.order_index ?? idx}
+                      </span>
                     </div>
                     {node?.usage_context && (
-                      <div className="mt-1 text-[11px] text-[color:var(--color-ink-faint)]">
-                        Context: {node.usage_context}
-                      </div>
+                      <div className="metric-label mt-1.5">Context · {node.usage_context}</div>
                     )}
                     {edgesFrom.length > 0 && (
-                      <div className="mt-2 border-t border-[color:var(--glass-border)] pt-1 text-[11px] text-[color:var(--color-accent)]/80">
-                        Depends on: {edgesFrom.map((e) => e.target.slice(0, 8)).join(', ')} ({edgesFrom[0].kind ?? 'dependency'})
+                      <div className="mt-2 border-t border-[color:var(--edge)] pt-2 font-mono text-[11px] text-[color:var(--color-accent-2)]">
+                        → depends on {edgesFrom.map((e) => e.target.slice(0, 8)).join(', ')} (
+                        {edgesFrom[0].kind ?? 'dependency'})
                       </div>
                     )}
                   </div>
@@ -319,7 +359,7 @@ function DependencyGraphView({ planId }: { planId: string }) {
           </div>
         ))}
         {graph.units.length === 0 && (
-          <div className="glass-card col-span-2 p-8 text-center text-xs text-[color:var(--color-ink-faint)]">
+          <div className="glass-card col-span-full p-10 text-center text-sm text-[color:var(--color-ink-faint)]">
             No graph dependencies detected.
           </div>
         )}
@@ -350,49 +390,45 @@ export function Migrations() {
 
   return (
     <AnimatedPage className="flex flex-col gap-5 py-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Migration Queue</h1>
-          <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">
+          <h1>Migration Hub</h1>
+          <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
             {activePlan
               ? `Plan ${activePlan.id.slice(0, 8)} · ${activePlan.stats.tasks ?? 0} tasks / ${activePlan.stats.units ?? 0} units`
               : 'Build a plan from risk-annotated assets, then generate and review patches.'}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex rounded-lg border border-[color:var(--glass-border)] bg-black/20 p-1 text-xs">
+          <div className="flex gap-1 rounded-[3px] border border-[color:var(--edge)] bg-black/40 p-1">
             <button
               onClick={() => setActiveTab('queue')}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${
+              className={`label-caps flex items-center gap-1.5 rounded-[2px] px-3 py-1.5 transition-all ${
                 activeTab === 'queue'
-                  ? 'bg-indigo-500/20 text-[color:var(--color-accent)] border border-indigo-400/30'
-                  : 'text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-ink)]'
+                  ? 'bg-[color:var(--color-accent)]/18 text-[color:var(--color-accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]'
+                  : 'hover:text-[color:var(--color-accent-soft)]'
               }`}
             >
               <List className="h-3.5 w-3.5" /> Queue
             </button>
             <button
               onClick={() => setActiveTab('graph')}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${
+              className={`label-caps flex items-center gap-1.5 rounded-[2px] px-3 py-1.5 transition-all ${
                 activeTab === 'graph'
-                  ? 'bg-indigo-500/20 text-[color:var(--color-accent)] border border-indigo-400/30'
-                  : 'text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-ink)]'
+                  ? 'bg-[color:var(--color-accent)]/18 text-[color:var(--color-accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]'
+                  : 'hover:text-[color:var(--color-accent-soft)]'
               }`}
             >
-              <GitFork className="h-3.5 w-3.5" /> Dependency Graph
+              <GitFork className="h-3.5 w-3.5" /> Dependency graph
             </button>
           </div>
-          <button
-            onClick={() => build.mutate()}
-            disabled={build.isPending}
-            className="glass-input flex items-center gap-2 border-indigo-400/40 text-sm font-medium hover:border-indigo-400/70 disabled:opacity-50"
-          >
+          <button onClick={() => build.mutate()} disabled={build.isPending} className="hud-btn">
             {build.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Play className="h-4 w-4" />
+              <Play className="h-3.5 w-3.5" />
             )}
-            Build Plan
+            Build plan
           </button>
         </div>
       </header>
@@ -426,21 +462,19 @@ export function Migrations() {
       {activePlan?.status === 'active' && activeTab === 'queue' && (
         <div className="glass-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-[color:var(--color-ink-dim)]">
-              <thead className="border-b border-[color:var(--glass-border)] bg-black/10 text-xs uppercase tracking-wide">
+            <table className="hud-table w-full">
+              <thead>
                 <tr>
                   <th className="w-8 px-4 py-3" />
-                  <th className="px-4 py-3 font-medium text-[color:var(--color-ink)]">Asset</th>
-                  <th className="px-4 py-3 font-medium text-[color:var(--color-ink)]">Algorithm</th>
-                  <th className="px-4 py-3 font-medium text-[color:var(--color-ink)]">Rule</th>
-                  <th className="px-4 py-3 font-medium text-[color:var(--color-ink)]">WSJF</th>
-                  <th className="px-4 py-3 font-medium text-[color:var(--color-ink)]">State</th>
-                  <th className="px-4 py-3 text-right font-medium text-[color:var(--color-ink)]">
-                    Actions
-                  </th>
+                  <th className="px-4 py-3">Asset</th>
+                  <th className="px-4 py-3">Algorithm</th>
+                  <th className="px-4 py-3">Rule</th>
+                  <th className="px-4 py-3">WSJF</th>
+                  <th className="px-4 py-3">State</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[color:var(--glass-border)]">
+              <tbody>
                 {tasks.map((t) => (
                   <TaskRow key={t.id} task={t} />
                 ))}

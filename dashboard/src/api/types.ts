@@ -1,6 +1,25 @@
 export type SourceScanner = "code" | "config" | "network" | "cert" | "key";
-export type AssetType = "algorithm-use" | "protocol" | "certificate" | "key" | "library";
+// "secret" / "sensitive-data" are the HNDL exposure surface — what an attacker gains once
+// harvested traffic becomes decryptable (see qubit_core.schemas.AssetType).
+export type AssetType =
+  | "algorithm-use"
+  | "protocol"
+  | "certificate"
+  | "key"
+  | "library"
+  | "secret"
+  | "sensitive-data";
 export type UsageContext = "tls" | "kex" | "signature" | "encryption-at-rest" | "token" | "hash" | "password" | "unknown";
+export type Sensitivity =
+  | "pii"
+  | "phi"
+  | "financial"
+  | "ip"
+  | "credentials"
+  | "ephemeral"
+  | "public"
+  | "unknown";
+export type Confidence = "high" | "medium" | "low";
 
 export interface LocationRef {
   host?: string;
@@ -23,18 +42,35 @@ export interface RiskAnnotation {
   priority_rank: number;
 }
 
+/** Proof of a finding, post-redaction. `context.extra.hndl_narrative` carries the
+ *  scanner's "how this is exploited under HNDL" explanation for secret/PII findings. */
+export interface Evidence {
+  snippet: string;
+  snippet_sha256?: string | null;
+  context: {
+    symbols?: Record<string, string[]>;
+    imports?: string[];
+    extra?: Record<string, unknown>;
+  };
+}
+
 export interface CryptoAsset {
   id: string;
   source_scanner: SourceScanner;
   location: LocationRef;
   asset_type: AssetType;
   algorithm: string;
-  key_size?: number;
+  key_size?: number | null;
+  library?: { name: string; version?: string | null } | null;
   usage_context: UsageContext;
   quantum_vulnerable: QuantumVulnerability;
-  evidence: string;
+  evidence: Evidence;
   discovered_at: string;
-  risk?: RiskAnnotation;
+  sensitivity?: Sensitivity;
+  shelf_life_years?: number | null;
+  risk?: RiskAnnotation | null;
+  rule_id?: string | null;
+  confidence?: Confidence;
 }
 
 export interface Paginated<T> {

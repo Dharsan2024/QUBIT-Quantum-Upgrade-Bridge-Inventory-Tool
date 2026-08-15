@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>QUBIT - CRQC Timeline</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&amp;family=Space+Grotesk:wght@600;700&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error-container": "#ffdad6",
+                        "error": "#ffb4ab",
+                        "primary-fixed-dim": "#29d9f7",
+                        "on-primary-fixed-variant": "#004e5b",
+                        "tertiary-fixed": "#6ef9d9",
+                        "inverse-primary": "#006878",
+                        "primary": "#c1f2ff",
+                        "primary-fixed": "#a7edff",
+                        "secondary-container": "#4816cb",
+                        "on-tertiary-fixed": "#002019",
+                        "on-surface": "#e1e2ea",
+                        "secondary": "#cabeff",
+                        "surface-tint": "#29d9f7",
+                        "surface-dim": "#111319",
+                        "tertiary-container": "#56e4c5",
+                        "on-primary-container": "#00606f",
+                        "on-primary": "#00363f",
+                        "on-secondary": "#31009a",
+                        "on-tertiary-fixed-variant": "#005143",
+                        "surface-container-high": "#272a30",
+                        "on-primary-fixed": "#001f25",
+                        "outline-variant": "#3c494c",
+                        "on-tertiary": "#00382d",
+                        "on-secondary-container": "#b9aaff",
+                        "surface": "#111319",
+                        "on-secondary-fixed": "#1c0062",
+                        "background": "#111319",
+                        "primary-container": "#38e0ff",
+                        "inverse-on-surface": "#2e3037",
+                        "tertiary": "#87ffe1",
+                        "surface-variant": "#32353b",
+                        "secondary-fixed-dim": "#cabeff",
+                        "on-tertiary-container": "#006352",
+                        "on-surface-variant": "#bbc9cd",
+                        "surface-container": "#1d2025",
+                        "secondary-fixed": "#e6deff",
+                        "surface-bright": "#37393f",
+                        "surface-container-low": "#191c21",
+                        "surface-container-highest": "#32353b",
+                        "on-error": "#690005",
+                        "error-container": "#93000a",
+                        "on-background": "#e1e2ea",
+                        "surface-container-lowest": "#0c0e14",
+                        "tertiary-fixed-dim": "#4ddcbd",
+                        "outline": "#859397",
+                        "inverse-surface": "#e1e2ea",
+                        "on-secondary-fixed-variant": "#4816cb"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "gutter": "24px",
+                        "margin": "40px",
+                        "panel-padding": "24px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["JetBrains Mono"],
+                        "data-mono": ["JetBrains Mono"],
+                        "headline-sm": ["Space Grotesk"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Space Grotesk"],
+                        "body-lg": ["Inter"],
+                        "display-lg": ["Space Grotesk"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700" }],
+                        "data-mono": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "headline-sm": ["24px", { "lineHeight": "32px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-md": ["32px", { "lineHeight": "40px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #05070C;
+            background-image: 
+                linear-gradient(rgba(56, 224, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(56, 224, 255, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .hud-corner {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-color: rgba(56, 224, 255, 0.5);
+            border-style: solid;
+        }
+        .hud-tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+        .hud-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+        .hud-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+        .hud-br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+        
+        .glass-panel {
+            background: rgba(29, 32, 37, 0.6);
+            backdrop-filter: blur(40px);
+            border: 1px solid rgba(56, 224, 255, 0.2);
+            position: relative;
+        }
+        .glass-panel:hover {
+            border: 1px solid rgba(56, 224, 255, 0.5);
+            box-shadow: 0 0 15px rgba(56, 224, 255, 0.15);
+        }
+        
+        .glow-text {
+            text-shadow: 0 0 10px rgba(56, 224, 255, 0.5);
+        }
+        
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100vh); }
+        }
+        .scanline {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(56, 224, 255, 0.5), transparent);
+            opacity: 0.3;
+            animation: scanline 8s linear infinite;
+            pointer-events: none;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body class="text-on-surface font-body-md overflow-x-hidden min-h-screen">
+<div class="scanline"></div>
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest/60 backdrop-blur-2xl border-r border-primary/20 shadow-[10px_0_30px_rgba(0,0,0,0.5)] flex flex-col py-panel-padding transition-transform duration-200 ease-in-out z-40 hidden md:flex">
+<div class="px-gutter mb-8">
+<h2 class="font-headline-md text-headline-md text-primary">JARVIS_OS</h2>
+<p class="font-data-mono text-data-mono text-on-surface-variant text-xs mt-1">V-2.4.0 Stable</p>
+</div>
+<div class="flex-1 px-4 space-y-2">
+<!-- Dashboard -->
+<a class="flex items-center space-x-3 px-4 py-3 rounded-lg text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+<span class="font-label-caps text-label-caps">Dashboard</span>
+</a>
+<!-- Threat Intel -->
+<a class="flex items-center space-x-3 px-4 py-3 rounded-lg bg-primary/20 text-primary border-r-4 border-primary shadow-[inset_0_0_15px_rgba(56,224,255,0.1)] cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="security">security</span>
+<span class="font-label-caps text-label-caps glow-text">Threat Intel</span>
+</a>
+<!-- Vault -->
+<a class="flex items-center space-x-3 px-4 py-3 rounded-lg text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="key">key</span>
+<span class="font-label-caps text-label-caps">Vault</span>
+</a>
+<!-- Network Arch -->
+<a class="flex items-center space-x-3 px-4 py-3 rounded-lg text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="hub">hub</span>
+<span class="font-label-caps text-label-caps">Network Arch</span>
+</a>
+<!-- Protocol Sync -->
+<a class="flex items-center space-x-3 px-4 py-3 rounded-lg text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="sync_alt">sync_alt</span>
+<span class="font-label-caps text-label-caps">Protocol Sync</span>
+</a>
+<!-- System Logs -->
+<a class="flex items-center space-x-3 px-4 py-3 rounded-lg text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 transition-all cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-label-caps text-label-caps">System Logs</span>
+</a>
+</div>
+<div class="px-4 mt-auto">
+<button class="w-full py-3 bg-primary/20 border border-primary text-primary font-label-caps text-label-caps hover:bg-primary/30 transition-colors uppercase relative group">
+<div class="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                INITIATE MIGRATION
+            </button>
+</div>
+<div class="px-4 mt-6 pt-4 border-t border-primary/20 flex flex-col space-y-2">
+<a class="flex items-center space-x-3 px-4 py-2 text-outline-variant hover:text-on-surface transition-colors cursor-pointer" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="help">help</span>
+<span class="font-label-caps text-label-caps text-[10px]">Support</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-2 text-outline-variant hover:text-on-surface transition-colors cursor-pointer" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="logout">logout</span>
+<span class="font-label-caps text-label-caps text-[10px]">Sign Out</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="md:ml-64 flex flex-col min-h-screen relative z-10">
+<!-- TopAppBar -->
+<header class="bg-surface-container/40 backdrop-blur-xl docked full-width top-0 border-b border-primary/20 shadow-[0_0_15px_rgba(56,224,255,0.15)] flex justify-between items-center w-full px-gutter h-20 sticky z-30">
+<div class="flex items-center space-x-8">
+<h1 class="font-display-lg text-display-lg font-bold tracking-tighter text-primary bg-clip-text glow-text">QUBIT</h1>
+<nav class="hidden lg:flex space-x-6">
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-on-surface-variant hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Quantum Status</a>
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-primary border-b-2 border-primary pb-1 cursor-pointer active:scale-95 glow-text" href="#">Migration Hub</a>
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-on-surface-variant hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Encryption</a>
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-on-surface-variant hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Audit</a>
+</nav>
+</div>
+<div class="flex items-center space-x-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
+<input class="bg-surface-dim border-b border-primary/50 border-t-0 border-l-0 border-r-0 focus:border-primary focus:ring-0 text-primary font-data-mono text-data-mono pl-10 pr-4 py-2 w-64 placeholder-on-surface-variant/50 transition-all outline-none" placeholder="Search parameters..." type="text"/>
+</div>
+<button class="text-primary hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95 relative p-2">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full shadow-[0_0_5px_rgba(255,180,171,0.8)]"></span>
+</button>
+<button class="text-primary hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95 p-2">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<button class="text-primary hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95 p-2">
+<span class="material-symbols-outlined" data-icon="terminal">terminal</span>
+</button>
+<div class="h-8 w-8 rounded bg-surface-variant border border-primary/30 flex items-center justify-center overflow-hidden ml-2">
+<img alt="Chief Security Officer Avatar" class="w-full h-full object-cover opacity-80 mix-blend-screen" data-alt="A futuristic minimalist avatar portrait of a Chief Security Officer in a glowing cyan technical environment, high contrast dark theme aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAF5rrQp011trKnk1zLTn7Qz9ixgAzqkmuwgTU38fTiVPBPx3x7GTnJZkVMvm1T7issP9hn4eBSzr2vUq5ac5t5J06JZCdqzY5vKtP30B-i3Q9TKfL13iMghgDdZ9RtCuk4fwNDC2Xqo94d3zWyILMy7erEvRNRF18w8h5bq-L5kSq9_m54EhfwaLzlPDtl4lJmAfZX-IAMdrPG-k6OU6NVH0wNB2xD8hCegYOTLsQQmQNPRqBqXrfPfw"/>
+</div>
+</div>
+</header>
+<!-- Canvas Area -->
+<main class="flex-1 p-gutter w-full max-w-[1600px] mx-auto flex flex-col gap-gutter">
+<!-- Header Module -->
+<div class="flex flex-col mb-4 relative z-10">
+<h2 class="font-display-lg text-display-lg text-primary glow-text uppercase tracking-tight">CRQC Timeline</h2>
+<div class="flex items-center space-x-4 mt-2">
+<span class="px-3 py-1 border border-primary/50 text-primary font-data-mono text-xs uppercase flex items-center bg-primary/5"><span class="w-1.5 h-1.5 bg-primary rounded-full mr-2 glow-text"></span>Live Simulation</span>
+<span class="text-on-surface-variant font-data-mono text-sm">Model: Quantum-Monte-Carlo-v4</span>
+</div>
+</div>
+<!-- Metrics Row -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter z-10">
+<!-- P05 -->
+<div class="glass-panel p-panel-padding group">
+<div class="hud-corner hud-tl"></div><div class="hud-corner hud-tr"></div><div class="hud-corner hud-bl"></div><div class="hud-corner hud-br"></div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-2">Earliest (P05)</p>
+<div class="flex items-baseline space-x-2">
+<span class="font-headline-md text-headline-md text-[#7C5CFF]">2036</span>
+<span class="font-data-mono text-xs text-on-surface-variant">Year</span>
+</div>
+<div class="w-full h-1 bg-surface mt-4 flex">
+<div class="h-full bg-[#7C5CFF]/30 w-1/4"></div>
+</div>
+</div>
+<!-- P50 -->
+<div class="glass-panel p-panel-padding group">
+<div class="hud-corner hud-tl"></div><div class="hud-corner hud-tr"></div><div class="hud-corner hud-bl"></div><div class="hud-corner hud-br"></div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-2">Median (P50)</p>
+<div class="flex items-baseline space-x-2">
+<span class="font-headline-md text-headline-md text-primary glow-text">2041</span>
+<span class="font-data-mono text-xs text-on-surface-variant">Year</span>
+</div>
+<div class="w-full h-1 bg-surface mt-4 flex">
+<div class="h-full bg-primary/50 w-1/2 shadow-[0_0_10px_rgba(56,224,255,0.5)]"></div>
+</div>
+</div>
+<!-- P95 -->
+<div class="glass-panel p-panel-padding group">
+<div class="hud-corner hud-tl"></div><div class="hud-corner hud-tr"></div><div class="hud-corner hud-bl"></div><div class="hud-corner hud-br"></div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-2">Latest (P95)</p>
+<div class="flex items-baseline space-x-2">
+<span class="font-headline-md text-headline-md text-[#7C5CFF]">2055</span>
+<span class="font-data-mono text-xs text-on-surface-variant">Year</span>
+</div>
+<div class="w-full h-1 bg-surface mt-4 flex">
+<div class="h-full bg-[#7C5CFF]/30 w-3/4"></div>
+</div>
+</div>
+<!-- Trials -->
+<div class="glass-panel p-panel-padding group">
+<div class="hud-corner hud-tl"></div><div class="hud-corner hud-tr"></div><div class="hud-corner hud-bl"></div><div class="hud-corner hud-br"></div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-2">Simulation Trials</p>
+<div class="flex items-baseline space-x-2">
+<span class="font-headline-md text-headline-md text-on-surface">10,000</span>
+<span class="font-data-mono text-xs text-on-surface-variant">Iterations</span>
+</div>
+<div class="flex items-center space-x-1 mt-4">
+<div class="h-1 flex-1 bg-primary/80"></div>
+<div class="h-1 flex-1 bg-primary/80"></div>
+<div class="h-1 flex-1 bg-primary/80"></div>
+<div class="h-1 flex-1 bg-primary/80"></div>
+<div class="h-1 flex-1 bg-primary/80"></div>
+</div>
+</div>
+</div>
+<!-- Main Chart Area -->
+<div class="glass-panel flex-1 min-h-[500px] p-panel-padding flex flex-col relative z-10">
+<div class="hud-corner hud-tl"></div><div class="hud-corner hud-tr"></div><div class="hud-corner hud-bl"></div><div class="hud-corner hud-br"></div>
+<div class="flex justify-between items-start mb-6">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-primary uppercase">Monte-Carlo Probability Curve</h3>
+<p class="font-data-mono text-sm text-on-surface-variant">Likelihood of CRQC Arrival by Year</p>
+</div>
+<!-- HNDL Overlay Legend -->
+<div class="border border-error/30 bg-error-container/10 p-3 flex items-center space-x-4">
+<div class="flex items-center space-x-2">
+<div class="w-3 h-3 bg-error/50 border border-error"></div>
+<span class="font-data-mono text-xs text-error">HNDL Risk Window</span>
+</div>
+<span class="font-label-caps text-[10px] text-on-surface-variant">MOSCA'S THEOREM: X + Y &gt; Z</span>
+</div>
+</div>
+<!-- Chart Container -->
+<div class="relative flex-1 w-full border-l border-b border-primary/20 mt-4 overflow-hidden group">
+<!-- Grid Lines -->
+<div class="absolute inset-0 flex flex-col justify-between opacity-10 pointer-events-none">
+<div class="w-full h-px bg-primary"></div>
+<div class="w-full h-px bg-primary"></div>
+<div class="w-full h-px bg-primary"></div>
+<div class="w-full h-px bg-primary"></div>
+<div class="w-full h-px bg-primary"></div>
+</div>
+<!-- SVG Chart Path -->
+<svg class="absolute inset-0 w-full h-full preserve-3d" preserveaspectratio="none" viewbox="0 0 1000 400">
+<defs>
+<lineargradient id="cyan-glow" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#38E0FF" stop-opacity="0.4"></stop>
+<stop offset="100%" stop-color="#38E0FF" stop-opacity="0"></stop>
+</lineargradient>
+<filter id="glow">
+<fegaussianblur result="coloredBlur" stddeviation="4"></fegaussianblur>
+<femerge>
+<femergenode in="coloredBlur"></femergenode>
+<femergenode in="SourceGraphic"></femergenode>
+</femerge>
+</filter>
+</defs>
+<!-- Area Fill -->
+<path d="M 0 400 L 100 390 C 200 380, 250 350, 300 200 C 350 50, 400 20, 450 150 C 500 280, 600 350, 800 380 L 1000 395 L 1000 400 Z" fill="url(#cyan-glow)"></path>
+<!-- Primary Curve -->
+<path d="M 0 400 L 100 390 C 200 380, 250 350, 300 200 C 350 50, 400 20, 450 150 C 500 280, 600 350, 800 380 L 1000 395" fill="none" filter="url(#glow)" stroke="#38E0FF" stroke-width="3"></path>
+</svg>
+<!-- Markers -->
+<!-- P05 Marker -->
+<div class="absolute top-0 bottom-0 left-[30%] border-l-2 border-dashed border-[#7C5CFF] flex flex-col justify-start pt-4 items-start pl-2 z-20 hover:bg-[#7C5CFF]/10 transition-colors cursor-crosshair">
+<div class="font-data-mono text-[#7C5CFF] text-sm bg-surface-dim/80 px-2 py-1 border border-[#7C5CFF]/30">P05 (2036)</div>
+</div>
+<!-- P50 Marker -->
+<div class="absolute top-0 bottom-0 left-[40%] border-l-2 border-[#38E0FF] shadow-[0_0_10px_rgba(56,224,255,0.5)] flex flex-col justify-start pt-2 items-start pl-2 z-20 hover:bg-primary/10 transition-colors cursor-crosshair">
+<div class="font-data-mono text-primary text-sm bg-surface-dim/80 px-2 py-1 border border-primary/50 glow-text">P50 (2041)</div>
+</div>
+<!-- P95 Marker -->
+<div class="absolute top-0 bottom-0 left-[70%] border-l-2 border-dashed border-[#7C5CFF] flex flex-col justify-start pt-4 items-start pl-2 z-20 hover:bg-[#7C5CFF]/10 transition-colors cursor-crosshair">
+<div class="font-data-mono text-[#7C5CFF] text-sm bg-surface-dim/80 px-2 py-1 border border-[#7C5CFF]/30">P95 (2055)</div>
+</div>
+<!-- HNDL Risk Window Overlay -->
+<div class="absolute bottom-0 left-0 w-[35%] h-[15%] bg-error/20 border-t border-r border-error border-dashed flex items-center justify-center z-10 overflow-hidden">
+<div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGcgc3Ryb2tlPSIjZmZiNGFiIiBzdHJva2Utb3BhY2l0eT0iMC4yIiBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0wIDQwbDQwLTQwTTAgODBMODAgME0wIDEyMGwxMjAtMTIwTTAgMTYwbDE2MC0xNjAiIHN0cm9rZS13aWR0aD0iMiIvPjwvZz48L3N2Zz4=')] opacity-30"></div>
+<span class="font-label-caps text-error text-xs relative z-10 px-2 py-1 bg-surface-dim/50 backdrop-blur-sm">HNDL EXPOSURE WINDOW</span>
+</div>
+<!-- X-Axis Labels -->
+<div class="absolute bottom-[-24px] left-0 w-full flex justify-between font-data-mono text-xs text-on-surface-variant px-2">
+<span>2025</span>
+<span>2030</span>
+<span>2040</span>
+<span>2050</span>
+<span>2060</span>
+</div>
+<!-- Y-Axis Labels -->
+<div class="absolute left-[-40px] top-0 h-full flex flex-col justify-between font-data-mono text-xs text-on-surface-variant py-2">
+<span>1.0</span>
+<span>0.5</span>
+<span>0.0</span>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

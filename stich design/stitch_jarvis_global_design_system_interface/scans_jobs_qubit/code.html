@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Scans &amp; Jobs - QUBIT</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&amp;family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface": "#111319",
+                      "on-secondary-fixed-variant": "#4816cb",
+                      "tertiary-fixed-dim": "#4ddcbd",
+                      "on-primary-container": "#00606f",
+                      "tertiary-container": "#56e4c5",
+                      "surface-tint": "#29d9f7",
+                      "on-error": "#690005",
+                      "tertiary": "#87ffe1",
+                      "on-tertiary-container": "#006352",
+                      "surface-container-highest": "#32353b",
+                      "on-secondary-container": "#b9aaff",
+                      "surface-container-high": "#272a30",
+                      "on-tertiary": "#00382d",
+                      "outline": "#859397",
+                      "surface-variant": "#32353b",
+                      "secondary-container": "#4816cb",
+                      "primary-fixed-dim": "#29d9f7",
+                      "on-error-container": "#ffdad6",
+                      "on-primary": "#00363f",
+                      "on-tertiary-fixed-variant": "#005143",
+                      "on-tertiary-fixed": "#002019",
+                      "secondary-fixed": "#e6deff",
+                      "surface-container": "#1d2025",
+                      "on-background": "#e1e2ea",
+                      "inverse-primary": "#006878",
+                      "surface-container-low": "#191c21",
+                      "error-container": "#93000a",
+                      "on-secondary": "#31009a",
+                      "on-primary-fixed": "#001f25",
+                      "surface-bright": "#37393f",
+                      "surface-container-lowest": "#0c0e14",
+                      "outline-variant": "#3c494c",
+                      "primary-fixed": "#a7edff",
+                      "on-surface-variant": "#bbc9cd",
+                      "error": "#ffb4ab",
+                      "primary-container": "#38e0ff",
+                      "on-secondary-fixed": "#1c0062",
+                      "primary": "#c1f2ff",
+                      "background": "#111319",
+                      "inverse-surface": "#e1e2ea",
+                      "secondary": "#cabeff",
+                      "on-surface": "#e1e2ea",
+                      "tertiary-fixed": "#6ef9d9",
+                      "inverse-on-surface": "#2e3037",
+                      "surface-dim": "#111319",
+                      "secondary-fixed-dim": "#cabeff",
+                      "on-primary-fixed-variant": "#004e5b"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "margin": "40px",
+                      "gutter": "24px",
+                      "unit": "4px",
+                      "panel-padding": "24px"
+              },
+              "fontFamily": {
+                      "data-mono": [
+                              "JetBrains Mono"
+                      ],
+                      "display-lg": [
+                              "Space Grotesk"
+                      ],
+                      "headline-md": [
+                              "Space Grotesk"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "headline-sm": [
+                              "Space Grotesk"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "label-caps": [
+                              "JetBrains Mono"
+                      ]
+              },
+              "fontSize": {
+                      "data-mono": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-md": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-sm": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.1em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        /* Blueprint Grid Background */
+        .bg-blueprint {
+            background-color: #05070C;
+            background-image: 
+                linear-gradient(rgba(56, 224, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(56, 224, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+            background-position: center center;
+        }
+
+        /* Glass Panel Styling */
+        .glass-panel {
+            background: rgba(17, 19, 25, 0.6);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(56, 224, 255, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+        
+        .glass-panel:hover {
+            border-color: rgba(56, 224, 255, 0.5);
+            box-shadow: 0 0 15px rgba(56, 224, 255, 0.15);
+        }
+
+        /* HUD Corner Ticks */
+        .hud-corners::before, .hud-corners::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-color: rgba(56, 224, 255, 0.5);
+            border-style: solid;
+            pointer-events: none;
+        }
+        .hud-corners::before {
+            top: -1px; left: -1px;
+            border-width: 2px 0 0 2px;
+        }
+        .hud-corners::after {
+            bottom: -1px; right: -1px;
+            border-width: 0 2px 2px 0;
+        }
+        .hud-corners-top-right {
+            position: absolute; top: -1px; right: -1px; width: 8px; height: 8px; border-width: 2px 2px 0 0; border-color: rgba(56, 224, 255, 0.5); border-style: solid; pointer-events: none;
+        }
+        .hud-corners-bottom-left {
+            position: absolute; bottom: -1px; left: -1px; width: 8px; height: 8px; border-width: 0 0 2px 2px; border-color: rgba(56, 224, 255, 0.5); border-style: solid; pointer-events: none;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(17, 19, 25, 0.8);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(56, 224, 255, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 224, 255, 0.6);
+        }
+
+        /* Text Gradients & Glows */
+        .text-glow-primary {
+            text-shadow: 0 0 10px rgba(193, 242, 255, 0.5);
+        }
+        .text-glow-cyan {
+            text-shadow: 0 0 10px rgba(56, 224, 255, 0.5);
+        }
+        .status-success {
+            color: #4ddcbd;
+            text-shadow: 0 0 8px rgba(77, 220, 189, 0.4);
+        }
+        
+        /* Table Row Hover */
+        .table-row-hover:hover {
+            background-color: rgba(56, 224, 255, 0.05);
+            border-left: 2px solid #38e0ff;
+        }
+
+        /* Progress Bar Animation */
+        @keyframes scanProgress {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+        }
+        .animate-progress {
+            animation: scanProgress 3s ease-in-out infinite alternate;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md h-screen w-screen overflow-hidden flex bg-blueprint">
+<!-- Side Navigation Bar -->
+<nav class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest/60 backdrop-blur-2xl border-r border-primary/20 shadow-[10px_0_30px_rgba(0,0,0,0.5)] flex flex-col py-panel-padding z-50">
+<div class="px-6 mb-8 flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-3xl" data-weight="fill" style="font-variation-settings: 'FILL' 1;">shield</span>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary tracking-tight">QUBIT</h1>
+<p class="font-label-caps text-label-caps text-outline text-[10px]">PQC MIGRATION</p>
+</div>
+</div>
+<div class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 hover:text-primary transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">grid_view</span>
+<span class="font-data-mono text-data-mono">Projects</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 hover:text-primary transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-data-mono text-data-mono">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 hover:text-primary transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">security</span>
+<span class="font-data-mono text-data-mono">Risk Posture</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 hover:text-primary transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">timeline</span>
+<span class="font-data-mono text-data-mono">CRQC Timeline</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 hover:text-primary transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">sync_alt</span>
+<span class="font-data-mono text-data-mono">Migrations</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg bg-primary/20 text-primary border-r-4 border-primary transition-transform duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-data-mono text-data-mono">Scans &amp; Jobs</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 hover:text-primary transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-data-mono text-data-mono">Settings</span>
+</a>
+</div>
+<div class="px-4 mt-auto">
+<div class="glass-panel hud-corners p-4 rounded-lg flex items-start gap-3">
+<div class="w-2 h-2 rounded-full bg-tertiary-fixed-dim mt-1.5 shadow-[0_0_8px_rgba(77,220,189,0.8)]"></div>
+<div>
+<p class="font-label-caps text-label-caps text-on-surface">Offline - local</p>
+<p class="text-[11px] text-outline mt-1 leading-tight">No telemetry. Your code never leaves the machine.</p>
+</div>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="ml-64 flex-1 flex flex-col h-full overflow-y-auto">
+<!-- Header Section -->
+<header class="px-gutter pt-8 pb-6 sticky top-0 bg-surface/80 backdrop-blur-md z-40 border-b border-primary/10">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h2 class="font-display-lg text-display-lg text-primary tracking-tighter">Scans &amp; Jobs</h2>
+<p class="text-outline text-sm mt-1">Run a scan over a path; assets and risk are computed and stored in the registry.</p>
+</div>
+<div class="flex items-center gap-4">
+<span class="font-data-mono text-[11px] text-tertiary-fixed-dim border border-tertiary-fixed-dim/30 px-2 py-1 rounded bg-tertiary-fixed-dim/10">CycloneDX 1.7</span>
+<button class="bg-primary-container/20 border border-primary text-primary font-data-mono text-data-mono uppercase px-4 py-2 rounded flex items-center gap-2 hover:bg-primary-container/30 hover:shadow-[0_0_15px_rgba(56,224,255,0.2)] transition-all">
+<span class="material-symbols-outlined text-sm">add</span> New Scan
+                    </button>
+</div>
+</div>
+<div class="flex gap-4 items-center">
+<div class="flex-1 relative">
+<input class="w-full bg-surface-container-highest border-b border-primary/50 border-t-0 border-l-0 border-r-0 text-on-surface font-data-mono text-sm px-4 py-2 focus:ring-0 focus:border-primary focus:shadow-[0_2px_10px_rgba(56,224,255,0.2)] transition-all placeholder:text-outline-variant" placeholder="/samples" type="text"/>
+</div>
+<button class="bg-surface-container border border-outline/30 text-on-surface font-data-mono text-data-mono px-4 py-2 rounded flex items-center gap-2 hover:border-primary/50 transition-all">
+<span class="material-symbols-outlined text-sm">folder_open</span> Browse
+                </button>
+</div>
+</header>
+<!-- Dashboard Content -->
+<div class="p-gutter flex flex-col gap-8">
+<!-- Live Jobs Section -->
+<section>
+<h3 class="font-headline-sm text-headline-sm text-primary mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container animate-pulse">monitoring</span> Live Jobs
+                </h3>
+<div class="glass-panel hud-corners rounded-xl p-6 flex items-center justify-center min-h-[120px]">
+<p class="font-data-mono text-outline-variant">No jobs running at this time.</p>
+</div>
+</section>
+<!-- Scan History Section -->
+<section class="flex-1">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container">history</span> Scan History
+                </h3>
+<div class="glass-panel hud-corners rounded-xl overflow-hidden">
+<div class="hud-corners-top-right"></div>
+<div class="hud-corners-bottom-left"></div>
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-primary/20 text-outline-variant font-label-caps text-label-caps tracking-wider">
+<th class="p-4 font-normal">SCAN</th>
+<th class="p-4 font-normal">TARGET</th>
+<th class="p-4 font-normal">DATE</th>
+<th class="p-4 font-normal">ASSETS</th>
+<th class="p-4 font-normal">STATUS</th>
+<th class="p-4 font-normal text-right">ACTIONS</th>
+</tr>
+</thead>
+<tbody class="font-data-mono text-[13px]">
+<!-- Row 1 -->
+<tr class="border-b border-primary/10 table-row-hover transition-colors border-l-2 border-transparent">
+<td class="p-4 align-top">
+<div class="text-on-surface font-bold">#1</div>
+<div class="text-outline text-[11px]">a185a022</div>
+</td>
+<td class="p-4 align-top">
+<div class="text-primary/80">https://github.com/Dharsan2024/TOR---Unviel.git</div>
+</td>
+<td class="p-4 align-top text-outline">6 h ago</td>
+<td class="p-4 align-top text-on-surface font-bold">0</td>
+<td class="p-4 align-top">
+<span class="flex items-center gap-1.5 status-success">
+<span class="material-symbols-outlined text-[16px]">check_circle</span> Succeeded
+                                    </span>
+</td>
+<td class="p-4 align-top text-right">
+<div class="flex justify-end gap-3">
+<button class="text-primary hover:text-primary-container hover:underline transition-all">Open</button>
+<button aria-label="Delete" class="text-error/70 hover:text-error transition-all">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="border-b border-primary/10 table-row-hover transition-colors border-l-2 border-transparent">
+<td class="p-4 align-top">
+<div class="text-on-surface font-bold">#1</div>
+<div class="text-outline text-[11px]">129057e5</div>
+</td>
+<td class="p-4 align-top">
+<div class="text-primary/80">X:/final yaer/main projects/e2e_tmp</div>
+</td>
+<td class="p-4 align-top text-outline">6 h ago</td>
+<td class="p-4 align-top text-on-surface font-bold">4</td>
+<td class="p-4 align-top">
+<span class="flex items-center gap-1.5 status-success">
+<span class="material-symbols-outlined text-[16px]">check_circle</span> Succeeded
+                                    </span>
+</td>
+<td class="p-4 align-top text-right">
+<div class="flex justify-end gap-3">
+<button class="text-primary hover:text-primary-container hover:underline transition-all">Open</button>
+<button aria-label="Delete" class="text-error/70 hover:text-error transition-all">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="border-b border-primary/10 table-row-hover transition-colors border-l-2 border-transparent">
+<td class="p-4 align-top">
+<div class="text-on-surface font-bold">#1</div>
+<div class="text-outline text-[11px]">67cc94c7</div>
+</td>
+<td class="p-4 align-top">
+<div class="text-primary/80">X:/final yaer/main projects/hndl_demo</div>
+</td>
+<td class="p-4 align-top text-outline">4 d ago</td>
+<td class="p-4 align-top text-on-surface font-bold">4</td>
+<td class="p-4 align-top">
+<span class="flex items-center gap-1.5 status-success">
+<span class="material-symbols-outlined text-[16px]">check_circle</span> Succeeded
+                                    </span>
+</td>
+<td class="p-4 align-top text-right">
+<div class="flex justify-end gap-3">
+<button class="text-primary hover:text-primary-container hover:underline transition-all">Open</button>
+<button aria-label="Delete" class="text-error/70 hover:text-error transition-all">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</div>
+</main>
+</body></html>

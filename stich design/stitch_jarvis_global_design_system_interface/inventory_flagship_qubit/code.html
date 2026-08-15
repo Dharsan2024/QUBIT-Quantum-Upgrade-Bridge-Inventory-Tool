@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>QUBIT - Cryptographic Inventory &amp; HNDL Secret findings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed-variant": "#004e5b",
+                        "on-tertiary-fixed": "#002019",
+                        "primary-fixed": "#a7edff",
+                        "tertiary": "#87ffe1",
+                        "surface-container-low": "#191c21",
+                        "on-surface": "#e1e2ea",
+                        "on-secondary": "#31009a",
+                        "surface-container-highest": "#32353b",
+                        "on-tertiary-fixed-variant": "#005143",
+                        "on-primary-container": "#00606f",
+                        "on-primary": "#00363f",
+                        "on-secondary-fixed": "#1c0062",
+                        "secondary-fixed": "#e6deff",
+                        "surface-variant": "#32353b",
+                        "inverse-on-surface": "#2e3037",
+                        "tertiary-fixed-dim": "#4ddcbd",
+                        "on-error": "#690005",
+                        "error-container": "#93000a",
+                        "on-surface-variant": "#bbc9cd",
+                        "inverse-primary": "#006878",
+                        "surface-tint": "#29d9f7",
+                        "secondary": "#cabeff",
+                        "on-tertiary": "#00382d",
+                        "on-background": "#e1e2ea",
+                        "surface-container": "#1d2025",
+                        "tertiary-fixed": "#6ef9d9",
+                        "on-secondary-fixed-variant": "#4816cb",
+                        "primary-container": "#38e0ff",
+                        "outline-variant": "#3c494c",
+                        "primary": "#c1f2ff",
+                        "outline": "#859397",
+                        "secondary-fixed-dim": "#cabeff",
+                        "primary-fixed-dim": "#29d9f7",
+                        "on-tertiary-container": "#006352",
+                        "error": "#ffb4ab",
+                        "background": "#05070C", // OVERRIDDEN FOR HUD THEME
+                        "surface-container-high": "#272a30",
+                        "surface-bright": "#37393f",
+                        "tertiary-container": "#56e4c5",
+                        "on-secondary-container": "#b9aaff",
+                        "secondary-container": "#4816cb",
+                        "inverse-surface": "#e1e2ea",
+                        "surface-dim": "#111319",
+                        "surface-container-lowest": "#0c0e14",
+                        "on-error-container": "#ffdad6",
+                        "surface": "#111319",
+                        "on-primary-fixed": "#001f25",
+                        "hud-cyan": "#38E0FF",
+                        "hud-red": "#ffb4ab",
+                        "hud-amber": "#ffca28",
+                        "hud-violet": "#b9aaff",
+                        "hud-mint": "#87ffe1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "gutter": "24px",
+                        "margin": "40px",
+                        "panel-padding": "24px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "display-lg": ["Space Grotesk"],
+                        "headline-sm": ["Space Grotesk"],
+                        "headline-md": ["Space Grotesk"],
+                        "body-md": ["Inter"],
+                        "data-mono": ["JetBrains Mono"],
+                        "label-caps": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-sm": ["24px", { "lineHeight": "32px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-md": ["32px", { "lineHeight": "40px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "data-mono": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700" }]
+                    },
+                    "backgroundImage": {
+                        'hud-grid': 'linear-gradient(to right, rgba(56, 224, 255, 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(56, 224, 255, 0.05) 1px, transparent 1px)'
+                    }
+                },
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #05070C;
+            background-image: 
+                linear-gradient(to right, rgba(56, 224, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(56, 224, 255, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            background-attachment: fixed;
+            color: #e1e2ea;
+            overflow-x: hidden;
+        }
+
+        .glass-panel {
+            background: rgba(17, 19, 25, 0.6);
+            backdrop-filter: blur(40px);
+            border: 1px solid rgba(56, 224, 255, 0.2);
+            position: relative;
+        }
+
+        .glass-panel:hover {
+            border-color: rgba(56, 224, 255, 0.5);
+            box-shadow: 0 0 20px rgba(56, 224, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        /* HUD Corner Ticks */
+        .corner-ticks::before, .corner-ticks::after,
+        .corner-ticks > .tick-br::before, .corner-ticks > .tick-bl::before {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-color: #38E0FF;
+            border-style: solid;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        
+        .corner-ticks::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+        .corner-ticks::after { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+        .tick-br::before { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+        .tick-bl::before { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+
+        .hud-button {
+            background: rgba(56, 224, 255, 0.1);
+            border: 1px solid #38E0FF;
+            color: #c1f2ff;
+            text-transform: uppercase;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+        
+        .hud-button::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .hud-button:hover {
+            background: rgba(56, 224, 255, 0.2);
+            box-shadow: 0 0 15px rgba(56, 224, 255, 0.3);
+        }
+
+        .tech-chip {
+            background: transparent;
+            border: 1px solid;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .tech-chip::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .hud-input {
+            background: rgba(0, 0, 0, 0.5);
+            border: none;
+            border-bottom: 1px solid rgba(56, 224, 255, 0.3);
+            color: #38E0FF;
+            transition: all 0.3s ease;
+        }
+
+        .hud-input:focus {
+            outline: none;
+            border-bottom-color: #38E0FF;
+            box-shadow: 0 10px 10px -10px rgba(56, 224, 255, 0.3);
+        }
+
+        .data-row {
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .data-row:hover {
+            background: rgba(56, 224, 255, 0.05);
+        }
+        
+        .data-row:hover::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 2px;
+            background: #38E0FF;
+        }
+        
+        .text-glow {
+            text-shadow: 0 0 10px rgba(56, 224, 255, 0.5);
+        }
+
+        /* Scanning Line Animation */
+        .scan-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(to right, transparent, rgba(56, 224, 255, 0.8), transparent);
+            box-shadow: 0 0 10px rgba(56, 224, 255, 0.5);
+            animation: scan 4s linear infinite;
+            pointer-events: none;
+            opacity: 0.5;
+            z-index: 10;
+        }
+
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 0.5; }
+            90% { opacity: 0.5; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        /* 3D Tilt Wrapper */
+        .tilt-wrapper {
+            transform-style: preserve-3d;
+            perspective: 1000px;
+        }
+        .tilt-element {
+            transition: transform 0.1s ease-out;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col font-body-lg text-body-lg">
+<!-- TopAppBar -->
+<header class="bg-surface-container/40 backdrop-blur-xl docked full-width top-0 border-b border-primary/20 shadow-[0_0_15px_rgba(56,224,255,0.15)] flex justify-between items-center w-full px-gutter h-20 z-50">
+<div class="flex items-center gap-6">
+<span class="font-display-lg text-display-lg font-bold tracking-tighter text-primary bg-clip-text text-glow">QUBIT</span>
+<nav class="hidden md:flex gap-4 ml-8">
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-on-surface-variant hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Quantum Status</a>
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-on-surface-variant hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Migration Hub</a>
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-on-surface-variant hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Encryption</a>
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-primary border-b-2 border-primary pb-1 hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Audit</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-primary/50">search</span>
+<input class="hud-input pl-10 pr-4 py-2 font-data-mono text-data-mono w-64" placeholder="Search Inventory..." type="text"/>
+</div>
+<button class="text-primary/70 hover:text-primary transition-colors"><span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span></button>
+<button class="text-primary/70 hover:text-primary transition-colors"><span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">settings</span></button>
+<button class="text-primary/70 hover:text-primary transition-colors"><span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">terminal</span></button>
+<div class="w-10 h-10 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center overflow-hidden">
+<img alt="Chief Security Officer Avatar" class="w-full h-full object-cover" data-alt="A highly detailed close up portrait of a cyberpunk system administrator avatar with neon cyan lighting and tactical gear, extremely realistic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZEcVhiKNZFUqDAONTnnwLGrgZV8LuDfOYb7p3vW9M2PZesumcm_iWJrDYr8DvNWCj72Lam6HmsFFQX3cxbw3C_9zNPog9WiOPsTuPEm0DWgexbQiRLFwE9Li92Ppy-qOsxaJHPZw-HnTHio7cvgUvU4uHrowYNZkspQM7QDyKTz_uT20kK9Yn0X3WC_HiMQZKXzypqGnYRHzkScW5W5BYCvH9ppiwktLzdPkumSARNSqsVRJWWNqgTA"/>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- SideNavBar -->
+<aside class="hidden md:flex flex-col h-full py-panel-padding bg-surface-container-lowest/60 backdrop-blur-2xl fixed left-0 top-20 h-[calc(100vh-5rem)] w-64 border-r border-primary/20 shadow-[10px_0_30px_rgba(0,0,0,0.5)] z-40 transition-transform duration-200 ease-in-out">
+<div class="px-6 mb-8">
+<h2 class="font-headline-md text-headline-md text-primary tracking-widest text-glow">JARVIS_OS</h2>
+<p class="font-label-caps text-label-caps text-primary/60 mt-1">V-2.4.0 Stable</p>
+</div>
+<nav class="flex-1 flex flex-col gap-2 px-4">
+<a class="flex items-center gap-3 px-4 py-3 rounded-DEFAULT font-label-caps text-label-caps text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">grid_view</span>
+                    Dashboard
+                </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-DEFAULT font-label-caps text-label-caps bg-primary/20 text-primary border-r-4 border-primary hover:bg-surface-container-highest/40 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">security</span>
+                    Threat Intel
+                </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-DEFAULT font-label-caps text-label-caps text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">key</span>
+                    Vault
+                </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-DEFAULT font-label-caps text-label-caps text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">hub</span>
+                    Network Arch
+                </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-DEFAULT font-label-caps text-label-caps text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">sync_alt</span>
+                    Protocol Sync
+                </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-DEFAULT font-label-caps text-label-caps text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">analytics</span>
+                    System Logs
+                </a>
+</nav>
+<div class="px-6 mt-auto flex flex-col gap-4">
+<button class="hud-button font-label-caps text-label-caps py-3 w-full flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">rocket_launch</span>
+                    INITIATE MIGRATION
+                </button>
+<div class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-2 py-2 font-label-caps text-label-caps text-outline-variant hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">help</span> Support
+                    </a>
+<a class="flex items-center gap-3 px-2 py-2 font-label-caps text-label-caps text-outline-variant hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">logout</span> Sign Out
+                    </a>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 ml-0 md:ml-64 p-gutter pt-28 max-w-[1600px] mx-auto w-full tilt-wrapper">
+<header class="mb-margin flex justify-between items-end">
+<div>
+<h1 class="font-display-lg text-display-lg text-primary text-glow mb-2">Cryptographic Inventory</h1>
+<h2 class="font-headline-sm text-headline-sm text-hud-violet opacity-80 flex items-center gap-2">
+<span class="material-symbols-outlined">warning</span> &amp; HNDL Secret findings
+                    </h2>
+</div>
+<div class="flex gap-4">
+<button class="hud-button font-label-caps text-label-caps py-2 px-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">download</span>
+                        Export CBOM
+                    </button>
+</div>
+</header>
+<!-- Summary Stats -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter mb-margin">
+<div class="glass-panel corner-ticks p-6 flex flex-col justify-between h-32">
+<div class="tick-bl"></div><div class="tick-br"></div>
+<span class="font-label-caps text-label-caps text-primary/60">Total Assets</span>
+<div class="flex items-end justify-between">
+<span class="font-display-lg text-display-lg text-primary">1,240</span>
+<span class="material-symbols-outlined text-primary/30 text-4xl">inventory_2</span>
+</div>
+</div>
+<div class="glass-panel corner-ticks p-6 flex flex-col justify-between h-32 border-hud-red/30 relative overflow-hidden group">
+<div class="tick-bl"></div><div class="tick-br"></div>
+<div class="absolute inset-0 bg-hud-red/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<span class="font-label-caps text-label-caps text-hud-red">Quantum-Vulnerable</span>
+<div class="flex items-end justify-between">
+<span class="font-display-lg text-display-lg text-hud-red">42</span>
+<span class="material-symbols-outlined text-hud-red/30 text-4xl">coronavirus</span>
+</div>
+</div>
+<div class="glass-panel corner-ticks p-6 flex flex-col justify-between h-32 border-hud-amber/30">
+<div class="tick-bl"></div><div class="tick-br"></div>
+<span class="font-label-caps text-label-caps text-hud-amber">High-Risk PII</span>
+<div class="flex items-end justify-between">
+<span class="font-display-lg text-display-lg text-hud-amber">18</span>
+<span class="material-symbols-outlined text-hud-amber/30 text-4xl">policy</span>
+</div>
+</div>
+<div class="glass-panel corner-ticks p-6 flex flex-col justify-between h-32 border-hud-mint/30">
+<div class="tick-bl"></div><div class="tick-br"></div>
+<span class="font-label-caps text-label-caps text-hud-mint">Safe Assets</span>
+<div class="flex items-end justify-between">
+<span class="font-display-lg text-display-lg text-hud-mint">1,180</span>
+<span class="material-symbols-outlined text-hud-mint/30 text-4xl">shield_locked</span>
+</div>
+</div>
+</div>
+<!-- Main Data Panel -->
+<div class="glass-panel corner-ticks p-panel-padding tilt-element overflow-hidden relative">
+<div class="tick-bl"></div><div class="tick-br"></div>
+<div class="scan-line"></div>
+<!-- Toolbar -->
+<div class="flex justify-between items-center mb-6 pb-4 border-b border-primary/20">
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-0 top-1/2 -translate-y-1/2 text-primary/50 text-sm">filter_list</span>
+<select class="hud-input pl-6 pr-8 py-1 font-data-mono text-data-mono text-sm bg-transparent appearance-none">
+<option class="bg-surface">All Risks</option>
+<option class="bg-surface">Critical</option>
+<option class="bg-surface">High</option>
+</select>
+</div>
+<div class="relative">
+<select class="hud-input pl-2 pr-8 py-1 font-data-mono text-data-mono text-sm bg-transparent appearance-none">
+<option class="bg-surface">All Types</option>
+<option class="bg-surface">Algorithm</option>
+<option class="bg-surface">Secret</option>
+</select>
+</div>
+</div>
+<div class="font-label-caps text-label-caps text-primary/50">
+                        SHOWING 4 OF 1,240 ENTRIES
+                    </div>
+</div>
+<!-- Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-primary/20 font-label-caps text-label-caps text-primary/60">
+<th class="py-3 px-4 font-normal">RANK</th>
+<th class="py-3 px-4 font-normal">ALGORITHM / TYPE</th>
+<th class="py-3 px-4 font-normal">CONTEXT</th>
+<th class="py-3 px-4 font-normal">QUANTUM STATUS</th>
+<th class="py-3 px-4 font-normal">RISK</th>
+<th class="py-3 px-4 font-normal">LOCATION</th>
+<th class="py-3 px-4 text-right font-normal">ACTION</th>
+</tr>
+</thead>
+<tbody class="font-data-mono text-data-mono">
+<!-- Row 1 -->
+<tr class="data-row border-b border-primary/10">
+<td class="py-4 px-4 text-primary/50">#1</td>
+<td class="py-4 px-4">
+<span class="tech-chip text-hud-red border-hud-red/30 px-2 py-1 text-xs rounded-sm bg-hud-red/10">SHA-1</span>
+</td>
+<td class="py-4 px-4 text-primary">app.py:29</td>
+<td class="py-4 px-4 text-hud-red">Vulnerable</td>
+<td class="py-4 px-4"><span class="text-hud-red">High</span></td>
+<td class="py-4 px-4 text-primary/70">git://repo-alpha/prod-v1</td>
+<td class="py-4 px-4 text-right">
+<button class="text-primary hover:text-hud-cyan"><span class="material-symbols-outlined text-sm">open_in_new</span></button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="data-row border-b border-primary/10">
+<td class="py-4 px-4 text-primary/50">#12</td>
+<td class="py-4 px-4">
+<span class="tech-chip text-hud-amber border-hud-amber/30 px-2 py-1 text-xs rounded-sm bg-hud-amber/10">RSA-2048</span>
+</td>
+<td class="py-4 px-4 text-primary">auth-service:442</td>
+<td class="py-4 px-4 text-hud-amber">Shor-Breakable</td>
+<td class="py-4 px-4"><span class="text-hud-amber">Medium</span></td>
+<td class="py-4 px-4 text-primary/70">/local/etc/ssl</td>
+<td class="py-4 px-4 text-right">
+<button class="text-primary hover:text-hud-cyan"><span class="material-symbols-outlined text-sm">open_in_new</span></button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="data-row border-b border-primary/10 bg-hud-violet/5">
+<td class="py-4 px-4 text-primary/50">#2</td>
+<td class="py-4 px-4">
+<span class="tech-chip text-hud-violet border-hud-violet/30 px-2 py-1 text-xs rounded-sm bg-hud-violet/20 shadow-[0_0_10px_rgba(185,170,255,0.3)]">HNDL Secret</span>
+</td>
+<td class="py-4 px-4 text-primary">config.yaml</td>
+<td class="py-4 px-4 text-hud-violet/70">Hardcoded API Key</td>
+<td class="py-4 px-4"><span class="text-hud-red font-bold animate-pulse">Critical</span></td>
+<td class="py-4 px-4 text-primary/70">s3://bucket-secure-01</td>
+<td class="py-4 px-4 text-right">
+<button class="text-primary hover:text-hud-cyan"><span class="material-symbols-outlined text-sm">open_in_new</span></button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="data-row border-b border-primary/10">
+<td class="py-4 px-4 text-primary/50">#45</td>
+<td class="py-4 px-4">
+<span class="tech-chip text-hud-mint border-hud-mint/30 px-2 py-1 text-xs rounded-sm bg-hud-mint/10">AES-256</span>
+</td>
+<td class="py-4 px-4 text-primary">db-encrypt</td>
+<td class="py-4 px-4 text-hud-mint">Safe</td>
+<td class="py-4 px-4"><span class="text-hud-mint">Low</span></td>
+<td class="py-4 px-4 text-primary/70">RDS-Cluster-A</td>
+<td class="py-4 px-4 text-right">
+<button class="text-primary hover:text-hud-cyan"><span class="material-symbols-outlined text-sm">open_in_new</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</main>
+</div>
+<script>
+        // Subtle 3D Tilt Effect for Main Panel
+        document.addEventListener('mousemove', (e) => {
+            const wrapper = document.querySelector('.tilt-wrapper');
+            const element = document.querySelector('.tilt-element');
+            
+            if(!wrapper || !element) return;
+
+            const rect = wrapper.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            
+            const rotateX = ((y - centerY) / centerY) * -0.5; // max 0.5deg tilt
+            const rotateY = ((x - centerX) / centerX) * 0.5;
+            
+            element.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+        });
+        
+        // Reset tilt on mouse leave
+        document.querySelector('.tilt-wrapper').addEventListener('mouseleave', () => {
+             const element = document.querySelector('.tilt-element');
+             if(element) element.style.transform = `rotateX(0deg) rotateY(0deg)`;
+        });
+    </script>
+</body></html>

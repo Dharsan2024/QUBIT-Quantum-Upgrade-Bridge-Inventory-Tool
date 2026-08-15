@@ -26,18 +26,16 @@ export function Login() {
 
   return (
     <AnimatedPage className="flex min-h-screen w-full items-center justify-center p-4">
-      <div className="glass-card relative w-full max-w-md overflow-hidden rounded-2xl p-8 shadow-2xl">
+      <div className="glass-card glass-strong relative w-full max-w-md overflow-hidden p-8">
         <div className="relative z-10 flex flex-col items-center">
-          <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-[color:var(--glass-border)] bg-[color:var(--glass-highlight)] shadow-lg shadow-[color:var(--color-accent)]/20">
-            <span className="text-4xl font-bold leading-none tracking-tighter text-[color:var(--color-ink)]">
+          <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-[4px] border border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/12 shadow-[0_0_26px_-4px_rgba(56,224,255,0.6),inset_0_1px_0_rgba(255,255,255,0.35)]">
+            <span className="font-[family-name:var(--font-display)] text-4xl font-bold leading-none text-[color:var(--color-accent)]">
               Q
             </span>
           </div>
 
-          <h1 className="mb-2 text-2xl font-bold tracking-tight text-white">Welcome to QUBIT</h1>
-          <p className="mb-8 text-center text-sm text-[color:var(--color-ink-dim)]">
-            Enter your API token to access the platform.
-          </p>
+          <h1 className="mb-2 text-center">QUBIT</h1>
+          <p className="metric-label mb-8 text-center">Enter your API token to continue</p>
 
           <form onSubmit={handleLogin} className="w-full space-y-4">
             <div className="relative">
@@ -46,22 +44,18 @@ export function Login() {
                 type="password"
                 value={token}
                 onChange={(e) => setTokenInput(e.target.value)}
-                placeholder="API Token"
-                className="glass-input w-full rounded-xl py-3 pl-10 pr-4 font-mono text-sm text-[color:var(--color-ink)]"
+                placeholder="API token"
+                className="glass-input w-full py-3 pl-10 pr-4 text-sm"
               />
             </div>
 
             {error && (
-              <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-[color:var(--color-danger)]">
+              <div className="rounded-[3px] border border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger)]/8 px-3 py-2 font-mono text-sm text-[color:var(--color-danger)]">
                 {error}
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={busy}
-              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-400 disabled:opacity-60"
-            >
+            <button type="submit" disabled={busy} className="hud-btn group w-full py-3">
               {busy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (

@@ -231,6 +231,71 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-15 — Stitch "Quantum Command" HUD design implemented across the whole desktop app (Claude, Opus 5)
+The human ran Stitch and dropped its output into `stich design/stitch_jarvis_global_design_system_interface/`
+(9 screens: `code.html` + `screen.png` each, plus `quantum_command/DESIGN.md` = the authoritative token +
+material spec). Implemented that design as the app's real design system — desktop-only, no web target.
+
+**Design system** (`dashboard/src/index.css`, full rewrite): deep-space `#05070C` canvas with a 40px
+blueprint grid (10px sub-divisions, cyan @5%); holographic-glass panels (`rgba(17,19,25,.62)` + 26px blur
++ 1px cyan hairline) with **L-bracket corner ticks drawn as 8 background gradients** (deliberately NOT
+pseudo-elements — see the bug below); Space Grotesk display / Inter body / **JetBrains Mono for every
+technical string**; `label-caps` (mono 12px, 0.1em, uppercase); `hud-btn` glass buttons with the inner-top
+white highlight; dot-prefixed technical `chip`s; **segmented risk bars** (10 chamfered blocks, mint →
+violet → red); `data-row` tables with hover tint + leading cyan edge; `scan-panel` sweep animation;
+0.5° cursor-reactive panel lift. Existing class names were preserved so every page re-skinned at once, and
+the 16 Tailwind palette shades the pages were written against (indigo/rose/emerald/amber) are **remapped in
+`@theme`** onto the HUD palette instead of editing every call site.
+
+**Fonts are now bundled** (`@fontsource/{space-grotesk,inter,jetbrains-mono}`, imported in `main.tsx`; the
+Google-Fonts `<link>` removed from `index.html`). This is an offline app — a CDN font silently fell back to
+system faces and lost the whole look.
+
+**Real bugs found and fixed while verifying (not cosmetic):**
+1. **`::before` on a `<tr>` generates an anonymous table-cell in Chromium/WebView2**, so every `<td>` was
+   pushed one column right — headers were misaligned and the last column was pushed off-screen in BOTH the
+   inventory and migration-queue tables. Proved it by measuring cell rects (head cols started at 293, body
+   at 325; 8 columns for 7 cells). The leading cyan edge is now a `background-image` gradient. Verified:
+   head/body column x-offsets are now identical.
+2. **The asset-inspector drawer was clipped inside the table panel** — `.glass-card` sets
+   `will-change: transform` (for the HUD lift), which makes it a containing block for `position: fixed`.
+   The drawer is now portalled to `document.body`, so it covers the window and shows all four sections.
+3. **`UNKNOWN(...)` leaked into the UI** for protocol/certificate assets (the normalizer's marker for names
+   the algorithm registry can't resolve). New `dashboard/src/lib/assetLabels.ts` unwraps it for display only
+   (`UNKNOWN(TLSv1.3)` → `TLSv1.3`, `UNKNOWN(/etc/nginx/certs/server.crt)` → `server.crt`); stored data
+   untouched. Applied in the inventory table, drawer, risk rows, migration queue + graph.
+4. **Severity contradicted its own number** (RSA-2048 showed "High" next to score 0.00). `band()` now derives
+   from the scored HNDL risk when the risk engine has run, falling back to the quantum verdict.
+5. **Every page defaulted to a scan with 0 assets** (a cloned repo with no crypto won on recency, blanking
+   the UI). `pickActiveScan()` now prefers the newest succeeded scan that actually found assets; Inventory
+   uses the same shared rule instead of its own copy.
+6. **`--glass-border` was never defined** — ~10 borders across Migrations/Cbom/MigrationDetail rendered
+   invisible. Aliased to the luminous hairline.
+7. Long absolute Windows paths overflowed the table; now tail-truncated with the full path in `title`.
+8. CRQC chart: P05/P50/P95 callouts were clipped outside the y-range and the legend collided with them —
+   y-range extended to 1.16, callouts boxed, legend moved bottom-right, HNDL exposure window now labelled.
+
+**Feature work the design implied (real, wired to real data):** the asset inspector now shows the HNDL
+**exposure narrative** (the scanner's own `evidence.context.extra.hndl_narrative` for secret/PII findings,
+else a generated Shor/Grover explanation), the **evidence snippet + rule id**, the **risk breakdown**
+(score + 90% CI + Mosca margin), and the PQC recommendation. `dashboard/src/api/types.ts` was corrected:
+`evidence` is an object (it was typed `string`), and `AssetType` now includes `secret`/`sensitive-data`.
+Inventory gained working risk/type filters and an "HNDL exposures" KPI. The top rail replaced a duplicated
+page title with live Engine/Docker/Ollama telltales + a recheck button (`DepsLeds` in `BootGate.tsx`).
+
+**Verified on the real artifact, not just the dev server:** scan run through the actual New-scan button
+(demo-lab → 4 assets), plan built through Build-plan (9 tasks / 5 units / 12 dependency edges), all 8 pages
++ drawer screenshotted with **zero console/page errors**; then `tauri build` → launched the built
+`qubit-desktop.exe` and the **installed** `%LOCALAPPDATA%\QUBIT\qubit-desktop.exe` (silent NSIS reinstall),
+foregrounded and captured both: HUD theme live, all three LEDs green, API ready in **4.3 s** (warm) / 15.4 s
+(cold), no error popups. The installed copy's inventory shows the HNDL surface working on real data —
+`Stripe secret key` + 2× `PII: email address` as violet "Harvestable secret / Harvestable data" rows.
+
+Gate: `tsc -b` clean, `oxlint` clean, `vite build` clean, Python untouched (`pytest packages -q` re-run to
+confirm no regression). Files: `dashboard/src/index.css`, `main.tsx`, `index.html`, `components/{Layout,
+AssetTable,BootGate}.tsx`, `pages/{Inventory,Risk,Timeline,Scans,Projects,Migrations,MigrationDetail,Cbom,
+Settings,Login}.tsx`, `hooks/useActiveScan.ts`, `lib/assetLabels.ts`, `api/types.ts`, `package.json`.
+
 ### 2026-08-10 — E1 recommendation surfaced in the dashboard (completes E1 end-to-end) (Claude, Opus)
 Read the design docs + BUILD_PLAN §5 to find genuinely-unfinished sprint work. The E1 endpoint
 (`GET /assets/{id}/recommendation`) was built + tested but had NO dashboard surface (BUILD_PLAN marked

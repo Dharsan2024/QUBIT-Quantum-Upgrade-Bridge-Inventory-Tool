@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>QUBIT - CBOM Export &amp; Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-container": "#1d2025",
+                        "tertiary-container": "#56e4c5",
+                        "on-primary-container": "#00606f",
+                        "on-secondary": "#31009a",
+                        "on-secondary-fixed": "#1c0062",
+                        "inverse-surface": "#e1e2ea",
+                        "secondary-fixed-dim": "#cabeff",
+                        "on-background": "#e1e2ea",
+                        "on-primary-fixed-variant": "#004e5b",
+                        "outline": "#859397",
+                        "surface-variant": "#32353b",
+                        "surface-container-lowest": "#0c0e14",
+                        "on-error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#4ddcbd",
+                        "surface-dim": "#111319",
+                        "primary-fixed-dim": "#29d9f7",
+                        "surface-container-high": "#272a30",
+                        "on-surface": "#e1e2ea",
+                        "on-tertiary-fixed": "#002019",
+                        "inverse-primary": "#006878",
+                        "error": "#ffb4ab",
+                        "on-tertiary": "#00382d",
+                        "secondary-fixed": "#e6deff",
+                        "tertiary": "#87ffe1",
+                        "background": "#111319",
+                        "surface-bright": "#37393f",
+                        "tertiary-fixed": "#6ef9d9",
+                        "on-surface-variant": "#bbc9cd",
+                        "primary": "#c1f2ff",
+                        "on-primary": "#00363f",
+                        "primary-container": "#38e0ff",
+                        "on-primary-fixed": "#001f25",
+                        "on-error": "#690005",
+                        "surface-container-highest": "#32353b",
+                        "error-container": "#93000a",
+                        "on-tertiary-container": "#006352",
+                        "on-tertiary-fixed-variant": "#005143",
+                        "surface": "#111319",
+                        "primary-fixed": "#a7edff",
+                        "on-secondary-container": "#b9aaff",
+                        "on-secondary-fixed-variant": "#4816cb",
+                        "inverse-on-surface": "#2e3037",
+                        "secondary": "#cabeff",
+                        "secondary-container": "#4816cb",
+                        "surface-tint": "#29d9f7",
+                        "outline-variant": "#3c494c",
+                        "surface-container-low": "#191c21"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    spacing: {
+                        "panel-padding": "24px",
+                        "margin": "40px",
+                        "unit": "4px",
+                        "gutter": "24px"
+                    },
+                    fontFamily: {
+                        "body-lg": ["Inter"],
+                        "label-caps": ["JetBrains Mono"],
+                        "headline-md": ["Space Grotesk"],
+                        "body-md": ["Inter"],
+                        "headline-sm": ["Space Grotesk"],
+                        "data-mono": ["JetBrains Mono"],
+                        "display-lg": ["Space Grotesk"]
+                    },
+                    fontSize: {
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700" }],
+                        "headline-md": ["32px", { "lineHeight": "40px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-sm": ["24px", { "lineHeight": "32px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "data-mono": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        };
+    </script>
+<style>
+        /* Quantum HUD Custom Styles */
+        body {
+            background-color: #111319;
+            background-image: 
+                linear-gradient(rgba(56, 224, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(56, 224, 255, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            color: #e1e2ea;
+            overflow-x: hidden;
+        }
+
+        .hud-panel {
+            background-color: rgba(29, 32, 37, 0.4);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(56, 224, 255, 0.2);
+            position: relative;
+        }
+
+        .hud-panel::before,
+        .hud-panel::after,
+        .hud-panel-inner::before,
+        .hud-panel-inner::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-color: rgba(56, 224, 255, 0.8);
+            border-style: solid;
+            pointer-events: none;
+        }
+
+        .hud-panel::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+        .hud-panel::after { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+        .hud-panel-inner::before { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+        .hud-panel-inner::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+        .hud-button {
+            background-color: rgba(56, 224, 255, 0.1);
+            border: 1px solid #38e0ff;
+            color: #38e0ff;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .hud-button:hover {
+            background-color: rgba(56, 224, 255, 0.2);
+            box-shadow: 0 0 15px rgba(56, 224, 255, 0.3);
+            text-shadow: 0 0 5px rgba(56, 224, 255, 0.5);
+        }
+
+        .hud-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+            opacity: 0.5;
+        }
+
+        .hud-input {
+            background-color: #000;
+            border: none;
+            border-bottom: 1px solid rgba(56, 224, 255, 0.3);
+            color: #38e0ff;
+            transition: all 0.3s ease;
+        }
+
+        .hud-input:focus {
+            outline: none;
+            border-bottom-color: #38e0ff;
+            box-shadow: 0 4px 10px -4px rgba(56, 224, 255, 0.3);
+        }
+
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(56, 224, 255, 0.8), transparent);
+            box-shadow: 0 0 10px rgba(56, 224, 255, 0.5);
+            opacity: 0.5;
+            animation: scan 4s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scan {
+            0% { top: -10%; opacity: 0; }
+            10% { opacity: 0.5; }
+            90% { opacity: 0.5; }
+            100% { top: 110%; opacity: 0; }
+        }
+
+        .table-row-hover:hover {
+            background-color: rgba(56, 224, 255, 0.05);
+            border-left: 2px solid #38e0ff;
+        }
+        
+        .table-row-hover {
+            border-left: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111319;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(56, 224, 255, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 224, 255, 0.6);
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+<!-- SideNavBar (Shared Component) -->
+<nav class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest/60 backdrop-blur-2xl border-r border-primary/20 shadow-[10px_0_30px_rgba(0,0,0,0.5)] flex flex-col py-panel-padding z-50">
+<!-- Header -->
+<div class="px-6 mb-8 flex items-center space-x-4">
+<div class="w-10 h-10 rounded-full border border-primary/50 overflow-hidden relative">
+<img alt="System Administrator" class="object-cover w-full h-full" data-alt="A futuristic UI avatar representing a System Administrator. The avatar shows a stylized, glowing geometric silhouette or cybernetic helmet in high-contrast cyan and dark obsidian colors. The aesthetic is extremely high-tech, precise, and professional, sitting against a pitch-black background with subtle scanlines." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAW8hSyqCkzZe8coPVk2JZJEZp8UPaSoUQpiYHAk6wQ9Twy2QigTrrxKuNXg-fBWl5QPYQnBQ7a9ThhmSV2P_Zx4IKHjhpxLJn9CtP8RcJYYUitDU1PmkZilyNWYe5DRxSaST6l5FxDzmu8OqE8z1JmQuqAjs48XOMGZNopB_CzTBHbXDjw-m5W0PR8nVy0lKSQkOQOFXQF-EcR0dR6UU0yzE32WaoFuTtRCp-NO_u-5xLv8K31DOSvvw"/>
+<div class="absolute inset-0 ring-inset ring-1 ring-primary/30 rounded-full pointer-events-none"></div>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary text-[20px] leading-tight tracking-wider">JARVIS_OS</h1>
+<p class="font-data-mono text-data-mono text-outline-variant text-[10px]">V-2.4.0 Stable</p>
+</div>
+</div>
+<!-- Main Navigation -->
+<div class="flex-1 px-4 space-y-2">
+<!-- Inactive -->
+<a class="flex items-center space-x-3 px-4 py-3 rounded-DEFAULT text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 transition-transform duration-200 ease-in-out group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">grid_view</span>
+<span class="font-label-caps text-label-caps tracking-widest">Dashboard</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-DEFAULT text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 transition-transform duration-200 ease-in-out group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">security</span>
+<span class="font-label-caps text-label-caps tracking-widest">Threat Intel</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-DEFAULT text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 transition-transform duration-200 ease-in-out group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">key</span>
+<span class="font-label-caps text-label-caps tracking-widest">Vault</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-DEFAULT text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 transition-transform duration-200 ease-in-out group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">hub</span>
+<span class="font-label-caps text-label-caps tracking-widest">Network Arch</span>
+</a>
+<!-- Active State via semantic mapping (Protocol Sync -> Settings/Export context) -->
+<a class="flex items-center space-x-3 px-4 py-3 rounded-DEFAULT bg-primary/20 text-primary border-r-4 border-primary transition-transform duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined text-[20px]">sync_alt</span>
+<span class="font-label-caps text-label-caps tracking-widest">Protocol Sync</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 rounded-DEFAULT text-outline-variant hover:text-on-surface hover:bg-surface-container-highest/40 transition-transform duration-200 ease-in-out group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">analytics</span>
+<span class="font-label-caps text-label-caps tracking-widest">System Logs</span>
+</a>
+</div>
+<!-- CTA & Footer -->
+<div class="px-4 mt-auto space-y-4">
+<button class="w-full hud-button font-label-caps text-label-caps py-3 tracking-widest flex items-center justify-center space-x-2">
+<span class="material-symbols-outlined text-[16px]">rocket_launch</span>
+<span>INITIATE MIGRATION</span>
+</button>
+<div class="border-t border-primary/20 pt-4 space-y-1">
+<a class="flex items-center space-x-3 px-4 py-2 text-outline-variant hover:text-on-surface hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined text-[18px]">help</span>
+<span class="font-label-caps text-label-caps">Support</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-2 text-outline-variant hover:text-on-surface hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined text-[18px]">logout</span>
+<span class="font-label-caps text-label-caps">Sign Out</span>
+</a>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<div class="flex-1 ml-64 flex flex-col h-full relative">
+<!-- TopAppBar (Shared Component) -->
+<header class="flex justify-between items-center w-full px-gutter h-20 bg-surface-container/40 backdrop-blur-xl border-b border-primary/20 shadow-[0_0_15px_rgba(56,224,255,0.15)] z-40 sticky top-0">
+<!-- Brand / Nav Links -->
+<div class="flex items-center space-x-8">
+<div class="font-display-lg text-display-lg font-bold tracking-tighter text-primary bg-clip-text text-[28px]">QUBIT</div>
+<nav class="hidden md:flex space-x-6 h-full items-center">
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-[14px] text-on-surface-variant hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Quantum Status</a>
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-[14px] text-on-surface-variant hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Migration Hub</a>
+<!-- Active Context -->
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-[14px] text-primary border-b-2 border-primary pb-1 cursor-pointer active:scale-95" href="#">Encryption</a>
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-[14px] text-on-surface-variant hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Audit</a>
+</nav>
+</div>
+<!-- Actions / Profile -->
+<div class="flex items-center space-x-6">
+<div class="flex space-x-4 text-primary">
+<button class="hover:text-primary-container transition-all duration-300"><span class="material-symbols-outlined">notifications</span></button>
+<button class="hover:text-primary-container transition-all duration-300"><span class="material-symbols-outlined">settings</span></button>
+<button class="hover:text-primary-container transition-all duration-300"><span class="material-symbols-outlined">terminal</span></button>
+</div>
+<div class="w-8 h-8 rounded-sm border border-primary/40 overflow-hidden relative hud-panel">
+<div class="hud-panel-inner w-full h-full"></div>
+<img alt="Chief Security Officer Avatar" class="w-full h-full object-cover" data-alt="A minimalist tech avatar for a Chief Security Officer. The image displays a stylized, wireframe human profile against a dark glowing cyan background. The mood is secure, authoritative, and deeply embedded in a digital cyberpunk aesthetic, heavily utilizing dark blues and bright neon cyan accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDT1U7wuT1Agt3bJ7macDpoqI0H_rhRIoizpLh6lcZl1RFMQxwBLrJ_ZLBNcDndw3e4iv3BZCI_KZhaA6N2i2DqYbT8t2gVkVbkuYA_f2oBOT5nKawInze2phV8R8yc0ISGejV47AFCgtcDJHCRZl6vEdWmBFsxWpNenV4ImvEH2OoN1EcaAa6-aUijP9zMmlt--N6gAYUrFEO3UQyBk-UQxIkFE1oKSjnL_XGt3euHa2ZMQw6DEr7siA"/>
+</div>
+</div>
+</header>
+<!-- Scrollable Canvas -->
+<main class="flex-1 overflow-y-auto p-gutter z-10">
+<div class="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
+<!-- LEFT COLUMN: CBOM Export (Spans 8 cols on lg) -->
+<div class="lg:col-span-8 flex flex-col space-y-gutter">
+<!-- Header Module -->
+<div class="hud-panel p-8">
+<div class="hud-panel-inner w-full h-full absolute inset-0 pointer-events-none"></div>
+<div class="scan-line"></div>
+<div class="relative z-10">
+<h2 class="font-headline-md text-headline-md text-primary mb-2 flex items-center">
+<span class="material-symbols-outlined mr-3 text-[32px]">inventory_2</span>
+                                Cryptographic Bill of Materials (CBOM)
+                            </h2>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl border-l-2 border-primary/30 pl-4">
+                                Standardized inventory of cryptographic assets and their quantum-readiness status. Critical for tracking AES, RSA, and ECC migration vectors across internal infrastructure.
+                            </p>
+</div>
+</div>
+<!-- Export Controls Module -->
+<div class="hud-panel p-8">
+<div class="hud-panel-inner w-full h-full absolute inset-0 pointer-events-none"></div>
+<div class="flex flex-col md:flex-row gap-8 relative z-10">
+<!-- Format Selection -->
+<div class="flex-1 space-y-4">
+<h3 class="font-data-mono text-data-mono text-primary text-[12px] uppercase tracking-widest border-b border-primary/20 pb-2">Export Format Spec</h3>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<label class="flex items-center space-x-3 p-3 border border-primary/20 bg-surface/50 cursor-pointer hover:border-primary/50 transition-colors">
+<input checked="" class="form-radio text-primary bg-transparent border-primary/50 focus:ring-primary/30" name="cbom-format" type="radio"/>
+<span class="font-data-mono text-data-mono text-[13px]">CycloneDX 1.4</span>
+</label>
+<label class="flex items-center space-x-3 p-3 border border-primary/20 bg-surface/50 cursor-pointer hover:border-primary/50 transition-colors">
+<input class="form-radio text-primary bg-transparent border-primary/50 focus:ring-primary/30" name="cbom-format" type="radio"/>
+<span class="font-data-mono text-data-mono text-[13px]">CycloneDX 1.7</span>
+</label>
+<label class="flex items-center space-x-3 p-3 border border-primary/20 bg-surface/50 cursor-pointer hover:border-primary/50 transition-colors sm:col-span-2">
+<input class="form-radio text-primary bg-transparent border-primary/50 focus:ring-primary/30" name="cbom-format" type="radio"/>
+<span class="font-data-mono text-data-mono text-[13px]">SPDX 2.3 (Crypto Ext)</span>
+</label>
+</div>
+</div>
+<!-- Scope Filters & Action -->
+<div class="flex-1 space-y-6 flex flex-col justify-between">
+<div class="space-y-4">
+<h3 class="font-data-mono text-data-mono text-primary text-[12px] uppercase tracking-widest border-b border-primary/20 pb-2">Analysis Scope</h3>
+<select class="hud-input w-full p-3 font-data-mono text-data-mono text-[14px]">
+<option class="bg-surface-container text-on-surface" value="global">Global Environment (All Nodes)</option>
+<option class="bg-surface-container text-on-surface" value="p1">Project: Core Banking API</option>
+<option class="bg-surface-container text-on-surface" value="p2">Project: Legacy Auth Microservices</option>
+</select>
+</div>
+<button class="hud-button w-full py-4 font-label-caps text-label-caps tracking-[0.2em] flex items-center justify-center space-x-3">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>GENERATE &amp; EXPORT</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Recent Exports Table -->
+<div class="hud-panel p-6">
+<div class="hud-panel-inner w-full h-full absolute inset-0 pointer-events-none"></div>
+<div class="relative z-10 flex flex-col h-full">
+<h3 class="font-data-mono text-data-mono text-primary text-[12px] uppercase tracking-widest mb-4 flex items-center">
+<span class="material-symbols-outlined text-[16px] mr-2">history</span>
+                                Export Ledger
+                            </h3>
+<div class="w-full overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-primary/20 text-on-surface-variant font-data-mono text-data-mono text-[11px] uppercase">
+<th class="py-3 px-4 font-normal">Version ID</th>
+<th class="py-3 px-4 font-normal">Timestamp (UTC)</th>
+<th class="py-3 px-4 font-normal">Format</th>
+<th class="py-3 px-4 font-normal text-right">Assets</th>
+<th class="py-3 px-4 font-normal text-center">Actions</th>
+</tr>
+</thead>
+<tbody class="font-data-mono text-data-mono text-[13px]">
+<tr class="table-row-hover border-b border-surface-variant/50">
+<td class="py-3 px-4 text-primary">CBOM-992A-4B</td>
+<td class="py-3 px-4 text-on-surface">2023-10-24 14:32:01</td>
+<td class="py-3 px-4 text-outline-variant">CycloneDX 1.7</td>
+<td class="py-3 px-4 text-right">14,208</td>
+<td class="py-3 px-4 flex justify-center space-x-3">
+<button class="text-primary hover:text-primary-container transition-colors"><span class="material-symbols-outlined text-[18px]">file_download</span></button>
+<button class="text-error hover:text-error-container transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</td>
+</tr>
+<tr class="table-row-hover border-b border-surface-variant/50">
+<td class="py-3 px-4 text-primary">CBOM-881X-9C</td>
+<td class="py-3 px-4 text-on-surface">2023-10-18 09:15:44</td>
+<td class="py-3 px-4 text-outline-variant">SPDX 2.3</td>
+<td class="py-3 px-4 text-right">14,195</td>
+<td class="py-3 px-4 flex justify-center space-x-3">
+<button class="text-primary hover:text-primary-container transition-colors"><span class="material-symbols-outlined text-[18px]">file_download</span></button>
+<button class="text-error hover:text-error-container transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</td>
+</tr>
+<tr class="table-row-hover">
+<td class="py-3 px-4 text-primary">CBOM-770Y-2D</td>
+<td class="py-3 px-4 text-on-surface">2023-10-01 18:45:10</td>
+<td class="py-3 px-4 text-outline-variant">CycloneDX 1.4</td>
+<td class="py-3 px-4 text-right">12,850</td>
+<td class="py-3 px-4 flex justify-center space-x-3">
+<button class="text-primary hover:text-primary-container transition-colors"><span class="material-symbols-outlined text-[18px]">file_download</span></button>
+<button class="text-error hover:text-error-container transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+<!-- RIGHT COLUMN: Settings Panel (Spans 4 cols on lg) -->
+<div class="lg:col-span-4 flex flex-col space-y-gutter">
+<div class="hud-panel p-6 h-full">
+<div class="hud-panel-inner w-full h-full absolute inset-0 pointer-events-none"></div>
+<div class="relative z-10">
+<h2 class="font-headline-sm text-headline-sm text-primary border-b border-primary/30 pb-4 mb-6 flex items-center">
+<span class="material-symbols-outlined mr-2">tune</span>
+                                System Parameters
+                            </h2>
+<!-- Group 1: Thresholds -->
+<div class="mb-8">
+<h3 class="font-data-mono text-data-mono text-primary text-[11px] uppercase tracking-widest mb-4 opacity-70">Quantum Risk Thresholds</h3>
+<div class="space-y-2">
+<div class="flex justify-between font-data-mono text-data-mono text-[13px]">
+<span class="text-on-surface">P50 Arrival Year (Y2Q)</span>
+<span class="text-tertiary">2030</span>
+</div>
+<input class="w-full h-1 bg-surface-variant rounded-none appearance-none cursor-pointer accent-tertiary" max="2040" min="2025" type="range" value="2030"/>
+<div class="flex justify-between font-data-mono text-data-mono text-[10px] text-outline-variant">
+<span>2025</span>
+<span>2040</span>
+</div>
+</div>
+</div>
+<!-- Group 2: Governance -->
+<div class="mb-8">
+<h3 class="font-data-mono text-data-mono text-primary text-[11px] uppercase tracking-widest mb-4 opacity-70">Governance Standards</h3>
+<div class="space-y-4">
+<label class="flex items-center justify-between cursor-pointer group">
+<span class="font-data-mono text-data-mono text-[13px] text-on-surface group-hover:text-primary transition-colors">NIST SP 800-208</span>
+<div class="relative">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-9 h-5 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-container"></div>
+</div>
+</label>
+<label class="flex items-center justify-between cursor-pointer group">
+<span class="font-data-mono text-data-mono text-[13px] text-on-surface group-hover:text-primary transition-colors">FIPS 140-3 Level 3</span>
+<div class="relative">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-9 h-5 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-on-surface after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-container"></div>
+</div>
+</label>
+<label class="flex items-center justify-between cursor-pointer group">
+<span class="font-data-mono text-data-mono text-[13px] text-on-surface group-hover:text-primary transition-colors">CNSA Suite 2.0</span>
+<div class="relative">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-9 h-5 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-container"></div>
+</div>
+</label>
+</div>
+</div>
+<!-- Group 3: API -->
+<div>
+<h3 class="font-data-mono text-data-mono text-primary text-[11px] uppercase tracking-widest mb-4 opacity-70">API &amp; Integration</h3>
+<div class="space-y-4">
+<div class="space-y-1">
+<label class="font-data-mono text-data-mono text-[10px] text-outline-variant">KMS Endpoint URL</label>
+<input class="hud-input w-full p-2 font-data-mono text-data-mono text-[12px]" readonly="" type="text" value="https://kms.internal.vault/v2/keys"/>
+</div>
+<button class="w-full py-2 border border-primary/30 text-primary font-data-mono text-data-mono text-[12px] hover:bg-primary/10 transition-colors flex items-center justify-center space-x-2">
+<span class="material-symbols-outlined text-[14px]">key</span>
+<span>Rotate API Key</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

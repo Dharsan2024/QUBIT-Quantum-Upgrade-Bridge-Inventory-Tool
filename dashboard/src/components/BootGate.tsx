@@ -97,8 +97,8 @@ export function BootGate({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Small banner shown inside the app when an optional dependency is down (Docker/Ollama). */
-export function DepsBanner() {
+/** Polls the optional local dependencies once, with a manual refresh. */
+function useDeps() {
   const [deps, setDeps] = useState<Deps | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -110,6 +110,56 @@ export function DepsBanner() {
   useEffect(() => {
     refresh();
   }, []);
+
+  return { deps, checking, refresh };
+}
+
+/**
+ * Status LEDs for the top HUD rail: the engine is up (the boot gate guarantees it) and
+ * Docker/Ollama are shown as live telltales rather than only as a warning banner.
+ */
+export function DepsLeds() {
+  const { deps, checking, refresh } = useDeps();
+
+  const led = (ok: boolean | undefined, label: string, Icon: typeof Container) => {
+    const color = ok == null ? 'var(--color-ink-faint)' : ok ? 'var(--color-safe)' : 'var(--color-warn)';
+    return (
+      <span
+        className="label-caps flex items-center gap-1.5"
+        style={{ color }}
+        title={`${label}: ${ok == null ? 'unknown' : ok ? 'connected' : 'not running'}`}
+      >
+        <Icon className="h-3.5 w-3.5" />
+        <span
+          className="h-1.5 w-1.5 rounded-full"
+          style={{ background: color, boxShadow: `0 0 6px ${color}` }}
+        />
+        {label}
+      </span>
+    );
+  };
+
+  return (
+    <div className="flex items-center gap-4">
+      {led(true, 'Engine', ShieldCheck)}
+      {led(deps?.docker, 'Docker', Container)}
+      {led(deps?.ollama, 'Ollama', Cpu)}
+      <button
+        onClick={refresh}
+        disabled={checking}
+        className="text-[color:var(--color-ink-faint)] transition-colors hover:text-[color:var(--color-accent)] disabled:opacity-50"
+        title="Recheck local dependencies"
+        aria-label="Recheck local dependencies"
+      >
+        <RefreshCw className={`h-3.5 w-3.5 ${checking ? 'animate-spin' : ''}`} />
+      </button>
+    </div>
+  );
+}
+
+/** Small banner shown inside the app when an optional dependency is down (Docker/Ollama). */
+export function DepsBanner() {
+  const { deps, checking, refresh } = useDeps();
 
   if (!deps || (deps.docker && deps.ollama)) return null;
 

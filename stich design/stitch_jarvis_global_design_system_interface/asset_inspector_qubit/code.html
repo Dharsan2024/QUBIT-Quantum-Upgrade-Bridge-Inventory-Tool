@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>QUBIT Asset Inspector Drawer</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&amp;family=JetBrains+Mono:wght@500;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-container": "#4816cb",
+                        "surface-bright": "#37393f",
+                        "surface": "#111319",
+                        "on-tertiary-container": "#006352",
+                        "outline": "#859397",
+                        "error-container": "#93000a",
+                        "on-secondary-fixed": "#1c0062",
+                        "primary-container": "#38e0ff",
+                        "surface-dim": "#111319",
+                        "on-primary-container": "#00606f",
+                        "on-tertiary": "#00382d",
+                        "secondary-fixed": "#e6deff",
+                        "error": "#ffb4ab",
+                        "on-surface": "#e1e2ea",
+                        "tertiary-fixed-dim": "#4ddcbd",
+                        "on-secondary-fixed-variant": "#4816cb",
+                        "background": "#111319",
+                        "on-secondary-container": "#b9aaff",
+                        "tertiary-fixed": "#6ef9d9",
+                        "on-surface-variant": "#bbc9cd",
+                        "surface-container-highest": "#32353b",
+                        "inverse-on-surface": "#2e3037",
+                        "on-secondary": "#31009a",
+                        "primary-fixed-dim": "#29d9f7",
+                        "primary-fixed": "#a7edff",
+                        "on-background": "#e1e2ea",
+                        "secondary": "#cabeff",
+                        "secondary-fixed-dim": "#cabeff",
+                        "outline-variant": "#3c494c",
+                        "surface-container-high": "#272a30",
+                        "surface-tint": "#29d9f7",
+                        "surface-container-lowest": "#0c0e14",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-fixed": "#001f25",
+                        "tertiary": "#87ffe1",
+                        "on-primary-fixed-variant": "#004e5b",
+                        "on-primary": "#00363f",
+                        "inverse-surface": "#e1e2ea",
+                        "on-tertiary-fixed-variant": "#005143",
+                        "surface-container": "#1d2025",
+                        "on-error": "#690005",
+                        "surface-variant": "#32353b",
+                        "surface-container-low": "#191c21",
+                        "primary": "#c1f2ff",
+                        "on-tertiary-fixed": "#002019",
+                        "inverse-primary": "#006878",
+                        "tertiary-container": "#56e4c5",
+                        
+                        // Custom Plasma Violet for HNDL
+                        "plasma-violet": "#a855f7" 
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "panel-padding": "24px",
+                        "unit": "4px",
+                        "margin": "40px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Space Grotesk"],
+                        "label-caps": ["JetBrains Mono"],
+                        "body-md": ["Inter"],
+                        "data-mono": ["JetBrains Mono"],
+                        "body-lg": ["Inter"],
+                        "display-lg": ["Space Grotesk"],
+                        "headline-sm": ["Space Grotesk"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["32px", { "lineHeight": "40px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "data-mono": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-sm": ["24px", { "lineHeight": "32px", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* HUD Specific Styles */
+        .hud-glass {
+            background-color: rgba(17, 19, 25, 0.6); /* surface-dim */
+            backdrop-filter: blur(40px);
+            border: 1px solid rgba(56, 224, 255, 0.2); /* primary-container */
+        }
+
+        .hud-glass-elevated {
+            background-color: rgba(29, 32, 37, 0.8); /* surface-container */
+            backdrop-filter: blur(40px);
+            border: 1px solid rgba(56, 224, 255, 0.5);
+            box-shadow: 0 0 15px rgba(56, 224, 255, 0.15);
+        }
+
+        .hud-corner {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-color: rgba(56, 224, 255, 0.5);
+            border-style: solid;
+        }
+
+        .hud-corner-tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+        .hud-corner-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+        .hud-corner-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+        .hud-corner-br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+        .hud-scanline {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(56, 224, 255, 0.8), transparent);
+            opacity: 0.5;
+            animation: scan 4s linear infinite;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        @keyframes scan {
+            0% { top: -5%; }
+            100% { top: 105%; }
+        }
+
+        /* Interactive Elements */
+        .hud-btn-primary {
+            background-color: rgba(56, 224, 255, 0.2);
+            border: 1px solid rgba(56, 224, 255, 1);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .hud-btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 1px;
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .hud-btn-primary:hover {
+            box-shadow: 0 0 15px rgba(56, 224, 255, 0.4);
+            background-color: rgba(56, 224, 255, 0.3);
+        }
+
+        .hud-btn-ghost {
+            background-color: transparent;
+            border: 1px solid rgba(133, 147, 151, 0.5); /* outline */
+            transition: all 0.3s ease;
+        }
+
+        .hud-btn-ghost:hover {
+            border-color: rgba(56, 224, 255, 0.8);
+            box-shadow: 0 0 10px rgba(56, 224, 255, 0.2);
+        }
+
+        .tech-chip {
+            background: transparent;
+            border: 1px solid rgba(56, 224, 255, 0.3);
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .tech-chip::before {
+            content: '';
+            display: inline-block;
+            width: 4px; height: 4px;
+            background-color: #38e0ff;
+            margin-right: 6px;
+            border-radius: 50%;
+        }
+
+        /* Risk Bars */
+        .risk-bar-container {
+            display: flex;
+            gap: 2px;
+            height: 12px;
+        }
+
+        .risk-segment {
+            flex: 1;
+            background-color: rgba(133, 147, 151, 0.2); /* outline */
+        }
+        
+        .risk-segment.cyan { background-color: rgba(56, 224, 255, 0.8); }
+        .risk-segment.violet { background-color: rgba(168, 85, 247, 0.8); } /* plasma-violet */
+        .risk-segment.red { background-color: rgba(255, 180, 171, 0.8); } /* error */
+        
+        /* Progress animation for chart */
+        @keyframes strokeDraw {
+            from { stroke-dashoffset: 100; }
+            to { stroke-dashoffset: 0; }
+        }
+        .draw-line {
+            stroke-dasharray: 100;
+            stroke-dashoffset: 100;
+            animation: strokeDraw 2s ease forwards 0.5s;
+        }
+        
+        /* Grid Background Pattern */
+        .bg-grid-pattern {
+            background-image: linear-gradient(rgba(56, 224, 255, 0.05) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(56, 224, 255, 0.05) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-hidden antialiased">
+<!-- Mock Background Application Context -->
+<div class="fixed inset-0 bg-grid-pattern z-0 opacity-40"></div>
+<!-- Top Nav Placeholder from JSON Shared Component -->
+<nav class="fixed flex justify-between items-center w-full px-gutter h-20 bg-surface-container/40 backdrop-blur-xl border-b border-primary/20 shadow-[0_0_15px_rgba(56,224,255,0.15)] docked full-width top-0 z-10">
+<div class="flex items-center gap-6">
+<span class="font-display-lg text-display-lg font-bold tracking-tighter text-primary bg-clip-text">QUBIT</span>
+<div class="hidden md:flex gap-6">
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-primary border-b-2 border-primary pb-1 cursor-pointer active:scale-95" href="#">Inventory</a>
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-on-surface-variant hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Migration Hub</a>
+<a class="font-headline-sm text-headline-sm font-data-mono text-data-mono text-on-surface-variant hover:text-primary-container transition-all duration-300 cursor-pointer active:scale-95" href="#">Encryption</a>
+</div>
+</div>
+<div class="flex items-center gap-4 text-primary">
+<span class="material-symbols-outlined hover:text-primary-container cursor-pointer transition-all">notifications</span>
+<span class="material-symbols-outlined hover:text-primary-container cursor-pointer transition-all">settings</span>
+<span class="material-symbols-outlined hover:text-primary-container cursor-pointer transition-all">terminal</span>
+</div>
+</nav>
+<!-- Main Content Area Background Placeholder -->
+<div class="pt-24 px-gutter opacity-30 blur-sm pointer-events-none transition-all duration-500">
+<!-- Mock Data Table to give context -->
+<div class="hud-glass p-panel-padding relative mb-6">
+<div class="hud-corner hud-corner-tl"></div><div class="hud-corner hud-corner-tr"></div>
+<div class="hud-corner hud-corner-bl"></div><div class="hud-corner hud-corner-br"></div>
+<h2 class="font-headline-md text-headline-md text-primary mb-6">SYSTEM INVENTORY</h2>
+<!-- Table Headers -->
+<div class="grid grid-cols-4 gap-4 border-b border-primary/20 pb-2 mb-4 font-label-caps text-label-caps text-outline-variant">
+<div>ASSET ID</div>
+<div>PROTOCOL</div>
+<div>RISK LEVEL</div>
+<div>STATUS</div>
+</div>
+<!-- Rows -->
+<div class="grid grid-cols-4 gap-4 py-3 border-b border-outline/10 text-data-mono font-data-mono">
+<div class="text-primary-container">auth-service:442</div>
+<div>RSA-2048</div>
+<div class="text-error">CRITICAL</div>
+<div class="text-plasma-violet">Shor-Breakable</div>
+</div>
+<div class="grid grid-cols-4 gap-4 py-3 border-b border-outline/10 text-data-mono font-data-mono">
+<div>db-cluster-eu:12</div>
+<div>AES-256</div>
+<div class="text-tertiary">SAFE</div>
+<div class="text-outline">Quantum-Resistant</div>
+</div>
+</div>
+</div>
+<!-- 
+        OVERLAY: Asset Inspector Drawer 
+        Occupies right 40% on desktop, 100% on mobile
+    -->
+<div class="fixed inset-y-0 right-0 w-full md:w-[40%] xl:w-[35%] hud-glass-elevated z-50 flex flex-col transform transition-transform duration-300 translate-x-0 shadow-[-20px_0_40px_rgba(0,0,0,0.5)] border-l border-primary-container/30">
+<!-- HUD Scanline Animation -->
+<div class="hud-scanline"></div>
+<!-- Corner Ticks -->
+<div class="hud-corner hud-corner-tl"></div>
+<div class="hud-corner hud-corner-bl"></div>
+<!-- Drawer Header -->
+<header class="flex-none p-panel-padding border-b border-primary/20 bg-surface-container-highest/20 relative">
+<button class="absolute top-panel-padding right-panel-padding text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">close</span>
+</button>
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">warning</span>
+<span class="font-label-caps text-label-caps text-error bg-error/10 px-2 py-0.5 border border-error/30 rounded-sm">CRITICAL RISK</span>
+<span class="tech-chip font-label-caps text-label-caps text-primary px-2 py-0.5 ml-2">Shor-Breakable</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-primary-container flex items-center gap-3">
+                auth-service:442
+                <span class="material-symbols-outlined text-outline-variant text-[20px] cursor-pointer hover:text-primary transition-colors">content_copy</span>
+</h2>
+</header>
+<!-- Scrollable Content Area -->
+<div class="flex-1 overflow-y-auto p-panel-padding flex flex-col gap-8 custom-scrollbar">
+<!-- Section 1: HNDL Exposure Narrative -->
+<section class="relative">
+<div class="absolute left-[-24px] top-0 bottom-0 w-1 bg-plasma-violet/30"></div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-plasma-violet text-[20px]">radar</span>
+                    Exposure Narrative
+                </h3>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+                    Asset currently utilizes <span class="font-data-mono text-primary-container">RSA-2048</span> for session key exchange. This implementation is highly vulnerable to <span class="text-plasma-violet font-semibold">Harvest Now, Decrypt Later (HNDL)</span> attacks. Threat actors can intercept and store encrypted traffic now, awaiting computationally viable Quantum processing (Shor's Algorithm) to decrypt retrospectively.
+                </p>
+</section>
+<!-- Section 2: Evidence & Discovery -->
+<section class="hud-glass p-4 relative group">
+<div class="hud-corner hud-corner-tl"></div><div class="hud-corner hud-corner-tr"></div>
+<div class="hud-corner hud-corner-bl"></div><div class="hud-corner hud-corner-br"></div>
+<h3 class="font-label-caps text-label-caps text-outline mb-4 flex justify-between items-center">
+                    EVIDENCE DISCOVERY
+                    <span class="material-symbols-outlined text-[16px] text-primary/50 group-hover:text-primary transition-colors">code</span>
+</h3>
+<div class="bg-surface-lowest/80 border border-outline/20 p-3 rounded-sm mb-3">
+<div class="font-data-mono text-[12px] text-outline-variant mb-1 flex justify-between">
+<span>Path:</span>
+<span class="text-primary-fixed-dim">git://repo-alpha/prod-v1/auth/ssl.c</span>
+</div>
+</div>
+<div class="bg-black/60 border-l-2 border-error/50 p-3 font-data-mono text-data-mono text-sm overflow-x-auto">
+<div class="flex text-outline-variant/50"><span class="w-8 text-right pr-2 select-none border-r border-outline/10 mr-3">142</span><span class="text-on-surface-variant">// Initialize OpenSSL context</span></div>
+<div class="flex"><span class="w-8 text-right pr-2 select-none border-r border-outline/10 mr-3 text-outline-variant/50">143</span><span class="text-primary-fixed-dim">SSL_CTX *ctx = SSL_CTX_new(TLS_method());</span></div>
+<div class="flex bg-error/10"><span class="w-8 text-right pr-2 select-none border-r border-error/30 mr-3 text-error">144</span><span class="text-error-container">SSL_CTX_set_cipher_list(ctx, <span class="text-error font-bold">"RSA-2048"</span>); <span class="text-error/70">// VULNERABLE</span></span></div>
+<div class="flex text-outline-variant/50"><span class="w-8 text-right pr-2 select-none border-r border-outline/10 mr-3">145</span><span class="text-primary-fixed-dim">SSL_CTX_use_certificate_file(ctx, cert_path, ...);</span></div>
+</div>
+</section>
+<!-- Section 3: Risk Breakdown -->
+<section class="grid grid-cols-2 gap-4">
+<!-- Impact Metric -->
+<div class="hud-glass p-4 relative">
+<h4 class="font-label-caps text-label-caps text-outline mb-3">IMPACT SCORE (CI)</h4>
+<div class="flex items-end gap-2 mb-2">
+<span class="font-display-lg text-[36px] leading-none font-bold text-error">9.4</span>
+<span class="font-data-mono text-[12px] text-outline-variant pb-1">/10</span>
+</div>
+<div class="risk-bar-container">
+<div class="risk-segment cyan"></div>
+<div class="risk-segment cyan"></div>
+<div class="risk-segment violet"></div>
+<div class="risk-segment violet"></div>
+<div class="risk-segment red"></div>
+<div class="risk-segment red"></div>
+<div class="risk-segment red opacity-50"></div>
+<div class="risk-segment red opacity-20"></div>
+</div>
+</div>
+<!-- Urgency Metric (Mosca) -->
+<div class="hud-glass p-4 relative">
+<h4 class="font-label-caps text-label-caps text-outline mb-3">MOSCA URGENCY</h4>
+<div class="relative h-[48px] w-full flex items-center justify-center">
+<!-- SVG Neon Line Chart Mockup -->
+<svg class="absolute inset-0 w-full h-full" preserveaspectratio="none" viewbox="0 0 100 40">
+<defs>
+<lineargradient id="neonGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="rgba(168, 85, 247, 0.4)"></stop> <!-- plasma-violet -->
+<stop offset="100%" stop-color="rgba(168, 85, 247, 0)"></stop>
+</lineargradient>
+</defs>
+<path d="M0,35 L20,30 L40,32 L60,15 L80,5 L100,2" fill="url(#neonGradient)"></path>
+<path class="draw-line" d="M0,35 L20,30 L40,32 L60,15 L80,5 L100,2" fill="none" stroke="#a855f7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="relative z-10 font-data-mono text-data-mono text-plasma-violet font-bold bg-background/50 px-2 rounded-sm backdrop-blur-sm">T-Minus 14m</span>
+</div>
+</div>
+</section>
+</div>
+<!-- Section 4: Drawer Footer / Actions -->
+<footer class="flex-none p-panel-padding border-t border-primary/20 bg-surface-container-low/80 backdrop-blur-md">
+<div class="mb-4">
+<h4 class="font-label-caps text-label-caps text-tertiary mb-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">verified</span>
+                    PQC RECOMMENDATION
+                </h4>
+<p class="font-body-md text-body-md text-on-surface">
+                    Migrate cryptographic context to <span class="font-data-mono text-tertiary border border-tertiary/30 bg-tertiary/10 px-1 rounded-sm">ML-KEM-768</span> (Kyber) to establish Quantum resilience.
+                </p>
+</div>
+<div class="flex gap-4">
+<button class="flex-1 hud-btn-primary font-label-caps text-label-caps text-primary-container py-3 px-4 flex items-center justify-center gap-2 uppercase">
+<span class="material-symbols-outlined text-[18px]">bolt</span>
+                    Migrate
+                </button>
+<button class="flex-1 hud-btn-ghost font-label-caps text-label-caps text-on-surface py-3 px-4 flex items-center justify-center gap-2 uppercase">
+<span class="material-symbols-outlined text-[18px]">build</span>
+                    Generate Patch
+                </button>
+</div>
+</footer>
+</div>
+<style>
+        /* Custom scrollbar for webkit to match HUD theme */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(29, 32, 37, 0.5); /* surface-container */
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(56, 224, 255, 0.3); /* primary-container */
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 224, 255, 0.6);
+        }
+    </style>
+</body></html>

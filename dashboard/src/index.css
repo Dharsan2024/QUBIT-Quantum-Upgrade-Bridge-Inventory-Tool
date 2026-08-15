@@ -1,44 +1,91 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   QUBIT — "Quantum Terminal" design system.
-   A dark, high-contrast security-instrument aesthetic: near-black canvas with a
-   faint engineering grid, a luminous cyan→violet quantum accent, monospace data,
-   and thin luminous-edged cards. Distinct from generic glassmorphism.
+   QUBIT — "Quantum Command" HUD design system.
 
-   Design tokens are theme-aware. Class names (glass-card, glass, glass-input,
-   chip) are preserved so every page adopts the new look with no per-page rewrite.
+   Implements the Stitch-generated JARVIS holographic spec in
+   `stich design/stitch_jarvis_global_design_system_interface/quantum_command/DESIGN.md`:
+   deep-space obsidian canvas + blueprint grid, translucent holographic glass
+   panels with luminous cyan hairlines and L-bracket corner ticks, Space Grotesk
+   headings / Inter body / JetBrains Mono for every technical string, segmented
+   risk bars, neon charts, and periodic scan-line sweeps.
+
+   Class names (glass, glass-card, glass-input, chip, nav-pill, metric, …) are
+   deliberately preserved so every page adopts the HUD look without a rewrite.
+   Fonts are bundled locally via @fontsource (imported in main.tsx) — this is an
+   offline desktop app, so no CDN font can be relied on.
    ========================================================================== */
 
 @theme {
-  --color-bg: #070a10;
-  --color-ink: #e9eef7;
-  --color-ink-dim: #9aa6ba;
-  --color-ink-faint: #5d6a80;
-  --color-accent: #38e0ff;     /* quantum cyan */
-  --color-accent-2: #7c5cff;   /* quantum violet */
-  --color-accent-3: #22d3ee;
-  --color-danger: #ff5d6c;
-  --color-warn: #ffb020;
-  --color-safe: #35e0a1;
+  /* --- canvas & ink (DESIGN.md palette) --- */
+  --color-bg: #05070c;
+  --color-surface: #0b0e14;
+  --color-surface-2: #111319;
+  --color-ink: #e1e2ea;
+  --color-ink-dim: #bbc9cd;
+  --color-ink-faint: #859397;
+
+  /* --- accents --- */
+  --color-accent: #38e0ff;      /* holographic cyan — interactive / focus */
+  --color-accent-soft: #c1f2ff; /* pale cyan — technical headings */
+  --color-accent-2: #b9aaff;    /* plasma violet — secondary data viz */
+  --color-accent-3: #29d9f7;
+  --color-danger: #ffb4ab;
+  --color-warn: #ffca28;
+  --color-safe: #87ffe1;        /* mint / quantum-resistant */
+
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* --- Tailwind palette remap ------------------------------------------------
+     The pages were written against indigo/rose/emerald/amber utilities. Rather
+     than touch every call site, the exact shades in use are re-pointed at the
+     HUD palette, so `text-rose-200` / `bg-indigo-500/20` etc. render in-theme. */
+  --color-indigo-200: #c1f2ff;
+  --color-indigo-400: #38e0ff;
+  --color-indigo-500: #29d9f7;
+  --color-rose-200: #ffdad6;
+  --color-rose-300: #ffb4ab;
+  --color-rose-400: #ff8f85;
+  --color-rose-500: #ff5f52;
+  --color-emerald-200: #b6ffee;
+  --color-emerald-300: #87ffe1;
+  --color-emerald-400: #56e4c5;
+  --color-emerald-500: #2fcfae;
+  --color-amber-200: #ffe6a3;
+  --color-amber-300: #ffd873;
+  --color-amber-400: #ffca28;
+  --color-amber-500: #f5b800;
 }
 
 :root {
-  /* surfaces — thin luminous edges over a deep panel */
-  --panel: rgba(255, 255, 255, 0.028);
-  --panel-2: rgba(255, 255, 255, 0.05);
-  --edge: rgba(255, 255, 255, 0.08);
-  --edge-lume: rgba(56, 224, 255, 0.35);   /* accent-tinted hairline on hover/active */
-  --glow: 0 0 0 1px rgba(56, 224, 255, 0.08), 0 18px 50px -22px rgba(56, 224, 255, 0.25);
-  --radius: 14px;
-  --radius-sm: 9px;
-  --shadow-lg: 0 26px 70px -24px rgba(0, 0, 0, 0.8);
-  --shadow-md: 0 10px 34px -16px rgba(0, 0, 0, 0.65);
+  /* holographic glass: base fill @60% + heavy blur + luminous hairline */
+  --panel: rgba(17, 19, 25, 0.62);
+  --panel-2: rgba(29, 32, 37, 0.8);
+  --edge: rgba(56, 224, 255, 0.2);
+  --edge-lume: rgba(56, 224, 255, 0.55);
+
+  /* L-bracket corner ticks (drawn as background gradients so ::before/::after
+     stay available to components) */
+  --tick: rgba(56, 224, 255, 0.55);
+  --tick-len: 11px;
+  --tick-w: 2px;
+
+  --glow: 0 0 0 1px rgba(56, 224, 255, 0.18), 0 0 26px -4px rgba(56, 224, 255, 0.32);
+  --bloom: 0 0 18px -2px rgba(56, 224, 255, 0.35);
+  --radius: 4px;
+  --radius-sm: 3px;
+  --shadow-md: 0 18px 44px -26px rgba(0, 0, 0, 0.9);
+  --shadow-lg: 0 30px 72px -30px rgba(0, 0, 0, 0.96);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --sidebar-bg: rgba(12, 16, 24, 0.66);
+  --sidebar-bg: rgba(12, 14, 20, 0.72);
+  /* Alias: several pages were written against --glass-border, which was never defined —
+     those borders rendered invisible. Point it at the luminous hairline. */
+  --glass-border: rgba(56, 224, 255, 0.2);
+  --grid-line: rgba(56, 224, 255, 0.05);
+  --grid-line-fine: rgba(56, 224, 255, 0.022);
 }
 
 * { box-sizing: border-box; }
@@ -50,59 +97,102 @@ body {
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* Readability: text was cramped + small. Larger base size and roomier line-height so dense
-     security data is comfortable to read across a wide window. */
   font-size: 16px;
   line-height: 1.6;
 }
-h1, h2, h3 { letter-spacing: -0.02em; line-height: 1.2; }
-h1 { font-size: clamp(1.9rem, 1.2rem + 1.4vw, 2.6rem); }
-h2 { font-size: clamp(1.25rem, 1rem + 0.6vw, 1.6rem); }
-p { max-width: 78ch; }          /* comfortable measure for prose */
-table { font-size: 0.95rem; }
-td, th { padding-block: 0.85rem; }   /* airier rows — dense tables were hard to scan */
 
-/* ---- ambient background: deep radial wash + faint engineering grid --------- */
+/* Typography is a functional readout: geometric display face for headings,
+   Inter for prose, and cyan for technical headers to signify interactivity. */
+h1, h2, h3, h4 { font-family: var(--font-display); }
+h1, h2, h3 { line-height: 1.15; }
+h1 {
+  font-size: clamp(2rem, 1.2rem + 1.6vw, 2.9rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-accent-soft);
+  text-shadow: 0 0 18px rgba(56, 224, 255, 0.45);
+}
+h2 {
+  font-size: clamp(1.3rem, 1rem + 0.7vw, 1.7rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-accent-soft);
+}
+h3 { font-size: 1.05rem; font-weight: 600; letter-spacing: 0.05em; }
+p { max-width: 82ch; }
+table { font-size: 0.95rem; }
+td, th { padding-block: 0.85rem; }
+
+/* Every technical string — algorithms, paths, hashes, scores — is monospace. */
+code, kbd, samp, pre { font-family: var(--font-mono); }
+
+/* ---- Level 0: the floor. Deep-space wash + 40px blueprint grid with 10px
+   sub-divisions, per DESIGN.md. Fixed, so it never scrolls with content. ---- */
 .aurora {
   position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
   background:
-    radial-gradient(70% 55% at 12% 0%, rgba(56, 224, 255, 0.10), transparent 60%),
-    radial-gradient(60% 50% at 92% 8%, rgba(124, 92, 255, 0.10), transparent 62%),
-    radial-gradient(90% 70% at 50% 120%, rgba(124, 92, 255, 0.06), transparent 70%);
+    radial-gradient(70% 55% at 12% 0%, rgba(56, 224, 255, 0.09), transparent 60%),
+    radial-gradient(60% 50% at 92% 6%, rgba(185, 170, 255, 0.08), transparent 62%),
+    radial-gradient(90% 70% at 50% 120%, rgba(56, 224, 255, 0.05), transparent 70%);
 }
 .aurora::after {
-  content: ""; position: absolute; inset: 0; opacity: 0.5;
+  content: "";
+  position: absolute; inset: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(80% 80% at 50% 30%, #000 55%, transparent 100%);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(var(--grid-line-fine) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line-fine) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px, 10px 10px, 10px 10px;
 }
 .grain { display: none; }
 
 @layer components {
-  /* ---- panels ---- */
+  /* ---- Level 1: holographic glass panels ---------------------------------- */
   .glass, .glass-card, .liquid-panel {
     position: relative;
-    background: var(--panel);
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    background-color: var(--panel);
+    /* four L-shaped corner brackets = 8 gradient bars */
+    background-image:
+      linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+      linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+      linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+      linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick));
+    background-repeat: no-repeat;
+    background-position:
+      left top, left top, right top, right top,
+      left bottom, left bottom, right bottom, right bottom;
+    background-size:
+      var(--tick-len) var(--tick-w), var(--tick-w) var(--tick-len),
+      var(--tick-len) var(--tick-w), var(--tick-w) var(--tick-len),
+      var(--tick-len) var(--tick-w), var(--tick-w) var(--tick-len),
+      var(--tick-len) var(--tick-w), var(--tick-w) var(--tick-len);
+    backdrop-filter: blur(26px) saturate(130%);
+    -webkit-backdrop-filter: blur(26px) saturate(130%);
     border: 1px solid var(--edge);
     border-radius: var(--radius);
     box-shadow: var(--shadow-md);
+    transition: border-color 0.24s ease, box-shadow 0.32s ease, background-color 0.24s ease;
   }
-  .glass-strong { background: var(--panel-2); }
+  /* Level 2 (modals/popovers): brighter stroke + outer bloom. */
+  .glass-strong {
+    background-color: var(--panel-2);
+    border-color: var(--edge-lume);
+    box-shadow: var(--glow), var(--shadow-lg);
+  }
+  /* Escape hatch for panels where brackets would read as visual noise. */
+  .no-ticks { background-image: none; }
 
-  /* 3D flow: cards sit in a perspective scene and lift toward the viewer on hover with a slight
-     tilt, so the interface reads as layered depth rather than flat rectangles. transform+opacity
-     only (GPU), and disabled under reduced-motion. */
+  /* Depth through light emittance: panels lift toward the viewer with a 0.5deg
+     tilt and bloom harder on hover (DESIGN.md "Interactive States"). */
   .glass-card {
     transform-style: preserve-3d;
     will-change: transform;
     transition: transform 0.32s var(--ease-out), border-color 0.24s ease, box-shadow 0.32s ease;
   }
   .glass-card:hover {
-    transform: perspective(900px) translate3d(0, -4px, 12px) rotateX(1.4deg);
+    --tick: rgba(56, 224, 255, 1);
+    transform: perspective(1200px) translate3d(0, -3px, 10px) rotateX(0.5deg);
     border-color: var(--edge-lume);
     box-shadow: var(--glow), var(--shadow-lg);
   }
@@ -110,7 +200,28 @@ td, th { padding-block: 0.85rem; }   /* airier rows — dense tables were hard t
     .glass-card, .glass-card:hover { transform: none; transition: border-color 0.2s ease; }
   }
 
-  /* Staggered reveal for grids/lists — children fade+rise in sequence (decorative, never blocking). */
+  /* HUD scan sweep: a light bar traverses the panel to signal an active check. */
+  .scan-panel { overflow: hidden; }
+  .scan-panel::after {
+    content: "";
+    position: absolute; left: 0; right: 0; top: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(56, 224, 255, 0.75), transparent);
+    box-shadow: 0 0 12px rgba(56, 224, 255, 0.5);
+    animation: scanSweep 5.5s linear infinite;
+    pointer-events: none;
+    z-index: 2;
+  }
+  @keyframes scanSweep {
+    0%   { transform: translateY(0);      opacity: 0; }
+    8%   { opacity: 0.55; }
+    92%  { opacity: 0.55; }
+    100% { transform: translateY(var(--scan-h, 420px)); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .scan-panel::after { animation: none; opacity: 0; }
+  }
+
+  /* Materialize-in: children fade + rise out of depth in sequence. */
   .stagger > * { animation: riseIn 0.5s var(--ease-out) both; }
   .stagger > *:nth-child(1) { animation-delay: 0.02s; }
   .stagger > *:nth-child(2) { animation-delay: 0.07s; }
@@ -123,151 +234,294 @@ td, th { padding-block: 0.85rem; }   /* airier rows — dense tables were hard t
     from { opacity: 0; transform: translate3d(0, 14px, -20px) scale(0.985); }
     to   { opacity: 1; transform: none; }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .stagger > * { animation: none; }
-  }
+  @media (prefers-reduced-motion: reduce) { .stagger > * { animation: none; } }
 
-  /* Big numeric metrics — the KPI tiles should read instantly across the room (demo/presentation). */
-  .metric { font-family: var(--font-mono); font-size: clamp(1.7rem, 1.1rem + 1.2vw, 2.4rem); font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; }
-  /* Tighter tracking + no mid-word breaks: wide tracking made labels like "QUANTUM-VULNERABLE"
-     wrap onto two lines inside a tile. */
-  .metric-label {
-    font-size: 0.72rem;
-    letter-spacing: 0.06em;
+  /* ---- readouts ---------------------------------------------------------- */
+  .metric {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 1.2rem + 1.5vw, 2.9rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 20px rgba(56, 224, 255, 0.28);
+  }
+  /* label-caps: mono, uppercase, 0.1em tracking (DESIGN.md typography scale). */
+  .metric-label, .label-caps {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--color-ink-dim);
+    color: var(--color-ink-faint);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    hyphens: none;
   }
+  .text-glow { text-shadow: 0 0 14px rgba(56, 224, 255, 0.55); }
 
   .sidebar-vibrancy {
     background: var(--sidebar-bg);
     backdrop-filter: blur(30px) saturate(150%);
     -webkit-backdrop-filter: blur(30px) saturate(150%);
     border: 1px solid var(--edge);
+    border-radius: var(--radius);
     box-shadow: var(--shadow-md);
   }
 
-  /* luminous quantum wordmark */
+  /* wordmark — luminous cyan, wide technical tracking */
   .text-gradient {
-    background: linear-gradient(100deg, var(--color-accent), var(--color-accent-2) 70%);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-family: var(--font-display);
+    color: var(--color-accent-soft);
+    letter-spacing: 0.06em;
+    text-shadow: 0 0 20px rgba(56, 224, 255, 0.6);
   }
 
-  /* ---- sidebar nav ---- */
+  /* ---- sidebar nav: active item carries a bright right-edge bar ----------- */
   .nav-pill {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
     border: 1px solid transparent;
+    border-radius: var(--radius-sm);
     transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease,
-      transform 0.12s var(--ease-out);
+      box-shadow 0.2s ease, transform 0.12s var(--ease-out);
   }
-  .nav-pill:hover { background: rgba(255, 255, 255, 0.045); }
+  .nav-pill:hover { background: rgba(56, 224, 255, 0.07); color: var(--color-accent-soft); }
   .nav-pill:active, .glass-input:active { transform: scale(0.985); }
   .nav-pill-active {
-    background: linear-gradient(100deg, rgba(56, 224, 255, 0.16), rgba(124, 92, 255, 0.14));
-    border-color: var(--edge-lume);
-    color: #fff;
-    box-shadow: inset 0 0 0 1px rgba(56, 224, 255, 0.15), 0 8px 22px -14px rgba(56, 224, 255, 0.6);
+    background: linear-gradient(90deg, rgba(56, 224, 255, 0.2), rgba(56, 224, 255, 0.03));
+    border-color: rgba(56, 224, 255, 0.28);
+    border-right: 3px solid var(--color-accent);
+    color: var(--color-accent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), var(--bloom);
   }
-  .nav-pill-active:hover { background: linear-gradient(100deg, rgba(56, 224, 255, 0.2), rgba(124, 92, 255, 0.18)); }
+  .nav-pill-active:hover {
+    background: linear-gradient(90deg, rgba(56, 224, 255, 0.26), rgba(56, 224, 255, 0.05));
+    color: var(--color-accent);
+  }
   @media (prefers-reduced-motion: reduce) {
     .nav-pill:active, .glass-input:active { transform: none; }
   }
 
-  /* ---- form controls / buttons ---- */
+  /* ---- controls ---------------------------------------------------------- */
+  /* Framed HUD control: used for both buttons/links and text fields. */
   .glass-input {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--edge);
-    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(56, 224, 255, 0.25);
+    border-radius: var(--radius);
     color: var(--color-ink);
     padding: 0.5rem 0.8rem;
     outline: none;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s var(--ease-out);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease,
+      transform 0.12s var(--ease-out);
   }
-  .glass-input:hover { border-color: rgba(255, 255, 255, 0.16); }
+  .glass-input:hover { border-color: rgba(56, 224, 255, 0.55); box-shadow: var(--bloom); }
+  /* Text entry additionally gets the glowing under-stroke from the spec. */
+  input.glass-input, textarea.glass-input, select.glass-input {
+    font-family: var(--font-mono);
+    color: var(--color-accent);
+    border-bottom-color: rgba(56, 224, 255, 0.45);
+  }
   .glass-input:focus {
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 3px rgba(56, 224, 255, 0.18);
+    box-shadow: 0 0 0 1px rgba(56, 224, 255, 0.35), 0 8px 18px -12px rgba(56, 224, 255, 0.7);
+  }
+  ::placeholder { color: var(--color-ink-faint); opacity: 0.8; }
+
+  /* Primary CTA: 20% cyan fill, full-opacity cyan stroke, inner-top highlight,
+     uppercase mono label — the spec's "Glass Button". */
+  .hud-btn {
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--color-accent-soft);
+    background: rgba(56, 224, 255, 0.14);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius);
+    padding: 0.6rem 1.1rem;
+    cursor: pointer;
+    overflow: hidden;
+    transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.12s var(--ease-out);
+  }
+  .hud-btn::before {
+    content: "";
+    position: absolute; inset: 0 0 auto 0; height: 1px;
+    background: rgba(255, 255, 255, 0.5);
+  }
+  .hud-btn:hover { background: rgba(56, 224, 255, 0.24); box-shadow: 0 0 16px rgba(56, 224, 255, 0.4); }
+  .hud-btn:active { transform: scale(0.98); }
+  .hud-btn:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+  .hud-btn-ghost {
+    background: transparent;
+    border-color: rgba(133, 147, 151, 0.5);
+    color: var(--color-ink);
+  }
+  .hud-btn-ghost:hover { border-color: var(--edge-lume); background: rgba(56, 224, 255, 0.08); }
+  @media (prefers-reduced-motion: reduce) { .hud-btn:active { transform: none; } }
+
+  /* ---- technical chips: no fill, hairline border, leading status dot ------ */
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500;
+    padding: 0.18rem 0.5rem; border-radius: 2px; letter-spacing: 0.04em;
+    border: 1px solid currentColor; white-space: nowrap;
+    background: transparent;
+  }
+  .chip::before {
+    content: ""; flex: none;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .chip-safe   { color: var(--color-safe); }
+  .chip-warn   { color: var(--color-warn); }
+  .chip-danger { color: var(--color-danger); }
+  .chip-info   { color: var(--color-accent); }
+  .chip-violet { color: var(--color-accent-2); }
+
+  /* ---- data tables: no vertical rules; hover tints the row and lights its
+     leading edge with a cyan bar (DESIGN.md "Data Tables") ----------------- */
+  .hud-table { width: 100%; border-collapse: collapse; }
+  .hud-table thead th {
+    font-family: var(--font-mono);
+    font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: rgba(193, 242, 255, 0.6);
+    text-align: left;
+    border-bottom: 1px solid var(--edge);
+  }
+  .hud-table tbody td { font-family: var(--font-mono); font-size: 0.82rem; }
+  /* The leading cyan edge is drawn as a background gradient, NOT a ::before. A pseudo-element
+     on a <tr> makes the engine generate an anonymous table-cell, which shifts every real <td>
+     one column to the right and knocks the header out of alignment. A gradient has no such
+     side effect and works on <tr> and <button> rows alike. */
+  .data-row {
+    border-bottom: 1px solid rgba(56, 224, 255, 0.1);
+    background-repeat: no-repeat;
+    transition: background-color 0.18s ease;
+  }
+  .data-row:hover {
+    background-color: rgba(56, 224, 255, 0.05);
+    background-image: linear-gradient(to right, var(--color-accent) 0 2px, transparent 2px);
   }
 
-  /* ---- chips / status pills ---- */
-  .chip {
-    display: inline-flex; align-items: center; gap: 0.35rem;
-    font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600;
-    padding: 0.16rem 0.55rem; border-radius: 6px; letter-spacing: 0.01em;
-    border: 1px solid transparent; white-space: nowrap;
+  /* ---- segmented risk bar: vertical blocks, cyan → violet → red ---------- */
+  .risk-bar { display: flex; gap: 2px; height: 10px; }
+  .risk-seg {
+    flex: 1;
+    background: rgba(133, 147, 151, 0.18);
+    /* chamfered corners reinforce the military-grade readout look */
+    clip-path: polygon(2px 0, 100% 0, 100% calc(100% - 2px), calc(100% - 2px) 100%, 0 100%, 0 2px);
   }
-  .chip-safe   { color: var(--color-safe);   background: rgba(53, 224, 161, 0.12); border-color: rgba(53, 224, 161, 0.3); }
-  .chip-warn   { color: var(--color-warn);   background: rgba(255, 176, 32, 0.12); border-color: rgba(255, 176, 32, 0.3); }
-  .chip-danger { color: var(--color-danger); background: rgba(255, 93, 108, 0.12); border-color: rgba(255, 93, 108, 0.3); }
+  .risk-seg-on-safe   { background: var(--color-safe);     box-shadow: 0 0 6px rgba(135, 255, 225, 0.5); }
+  .risk-seg-on-mid    { background: var(--color-accent-2); box-shadow: 0 0 6px rgba(185, 170, 255, 0.5); }
+  .risk-seg-on-danger { background: var(--color-danger);   box-shadow: 0 0 6px rgba(255, 180, 171, 0.5); }
 }
 
-/* ---- scrollbars ---- */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
-::-webkit-scrollbar-thumb:hover { background: rgba(56, 224, 255, 0.3); background-clip: content-box; }
-::selection { background: rgba(56, 224, 255, 0.28); }
-:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 4px; }
+/* ---- scrollbars: HUD rails ------------------------------------------------ */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(12, 14, 20, 0.6); }
+::-webkit-scrollbar-thumb { background: rgba(56, 224, 255, 0.28); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(56, 224, 255, 0.6); }
+::selection { background: rgba(56, 224, 255, 0.3); }
+:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 2px; border-radius: 2px; }
+
+/* Plotly: strip the light chrome so charts sit on the HUD canvas. */
+.js-plotly-plot .plotly .modebar-btn path { fill: rgba(193, 242, 255, 0.55); }
+.js-plotly-plot .plotly .modebar-btn:hover path { fill: var(--color-accent); }
+.js-plotly-plot .plotly .modebar { background: transparent !important; }
 
 /* ============================================================================
-   Boot screen + deps banner
+   Boot screen + deps banner — the first thing the desktop app paints.
    ========================================================================== */
 .boot-screen {
   position: fixed; inset: 0; display: grid; place-items: center;
   background:
     radial-gradient(70% 60% at 50% 0%, rgba(56, 224, 255, 0.12), transparent 60%),
-    radial-gradient(60% 60% at 50% 120%, rgba(124, 92, 255, 0.1), transparent 65%),
+    radial-gradient(60% 60% at 50% 120%, rgba(185, 170, 255, 0.1), transparent 65%),
     var(--color-bg);
   z-index: 100;
 }
+.boot-screen::before {
+  content: "";
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
 .boot-card {
+  position: relative;
   display: flex; flex-direction: column; align-items: center; text-align: center;
-  gap: 0.5rem; padding: 2.4rem 2.6rem; max-width: 420px;
+  gap: 0.5rem; padding: 2.4rem 2.6rem; max-width: 440px;
 }
 .boot-logo {
-  display: grid; place-items: center; width: 60px; height: 60px; border-radius: 16px;
-  color: #061018; margin-bottom: 0.4rem;
-  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
-  box-shadow: 0 0 40px -6px rgba(56, 224, 255, 0.55);
+  display: grid; place-items: center; width: 62px; height: 62px;
+  border-radius: var(--radius);
+  color: var(--color-accent); margin-bottom: 0.6rem;
+  background: rgba(56, 224, 255, 0.12);
+  border: 1px solid var(--color-accent);
+  box-shadow: 0 0 34px -4px rgba(56, 224, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   animation: bootpulse 2.4s var(--ease-in-out) infinite;
 }
-@keyframes bootpulse { 0%, 100% { box-shadow: 0 0 40px -6px rgba(56, 224, 255, 0.5); } 50% { box-shadow: 0 0 56px -2px rgba(124, 92, 255, 0.6); } }
+@keyframes bootpulse {
+  0%, 100% { box-shadow: 0 0 30px -6px rgba(56, 224, 255, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+  50%      { box-shadow: 0 0 52px 0 rgba(185, 170, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+}
 @media (prefers-reduced-motion: reduce) { .boot-logo { animation: none; } }
-.boot-title { font-size: 1.7rem; font-weight: 800; letter-spacing: 0.08em; }
-.boot-sub { font-size: 0.85rem; color: var(--color-ink-faint); margin-bottom: 1.4rem; }
+.boot-title {
+  font-family: var(--font-display);
+  font-size: 2.4rem; font-weight: 700; letter-spacing: 0.1em;
+  color: var(--color-accent-soft);
+  text-shadow: 0 0 24px rgba(56, 224, 255, 0.65);
+}
+.boot-sub {
+  font-family: var(--font-mono);
+  font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: rgba(193, 242, 255, 0.5); margin-bottom: 1.5rem;
+}
 .boot-status {
   display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-mono);
-  font-size: 0.85rem; color: var(--color-accent);
+  font-size: 0.82rem; letter-spacing: 0.04em; color: var(--color-accent);
 }
-.boot-hint { font-size: 0.8rem; color: var(--color-ink-dim); line-height: 1.5; margin: 0.4rem 0 0; }
-.boot-hint code, .boot-status code { font-family: var(--font-mono); color: var(--color-ink); }
+.boot-hint { font-size: 0.82rem; color: var(--color-ink-dim); line-height: 1.6; margin: 0.5rem 0 0; }
+.boot-hint code, .boot-status code { font-family: var(--font-mono); color: var(--color-accent-soft); }
 .boot-retry {
-  margin-top: 1.2rem; display: inline-flex; align-items: center; gap: 0.4rem;
-  font-size: 0.82rem; font-weight: 600; color: var(--color-ink);
-  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--edge);
-  border-radius: 8px; padding: 0.5rem 0.9rem; cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease;
+  margin-top: 1.3rem;
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--color-accent-soft);
+  background: rgba(56, 224, 255, 0.14);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius); padding: 0.55rem 1rem; cursor: pointer;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
 }
-.boot-retry:hover { border-color: var(--edge-lume); background: rgba(56, 224, 255, 0.08); }
+.boot-retry:hover { background: rgba(56, 224, 255, 0.24); box-shadow: 0 0 16px rgba(56, 224, 255, 0.4); }
 .boot-foot {
-  margin-top: 1.6rem; font-family: var(--font-mono); font-size: 0.68rem;
-  letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-ink-faint);
+  margin-top: 1.7rem; font-family: var(--font-mono); font-size: 0.66rem;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-ink-faint);
 }
 
 .deps-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   flex-wrap: wrap; margin: 0 0.75rem 0.5rem; padding: 0.7rem 1rem;
-  border: 1px solid rgba(255, 176, 32, 0.32); background: rgba(255, 176, 32, 0.08);
-  border-radius: 10px; font-size: 0.82rem; color: var(--color-ink-dim);
+  border: 1px solid rgba(255, 202, 40, 0.35); background: rgba(255, 202, 40, 0.07);
+  border-radius: var(--radius); font-size: 0.82rem; color: var(--color-ink-dim);
 }
 .deps-items { display: flex; flex-direction: column; gap: 0.35rem; }
 .deps-item { display: flex; align-items: center; gap: 0.5rem; }
-.deps-item code { font-family: var(--font-mono); color: var(--color-ink); }
+.deps-item code { font-family: var(--font-mono); color: var(--color-accent-soft); }
 .deps-recheck {
   display: inline-flex; align-items: center; gap: 0.4rem; flex: none;
-  font-size: 0.78rem; font-weight: 600; color: var(--color-warn);
-  background: rgba(255, 176, 32, 0.12); border: 1px solid rgba(255, 176, 32, 0.35);
-  border-radius: 8px; padding: 0.4rem 0.8rem; cursor: pointer;
+  font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--color-warn);
+  background: rgba(255, 202, 40, 0.12); border: 1px solid rgba(255, 202, 40, 0.45);
+  border-radius: var(--radius); padding: 0.42rem 0.8rem; cursor: pointer;
 }
 .deps-recheck:disabled { opacity: 0.6; cursor: default; }

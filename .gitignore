@@ -66,6 +66,8 @@ Thumbs.db
 
 # --- Agent scratch ---
 .claude/
+# Holds live MCP server credentials (e.g. an X-Goog-Api-Key for Stitch). Never commit.
+.agents/
 
 # Reproducible synthetic corpora (regenerate: qubit risk gen-dataset)
 datasets/

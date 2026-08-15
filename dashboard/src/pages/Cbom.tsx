@@ -32,11 +32,11 @@ export function Cbom() {
   };
 
   return (
-    <AnimatedPage className="mx-auto flex max-w-7xl flex-col gap-5 py-4">
-      <header className="flex items-center justify-between">
+    <AnimatedPage className="flex flex-col gap-6 py-5">
+      <header className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">CBOM Export</h1>
-          <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">
+          <h1>CBOM Export</h1>
+          <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
             {activeScan
               ? `CycloneDX ${specVersion} SBOM · scan #${activeScan.seq}`
               : 'Export your cryptographic inventory as a CycloneDX v1.7 SBOM.'}
@@ -55,58 +55,48 @@ export function Cbom() {
       )}
 
       {isError && (
-        <div className="glass-card border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
+        <div className="glass-card border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger)]/8 p-4 text-sm text-[color:var(--color-danger)]">
           Could not load CBOM: {error instanceof Error ? error.message : 'unknown error'}.
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className="glass-card p-8">
-          <div className="space-y-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-400">
-                <FileJson className="h-8 w-8" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold tracking-tight">CycloneDX {specVersion} JSON</h3>
-                <p className="text-sm text-[color:var(--color-ink-faint)]">
-                  {data ? `${components.length} components` : 'includes cryptographic assets'}
-                </p>
-              </div>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div className="glass-card flex flex-col gap-6 p-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 flex-none items-center justify-center rounded-[3px] border border-[color:var(--color-accent)]/40 bg-[color:var(--color-accent)]/10 text-[color:var(--color-accent)]">
+              <FileJson className="h-7 w-7" />
             </div>
-
-            <button
-              onClick={download}
-              disabled={!data}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 transition-colors hover:bg-indigo-400 disabled:opacity-50"
-            >
-              {isLoading ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              Download JSON
-            </button>
+            <div>
+              <h3 className="text-[color:var(--color-accent-soft)]">CycloneDX {specVersion} JSON</h3>
+              <p className="metric-label mt-1">
+                {data ? `${components.length} components` : 'includes cryptographic assets'}
+              </p>
+            </div>
           </div>
+
+          <button onClick={download} disabled={!data} className="hud-btn w-full py-3">
+            {isLoading ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            Download JSON
+          </button>
         </div>
 
-        <div className="glass-card p-8">
-          <div className="space-y-4">
-            <h3 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-[color:var(--color-ink-dim)]">
-              <Terminal className="h-4 w-4" /> CLI Export Equivalent
-            </h3>
-            <div className="overflow-x-auto rounded-lg border border-[color:var(--glass-border)] bg-black/40 p-4 font-mono text-sm text-[color:var(--color-accent)]">
-              qubit cbom export {activeScan?.targets.join(' ') ?? '<path>'} --format json
-            </div>
+        <div className="glass-card flex flex-col gap-4 p-6">
+          <h3 className="label-caps flex items-center gap-2 text-[color:var(--color-accent)]/70">
+            <Terminal className="h-4 w-4" /> CLI equivalent
+          </h3>
+          <div className="overflow-x-auto rounded-[3px] border border-[color:var(--edge)] bg-black/50 p-4 font-mono text-sm text-[color:var(--color-accent)]">
+            qubit cbom export {activeScan?.targets.join(' ') ?? '<path>'} --format json
           </div>
         </div>
       </div>
 
       {data && (
         <div className="glass-card overflow-hidden p-0">
-          <div className="border-b border-[color:var(--glass-border)] px-5 py-3 text-xs font-medium uppercase tracking-wide text-[color:var(--color-ink-faint)]">
-            Preview
-          </div>
+          <div className="label-caps border-b border-[color:var(--edge)] px-5 py-3">Preview</div>
           <pre className="max-h-[420px] overflow-auto p-5 font-mono text-xs leading-relaxed text-[color:var(--color-ink-dim)]">
             {pretty}
           </pre>

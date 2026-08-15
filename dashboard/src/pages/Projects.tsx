@@ -33,24 +33,21 @@ export function Projects() {
 
   return (
     <AnimatedPage className="flex flex-col gap-5 py-4">
-      <header className="flex items-center justify-between">
+      <header className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
-          <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">
-            Manage your scanned codebases and configurations.
+          <h1>Projects</h1>
+          <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
+            Every scanned codebase and configuration tracked by this installation.
           </p>
         </div>
-        <button
-          onClick={() => navigate('/scans')}
-          className="glass-input flex items-center gap-2 text-sm font-medium hover:border-[color:var(--edge-lume)]"
-        >
-          <Plus className="h-4 w-4" />
-          New Scan
+        <button onClick={() => navigate('/scans')} className="hud-btn">
+          <Plus className="h-3.5 w-3.5" />
+          New scan
         </button>
       </header>
 
       {projectsQ.isError && (
-        <div className="glass-card border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
+        <div className="glass-card border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger)]/8 p-4 text-sm text-[color:var(--color-danger)]">
           Could not load projects:{' '}
           {projectsQ.error instanceof Error ? projectsQ.error.message : 'unknown error'}.
           <span className="text-[color:var(--color-ink-faint)]"> Is the API reachable?</span>
@@ -82,49 +79,44 @@ export function Projects() {
           const latest = scans.find((s) => s.status === 'succeeded') ?? scans[0];
           const assets = latest?.stats?.assets ?? 0;
           return (
-            <div
-              key={project.id}
-              className="group glass-card p-6 transition-colors hover:border-indigo-500/30"
-            >
-              <div className="mb-6 flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-indigo-500/20 bg-indigo-500/10 text-indigo-400 transition-colors group-hover:bg-indigo-500/20">
-                    <FolderGit2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold tracking-tight">{project.name}</h3>
-                    <p className="mt-0.5 font-mono text-xs uppercase tracking-wide text-[color:var(--color-ink-dim)]">
-                      {project.id.slice(0, 8)}
-                    </p>
-                  </div>
+            <div key={project.id} className="group glass-card flex flex-col p-6">
+              <div className="mb-6 flex items-start gap-3">
+                <div className="flex h-11 w-11 flex-none items-center justify-center rounded-[3px] border border-[color:var(--color-accent)]/40 bg-[color:var(--color-accent)]/10 text-[color:var(--color-accent)] transition-all group-hover:bg-[color:var(--color-accent)]/20 group-hover:shadow-[0_0_14px_rgba(56,224,255,0.35)]">
+                  <FolderGit2 className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="truncate text-[color:var(--color-accent-soft)]">{project.name}</h3>
+                  <p className="metric-label mt-1">{project.id.slice(0, 8)}</p>
                 </div>
               </div>
 
               <div className="mb-6 grid grid-cols-2 gap-3">
-                <div className="glass-card bg-black/20 p-3">
-                  <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wide text-[color:var(--color-ink-faint)]">
+                <div className="rounded-[3px] border border-[color:var(--edge)] bg-black/40 p-3">
+                  <div className="metric-label mb-1.5 flex items-center gap-2">
                     <Activity className="h-3.5 w-3.5" /> Assets
                   </div>
-                  <div className="text-xl font-semibold">{assets}</div>
+                  <div className="metric text-[1.6rem] text-[color:var(--color-accent)]">{assets}</div>
                 </div>
-                <div className="glass-card bg-black/20 p-3">
-                  <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wide text-[color:var(--color-ink-faint)]">
+                <div className="rounded-[3px] border border-[color:var(--edge)] bg-black/40 p-3">
+                  <div className="metric-label mb-1.5 flex items-center gap-2">
                     <FileScan className="h-3.5 w-3.5" /> Scans
                   </div>
-                  <div className="text-xl font-semibold">{scans.length}</div>
+                  <div className="metric text-[1.6rem] text-[color:var(--color-accent-2)]">
+                    {scans.length}
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-auto flex items-center justify-between text-sm">
-                <span className="text-xs text-[color:var(--color-ink-faint)]">
+              <div className="mt-auto flex items-center justify-between gap-3">
+                <span className="metric-label">
                   {latest ? new Date(latest.created_at).toLocaleDateString() : 'never scanned'}
                 </span>
                 <button
                   onClick={() => openLatest(project.id)}
                   disabled={!latest}
-                  className="flex items-center gap-1 text-sm font-medium text-[color:var(--color-accent)] transition-colors hover:text-[color:var(--color-accent-2)] disabled:opacity-40"
+                  className="label-caps text-[color:var(--color-accent)] transition-colors hover:text-[color:var(--color-accent-soft)] disabled:opacity-40"
                 >
-                  View Details &rarr;
+                  Open inventory &rarr;
                 </button>
               </div>
             </div>

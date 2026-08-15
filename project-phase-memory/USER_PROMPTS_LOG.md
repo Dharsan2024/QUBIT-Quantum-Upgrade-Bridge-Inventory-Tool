@@ -7,6 +7,23 @@
 
 ---
 
+### 2026-08-14 → 2026-08-15 (session, IST) — Claude (orchestrator, Opus 5)
+Multi-part session. In order: (1) "check the design skills folder learn all the skils and mprove the
+project design". (2) Run the whole app, give a **detailed report of all scans + risk scores**, and stop
+detecting *only* crypto assets — QUBIT exists to secure **everything**, so surface how each finding is
+exploited under HNDL if quantum arrives; revamp the whole UI (Apple-design-guidelines, "feel like a Mac
+app"). (3) Produce a **research-paper document** with every technology, novelty, references, tests /
+efficiency numbers, tables, graphs, architecture — to hand to a co-author. (4) Back to app work: UI
+disliked, make it **completely new and cool**, **one-click**, no "API not working" popups — the exe must
+auto-connect to Docker + Ollama, prompt the user to start them if down, then reconnect automatically.
+(5) "test the whole application and fix everything". (6) Make the **API connection smoother and faster**
+so everything works the instant the app opens. (7) "**this isnt a web app anymore just the local windows
+app so only work for that**". (8) UI still disliked — use **animations and 3D flow moments**, design it
+with **Stitch**, and **use all the empty space** (text is cramped/hard to read). (9) Write a **detailed
+Stitch prompt** for a "futuristic tech crazy holographic Marvel Iron Man JARVIS" theme naming every single
+component. (10) **"i have attached all the new design into the stich designs folder change the app like
+that"** — Stitch returned 9 screens + a DESIGN.md into `stich design/`; implement that design in the app.
+
 ### 2026-08-09 (session, IST) — Claude (orchestrator, Opus 4.8)
 Multi-part session. In order: (1) add the literature-survey extra features to the design + update BUILD_PLAN + write a project completion/production-readiness/improvements report. (2) Deadline slashed to **end of September 2026** — change all dates; keep Claude as sole orchestrator + categorize any other agent generically as "sub-agent" in the rules (don't name Antigravity); every log entry must specify which agent did the work; move the status report into a new `project-status/` folder + add a weekly report; test docker/ollama. (3) Weekly report is **Mondays only** (a roll-up), normal per-work logging stays in phase-memory/sub-agent-log as before; **zero failures + zero skips** — fix all problems immediately (docker is running). (4) Any agent may push, but to a `sub-workers-push` branch; only Claude verifies + merges to main. (5) Every commit/push must appear as authored by **Dharsan L <dharsanlingadurai24@gmail.com>**. (6) Continue building the project (built real token auth). (7) [B2 Orchestrator Resume] review the sub-branch work Antigravity pushed → verdict keep/update/remove → merge. (8) Re-check everything, deep-check all sub-agent work + improve low efficiency, and confirm all logs are filed correctly.
 

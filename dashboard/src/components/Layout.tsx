@@ -8,10 +8,11 @@ import {
   Settings,
   FileCode2,
   ShieldCheck,
+  Rocket,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { DepsBanner } from './BootGate';
+import { DepsBanner, DepsLeds } from './BootGate';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -36,22 +37,22 @@ export function Layout() {
 
   return (
     <div className="relative flex h-screen w-full overflow-hidden text-[color:var(--color-ink)]">
+      {/* Level 0 — deep-space wash + blueprint grid */}
       <div className="aurora" aria-hidden />
-      <div className="grain" aria-hidden />
 
-      {/* Sidebar — macOS vibrancy panel */}
-      <aside className="sidebar-vibrancy relative z-10 m-3 mr-0 flex w-60 flex-shrink-0 flex-col rounded-[var(--radius)]">
-        <div className="flex h-14 items-center gap-3 px-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[color:var(--color-accent)]/40 bg-gradient-to-br from-[color:var(--color-accent)]/30 to-[color:var(--color-accent-2)]/20 shadow-[0_8px_24px_-8px_rgba(10,132,255,0.7)]">
-            <ShieldCheck className="h-5 w-5 text-[color:var(--color-accent-2)]" />
+      {/* Sidebar — holographic glass rail */}
+      <aside className="sidebar-vibrancy relative z-10 m-3 mr-0 flex w-[15.5rem] flex-shrink-0 flex-col">
+        <div className="flex h-16 items-center gap-3 px-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[3px] border border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/12 shadow-[0_0_18px_-2px_rgba(56,224,255,0.55),inset_0_1px_0_rgba(255,255,255,0.35)]">
+            <ShieldCheck className="h-5 w-5 text-[color:var(--color-accent)]" />
           </div>
           <div>
-            <div className="text-gradient text-lg font-semibold leading-none tracking-tight">QUBIT</div>
-            <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-[color:var(--color-ink-faint)]">
-              PQC Migration
-            </div>
+            <div className="text-gradient text-[1.45rem] font-bold leading-none">QUBIT</div>
+            <div className="label-caps mt-1 text-[color:var(--color-accent)]/55">PQC Migration</div>
           </div>
         </div>
+
+        <div className="mx-4 h-px bg-[color:var(--edge)]" />
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {NAV_ITEMS.map((item) => {
@@ -64,22 +65,34 @@ export function Layout() {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  'nav-pill flex items-center gap-2.5 rounded-[8px] px-3 py-2 text-[13px] font-medium',
+                  'nav-pill flex items-center gap-3 px-3 py-2.5',
                   active
                     ? 'nav-pill-active'
-                    : 'text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-ink)]',
+                    : 'text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-accent-soft)]',
                 )}
               >
-                <Icon className={cn('h-[17px] w-[17px]', active ? 'text-white' : 'text-[color:var(--color-ink-faint)]')} />
+                <Icon
+                  className={cn(
+                    'h-[17px] w-[17px] flex-none',
+                    active ? 'text-[color:var(--color-accent)]' : 'text-[color:var(--color-ink-faint)]',
+                  )}
+                />
                 {item.label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="m-3 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-[color:var(--color-ink-dim)]">
-          <div className="mb-1 flex items-center gap-2 font-semibold text-[color:var(--color-ink)]">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_2px_rgba(52,211,153,0.6)]" />
+        <div className="px-3 pb-3">
+          <Link to="/migrations" className="hud-btn w-full">
+            <Rocket className="h-3.5 w-3.5" />
+            Initiate migration
+          </Link>
+        </div>
+
+        <div className="glass m-3 mt-0 p-3 text-xs text-[color:var(--color-ink-dim)]">
+          <div className="label-caps mb-1.5 flex items-center gap-2 text-[color:var(--color-safe)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--color-safe)] shadow-[0_0_8px_2px_rgba(135,255,225,0.55)]" />
             Offline · local
           </div>
           No telemetry. Your code never leaves the machine.
@@ -88,28 +101,29 @@ export function Layout() {
 
       {/* Main column */}
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-        <header className="glass m-3 flex h-16 items-center justify-between rounded-[var(--radius)] px-6">
-          <div>
-            <h2 className="text-base font-semibold tracking-tight">{current?.label ?? 'QUBIT'}</h2>
-            <p className="text-xs text-[color:var(--color-ink-faint)]">
-              Quantum Upgrade Bridge &amp; Inventory Tool
-            </p>
+        {/* Top HUD rail. The page's own <h1> names the view, so the rail carries live
+            system telltales and global actions instead of repeating the title. */}
+        <header className="glass no-ticks m-3 flex h-14 items-center justify-between gap-6 rounded-[4px] px-5">
+          <div className="label-caps flex min-w-0 items-center gap-2 text-[color:var(--color-accent)]/70">
+            <span className="text-[color:var(--color-ink-faint)]">QUBIT</span>
+            <span className="text-[color:var(--color-ink-faint)]">//</span>
+            <span className="truncate text-[color:var(--color-accent-soft)]">
+              {current?.label ?? 'Command'}
+            </span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="chip chip-safe">CycloneDX 1.7</span>
-            <Link
-              to="/scans"
-              className="glass-input text-sm font-medium hover:border-[color:var(--edge-lume)]"
-            >
+          <div className="flex items-center gap-5">
+            <DepsLeds />
+            <span className="chip chip-info">CycloneDX 1.7</span>
+            <Link to="/scans" className="hud-btn py-2">
+              <Activity className="h-3.5 w-3.5" />
               New scan
             </Link>
           </div>
         </header>
 
         <DepsBanner />
-        {/* Fill the window: content used to be capped at 1400px and hug the top, leaving huge dead
-            space on a wide screen. Now it spans the full width with comfortable gutters. */}
-        <main className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 lg:px-10">
+        {/* Fill the window: content spans the full width with comfortable gutters. */}
+        <main className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 lg:px-8">
           <div className="mx-auto w-full max-w-[1920px]">
             <Outlet />
           </div>

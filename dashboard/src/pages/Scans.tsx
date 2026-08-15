@@ -2,7 +2,17 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatedPage } from '../components/AnimatedPage';
-import { Activity, CheckCircle2, XCircle, FileCode, Plus, Loader2, Trash2 } from 'lucide-react';
+import {
+  Activity,
+  CheckCircle2,
+  XCircle,
+  History,
+  Plus,
+  Loader2,
+  Trash2,
+  GitBranch,
+  FolderOpen,
+} from 'lucide-react';
 import { createScan, deleteScan, fetchScans } from '../api/client';
 import { useUiStore } from '../stores/ui';
 import type { ScanSummary } from '../api/types';
@@ -38,12 +48,15 @@ function timeAgo(iso: string | null): string {
   return `${Math.round(hrs / 24)} d ago`;
 }
 
+const isGitUrl = (t: string) =>
+  /^(https?:\/\/|git@|ssh:\/\/|git:\/\/)/.test(t.trim()) || t.trim().endsWith('.git');
+
 export function Scans() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const setScanId = useUiStore((s) => s.setScanId);
   const setProjectId = useUiStore((s) => s.setProjectId);
-  // Default to the sample apps mounted into the API container (docker-compose: ./demo-lab:/samples).
+  // Default to the bundled sample apps; accepts either a local path or a git remote URL.
   const [target, setTarget] = useState('/samples');
 
   const {
@@ -82,74 +95,88 @@ export function Scans() {
   const running = (scans ?? []).filter((s) => s.status === 'running' || s.status === 'queued');
 
   return (
-    <AnimatedPage className="mx-auto flex max-w-7xl flex-col gap-5 py-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+    <AnimatedPage className="flex flex-col gap-6 py-5">
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Scans &amp; Jobs</h1>
-          <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">
-            Run a scan over a path; assets and risk are computed and stored in the registry.
+          <h1>Scans &amp; Jobs</h1>
+          <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
+            Point QUBIT at a local path or a git remote. Assets, HNDL exposures and risk are computed
+            and stored in the registry.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            placeholder="path or repo to scan"
-            className="glass-input w-56 text-sm"
-          />
-          <button
-            onClick={() => newScan.mutate([target])}
-            disabled={newScan.isPending || !target.trim()}
-            className="glass-input flex items-center gap-2 border-indigo-400/40 text-sm font-medium hover:border-indigo-400/70 disabled:opacity-50"
-          >
-            {newScan.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            New Scan
-          </button>
         </div>
       </header>
 
+      {/* Target bar — spans the window so long paths and clone URLs stay readable. */}
+      <div className="glass-card flex flex-wrap items-center gap-4 p-5">
+        <span className="metric-label flex items-center gap-2 text-[color:var(--color-accent)]/70">
+          {isGitUrl(target) ? <GitBranch className="h-3.5 w-3.5" /> : <FolderOpen className="h-3.5 w-3.5" />}
+          {isGitUrl(target) ? 'Git remote' : 'Local path'}
+        </span>
+        <input
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+          placeholder="C:\path\to\repo  or  https://github.com/org/repo.git"
+          className="glass-input min-w-0 flex-1 text-sm"
+          spellCheck={false}
+        />
+        <button
+          onClick={() => newScan.mutate([target])}
+          disabled={newScan.isPending || !target.trim()}
+          className="hud-btn"
+        >
+          {newScan.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Plus className="h-3.5 w-3.5" />
+          )}
+          New scan
+        </button>
+      </div>
+
       {newScan.isError && (
-        <div className="glass-card border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-200">
+        <div className="glass-card border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger)]/8 p-3 text-sm text-[color:var(--color-danger)]">
           Scan failed: {newScan.error instanceof Error ? newScan.error.message : 'unknown error'}
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-1">
-          <div className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(0,2.2fr)]">
+        <section className="flex flex-col gap-3">
+          <h2 className="flex items-center gap-2">
             <Activity className="h-5 w-5 text-[color:var(--color-accent)]" />
-            Live Jobs
-          </div>
+            Live jobs
+          </h2>
           {running.length === 0 && (
-            <div className="glass-card p-4 text-sm text-[color:var(--color-ink-faint)]">
-              No jobs running.
+            <div className="glass-card p-10 text-center font-mono text-sm text-[color:var(--color-ink-faint)]">
+              No jobs running at this time.
             </div>
           )}
           {running.map((job) => (
-            <div key={job.id} className="glass-card p-4">
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-medium">Scan #{job.seq}</span>
+            <div
+              key={job.id}
+              className="glass-card scan-panel p-5"
+              style={{ ['--scan-h' as string]: '100%' }}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-mono text-sm text-[color:var(--color-accent-soft)]">
+                  Scan #{job.seq}
+                </span>
                 <Loader2 className="h-4 w-4 animate-spin text-[color:var(--color-accent)]" />
               </div>
-              <div className="truncate text-xs text-[color:var(--color-ink-faint)]">
+              <div className="truncate font-mono text-xs text-[color:var(--color-ink-faint)]">
                 {job.targets.join(', ')}
               </div>
             </div>
           ))}
-        </div>
+        </section>
 
-        <div className="space-y-4 lg:col-span-2">
-          <div className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <FileCode className="h-5 w-5 text-[color:var(--color-ink-dim)]" />
-            Scan History
-          </div>
+        <section className="flex flex-col gap-3">
+          <h2 className="flex items-center gap-2">
+            <History className="h-5 w-5 text-[color:var(--color-accent)]" />
+            Scan history
+          </h2>
 
           {isError && (
-            <div className="glass-card border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
+            <div className="glass-card border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger)]/8 p-4 text-sm text-[color:var(--color-danger)]">
               Could not load scans: {error instanceof Error ? error.message : 'unknown error'}.
               <span className="text-[color:var(--color-ink-faint)]"> Is the API reachable?</span>
             </div>
@@ -157,48 +184,51 @@ export function Scans() {
 
           <div className="glass-card overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-[color:var(--color-ink-dim)]">
-                <thead className="border-b border-[color:var(--glass-border)] bg-black/10 text-xs uppercase tracking-wide">
+              <table className="hud-table min-w-full">
+                <thead>
                   <tr>
-                    <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Scan</th>
-                    <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Target</th>
-                    <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Date</th>
-                    <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Assets</th>
-                    <th className="px-6 py-4 font-medium text-[color:var(--color-ink)]">Status</th>
-                    <th className="px-6 py-4 text-right font-medium text-[color:var(--color-ink)]">
-                      Actions
-                    </th>
+                    <th className="px-5 py-3">Scan</th>
+                    <th className="px-5 py-3">Target</th>
+                    <th className="px-5 py-3">Date</th>
+                    <th className="px-5 py-3">Assets</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[color:var(--glass-border)]">
+                <tbody>
                   {(scans ?? []).map((scan) => (
-                    <tr key={scan.id} className="transition-colors hover:bg-black/10">
-                      <td className="px-6 py-4 font-mono text-sm text-[color:var(--color-ink)]">
-                        #{scan.seq}{' '}
+                    <tr key={scan.id} className="data-row">
+                      <td className="px-5 py-3.5">
+                        <span className="text-[color:var(--color-accent-soft)]">#{scan.seq}</span>{' '}
                         <span className="text-[color:var(--color-ink-faint)]">
                           {scan.id.slice(0, 8)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 font-mono text-xs">{scan.targets.join(', ')}</td>
-                      <td className="px-6 py-4">{timeAgo(scan.created_at)}</td>
-                      <td className="px-6 py-4 font-medium text-[color:var(--color-ink)]">
+                      <td className="max-w-[22rem] truncate px-5 py-3.5 text-xs text-[color:var(--color-ink-dim)]">
+                        {scan.targets.join(', ')}
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-[color:var(--color-ink-faint)]">
+                        {timeAgo(scan.created_at)}
+                      </td>
+                      <td className="px-5 py-3.5 text-[color:var(--color-accent)]">
                         {scan.stats?.assets ?? '—'}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-5 py-3.5 text-xs">
                         <StatusBadge status={scan.status} />
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="whitespace-nowrap px-5 py-3.5 text-right">
                         <button
                           onClick={() => openScan(scan)}
                           disabled={scan.status !== 'succeeded'}
-                          className="mr-3 font-medium text-[color:var(--color-accent)] transition-colors hover:text-[color:var(--color-accent-2)] disabled:opacity-40"
+                          className="label-caps mr-4 text-[color:var(--color-accent)] transition-colors hover:text-[color:var(--color-accent-soft)] disabled:opacity-40"
                         >
                           Open
                         </button>
                         <button
                           onClick={() => removeScan.mutate(scan.id)}
-                          className="font-medium text-[color:var(--color-danger)] transition-colors hover:text-rose-400"
+                          className="text-[color:var(--color-danger)]/70 transition-colors hover:text-[color:var(--color-danger)]"
                           title="Delete scan"
+                          aria-label={`Delete scan #${scan.seq}`}
                         >
                           <Trash2 className="inline h-4 w-4" />
                         </button>
@@ -207,7 +237,7 @@ export function Scans() {
                   ))}
                   {isLoading && (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center">
+                      <td colSpan={6} className="px-5 py-12 text-center">
                         <Loader2 className="inline h-4 w-4 animate-spin" /> Loading scans…
                       </td>
                     </tr>
@@ -216,9 +246,9 @@ export function Scans() {
                     <tr>
                       <td
                         colSpan={6}
-                        className="px-6 py-10 text-center text-[color:var(--color-ink-faint)]"
+                        className="px-5 py-12 text-center text-[color:var(--color-ink-faint)]"
                       >
-                        No scans yet. Run one above.
+                        No scans yet. Point QUBIT at a path or repo above.
                       </td>
                     </tr>
                   )}
@@ -226,7 +256,7 @@ export function Scans() {
               </table>
             </div>
           </div>
-        </div>
+        </section>
       </div>
     </AnimatedPage>
   );

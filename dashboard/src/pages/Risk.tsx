@@ -15,6 +15,7 @@ import {
 import { AnimatedPage } from '../components/AnimatedPage';
 import { fetchAssetHndl, fetchRiskSummary } from '../api/client';
 import { useActiveScan } from '../hooks/useActiveScan';
+import { displayAlgorithm } from '../lib/assetLabels';
 
 function riskColor(score: number): string {
   return score >= 0.66
@@ -36,11 +37,11 @@ function scoreSourceLabel(source: "closed-form" | "xgb" | undefined): string {
 
 function Factor({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-black/20 px-2.5 py-1.5">
-      <div className="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">
-        {label}
+    <div className="rounded-[3px] border border-[color:var(--edge)] bg-black/40 px-2.5 py-1.5">
+      <div className="metric-label text-[10px]">{label}</div>
+      <div className="font-mono text-sm tabular-nums text-[color:var(--color-accent-soft)]">
+        {value}
       </div>
-      <div className="font-mono text-sm tabular-nums">{value}</div>
     </div>
   );
 }
@@ -60,30 +61,33 @@ function RiskRow({
   });
 
   return (
-    <div className="rounded-lg border border-white/5">
+    <div className="rounded-[3px] border border-[color:var(--edge)]">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-white/5"
+        className="data-row flex w-full items-center gap-3 border-b-0 px-3 py-2.5 text-left"
       >
         {open ? (
-          <ChevronDown className="h-3.5 w-3.5 text-[color:var(--color-ink-faint)]" />
+          <ChevronDown className="h-3.5 w-3.5 flex-none text-[color:var(--color-accent)]" />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5 text-[color:var(--color-ink-faint)]" />
+          <ChevronRight className="h-3.5 w-3.5 flex-none text-[color:var(--color-ink-faint)]" />
         )}
-        <span className="w-4 text-xs text-[color:var(--color-ink-faint)]">{rank}</span>
-        <span className="flex-1 font-mono text-sm">{item.algorithm}</span>
-        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
-          <div
-            className="h-full rounded-full"
-            style={{ width: `${Math.round(item.risk_score * 100)}%`, background: riskColor(item.risk_score) }}
-          />
-        </div>
-        <span className="w-10 text-right font-mono text-xs tabular-nums">
+        <span className="w-6 font-mono text-xs text-[color:var(--color-accent)]/60">#{rank}</span>
+        <span
+          className="flex-1 truncate font-mono text-sm text-[color:var(--color-accent-soft)]"
+          title={item.algorithm}
+        >
+          {displayAlgorithm(item.algorithm)}
+        </span>
+        <SegBar score={item.risk_score} />
+        <span
+          className="w-10 text-right font-mono text-xs tabular-nums"
+          style={{ color: riskColor(item.risk_score) }}
+        >
           {item.risk_score.toFixed(2)}
         </span>
       </button>
       {open && (
-        <div className="border-t border-white/5 px-3 py-3">
+        <div className="border-t border-[color:var(--edge)] px-3 py-3">
           {isLoading && (
             <div className="flex items-center gap-2 text-xs text-[color:var(--color-ink-dim)]">
               <RefreshCw className="h-3 w-3 animate-spin" /> Computing HNDL factors…
@@ -186,26 +190,47 @@ function RiskRow({
   );
 }
 
+/** HUD readout tile — label above, oversized figure below, ghosted glyph at the right. */
 function Kpi({
   label,
   value,
   icon,
-  accent,
+  color,
 }: {
   label: string;
   value: string | number;
   icon: ReactNode;
-  accent: string;
+  color: string;
 }) {
   return (
-    <div className="glass-card flex items-center gap-4 p-4">
-      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${accent}`}>{icon}</div>
-      <div>
-        <div className="text-2xl font-semibold leading-none">{value}</div>
-        <div className="mt-1 text-xs uppercase tracking-wide text-[color:var(--color-ink-faint)]">
-          {label}
-        </div>
+    <div
+      className="glass-card flex h-32 flex-col justify-between p-5"
+      style={{ borderColor: `color-mix(in srgb, ${color} 32%, transparent)` }}
+    >
+      <span className="metric-label" style={{ color }}>
+        {label}
+      </span>
+      <div className="flex items-end justify-between gap-3">
+        <span className="metric" style={{ color }}>
+          {value}
+        </span>
+        <span className="opacity-25" style={{ color }}>
+          {icon}
+        </span>
       </div>
+    </div>
+  );
+}
+
+/** Segmented risk readout, matching the inventory table's HUD bar. */
+function SegBar({ score }: { score: number }) {
+  const filled = Math.max(1, Math.round(score * 10));
+  const tone = score >= 0.66 ? 'danger' : score >= 0.33 ? 'mid' : 'safe';
+  return (
+    <div className="risk-bar w-24 flex-none">
+      {Array.from({ length: 10 }, (_, i) => (
+        <span key={i} className={`risk-seg ${i < filled ? `risk-seg-on-${tone}` : ''}`} />
+      ))}
     </div>
   );
 }
@@ -247,10 +272,10 @@ export function Risk() {
 
   return (
     <AnimatedPage className="flex flex-col gap-5 py-4">
-      <header className="flex items-center justify-between">
+      <header className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Risk Posture</h1>
-          <p className="mt-1 text-sm text-[color:var(--color-ink-dim)]">
+          <h1>Risk Posture</h1>
+          <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
             {activeScan
               ? `HNDL risk assessment · scan #${activeScan.seq}`
               : 'Overall cryptographic risk assessment'}
@@ -284,60 +309,69 @@ export function Risk() {
         <>
           <div className="stagger grid grid-cols-2 gap-5 md:grid-cols-4">
             <Kpi
-              label="Total Assets"
+              label="Total assets"
               value={total}
-              icon={<Shield className="h-5 w-5 text-indigo-200" />}
-              accent="bg-indigo-500/20 border border-indigo-400/30"
+              icon={<Shield className="h-9 w-9" />}
+              color="var(--color-accent)"
             />
             <Kpi
-              label="Quantum Vulnerable"
+              label="Quantum-vulnerable"
               value={`${vulnPct}%`}
-              icon={<AlertTriangle className="h-5 w-5 text-rose-200" />}
-              accent="bg-rose-500/20 border border-rose-400/30"
+              icon={<AlertTriangle className="h-9 w-9" />}
+              color="var(--color-danger)"
             />
             <Kpi
-              label="Median Risk Score"
+              label="Median risk score"
               value={med.toFixed(2)}
-              icon={<TrendingUp className="h-5 w-5 text-amber-200" />}
-              accent="bg-amber-500/20 border border-amber-400/30"
+              icon={<TrendingUp className="h-9 w-9" />}
+              color="var(--color-warn)"
             />
             <Kpi
-              label="Safe Assets"
+              label="Quantum-safe"
               value={`${100 - vulnPct}%`}
-              icon={<ShieldCheck className="h-5 w-5 text-emerald-200" />}
-              accent="bg-emerald-500/20 border border-emerald-400/30"
+              icon={<ShieldCheck className="h-9 w-9" />}
+              color="var(--color-safe)"
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="glass-card flex flex-col p-4">
-              <h3 className="mb-4 text-sm font-medium uppercase tracking-wide text-[color:var(--color-ink-dim)]">
-                Risk Score Distribution
-              </h3>
-              <div className="h-72 w-full rounded-lg">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+            <div className="glass-card flex flex-col p-5">
+              <h2 className="mb-4">Risk score distribution</h2>
+              <div className="h-80 w-full">
                 <Plot
                   data={[
                     {
                       x: edges,
                       y: counts,
                       type: 'bar',
-                      marker: { color: '#6366f1' },
+                      // Neon bars, tinted per bucket so the tail reads as the danger zone.
+                      marker: {
+                        color: edges.map((e) =>
+                          e >= 0.66 ? '#ffb4ab' : e >= 0.33 ? '#b9aaff' : '#38e0ff',
+                        ),
+                        line: { color: 'rgba(56,224,255,0.35)', width: 1 },
+                      },
                       hovertemplate: 'score ~%{x:.1f}: %{y} assets<extra></extra>',
                     },
                   ]}
                   layout={{
                     autosize: true,
-                    margin: { l: 40, r: 20, t: 10, b: 40 },
+                    margin: { l: 48, r: 20, t: 10, b: 46 },
                     paper_bgcolor: 'transparent',
                     plot_bgcolor: 'transparent',
-                    font: { color: '#9aa3b8' },
-                    bargap: 0.05,
+                    font: { color: '#859397', family: 'JetBrains Mono, monospace', size: 11 },
+                    bargap: 0.08,
                     xaxis: {
-                      title: 'Risk Score (HNDL)',
-                      gridcolor: 'rgba(255,255,255,0.05)',
+                      title: 'HNDL risk score',
+                      gridcolor: 'rgba(56,224,255,0.07)',
+                      zerolinecolor: 'rgba(56,224,255,0.15)',
                       range: [0, 1],
                     },
-                    yaxis: { title: 'Asset Count', gridcolor: 'rgba(255,255,255,0.05)' },
+                    yaxis: {
+                      title: 'Asset count',
+                      gridcolor: 'rgba(56,224,255,0.07)',
+                      zerolinecolor: 'rgba(56,224,255,0.15)',
+                    },
                   }}
                   useResizeHandler
                   style={{ width: '100%', height: '100%' }}
@@ -346,10 +380,8 @@ export function Risk() {
               </div>
             </div>
 
-            <div className="glass-card flex flex-col p-4">
-              <h3 className="mb-4 text-sm font-medium uppercase tracking-wide text-[color:var(--color-ink-dim)]">
-                Highest-Risk Assets
-              </h3>
+            <div className="glass-card flex flex-col p-5">
+              <h2 className="mb-4">Highest-risk assets</h2>
               <div className="flex flex-col gap-2">
                 {data.top_10_risk.length === 0 && (
                   <div className="py-8 text-center text-sm text-[color:var(--color-ink-faint)]">

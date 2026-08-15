@@ -378,6 +378,22 @@ class MigrationOrchestrator:
 
     def _fail_task(self, task: MigrationTask, reason: str) -> None:
         task.last_error = reason
+        # `deferred` only accepts `resume`, so a SECOND failure on an already-deferred task made
+        # transition() raise and the real reason was replaced by a confusing FSM error surfacing as
+        # "skipped one asset: No transition 'defer' from state 'deferred'". This happens in ordinary
+        # use: when one file contains two findings, the first patch fixes both, and the second task
+        # then fails with nothing to change. Recording a failure must be idempotent — the task is
+        # already parked in exactly the state we wanted, so keep the newest reason and move on.
+        if task.state == "deferred":
+            write_event(
+                self.session,
+                task,
+                from_state="deferred",
+                to_state="deferred",
+                actor="system",
+                detail={"error": reason, "note": "already deferred"},
+            )
+            return
         self._transition(task, "defer", detail={"error": reason})  # fail -> pending basically
 
     def _transition(

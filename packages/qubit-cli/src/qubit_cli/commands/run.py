@@ -208,12 +208,10 @@ def run(
         shutil.rmtree(path.parent, ignore_errors=True)  # the shallow scan copy is done with
         console.print(f"[dim]Temporary scan copy discarded; working in {work_path}[/dim]")
 
-    _migrate(work_path, generator, result, in_place=cloned)
+    _migrate(work_path, generator, in_place=cloned)
 
 
-def _migrate(  # type: ignore[no-untyped-def]
-    path: Path, generator: str, scan_result, *, in_place: bool = False
-) -> None:
+def _migrate(path: Path, generator: str, *, in_place: bool = False) -> None:
     """Apply patches to a git repo, then prove the fix with a re-scan.
 
     ``in_place=False`` (a LOCAL target): patches are applied to a throwaway copy so the user's real
@@ -254,7 +252,12 @@ def _migrate(  # type: ignore[no-untyped-def]
         _git(repo, "add", ".")
         _git(repo, "commit", "-m", "baseline")
 
-    before = _counts(scan_paths([repo], repo="run").assets)
+    # ONE pre-patch scan feeds both the "before" counts and the risk annotation. These were two
+    # separate scan_paths() calls over the identical unpatched tree — pure duplicated work (~0.2 s
+    # on the demo app, ~0.4 s on a 40-file package, and it scales with repo size). `_counts` only
+    # reads algorithm/quantum_vulnerable, which assess() does not modify, so the order is safe.
+    pre_assets = scan_paths([repo], repo="run").assets
+    before = _counts(pre_assets)
 
     engine = create_engine(f"sqlite:///{scratch / 'run.db'}")
     Base.metadata.create_all(engine)
@@ -265,7 +268,7 @@ def _migrate(  # type: ignore[no-untyped-def]
     scan = ScanRow(project_id=project.id, seq=1, status="succeeded")
     session.add(scan)
     session.flush()
-    annotated = RiskPipeline(load_config()).assess(scan_paths([repo], repo="run").assets)
+    annotated = RiskPipeline(load_config()).assess(pre_assets)
     for asset in annotated:
         session.add(asset_to_row(asset, scan_id=scan.id, project_id=project.id))
     session.commit()

@@ -3,5 +3,14 @@
   "identifier": "default",
   "description": "QUBIT desktop core permissions",
   "windows": ["main"],
-  "permissions": ["core:default", "shell:allow-open"]
+  "remote": {
+    "urls": ["http://127.0.0.1:8787/*", "http://localhost:8787/*"]
+  },
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "fs:allow-write-text-file"
+  ]
 }

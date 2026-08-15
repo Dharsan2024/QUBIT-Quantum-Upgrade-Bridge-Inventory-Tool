@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { createScan, deleteScan, fetchScans } from '../api/client';
 import { useUiStore } from '../stores/ui';
+import { isTauri } from '../lib/tauri';
 import type { ScanSummary } from '../api/types';
 
 function StatusBadge({ status }: { status: string }) {
@@ -60,6 +61,13 @@ export function Scans() {
   const setProjectId = useUiStore((s) => s.setProjectId);
   // Default to the bundled sample apps; accepts either a local path or a git remote URL.
   const [target, setTarget] = useState('/samples');
+
+  const browseForFolder = async () => {
+    if (!isTauri()) return; // no native picker outside the desktop shell
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const picked = await open({ directory: true, multiple: false, title: 'Select a folder to scan' });
+    if (typeof picked === 'string') setTarget(picked);
+  };
 
   const {
     data: scans,
@@ -137,6 +145,12 @@ export function Scans() {
           className="glass-input min-w-0 flex-1 text-sm"
           spellCheck={false}
         />
+        {isTauri() && (
+          <button onClick={browseForFolder} className="hud-btn hud-btn-ghost" type="button">
+            <FolderOpen className="h-3.5 w-3.5" />
+            Browse
+          </button>
+        )}
         <button
           onClick={() => newScan.mutate([target])}
           disabled={newScan.isPending || !target.trim()}

@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatedPage } from '../components/AnimatedPage';
-import { Download, Terminal, FileJson, RefreshCw } from 'lucide-react';
+import { Download, Terminal, FileJson, RefreshCw, Check } from 'lucide-react';
 import { fetchCbom } from '../api/client';
 import { useActiveScan } from '../hooks/useActiveScan';
+import { saveTextFile } from '../lib/tauri';
 
 // Minimal JSON syntax highlighter for the CBOM preview. Escapes HTML-significant characters
 // BEFORE tokenizing, so nothing in the JSON payload (e.g. a certificate DN containing "<" or "&")
@@ -43,15 +45,29 @@ export function Cbom() {
   const specVersion = (data as { specVersion?: string })?.specVersion ?? '1.7';
   const pretty = data ? JSON.stringify(data, null, 2) : '';
 
-  const download = () => {
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const download = async () => {
     if (!data) return;
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cbom-scan-${activeScan?.seq ?? activeScanId}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const wrote = await saveTextFile(
+        `cbom-scan-${activeScan?.seq ?? activeScanId}.json`,
+        JSON.stringify(data, null, 2),
+        'application/json',
+      );
+      if (wrote) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Could not save the file');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -97,14 +113,19 @@ export function Cbom() {
             </div>
           </div>
 
-          <button onClick={download} disabled={!data} className="hud-btn w-full py-3">
-            {isLoading ? (
+          <button onClick={download} disabled={!data || saving} className="hud-btn w-full py-3">
+            {isLoading || saving ? (
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : saved ? (
+              <Check className="h-3.5 w-3.5" />
             ) : (
               <Download className="h-3.5 w-3.5" />
             )}
-            Download JSON
+            {saved ? 'Saved' : saving ? 'Saving…' : 'Download JSON'}
           </button>
+          {saveError && (
+            <p className="text-xs text-[color:var(--color-danger)]">{saveError}</p>
+          )}
         </div>
 
         <div className="glass-card flex flex-col gap-4 p-6">

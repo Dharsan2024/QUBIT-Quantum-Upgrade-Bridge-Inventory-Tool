@@ -133,6 +133,8 @@ fn spawn_api(root: &std::path::Path) -> std::io::Result<Child> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .manage(ApiProcess(Mutex::new(None)))
         .setup(|app| {
             match repo_root() {

@@ -70,6 +70,19 @@ def _build_prompt(source: str, rule: MigrationRule, asset: CryptoAsset) -> str:
         f"Migration rule: {rule.title}\n"
         f"Guidance: {rule.semantic_note or ''}\n"
         f"Hard constraints:\n{constraints}\n\n"
+        # A rule may describe more than one replacement path (py-weakhash-01 offers argon2id for
+        # credential hashing and SHA-256 for generic digests). Nothing previously told the model to
+        # BRANCH, so with usage_context="unknown" it hedged: qwen2.5-coder produced the correct
+        # SHA-256 migration but also emitted a bare `import argon2`, adding an unused, undeclared
+        # third-party dependency that raises ModuleNotFoundError wherever argon2-cffi is absent.
+        # Making the branch explicit, and banning imports that are not actually used, removes the
+        # hedge without constraining which path a rule offers.
+        "If the guidance offers more than one replacement path, choose EXACTLY ONE: the path that "
+        f"matches usage_context={asset.usage_context.value}. When usage_context is 'unknown', "
+        "decide from the surrounding code (does it store or verify a credential, or merely digest "
+        "data?) and prefer the general-purpose digest path unless the code clearly handles "
+        "credentials.\n"
+        "Do NOT add an import for a library you do not actually call in the rewritten file.\n\n"
         "Preserve all unrelated code, imports, comments, and formatting exactly.\n\n"
         f"```{rule.language or ''}\n{source}\n```\n"
     )

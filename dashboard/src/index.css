@@ -200,6 +200,10 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
     .glass-card, .glass-card:hover { transform: none; transition: border-color 0.2s ease; }
   }
 
+  /* Opt out of the 3D lift for panels that get hovered a lot while reading/clicking (e.g. a
+     dense data table) — the tilt is distracting there. Keeps the border-glow feedback. */
+  .glass-card.no-tilt:hover { transform: none; }
+
   /* HUD scan sweep: a light bar traverses the panel to signal an active check. */
   .scan-panel { overflow: hidden; }
   .scan-panel::after {

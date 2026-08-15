@@ -129,24 +129,28 @@ export function Inventory() {
 
       <div className="stagger grid grid-cols-2 gap-5 lg:grid-cols-4">
         <Kpi
+          flat
           label="Total assets"
           value={totalAssets}
           icon={<Boxes className="h-9 w-9" />}
           color="var(--color-accent)"
         />
         <Kpi
+          flat
           label={allLoaded ? 'Quantum-vulnerable' : 'Quantum-vulnerable*'}
           value={vulnerable}
           icon={<ShieldAlert className="h-9 w-9" />}
           color="var(--color-danger)"
         />
         <Kpi
+          flat
           label={allLoaded ? 'HNDL exposures' : 'HNDL exposures*'}
           value={hndl}
           icon={<KeyRound className="h-9 w-9" />}
           color="var(--color-accent-2)"
         />
         <Kpi
+          flat
           label={allLoaded ? 'Quantum-safe' : 'Quantum-safe*'}
           value={safe}
           icon={<ShieldCheck className="h-9 w-9" />}

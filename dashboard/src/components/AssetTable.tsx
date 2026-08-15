@@ -427,7 +427,7 @@ export function AssetTable({ data }: { data: CryptoAsset[] }) {
   const [selected, setSelected] = useState<CryptoAsset | null>(null);
 
   return (
-    <div className="glass-card scan-panel" style={{ ['--scan-h' as string]: '100%' }}>
+    <div className="glass-card no-tilt scan-panel" style={{ ['--scan-h' as string]: '100%' }}>
       <div className="overflow-x-auto">
         <table className="hud-table min-w-full">
           <thead>

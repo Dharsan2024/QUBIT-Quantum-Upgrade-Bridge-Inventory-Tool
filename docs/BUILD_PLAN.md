@@ -128,8 +128,12 @@ paper. Scope is ordered by shippable-product value; the paper/experiment items a
 [docs/project-status/WEEKLY_REPORT.md](project-status/WEEKLY_REPORT.md).
 
 **In-scope for Sep 30 (product hardening):**
-- **Auth:** real token auth — token+scope lifecycle (`qubit serve token`, `ro`/`rw`, hashed store),
-  replacing the single dev token. *Highest security-hardening leverage.*
+- ~~**Auth:** real token auth — token+scope lifecycle (`qubit serve token`, `ro`/`rw`, hashed store),
+  replacing the single dev token.~~ **DONE** (verified 2026-08-15): `qubit_api/auth.py` resolves bearer
+  tokens against the `api_tokens` table by sha256 hash, revocation-aware, `ro`/`rw` scopes enforced
+  globally by HTTP method (`enforce_scope_by_method`), `GET /auth/whoami`, and
+  `qubit serve token create|list|revoke`. The single dev token survives only as a documented bootstrap
+  that self-disables the moment any real token exists.
 - **Extended-module features E1–E5** (literature-survey surfacing gaps — additive, frozen-schema-safe,
   all reuse existing code; full design [doc 08 §2](design/08-extended-modules.md)). Order follows the
   substrate dependency (E5+E2 → E1 → E3/E4):
@@ -148,11 +152,34 @@ paper. Scope is ordered by shippable-product value; the paper/experiment items a
   new Go/JS/TS JWT detection rule packs fill a gap where those 3 already-supported languages had zero JWT
   rules; a `migration_kb.yaml` coverage gap (JWT-context assets got no recommendation) fixed alongside it.
   Small and additive — did not displace anything else in this list.
-- **Packaging + ops:** `pip install qubit-cli` from a clean clone + `docker compose up` full stack verified
-  on a fresh machine; a minimal structured-logging story; README quickstart.
-- **Test-suite hygiene:** mark the bridge e2e probe test `@pytest.mark.integration` (§ status report); add
-  `xgboost` to the eval env so the regressor test runs in the gate; keep coverage ≥70% on core packages.
-- **Demo readiness:** `qubit demo run --all` rehearsed + a **backup demo video** (demo-failure insurance).
+- **Packaging + ops:** `docker compose up` full stack verified ✅ (2026-08-15, against **freshly built**
+  `--no-cache` images — dashboard serves 200, API authenticates through the nginx proxy, and a real scan
+  of `/samples/vulnapp-python` returns 8 assets incl. the SCA source). *Still outstanding:*
+  `pip install qubit-cli` from a clean clone, a minimal structured-logging story, README quickstart, and
+  a genuinely clean-room run (the verification above reused the existing `qubit_data` volume, so it did
+  not prove first-boot-from-nothing).
+- ~~**Test-suite hygiene:** mark the bridge e2e probe test `@pytest.mark.integration`; add `xgboost` to
+  the eval env so the regressor test runs in the gate; keep coverage ≥70% on core packages.~~ **DONE**
+  (2026-08-15): bridge e2e is marked; `xgboost`+`scikit-learn` are in the root `dev` group so the
+  regressor test runs rather than skips; suite is **419 passed / 0 failed / 0 skipped** and coverage on
+  the 3 core packages measures **82%** (gate 70%).
+- **Demo readiness:** `qubit demo run --all` rehearsed ✅ (2026-08-15: completes with
+  `PASS negotiated=X25519MLKEM768`, classical→hybrid on the same port) + a **backup demo video**
+  (demo-failure insurance) — *still outstanding, human task*.
+- **Known defects to fix before Sep 30** (both found 2026-08-15, both pre-existing, neither blocking):
+  1. `qubit_api/services.py::run_scan()` stores the caller's requested `scanners` list on the scan row
+     but invokes `scan_paths(...)` **without** it — so the API's scanner selection is recorded and then
+     silently ignored, and every API scan runs the default set. Related: the frozen `SourceScanner` enum
+     has no `dependency` member, so the API cannot express the SCA source even though it runs by default.
+     Fix = pass the set through, and decide how `dependency` is addressed via the API.
+  2. `qubit_migrate/graph/order.py` has 2 mypy `union-attr` errors (`RiskAnnotation | None` → `.score`),
+     confirmed pre-existing (reproduced with all other changes stashed). `mypy` is otherwise clean
+     across all 103 source files, so these 2 are the only thing between the repo and a clean type gate.
+  3. `POST /projects/{id}/scans` returns the scan serialized as `status: "running"` even though M1
+     execution is synchronous, and an immediately-following `GET /scans/{id}/assets` returns 0 before
+     settling on the true count (reproduced twice, on both an existing and a virgin DB). Harmless for
+     the dashboard (it polls) but it makes the API look asynchronous when it isn't, and would trip any
+     client that reads straight through. Fix alongside defect 1 — same function.
 
 Each item ships with its quality gate (`uv run ruff check <pkg> && uv run mypy <pkg>/src && uv run pytest <pkg> -q`); none edit the frozen `CryptoAsset` schema.
 

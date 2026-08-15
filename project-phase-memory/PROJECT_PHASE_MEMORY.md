@@ -274,6 +274,83 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-15 (night) — Integrated 8 external reference repos: JOSE/JWT grounding + backlog items B1/B2/B3 (Claude, Sonnet 5 → Opus 5)
+User cloned 8 repos into `git help/` (cryptoscan, cryptodeps, pqaudit, oqs-provider, golang-jwt/jwt,
+go-jose, tls-analyzer, hashicorp/vault) and asked to integrate them wherever possible + document
+everywhere. Evaluated all 8 against QUBIT's real current code, then shipped in 5 commits.
+
+**Scoping decision (user-approved):** two opportunities were genuinely new subsystems that would have
+displaced committed Phase-3 scope, so they were tracked as an explicit backlog table in BUILD_PLAN
+rather than silently absorbed — then built one at a time afterwards on user instruction (B3→B2→B1).
+
+- **`a74634a` Tier 1 — JOSE/JWT grounding.** `qubit-core/algorithms.py` gained RS/PS/ES/HS-family +
+  EdDSA canonical entries (+ new `ECDSA-P521`, since JOSE `ES512` means P-521 not P-384) cross-verified
+  against two independent RFC 7518 implementations (go-jose `shared.go`, golang-jwt per-family files).
+  New JWT rule packs for **Go + JavaScript + TypeScript** — those 3 languages were already scannable
+  but had *zero* JWT rules. `detect_imports: []` on all three with a comment explaining why (Go's
+  import extractor yields `"github"` not `"jwt"` for hosted module paths; no JS/TS extractor exists
+  yet — a non-empty value would silently disable the rule instead of failing loudly).
+  **Bug found + fixed:** `migration_kb.yaml` had no `usage_context: token` entries, so *every* JWT
+  detection (including the pre-existing PyJWT ones) silently got no migration recommendation.
+- **`7bdfdda` B3 — real PQC probe + CNSA 2.0 policy.** `network/clienthello.py` was a pure mock
+  (`asyncio.sleep` then a fabricated Detection, zero I/O). Replaced with the algorithm doc 01 §6.3
+  already specified but never implemented: offer one hybrid group with an *empty* `key_share`, so a
+  supporting server must answer HelloRetryRequest naming it — no OpenSSL dep, no key generation.
+  Proven against the real `qubit-nginx-hybrid` container, matching `openssl s_client` ground truth.
+  Plus `qubit_risk/cnsa2.py` + `params/cnsa2_milestones.yaml` (5 milestones 2025→2035).
+- **`ebb2612` B2 — dependency/SCA manifest scanner.** New `qubit_scanner/deps/`: stdlib parsers for
+  go.mod/package.json/requirements.txt/pyproject.toml/pom.xml + a curated `crypto_library_map.yaml`.
+  Closed QUBIT's total zero-SCA-parsing gap. First backlog item to adapt real third-party *data*, so
+  **`THIRD_PARTY_NOTICES.md`** was created (Apache-2.0 attribution).
+- **`dec1c6d` B1 — Vault transit/PKI connector.** Opt-in `scan_vault()` polling Vault's HTTP API
+  (original code — Vault is BUSL-1.1, nothing vendored). Reuses the frozen enum's existing
+  `key`/`cert` `source_scanner` values (no schema deviation). `CertScanner.parse_bytes()` extracted
+  so HTTP-fetched PKI certs reuse the on-disk OID mapping. `demo-lab/compose.vault.yml` +
+  `vault-seed.sh` make it real, not a stub — verified live: 9 assets, 5 quantum-vulnerable.
+- **`36fbb79` gate hygiene.** Discovered I'd only been running `ruff check`, never `ruff format`
+  (which is `poe check`'s *first* step) — 4 files were unformatted. Also added `xgboost`+`scikit-learn`
+  to the root `dev` group so the regressor test **runs instead of skipping**: the zero-skip mandate
+  had been one silent skip short. Suite went 403→408 passed, 0 skipped.
+- **`4f7f5f3` real bug found by rehearsing the demo.** `qubit demo run --all` showed the SCA scanner
+  crediting `cryptography==42.0.8` with ML-KEM-768/ML-DSA-65 — those need `>=48`. A
+  quantum-*vulnerable* dependency was reading as quantum-*ready*, the worst direction for a risk tool.
+  Root cause: the curated map had no way to say "only from version X". Added optional `min_version`
+  per algorithm entry + a deliberately conservative gate (unpinned/lower/unparseable ⇒ not claimed;
+  a range like `>=41.0` judged on its floor). 11 tests cover both directions.
+
+**Verified this session:** 419 passed / 0 failed / 0 skipped; ruff+format+mypy clean; all 3 docker
+integration tests green; `qubit demo run --all` completes with `PASS negotiated=X25519MLKEM768`
+(classical→hybrid on the same port). Confirmed real token auth is **already fully implemented**
+(DB-backed sha256 tokens, ro/rw scopes, revocation, global method-based enforcement) — BUILD_PLAN
+still lists it as pending, so that doc line is stale.
+
+**`docker compose up` acceptance — verified properly (and a process lesson).** First attempt was
+worthless: I ran `docker compose build 2>&1 | tail -30`, so the reported exit code was `tail`'s, not
+Docker's. The dashboard build had actually **failed** (`npm ci` → transient
+`registry.npmjs.org` idle timeout) and the stack I tested was running **5-day-old images**. Rebuilt
+both with real exit-code capture (`> log 2>&1; echo $?`), then verified for real:
+- Fresh `--no-cache` api image confirmed to contain all 4 new subsystems (deps scanner, vault
+  connector, PQC probe with all 3 hybrid groups, cnsa2 evaluator) and the working version gate.
+- **True clean-room boot** via a throwaway compose project (`-p qubitclean`) so the existing
+  `mainprojects_qubit_data` volume was never destroyed: **9 s** from nothing to an authenticated
+  response, empty DB on first boot, dashboard 200, full create-project → scan → 8 assets flow, CBOM
+  export valid CycloneDX 1.7 / 8 components. Throwaway volumes removed; original data confirmed intact.
+- **Lesson worth keeping: never pipe a build/test command into `tail`/`head`** — it masks the real
+  exit status. Redirect to a file and echo `$?`.
+
+**Three pre-existing defects found, NOT fixed (out of scope; now tracked in BUILD_PLAN §Phase 3):**
+1. `qubit-api`'s `run_scan()` records the requested `scanners` list in the DB but calls
+   `scan_paths(...)` **without** it — so the API's scanner selection is stored and then ignored, and
+   every API scan silently uses the default set. Also means the API cannot express `"dependency"` at
+   all (the frozen `SourceScanner` enum has no such member).
+2. `packages/qubit-migrate/.../graph/order.py` has 2 long-standing mypy `union-attr` errors
+   (`RiskAnnotation | None` → `.score`), confirmed pre-existing by stashing all session changes.
+3. `POST /projects/{id}/scans` reports `status: "running"` though M1 execution is synchronous, and an
+   immediate `GET /scans/{id}/assets` reads 0 before settling on the real count (reproduced twice).
+
+- **Next (remaining Sep-30 items):** `pip install qubit-cli` from a clean clone; minimal
+  structured-logging story; README quickstart; the 3 defects above; **backup demo video (human task)**.
+
 ### 2026-08-15 (evening) — "Do all the enhancements": 6 items, 3 genuine production bugs found + fixed (Claude, Sonnet 5)
 Worked through the full punch list from the prior testing pass. Every item surfaced a real,
 previously-undiscovered bug — none of this was cosmetic polish.

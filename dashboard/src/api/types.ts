@@ -73,11 +73,13 @@ export interface CryptoAsset {
   confidence?: Confidence;
 }
 
+/** Matches qubit_api.schemas.Page[T] exactly: {items, total, limit, offset}. There is no
+ *  page/size on the wire — the server is offset-paginated. */
 export interface Paginated<T> {
   items: T[];
   total: number;
-  page: number;
-  size: number;
+  limit: number;
+  offset: number;
 }
 
 export interface Project {

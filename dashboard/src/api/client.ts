@@ -129,18 +129,25 @@ export async function deleteScan(scanId: string): Promise<void> {
 }
 
 // ── Assets ───────────────────────────────────────────────────────────────────
+/**
+ * `offset`/`limit` match the server's actual query params exactly (routers/assets.py:
+ * `limit: int = 50, le=200` / `offset: int = 0`) — there is no page/size pagination on the
+ * wire. Previously this sent `page`/`size`, which the server silently ignored (unrecognized
+ * query params), so every call fell back to the default limit=50 regardless of what the caller
+ * asked for — pagination beyond the first 50 assets was unreachable app-wide until this fix.
+ */
 export async function fetchScanAssets(
   scanId: string,
-  page = 1,
-  size = 100,
+  offset = 0,
+  limit = 100,
   q = '',
 ): Promise<Paginated<CryptoAsset>> {
   try {
-    const params = new URLSearchParams({ page: String(page), size: String(size) });
+    const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
     if (q.trim()) params.set('q', q.trim());
     return await send<Paginated<CryptoAsset>>(`/scans/${scanId}/assets?${params.toString()}`);
   } catch (e) {
-    if (e instanceof ApiError && e.status === 404) return { items: [], total: 0, page, size };
+    if (e instanceof ApiError && e.status === 404) return { items: [], total: 0, limit, offset };
     throw e;
   }
 }

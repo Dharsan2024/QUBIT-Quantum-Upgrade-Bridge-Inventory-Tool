@@ -62,10 +62,10 @@ export function Inventory() {
   const { data, isLoading, isError, error, refetch, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['assets', activeScanId, searchQ],
     queryFn: ({ pageParam }) => fetchScanAssets(activeScanId as string, pageParam, PAGE_SIZE, searchQ),
-    initialPageParam: 1,
+    initialPageParam: 0, // offset, not a page number — the server is offset-paginated
     getNextPageParam: (lastPage) => {
-      const hasMore = lastPage.page * lastPage.size < lastPage.total;
-      return hasMore ? lastPage.page + 1 : undefined;
+      const nextOffset = lastPage.offset + lastPage.limit;
+      return nextOffset < lastPage.total ? nextOffset : undefined;
     },
     enabled: !!activeScanId,
   });

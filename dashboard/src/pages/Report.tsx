@@ -72,7 +72,7 @@ export function Report() {
   });
   const assetsQ = useQuery({
     queryKey: ['report-assets', scanId],
-    queryFn: () => fetchScanAssets(scanId as string, 1, 200),
+    queryFn: () => fetchScanAssets(scanId as string, 0, 200),
     enabled: !!scanId,
   });
   const riskQ = useQuery({
@@ -93,6 +93,11 @@ export function Report() {
   // Memoised so downstream useMemo (dominantVulnAlgo) sees a stable reference — assetsQ.data?.items
   // ?? [] would allocate a new array every render otherwise.
   const items: CryptoAsset[] = useMemo(() => assetsQ.data?.items ?? [], [assetsQ.data]);
+  // The report fetches a single page of up to 200 assets (the server's hard cap). For the
+  // overwhelming majority of scans that's everything; for a scan bigger than that, the KPIs and
+  // asset table below would silently describe only the first 200 unless flagged as partial.
+  const totalAssets = assetsQ.data?.total ?? items.length;
+  const truncated = items.length < totalAssets;
   // Only Shor-broken public-key algorithms have a modeled CRQC arrival curve — Grover-weakened
   // symmetric/hash algorithms (e.g. SHA-1, AES-128) degrade continuously rather than breaking at
   // a threshold, so /risk/timeline has nothing to return for them (404s). Restricting the pick to
@@ -174,12 +179,13 @@ export function Report() {
 
       <h2>Executive summary</h2>
       <div class="kpis">
-        <div class="kpi"><div class="label">Total assets</div><div class="value info">${items.length}</div></div>
-        <div class="kpi"><div class="label">Quantum-vulnerable</div><div class="value danger">${vulnerable.length}</div></div>
-        <div class="kpi"><div class="label">HNDL exposures</div><div class="value warn">${hndl.length}</div></div>
-        <div class="kpi"><div class="label">Quantum-safe</div><div class="value safe">${safe}</div></div>
+        <div class="kpi"><div class="label">Total assets</div><div class="value info">${totalAssets}</div></div>
+        <div class="kpi"><div class="label">Quantum-vulnerable${truncated ? '*' : ''}</div><div class="value danger">${vulnerable.length}</div></div>
+        <div class="kpi"><div class="label">HNDL exposures${truncated ? '*' : ''}</div><div class="value warn">${hndl.length}</div></div>
+        <div class="kpi"><div class="label">Quantum-safe${truncated ? '*' : ''}</div><div class="value safe">${safe}</div></div>
       </div>
       <p>Median HNDL risk score: <b>${med.toFixed(2)}</b> across ${risk?.risk_scores.length ?? 0} scored assets.</p>
+      ${truncated ? `<p style="color:#935e00"><b>*</b> This scan has ${totalAssets} assets; the breakdown above reflects only the first ${items.length} (the report's per-scan limit).</p>` : ''}
 
       ${
         timelineQ.data
@@ -194,7 +200,7 @@ export function Report() {
           : ''
       }
 
-      <h2>Highest-risk assets (top ${Math.min(25, items.length)} of ${items.length})</h2>
+      <h2>Highest-risk assets (top ${Math.min(25, items.length)} of ${totalAssets})</h2>
       <table><thead><tr><th>Algorithm / finding</th><th>Context</th><th>Status</th><th>Risk score</th><th>Location</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="5">No assets in this scan.</td></tr>'}</tbody></table>
 
@@ -289,32 +295,44 @@ export function Report() {
             <div className="glass-card flex h-28 flex-col justify-between p-5">
               <span className="metric-label text-[color:var(--color-accent)]">Total assets</span>
               <div className="flex items-end justify-between">
-                <span className="metric text-[color:var(--color-accent)]">{items.length}</span>
+                <span className="metric text-[color:var(--color-accent)]">{totalAssets}</span>
                 <Boxes className="h-8 w-8 opacity-25 text-[color:var(--color-accent)]" />
               </div>
             </div>
             <div className="glass-card flex h-28 flex-col justify-between p-5">
-              <span className="metric-label text-[color:var(--color-danger)]">Quantum-vulnerable</span>
+              <span className="metric-label text-[color:var(--color-danger)]">
+                {truncated ? 'Quantum-vulnerable*' : 'Quantum-vulnerable'}
+              </span>
               <div className="flex items-end justify-between">
                 <span className="metric text-[color:var(--color-danger)]">{vulnerable.length}</span>
                 <ShieldAlert className="h-8 w-8 opacity-25 text-[color:var(--color-danger)]" />
               </div>
             </div>
             <div className="glass-card flex h-28 flex-col justify-between p-5">
-              <span className="metric-label text-[color:var(--color-accent-2)]">HNDL exposures</span>
+              <span className="metric-label text-[color:var(--color-accent-2)]">
+                {truncated ? 'HNDL exposures*' : 'HNDL exposures'}
+              </span>
               <div className="flex items-end justify-between">
                 <span className="metric text-[color:var(--color-accent-2)]">{hndl.length}</span>
                 <KeyRound className="h-8 w-8 opacity-25 text-[color:var(--color-accent-2)]" />
               </div>
             </div>
             <div className="glass-card flex h-28 flex-col justify-between p-5">
-              <span className="metric-label text-[color:var(--color-safe)]">Quantum-safe</span>
+              <span className="metric-label text-[color:var(--color-safe)]">
+                {truncated ? 'Quantum-safe*' : 'Quantum-safe'}
+              </span>
               <div className="flex items-end justify-between">
                 <span className="metric text-[color:var(--color-safe)]">{safe}</span>
                 <ShieldCheck className="h-8 w-8 opacity-25 text-[color:var(--color-safe)]" />
               </div>
             </div>
           </div>
+          {truncated && (
+            <p className="metric-label -mt-2 normal-case tracking-normal text-[color:var(--color-warn)] print:hidden">
+              * This scan has {totalAssets} assets; the breakdown above reflects only the first{' '}
+              {items.length} (the report's per-scan limit).
+            </p>
+          )}
 
           {timelineQ.data && (
             <div className="glass-card p-6 print:hidden">
@@ -334,7 +352,7 @@ export function Report() {
 
           <div className="glass-card overflow-hidden print:hidden">
             <div className="label-caps border-b border-[color:var(--edge)] px-5 py-3">
-              Highest-risk assets (top {Math.min(25, items.length)} of {items.length})
+              Highest-risk assets (top {Math.min(25, items.length)} of {totalAssets})
             </div>
             <div className="overflow-x-auto">
               <table className="hud-table min-w-full">

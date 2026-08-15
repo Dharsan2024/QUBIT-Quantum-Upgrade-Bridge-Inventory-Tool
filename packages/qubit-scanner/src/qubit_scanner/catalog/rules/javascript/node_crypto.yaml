@@ -1,0 +1,129 @@
+schema: qubit-rule/v1
+language: javascript
+library:
+  name: node:crypto
+  # No import gate: resolve.py has no JS import-extraction query yet (see javascript/jwt.yaml), and
+  # `crypto` is reachable as a global in modern Node without any import at all.
+  detect_imports: []
+rules:
+  # Node's built-in `crypto` module was previously invisible to QUBIT — the only JavaScript rules
+  # were the two JWT ones — so the single most common source of crypto in Node codebases produced
+  # zero findings. These cover the four entry points that actually appear in application code:
+  # createHash, createCipheriv, createHmac, and generateKeyPairSync.
+  #
+  # The algorithm name is read from the string argument rather than hardcoded per-rule, so one rule
+  # covers every digest/cipher Node accepts and the canonical registry decides the verdict (doc 01
+  # §4.2: rules only NAME algorithms, they never judge them). Unrecognised names surface as
+  # UNKNOWN(...) rather than being dropped.
+  - id: JS-NODE-CREATEHASH
+    title: crypto.createHash(<digest>)
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @meth)
+          arguments: (arguments (string (string_fragment) @alg))) @call
+      where:
+        - { capture: obj, equals: crypto }
+        - { capture: meth, equals: createHash }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const crypto = require('crypto');
+          const h = crypto.createHash('md5').update(data).digest('hex');
+        - |
+          const crypto = require('crypto');
+          const h = crypto.createHash('sha256').update(data).digest('hex');
+      negative:
+        - |
+          const crypto = require('crypto');
+          const h = crypto.randomBytes(32);
+
+  - id: JS-NODE-CREATECIPHERIV
+    title: crypto.createCipheriv(<cipher>, key, iv)
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @meth)
+          arguments: (arguments (string (string_fragment) @alg) (_) (_))) @call
+      where:
+        - { capture: obj, equals: crypto }
+        - { capture: meth, equals: createCipheriv }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const crypto = require('crypto');
+          const c = crypto.createCipheriv('aes-128-cbc', key, iv);
+        - |
+          const crypto = require('crypto');
+          const c = crypto.createCipheriv('des-ede3-cbc', key, iv);
+      negative:
+        - |
+          const crypto = require('crypto');
+          const h = crypto.createHash('sha256');
+
+  - id: JS-NODE-CREATEHMAC
+    title: crypto.createHmac(<digest>, key)
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @meth)
+          arguments: (arguments (string (string_fragment) @alg) (_))) @call
+      where:
+        - { capture: obj, equals: crypto }
+        - { capture: meth, equals: createHmac }
+    extract:
+      algorithm: { literal: HMAC }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const crypto = require('crypto');
+          const mac = crypto.createHmac('sha256', secret).update(msg).digest();
+      negative:
+        - |
+          const crypto = require('crypto');
+          const h = crypto.createHash('sha256').update(msg).digest();
+
+  - id: JS-NODE-GENERATEKEYPAIR-RSA
+    title: crypto.generateKeyPairSync('rsa', ...)
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @meth)
+          arguments: (arguments (string (string_fragment) @alg) (_))) @call
+      where:
+        - { capture: obj, equals: crypto }
+        - { capture: meth, in: [generateKeyPairSync, generateKeyPair] }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const crypto = require('crypto');
+          const { publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+        - |
+          const crypto = require('crypto');
+          const { publicKey } = crypto.generateKeyPairSync('ed25519', {});
+      negative:
+        - |
+          const crypto = require('crypto');
+          const mac = crypto.createHmac('sha256', secret);

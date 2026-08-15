@@ -1,0 +1,172 @@
+schema: qubit-rule/v1
+language: java
+library:
+  name: Java JCA/JCE
+  detect_imports: [java, javax]
+rules:
+  # Gaps in the original java/jca.yaml pack: it covered only the broken primitives (DES, 3DES,
+  # SHA-1, RSA), so AES — overwhelmingly the most common cipher in Java code — produced no finding,
+  # and neither did EC/DSA key generation, MACs, or the strong hashes CNSA 2.0 requires evidence of.
+  - id: JAVA-JCA-CIPHER-AES
+    title: Cipher.getInstance("AES/...")
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @algo)) @call
+      where:
+        - { capture: obj, equals: Cipher }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: '^"AES(/|")' }
+    extract:
+      # The transformation string is "AES/CBC/PKCS5Padding"; the registry resolves the leading
+      # family and the mode/padding are evidence, not security-relevant to the quantum verdict.
+      algorithm: { literal: AES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("AES/GCM/NoPadding"); } }
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("AES"); } }
+      negative:
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("DES/ECB/PKCS5Padding"); } }
+
+  - id: JAVA-JCA-MESSAGEDIGEST-STRONG
+    title: MessageDigest.getInstance("SHA-256"/"SHA-384"/"SHA-512") — inventoried
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @algo)) @call
+      where:
+        - { capture: obj, equals: MessageDigest }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: '^"SHA-?(256|384|512)"$' }
+    extract:
+      algorithm: { from: algo, resolve: string-literal }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.MessageDigest;
+          class A { void f() throws Exception { MessageDigest.getInstance("SHA-384"); } }
+        - |
+          import java.security.MessageDigest;
+          class A { void f() throws Exception { MessageDigest.getInstance("SHA-256"); } }
+      negative:
+        - |
+          import java.security.MessageDigest;
+          class A { void f() throws Exception { MessageDigest.getInstance("MD5"); } }
+
+  - id: JAVA-JCA-KEYPAIRGEN-EC
+    title: KeyPairGenerator.getInstance("EC"/"ECDSA")
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @algo)) @call
+      where:
+        - { capture: obj, equals: KeyPairGenerator }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: '^"(EC|ECDSA)"$' }
+    extract:
+      algorithm: { from: algo, resolve: string-literal }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.KeyPairGenerator;
+          class A { void f() throws Exception { KeyPairGenerator.getInstance("EC"); } }
+      negative:
+        - |
+          import java.security.KeyPairGenerator;
+          class A { void f() throws Exception { KeyPairGenerator.getInstance("RSA"); } }
+
+  - id: JAVA-JCA-KEYPAIRGEN-DSA
+    title: KeyPairGenerator.getInstance("DSA")
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @algo)) @call
+      where:
+        - { capture: obj, equals: KeyPairGenerator }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, equals: '"DSA"' }
+    extract:
+      algorithm: { literal: DSA }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.KeyPairGenerator;
+          class A { void f() throws Exception { KeyPairGenerator.getInstance("DSA"); } }
+      negative:
+        - |
+          import java.security.KeyPairGenerator;
+          class A { void f() throws Exception { KeyPairGenerator.getInstance("EC"); } }
+
+  - id: JAVA-JCA-MAC
+    title: Mac.getInstance("Hmac...")
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @algo)) @call
+      where:
+        - { capture: obj, equals: Mac }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: '^"Hmac' }
+    extract:
+      algorithm: { literal: HMAC }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.Mac;
+          class A { void f() throws Exception { Mac.getInstance("HmacSHA256"); } }
+      negative:
+        - |
+          import java.security.MessageDigest;
+          class A { void f() throws Exception { MessageDigest.getInstance("SHA-256"); } }
+
+  - id: JAVA-JCA-SECRETKEYFACTORY-PBKDF2
+    title: SecretKeyFactory.getInstance("PBKDF2...")
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list (string_literal) @algo)) @call
+      where:
+        - { capture: obj, equals: SecretKeyFactory }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: '^"PBKDF2' }
+    extract:
+      algorithm: { literal: PBKDF2 }
+    asset: { asset_type: algorithm-use, usage_context: password }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.SecretKeyFactory;
+          class A { void f() throws Exception { SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256"); } }
+      negative:
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("AES/GCM/NoPadding"); } }

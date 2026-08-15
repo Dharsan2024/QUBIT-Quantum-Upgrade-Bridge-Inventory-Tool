@@ -1,0 +1,147 @@
+schema: qubit-rule/v1
+language: python
+library:
+  name: hashlib
+  detect_imports: [hashlib]
+rules:
+  # Strong hashes are inventoried, not flagged. Two reasons this is not redundant noise:
+  #  1. A CBOM is an *inventory* — "which algorithms does this system use" — so omitting the good
+  #     ones makes the bill of materials incomplete and the migration story unverifiable (you cannot
+  #     show SHA-1 was replaced BY something if the replacement is invisible).
+  #  2. qubit-risk's CNSA 2.0 evaluator checks `approved_hash: [SHA-384, SHA-512]` for the
+  #     "New NSS Systems" milestone. No rule emitted those, so that milestone was permanently
+  #     unsatisfiable no matter how compliant the scanned code actually was.
+  # The canonical registry marks SHA-256/384/512 quantum-safe, so these produce zero risk score.
+  - id: PY-HASHLIB-SHA256
+    title: hashlib.sha256 (quantum-safe, inventoried)
+    match:
+      query: |
+        (call function: (attribute object: (identifier) @mod attribute: (identifier) @fn)) @call
+      where:
+        - { capture: mod, equals: hashlib }
+        - { capture: fn, equals: sha256 }
+    extract:
+      algorithm: { literal: SHA-256 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import hashlib
+          d = hashlib.sha256(data).digest()
+      negative:
+        - |
+          import hashlib
+          d = hashlib.md5(data).digest()
+
+  - id: PY-HASHLIB-SHA384
+    title: hashlib.sha384 (CNSA 2.0 approved, inventoried)
+    match:
+      query: |
+        (call function: (attribute object: (identifier) @mod attribute: (identifier) @fn)) @call
+      where:
+        - { capture: mod, equals: hashlib }
+        - { capture: fn, equals: sha384 }
+    extract:
+      algorithm: { literal: SHA-384 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import hashlib
+          d = hashlib.sha384(data).digest()
+      negative:
+        - |
+          import hashlib
+          d = hashlib.sha256(data).digest()
+
+  - id: PY-HASHLIB-SHA512
+    title: hashlib.sha512 (CNSA 2.0 approved, inventoried)
+    match:
+      query: |
+        (call function: (attribute object: (identifier) @mod attribute: (identifier) @fn)) @call
+      where:
+        - { capture: mod, equals: hashlib }
+        - { capture: fn, equals: sha512 }
+    extract:
+      algorithm: { literal: SHA-512 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import hashlib
+          d = hashlib.sha512(data).digest()
+      negative:
+        - |
+          import hashlib
+          d = hashlib.sha384(data).digest()
+
+  - id: PY-HASHLIB-SHA3
+    title: hashlib.sha3_256 (SHA-3 family, inventoried)
+    match:
+      query: |
+        (call function: (attribute object: (identifier) @mod attribute: (identifier) @fn)) @call
+      where:
+        - { capture: mod, equals: hashlib }
+        - { capture: fn, equals: sha3_256 }
+    extract:
+      algorithm: { literal: SHA3-256 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import hashlib
+          d = hashlib.sha3_256(data).digest()
+      negative:
+        - |
+          import hashlib
+          d = hashlib.sha256(data).digest()
+
+  # Password KDFs: the migration KB routes weak password hashing to argon2id, so detecting the
+  # *existing* KDF is what makes that recommendation actionable.
+  - id: PY-HASHLIB-PBKDF2
+    title: hashlib.pbkdf2_hmac password KDF
+    match:
+      query: |
+        (call function: (attribute object: (identifier) @mod attribute: (identifier) @fn)) @call
+      where:
+        - { capture: mod, equals: hashlib }
+        - { capture: fn, equals: pbkdf2_hmac }
+    extract:
+      algorithm: { literal: PBKDF2 }
+    asset: { asset_type: algorithm-use, usage_context: password }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import hashlib
+          key = hashlib.pbkdf2_hmac("sha256", pw, salt, 100000)
+      negative:
+        - |
+          import hashlib
+          key = hashlib.sha256(pw).digest()
+
+  - id: PY-HASHLIB-SCRYPT
+    title: hashlib.scrypt password KDF
+    match:
+      query: |
+        (call function: (attribute object: (identifier) @mod attribute: (identifier) @fn)) @call
+      where:
+        - { capture: mod, equals: hashlib }
+        - { capture: fn, equals: scrypt }
+    extract:
+      algorithm: { literal: scrypt }
+    asset: { asset_type: algorithm-use, usage_context: password }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import hashlib
+          key = hashlib.scrypt(pw, salt=salt, n=16384, r=8, p=1)
+      negative:
+        - |
+          import hashlib
+          key = hashlib.pbkdf2_hmac("sha256", pw, salt, 100000)

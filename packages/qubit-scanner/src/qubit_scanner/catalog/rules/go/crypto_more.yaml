@@ -1,0 +1,176 @@
+schema: qubit-rule/v1
+language: go
+library:
+  name: Go crypto
+  detect_imports: [crypto]
+rules:
+  # Gaps in the original go/crypto.yaml pack: AES (the most common symmetric primitive in Go
+  # services) had no rule at all, nor did HMAC, Ed25519, or the strong SHA-2 hashes that
+  # qubit-risk's CNSA 2.0 evaluator needs to see in order to mark its hash requirement met.
+  - id: GO-CRYPTO-AES-NEWCIPHER
+    title: aes.NewCipher(key)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: aes }
+        - { capture: fn, equals: NewCipher }
+    extract:
+      # Key size comes from len(key) at runtime, so the bare family is the honest answer; the
+      # registry's bare-AES entry keeps the Grover verdict rather than degrading to "safe".
+      algorithm: { literal: AES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/aes"
+          func f() { aes.NewCipher(key) }
+      negative:
+        - |
+          package main
+          import "crypto/des"
+          func f() { des.NewCipher(key) }
+
+  - id: GO-CRYPTO-HMAC-NEW
+    title: hmac.New(hashFn, key)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: hmac }
+        - { capture: fn, equals: New }
+    extract:
+      algorithm: { literal: HMAC }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/hmac"
+          func f() { hmac.New(sha256.New, key) }
+      negative:
+        - |
+          package main
+          import "crypto/sha256"
+          func f() { sha256.New() }
+
+  - id: GO-CRYPTO-ED25519-GENERATEKEY
+    title: ed25519.GenerateKey(rand)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: ed25519 }
+        - { capture: fn, equals: GenerateKey }
+    extract:
+      algorithm: { literal: Ed25519 }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/ed25519"
+          func f() { ed25519.GenerateKey(rand.Reader) }
+      negative:
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f() { ecdsa.GenerateKey(elliptic.P256(), rand.Reader) }
+
+  - id: GO-CRYPTO-SHA256-NEW
+    title: sha256.New() / sha256.Sum256 (quantum-safe, inventoried)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: sha256 }
+        - { capture: fn, in: [New, Sum256] }
+    extract:
+      algorithm: { literal: SHA-256 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/sha256"
+          func f() { sha256.New() }
+        - |
+          package main
+          import "crypto/sha256"
+          func f() { sha256.Sum256(data) }
+      negative:
+        - |
+          package main
+          import "crypto/md5"
+          func f() { md5.New() }
+
+  - id: GO-CRYPTO-SHA512-NEW
+    title: sha512.New() / sha512.Sum512 (CNSA 2.0 approved, inventoried)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: sha512 }
+        - { capture: fn, in: [New, Sum512, New384, Sum384] }
+    extract:
+      algorithm: { literal: SHA-512 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/sha512"
+          func f() { sha512.New() }
+      negative:
+        - |
+          package main
+          import "crypto/sha256"
+          func f() { sha256.New() }
+
+  - id: GO-CRYPTO-RC4-NEWCIPHER
+    title: rc4.NewCipher — broken stream cipher
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: rc4 }
+        - { capture: fn, equals: NewCipher }
+    extract:
+      algorithm: { literal: RC4 }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/rc4"
+          func f() { rc4.NewCipher(key) }
+      negative:
+        - |
+          package main
+          import "crypto/aes"
+          func f() { aes.NewCipher(key) }

@@ -7,13 +7,19 @@ rules:
   - id: PY-CRYPTOGRAPHY-RSA-KEYGEN
     title: RSA private-key generation (rsa.generate_private_key)
     match:
+      # `value: (_)` not `value: (integer)`. Requiring a literal integer meant a call whose key size
+      # came from a variable or config value — `generate_private_key(key_size=key_size)`, extremely
+      # common in real code — did not match the query AT ALL and the RSA usage was silently dropped,
+      # contradicting doc 01's "nothing is silently dropped" contract. Now the call always matches;
+      # `int-literal` extraction simply yields no key_size when the value is not a literal, and the
+      # normalizer falls back to the bare RSA family entry, which keeps the Shor-vulnerable verdict.
       query: |
         (call
           function: (attribute attribute: (identifier) @meth)
           arguments: (argument_list
             (keyword_argument
               name: (identifier) @kw
-              value: (integer) @size))) @call
+              value: (_) @size))) @call
       where:
         - { capture: meth, equals: generate_private_key }
         - { capture: kw, equals: key_size }
@@ -27,6 +33,10 @@ rules:
         - |
           from cryptography.hazmat.primitives.asymmetric import rsa
           key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        - |
+          from cryptography.hazmat.primitives.asymmetric import rsa
+          def gen(key_size):
+              return rsa.generate_private_key(public_exponent=65537, key_size=key_size)
       negative:
         - "from cryptography.hazmat.primitives.asymmetric import x25519"
 
@@ -54,9 +64,14 @@ rules:
   - id: PY-CRYPTOGRAPHY-X25519-KEYGEN
     title: X25519 private-key generation
     match:
+      # The alternation accepts BOTH the direct-import form (`X25519PrivateKey.generate()`) and the
+      # module-qualified form (`x25519.X25519PrivateKey.generate()`). Matching only `(identifier)`
+      # missed the qualified form entirely, which is how pyca's own docs write it.
       query: |
         (call
-          function: (attribute object: (identifier) @cls attribute: (identifier) @meth)) @call
+          function: (attribute
+            object: [(identifier) @cls (attribute attribute: (identifier) @cls)]
+            attribute: (identifier) @meth)) @call
       where:
         - { capture: cls, equals: X25519PrivateKey }
         - { capture: meth, equals: generate }
@@ -77,9 +92,12 @@ rules:
   - id: PY-CRYPTOGRAPHY-ED25519-KEYGEN
     title: Ed25519 private-key generation
     match:
+      # See the X25519 rule above: accepts direct-import and module-qualified forms.
       query: |
         (call
-          function: (attribute object: (identifier) @cls attribute: (identifier) @meth)) @call
+          function: (attribute
+            object: [(identifier) @cls (attribute attribute: (identifier) @cls)]
+            attribute: (identifier) @meth)) @call
       where:
         - { capture: cls, equals: Ed25519PrivateKey }
         - { capture: meth, equals: generate }

@@ -155,6 +155,16 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         key_size=128,
         aliases=("aes128", "aes-128", "aes/128"),
     ),
+    # AES-192 gives ~96-bit post-quantum security under Grover — below the 128-bit bar AES-256
+    # clears, and CNSA 2.0 approves only AES-256, so it is flagged like AES-128 rather than treated
+    # as safe. (Also emitted by the Vault connector for the `aes192-cmac` transit key type.)
+    _grover(
+        canonical="AES-192",
+        family="AES",
+        kind="symmetric",
+        key_size=192,
+        aliases=("aes192", "aes-192"),
+    ),
     _safe(
         canonical="AES-256",
         family="AES",
@@ -170,6 +180,22 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         aliases=("3des", "des-ede3", "tripledes", "des3"),
     ),
     _grover(canonical="DES", family="DES", kind="symmetric", key_size=56, aliases=("des",)),
+    # --- Legacy / classically-broken symmetric (still found in real code, so still inventoried) ---
+    _grover(canonical="RC4", family="RC4", kind="symmetric", aliases=("rc4", "arc4", "arcfour")),
+    _grover(
+        canonical="Blowfish",
+        family="Blowfish",
+        kind="symmetric",
+        aliases=("blowfish", "bf"),
+    ),
+    # ChaCha20-Poly1305 uses a 256-bit key, so Grover leaves ~128-bit security: quantum-safe.
+    _safe(
+        canonical="ChaCha20-Poly1305",
+        family="ChaCha20",
+        kind="symmetric",
+        key_size=256,
+        aliases=("chacha20", "chacha20poly1305", "chacha20-poly1305"),
+    ),
     # --- JOSE/JWT HMAC algs (RFC 7518) — symmetric-keyed MAC, Grover-only (not Shor-broken). ---
     _grover(canonical="HS256", family="HMAC", kind="mac", aliases=("hs256", "hmac-sha256")),
     _grover(canonical="HS384", family="HMAC", kind="mac", aliases=("hs384", "hmac-sha384")),
@@ -180,6 +206,19 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
     _safe(canonical="SHA-512", family="SHA-2", kind="hash", aliases=("sha512",)),
     _grover(canonical="SHA-1", family="SHA-1", kind="hash", aliases=("sha1", "sha-1")),
     _grover(canonical="MD5", family="MD5", kind="hash", aliases=("md5",)),
+    # --- SHA-3 (FIPS-202). These are the migration KB's recommended replacement for SHA-1/MD5, so
+    # without them a *successfully migrated* asset re-scanned as UNKNOWN(SHA3-256) and the
+    # remediation could not be verified as landing on something quantum-safe. ---
+    _safe(canonical="SHA3-256", family="SHA-3", kind="hash", aliases=("sha3256", "sha3-256")),
+    _safe(canonical="SHA3-384", family="SHA-3", kind="hash", aliases=("sha3384", "sha3-384")),
+    _safe(canonical="SHA3-512", family="SHA-3", kind="hash", aliases=("sha3512", "sha3-512")),
+    # --- Password KDFs. Not broken by a quantum computer (they are memory/CPU-hard, not
+    # number-theoretic), so `safe` here means "no quantum break", NOT "well configured" — an
+    # under-iterated PBKDF2 is a classical problem this registry deliberately does not judge. ---
+    _safe(canonical="PBKDF2", family="PBKDF2", kind="kdf", aliases=("pbkdf2", "pbkdf2hmac")),
+    _safe(canonical="scrypt", family="scrypt", kind="kdf", aliases=("scrypt",)),
+    _safe(canonical="argon2id", family="Argon2", kind="kdf", aliases=("argon2", "argon2id")),
+    _safe(canonical="bcrypt", family="bcrypt", kind="kdf", aliases=("bcrypt",)),
     # --- PQC targets (quantum-safe) ---
     _safe(
         canonical="ML-KEM-512",
@@ -258,15 +297,46 @@ _RSA_SIZE_RE = re.compile(r"rsa[-_/ ]?(\d{3,5})")
 # Bare family names with no size. Public-key families are ALWAYS Shor-vulnerable regardless of key
 # size, so a bare "RSA"/"EC"/"DSA" must keep that verdict rather than degrading to "unknown/safe".
 # Kept OUT of _BY_KEY so exact/size resolution wins first; consulted only as a fallback.
+#
+# The symmetric/MAC entries matter just as much in practice: source code very often names an
+# algorithm without its key size (`Cipher(algorithms.AES(key))`, a Vault `hmac` key type), and
+# without a bare entry those resolved to nothing and were reported as `UNKNOWN(AES)` with a
+# not-vulnerable verdict — i.e. real AES usage vanished from the inventory and looked safe. Bare
+# symmetric families take the WEAKEST plausible verdict (AES -> Grover-relevant, as AES-128 would
+# be) so an unsized name is never more optimistic than the sized one it might turn out to be.
 _BARE_FAMILY: dict[str, CanonicalAlgorithm] = {
     "rsa": CanonicalAlgorithm("RSA", "RSA", "asymmetric", QuantumAttack.shor, vulnerable=True),
     "ec": CanonicalAlgorithm("EC", "EC", "asymmetric", QuantumAttack.shor, vulnerable=True),
     "dsa": CanonicalAlgorithm("DSA", "DSA", "asymmetric", QuantumAttack.shor, vulnerable=True),
+    "aes": CanonicalAlgorithm("AES", "AES", "symmetric", QuantumAttack.grover, vulnerable=True),
+    "hmac": CanonicalAlgorithm("HMAC", "HMAC", "mac", QuantumAttack.grover, vulnerable=True),
+    # No bare "eddsa" entry: it is already an alias of Ed25519 in _BY_KEY, which resolves first.
 }
 for _b in _BARE_FAMILY.values():
     _BY_CANONICAL.setdefault(_b.canonical, _b)
 
 _SIZED_FAMILIES = {"rsa": "RSA", "aes": "AES"}
+
+# Block/stream cipher mode-of-operation suffixes used by OpenSSL and Node cipher strings. A mode
+# says nothing about quantum security, so it is stripped when resolving (see resolve() step 4).
+_CIPHER_MODES = frozenset(
+    {
+        "cbc",
+        "ecb",
+        "gcm",
+        "ccm",
+        "ctr",
+        "ofb",
+        "cfb",
+        "cfb1",
+        "cfb8",
+        "xts",
+        "ocb",
+        "siv",
+        "wrap",
+        "poly1305",
+    }
+)
 
 
 def _normkey(name: str) -> str:
@@ -302,7 +372,20 @@ def resolve(name: str, key_size: int | None = None) -> CanonicalAlgorithm | None
     if hit is not None:
         return hit
 
-    # 4. bare public-key family with unknown size -> keep the Shor-vulnerable verdict
+    # 4. OpenSSL/Node-style "<alg>[-<size>]-<mode>" cipher strings, e.g. "aes-128-cbc",
+    #    "des-ede3-cbc", "aes-256-gcm". Node's crypto module and OpenSSL name ciphers this way, so
+    #    without this step real AES/3DES usage resolved to nothing and was reported as
+    #    UNKNOWN(aes-128-cbc) with a not-vulnerable verdict. Modes carry no quantum-security
+    #    meaning, so they are stripped from the right until something resolves; enumerating every
+    #    alg x size x mode combination as an alias would be combinatorial and unmaintainable.
+    tokens = name.strip().lower().replace("_", "-").replace("/", "-").split("-")
+    while len(tokens) > 1 and tokens[-1] in _CIPHER_MODES:
+        tokens.pop()
+        stripped = _BY_KEY.get(_normkey("-".join(tokens)))
+        if stripped is not None:
+            return stripped
+
+    # 5. bare public-key family with unknown size -> keep the Shor-vulnerable verdict
     return _BARE_FAMILY.get(key)
 
 

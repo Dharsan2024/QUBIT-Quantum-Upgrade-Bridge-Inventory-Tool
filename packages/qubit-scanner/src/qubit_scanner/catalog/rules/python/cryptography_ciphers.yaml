@@ -1,0 +1,115 @@
+schema: qubit-rule/v1
+language: python
+library:
+  name: cryptography
+  detect_imports: [cryptography]
+rules:
+  # pyca/cryptography's symmetric cipher API — `Cipher(algorithms.X(key), modes.Y(iv))`. This whole
+  # API family was previously undetected, so AES (the most common symmetric algorithm in real code)
+  # and TripleDES-via-cryptography never appeared in an inventory at all. One rule per algorithm
+  # because `extract.algorithm` needs the concrete name to reach the canonical registry; key size
+  # is not statically knowable here (it comes from len(key) at runtime), so the normalizer resolves
+  # the bare family and the risk engine applies the family verdict.
+  - id: PY-CRYPTOGRAPHY-CIPHER-AES
+    title: cryptography Cipher(algorithms.AES(...))
+    match:
+      query: |
+        (call
+          function: (identifier) @ctor
+          arguments: (argument_list
+            (call function: (attribute object: (identifier) @mod attribute: (identifier) @alg)))) @call
+      where:
+        - { capture: ctor, equals: Cipher }
+        - { capture: mod, equals: algorithms }
+        - { capture: alg, equals: AES }
+    extract:
+      algorithm: { literal: AES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+          c = Cipher(algorithms.AES(key), modes.GCM(iv))
+      negative:
+        - |
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+          c = Cipher(algorithms.ChaCha20(key, nonce), None)
+
+  - id: PY-CRYPTOGRAPHY-CIPHER-3DES
+    title: cryptography Cipher(algorithms.TripleDES(...))
+    match:
+      query: |
+        (call
+          function: (identifier) @ctor
+          arguments: (argument_list
+            (call function: (attribute object: (identifier) @mod attribute: (identifier) @alg)))) @call
+      where:
+        - { capture: ctor, equals: Cipher }
+        - { capture: mod, equals: algorithms }
+        - { capture: alg, equals: TripleDES }
+    extract:
+      algorithm: { literal: 3DES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+          c = Cipher(algorithms.TripleDES(key), modes.CBC(iv))
+      negative:
+        - |
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+          c = Cipher(algorithms.AES(key), modes.CBC(iv))
+
+  - id: PY-CRYPTOGRAPHY-CIPHER-ARC4
+    title: cryptography Cipher(algorithms.ARC4(...)) — broken stream cipher
+    match:
+      query: |
+        (call
+          function: (identifier) @ctor
+          arguments: (argument_list
+            (call function: (attribute object: (identifier) @mod attribute: (identifier) @alg)))) @call
+      where:
+        - { capture: ctor, equals: Cipher }
+        - { capture: mod, equals: algorithms }
+        - { capture: alg, equals: ARC4 }
+    extract:
+      algorithm: { literal: RC4 }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
+          c = Cipher(algorithms.ARC4(key), None)
+      negative:
+        - |
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+          c = Cipher(algorithms.AES(key), modes.GCM(iv))
+
+  - id: PY-CRYPTOGRAPHY-CIPHER-BLOWFISH
+    title: cryptography Cipher(algorithms.Blowfish(...)) — legacy 64-bit block cipher
+    match:
+      query: |
+        (call
+          function: (identifier) @ctor
+          arguments: (argument_list
+            (call function: (attribute object: (identifier) @mod attribute: (identifier) @alg)))) @call
+      where:
+        - { capture: ctor, equals: Cipher }
+        - { capture: mod, equals: algorithms }
+        - { capture: alg, equals: Blowfish }
+    extract:
+      algorithm: { literal: Blowfish }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+          c = Cipher(algorithms.Blowfish(key), modes.CBC(iv))
+      negative:
+        - |
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+          c = Cipher(algorithms.AES(key), modes.CBC(iv))

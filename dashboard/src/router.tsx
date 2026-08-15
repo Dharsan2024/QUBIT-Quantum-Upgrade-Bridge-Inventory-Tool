@@ -1,14 +1,14 @@
 import { createBrowserRouter } from 'react-router';
 import { Layout } from './components/Layout';
+import { LazyChartPage } from './components/LazyChartPage';
 import { Projects } from './pages/Projects';
 import { Inventory } from './pages/Inventory';
-import { Risk } from './pages/Risk';
-import { Timeline } from './pages/Timeline';
 import { Migrations } from './pages/Migrations';
 import { Scans } from './pages/Scans';
 import { Cbom } from './pages/Cbom';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
+import { Risk, Timeline } from './pages/lazy';
 
 export const router = createBrowserRouter([
   {
@@ -38,19 +38,35 @@ export const router = createBrowserRouter([
       },
       {
         path: 'risk',
-        element: <Risk />,
+        element: (
+          <LazyChartPage>
+            <Risk />
+          </LazyChartPage>
+        ),
       },
       {
         path: 'p/:pid/risk',
-        element: <Risk />,
+        element: (
+          <LazyChartPage>
+            <Risk />
+          </LazyChartPage>
+        ),
       },
       {
         path: 'timeline',
-        element: <Timeline />,
+        element: (
+          <LazyChartPage>
+            <Timeline />
+          </LazyChartPage>
+        ),
       },
       {
         path: 'p/:pid/timeline',
-        element: <Timeline />,
+        element: (
+          <LazyChartPage>
+            <Timeline />
+          </LazyChartPage>
+        ),
       },
       {
         path: 'migrations',

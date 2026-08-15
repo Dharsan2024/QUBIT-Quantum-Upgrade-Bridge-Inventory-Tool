@@ -28,25 +28,45 @@ def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=str(repo), capture_output=True, check=True)  # noqa: S603, S607
 
 
+def _git_out(repo: Path, *args: str) -> str:
+    """Run git and return trimmed stdout, or "" if it fails (callers supply a fallback)."""
+    proc = subprocess.run(  # noqa: S603
+        ["git", *args],  # noqa: S607
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
 def _is_git_url(s: str) -> bool:
     """True if the target looks like a remote git repo rather than a local path."""
     s = s.strip()
     return s.startswith(("http://", "https://", "git@", "ssh://", "git://")) or s.endswith(".git")
 
 
-def _clone_repo(url: str) -> Path:
-    """Shallow-clone a remote repo into a temp dir and return the checkout path.
+def _repo_name_from_url(url: str) -> str:
+    """Best-effort repository name from a git URL, for defaulting the local checkout path."""
+    tail = url.rstrip("/").rsplit("/", 1)[-1]
+    return tail[:-4] if tail.endswith(".git") else tail or "repo"
 
-    Raises typer.Exit on failure with the git error surfaced (no silent hang — the old UI just
-    spun forever because it never actually cloned).
+
+def _clone_repo(url: str, dest: Path, *, shallow: bool) -> Path:
+    """Clone ``url`` into ``dest`` and return the checkout path.
+
+    ``shallow`` is right for a read-only inspection pass; a migration needs full history so the
+    patched branch can be diffed, reviewed and pushed like any other change.
+    Raises typer.Exit on failure with the git error surfaced (no silent hang — an early version of
+    this UI just spun forever because it never actually cloned).
     """
-    dest = Path(tempfile.mkdtemp(prefix="qubit-clone-")) / "repo"
-    console.print(f"[bold]Cloning[/bold] {url} …")
+    depth = ["--depth", "1"] if shallow else []
+    console.print(f"[bold]Cloning[/bold] {url} → {dest} …")
     proc = subprocess.run(  # noqa: S603
-        ["git", "clone", "--depth", "1", url, str(dest)],  # noqa: S607
+        ["git", "clone", *depth, url, str(dest)],  # noqa: S607
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=600,
     )
     if proc.returncode != 0:
         err_console.print(f"[red]clone failed:[/red] {proc.stderr.strip() or 'git clone error'}")
@@ -99,8 +119,11 @@ def run(
 ) -> None:
     """Scan a local path OR a git repo, show its HNDL risk, then offer to migrate it to PQC.
 
-    Git repos are shallow-cloned to a temp dir; if you choose to migrate, the (patched) clone is
-    kept and its location is printed — otherwise it is discarded.
+    For a git URL the download is consented to in two separate steps, because they cost different
+    things: first a temporary shallow clone purely to scan (discarded afterwards), and then — only
+    if vulnerabilities were actually found and you choose to migrate — a full clone to a directory
+    you pick, where the patches land on a `qubit/pqc-migration` branch you can diff and push.
+    A local path is never edited in place; patches are applied to a throwaway copy.
     """
     # 1. Ask for a target if not given.
     if target is None:
@@ -109,7 +132,17 @@ def run(
     # 2. Resolve: clone a git URL, or use the local path.
     cloned = _is_git_url(target)
     if cloned:
-        path = _clone_repo(target)
+        # Cloning writes someone else's code to this machine over the network, so it is confirmed
+        # rather than done silently. The inspection clone is shallow and lands in a temp dir; a
+        # persistent working copy is only created later, if the user opts into migrating (step 5).
+        if not yes and not typer.confirm(
+            f"Download a temporary shallow copy of {target} to scan it?", default=True
+        ):
+            console.print("Nothing scanned.")
+            raise typer.Exit(0)
+        path = _clone_repo(
+            target, Path(tempfile.mkdtemp(prefix="qubit-clone-")) / "repo", shallow=True
+        )
     else:
         path = Path(target).expanduser()
         if not path.exists():
@@ -144,14 +177,51 @@ def run(
         console.print("Skipped migration.")
         if cloned:
             shutil.rmtree(path.parent, ignore_errors=True)  # discard the clone (user declined)
-            console.print("[dim]Cloned copy discarded.[/dim]")
+            console.print("[dim]Temporary copy discarded.[/dim]")
         raise typer.Exit(0)
 
-    _migrate(path, generator, result)
+    # 5b. For a remote repo, migrating on the throwaway shallow clone is not much use — the result
+    # lives in a temp dir the user did not choose and has no history to diff or push. Ask where to
+    # put a real working copy, then clone it properly (full history) and migrate there.
+    work_path = path
+    if cloned:
+        default_dest = Path.cwd() / _repo_name_from_url(target)
+        if yes:
+            dest = default_dest
+        else:
+            console.print(
+                "\nTo migrate properly this needs a full local checkout: real history, so the "
+                "patched branch can be diffed, reviewed and pushed like any other change."
+            )
+            raw = typer.prompt(
+                "Clone the repository to (blank to cancel)", default=str(default_dest)
+            )
+            if not raw.strip():
+                console.print("Migration cancelled.")
+                shutil.rmtree(path.parent, ignore_errors=True)
+                raise typer.Exit(0)
+            dest = Path(raw).expanduser()
+        if dest.exists() and any(dest.iterdir()):
+            err_console.print(f"[red]error:[/red] {dest} already exists and is not empty.")
+            raise typer.Exit(2)
+        work_path = _clone_repo(target, dest, shallow=False)
+        shutil.rmtree(path.parent, ignore_errors=True)  # the shallow scan copy is done with
+        console.print(f"[dim]Temporary scan copy discarded; working in {work_path}[/dim]")
+
+    _migrate(work_path, generator, result, in_place=cloned)
 
 
-def _migrate(path: Path, generator: str, scan_result) -> None:  # type: ignore[no-untyped-def]
-    """Apply patches on a scratch git copy of the target, then prove the fix with a re-scan."""
+def _migrate(  # type: ignore[no-untyped-def]
+    path: Path, generator: str, scan_result, *, in_place: bool = False
+) -> None:
+    """Apply patches to a git repo, then prove the fix with a re-scan.
+
+    ``in_place=False`` (a LOCAL target): patches are applied to a throwaway copy so the user's real
+    files are never edited — they asked to scan a directory, not to have it rewritten.
+    ``in_place=True`` (a repo this command cloned, with the user's consent and to a path they
+    chose): patches are applied on a branch in that checkout, so the result is a normal reviewable
+    git change instead of an orphan copy in a temp directory.
+    """
     from qubit_core.db import Base, ProjectRow, ScanRow
     from qubit_core.mapping import asset_to_row
     from qubit_migrate.orchestrator import MigrationOrchestrator
@@ -159,19 +229,30 @@ def _migrate(path: Path, generator: str, scan_result) -> None:  # type: ignore[n
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
 
-    # Scratch git repo so real files are never edited in place.
     scratch = Path(tempfile.mkdtemp(prefix="qubit-run-"))
-    repo = scratch / "repo"
-    if path.is_dir():
-        shutil.copytree(path, repo)
+    branch = "qubit/pqc-migration"
+    base_branch = "main"
+    if in_place:
+        repo = path
+        # Read the real base branch instead of assuming "main" — the review/push hints printed at
+        # the end are copy-pasteable commands, and `git diff main...` is simply wrong on a repo
+        # whose default branch is master (or anything else).
+        base_branch = _git_out(repo, "rev-parse", "--abbrev-ref", "HEAD") or "main"
+        _git(repo, "checkout", "-b", branch)
+        console.print(f"[dim]Working on branch {branch} (base: {base_branch})[/dim]")
     else:
-        repo.mkdir(parents=True)
-        shutil.copy2(path, repo / path.name)
-    _git(repo, "init")
-    _git(repo, "config", "user.email", "run@qubit.local")
-    _git(repo, "config", "user.name", "QUBIT Run")
-    _git(repo, "add", ".")
-    _git(repo, "commit", "-m", "baseline")
+        # Scratch git repo so real files are never edited in place.
+        repo = scratch / "repo"
+        if path.is_dir():
+            shutil.copytree(path, repo)
+        else:
+            repo.mkdir(parents=True)
+            shutil.copy2(path, repo / path.name)
+        _git(repo, "init")
+        _git(repo, "config", "user.email", "run@qubit.local")
+        _git(repo, "config", "user.name", "QUBIT Run")
+        _git(repo, "add", ".")
+        _git(repo, "commit", "-m", "baseline")
 
     before = _counts(scan_paths([repo], repo="run").assets)
 
@@ -225,7 +306,14 @@ def _migrate(path: Path, generator: str, scan_result) -> None:  # type: ignore[n
         console.print(
             f"[bold green]✔ {applied} patch(es) applied — {fixed} finding(s) fixed.[/bold green]"
         )
-        console.print(f"[dim]Patched copy kept at {repo}[/dim]")
+        if in_place:
+            console.print(f"[dim]Patched on branch [bold]{branch}[/bold] in {repo}[/dim]")
+            console.print(
+                f'[dim]Review with:  git -C "{repo}" diff {base_branch}...{branch}'
+                f'   ·   push with:  git -C "{repo}" push -u origin {branch}[/dim]'
+            )
+        else:
+            console.print(f"[dim]Patched copy kept at {repo} (your files were not touched)[/dim]")
     else:
         console.print(
             "[yellow]No findings auto-fixed.[/yellow] Some algorithms (e.g. RSA key-exchange) "

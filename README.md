@@ -1,12 +1,14 @@
 <div align="center">
   <h1>QUBIT</h1>
-  <p><b>Quantum Upgrade Bridge & Inventory Tool</b></p>
-  <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling & Automated Post-Quantum Cryptographic Migration</i></p>
+  <p><b>Quantum Upgrade Bridge &amp; Inventory Tool</b></p>
+  <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
-  <img src="https://img.shields.io/badge/status-Phase%201%20(Active)-orange?style=flat-square" alt="Status" />
+  <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
+  <img src="https://img.shields.io/badge/tests-419%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
-  <img src="https://img.shields.io/badge/python-3.12+-blue?style=flat-square" alt="Python Version" />
-  <img src="https://img.shields.io/badge/react-18-blue?style=flat-square" alt="React Version" />
+  <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
+  <img src="https://img.shields.io/badge/react-19-blue?style=flat-square" alt="React Version" />
 </div>
 
 ---
@@ -15,27 +17,24 @@
 
 As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, existing public-key cryptography (such as RSA and ECC) faces an existential threat from Shor's algorithm. For sensitive data, the threat is not years away; it is happening today through **Harvest-Now-Decrypt-Later (HNDL)** attacks. Adversaries are actively intercepting and storing encrypted traffic today with the explicit intent to decrypt it once quantum hardware is available.
 
-**QUBIT** is an open-source, production-ready platform engineered to automatically discover, quantify, and remediate this risk across complex enterprise environments. It provides a mathematically rigorous, end-to-end pipeline to transition codebases and infrastructure to NIST-standardized Post-Quantum Cryptography (PQC), specifically **ML-KEM** and **ML-DSA**.
+**QUBIT** is an open-source platform engineered to automatically discover, quantify, and remediate this risk. It provides an end-to-end pipeline to transition codebases and infrastructure to NIST-standardized Post-Quantum Cryptography (PQC), specifically **ML-KEM** (FIPS 203) and **ML-DSA** (FIPS 204).
 
-QUBIT operates **fully offline**, leverages a **local LLM** (e.g., Qwen2.5-Coder) for code transformation to ensure data privacy, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
+QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
+
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 419 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
 
 ---
 
 ## 🚀 The End-to-End Pipeline
 
-QUBIT provides a cohesive, five-stage pipeline to secure cryptographic assets. The platform ensures that code changes are safe, measurable, and provably effective.
-
 ```mermaid
 graph TD
-    A[🔍 1. Discover] -->|Extract Assets via AST/TLS| B[📦 2. Inventory]
+    A[🔍 1. Discover] -->|AST / TLS / certs / manifests / Vault| B[📦 2. Inventory]
     B -->|Export CycloneDX 1.7 CBOM| C[📊 3. Quantify HNDL Risk]
-    
-    C -->|CRQC Timeline + Mosca's Theorem| D[🛠️ 4. Migrate & Remediate]
-    
-    D -->|Local LLM AST Rewrites + Templates| E[🌉 5. Runtime Verification]
-    
-    E -->|Hybrid TLS packet capture validation| F((Secure Post-Quantum State))
-    
+    C -->|CRQC Monte-Carlo + Mosca + CNSA 2.0| D[🛠️ 4. Migrate &amp; Remediate]
+    D -->|Local LLM + deterministic templates| E[🌉 5. Runtime Verification]
+    E -->|Hybrid TLS handshake proof + re-scan| F((Verified Post-Quantum State))
+
     style A fill:#0d1117,stroke:#3b82f6,color:#e5e7eb,stroke-width:2px
     style B fill:#0d1117,stroke:#3b82f6,color:#e5e7eb,stroke-width:2px
     style C fill:#0d1117,stroke:#f59e0b,color:#e5e7eb,stroke-width:2px
@@ -45,106 +44,160 @@ graph TD
 ```
 
 ### 1. Discovery & Enumeration
-QUBIT's multi-modal scanners discover every cryptographic primitive in an organization. It uses **tree-sitter** for deep AST parsing of source code (Python, Java, Go), active TLS handshake enumeration for network endpoints, and parsing modules for configuration files and X.509 certificates.
+Five independent scanner sources, all real:
+
+| Source | What it does |
+|---|---|
+| **Code (AST)** | `tree-sitter` parsing driven by a data-only `qubit-rule/v1` YAML catalog — **40 rules across Python, Java, Go, JavaScript, TypeScript**. Every rule ships its own positive/negative fixtures, executed as tests. |
+| **Config** | nginx parsing (`crossplane`) for `ssl_protocols` / `ssl_ciphers` / cert paths, with OpenSSL cipher-string expansion. |
+| **Network TLS** | Live handshake enumeration, plus a **raw-ClientHello PQC-group probe** that detects `X25519MLKEM768` / `SecP256r1MLKEM768` / `SecP384r1MLKEM1024` support with no OpenSSL dependency and no key generation (RFC 8446 HelloRetryRequest technique). |
+| **Certificates & keys** | X.509 PEM/DER parsing → public-key algorithm, key size, signature algorithm. |
+| **Dependencies (SCA)** | `go.mod` / `package.json` / `requirements.txt` / `pyproject.toml` / `pom.xml` → a curated library→algorithm map (14 packages across 4 ecosystems), with **version-aware capability gates** so a library too old to have PQC is never credited with it. |
+| **HashiCorp Vault** *(opt-in)* | Polls `transit` keys and `pki` certificates over Vault's HTTP API, including its `ml-dsa` / `slh-dsa` / `hybrid` key types. |
 
 ### 2. CycloneDX 1.7 Inventory
-Discovered primitives are mapped to a canonical schema and persisted to a centralized database. The system exports this data as a **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)**, fulfilling emerging federal and industry compliance mandates for cryptographic agility.
+Findings normalize into the frozen `CryptoAsset` schema against a canonical registry of **38 algorithms** (RSA/ECDSA/EdDSA/AES/SHA families, the JOSE-JWT `RS*`/`PS*`/`ES*`/`HS*`/`EdDSA` identifiers, ML-KEM, ML-DSA, SLH-DSA, and hybrid TLS groups). The DB is the source of truth; the CBOM is the exportable compliance artifact, validated against the official ECMA-424 schema.
 
 ### 3. HNDL Risk Quantification
-The risk engine models the probability of quantum decryption over time. It fuses a **Monte-Carlo hardware simulation** of CRQC arrival times with a blended expert survey (GRI-2025). The engine classifies asset sensitivity (PII, PHI, Financial) via a DistilBERT classifier, and calculates risk severity using **Mosca's Inequality** (Margin = Arrival Time - (Shelf Life + Migration Time)). 
+A **Monte-Carlo simulation** of CRQC arrival blended with an expert-survey prior, a Bayesian network for HNDL exposure, a sensitivity classifier (PII/PHI/financial/credentials), an XGBoost regressor with split-conformal confidence intervals, and **Mosca's Inequality** (`margin = Z − (X + Y)`). A separate **CNSA 2.0 milestone evaluator** scores an inventory against NSA's regulatory deadlines (2025 → 2035) — a deterministic deadline source alongside the probabilistic one.
 
 ### 4. Automated Migration
-A sophisticated orchestrator constructs a dependency graph of the assets and prioritizes them using **Weighted Shortest Job First (WSJF)**. It generates deterministic code patches via `libcst` templates, and where structural rewrites are required (e.g., upgrading an RSA Key Exchange to an ML-KEM-768 KEM-DEM), it delegates to a local, sandboxed LLM. 
+A dependency graph plus WSJF prioritization feeds a 12-state FSM. Patches come from deterministic `libcst` templates first and a **local, sandboxed LLM** where structural rewrites are needed (e.g. RSA key exchange → an ML-KEM-768 KEM-DEM pattern). A versioned migration knowledge base (`migration_kb.yaml`) and crypto-agility policy decide each target. Governance gates require sign-off before a patch can be applied.
 
 ### 5. Verification & Hybrid TLS Bridge
-No patch is trusted blindly. QUBIT stands up a **Hybrid PQC TLS terminator** (using OpenSSL 3.5+) that negotiates `X25519MLKEM768`. The system performs a live packet capture and a continuous re-scan of the remediated source code to guarantee that the Shor-vulnerable primitives have been eradicated.
+No patch is trusted blindly: every patch is validated in a Docker sandbox and proven by re-scan. The bridge stands up a **hybrid PQC TLS terminator** on native **OpenSSL 3.5+** negotiating `X25519MLKEM768`, then swaps classical→hybrid **on the same port** and verifies the negotiated group.
 
 ---
 
 ## 🏗️ Architecture & Monorepo Structure
 
-QUBIT is engineered as a robust Python monorepo managed by `uv`. The system enforces extreme modularity: packages communicate strictly through shared SQLAlchemy models and a normative REST API. There are no private cross-package imports.
+A Python monorepo managed by `uv`. Packages communicate strictly through `qubit-core` models, the database, and the REST API — no private cross-package imports (enforced in CI).
 
 | Module | Role & Core Technologies |
 |---|---|
-| 📦 **`qubit-core`** | **The Source of Truth.** Defines the shared `CryptoAsset` Pydantic schemas, canonical algorithm registry, SQLAlchemy DB models, Alembic migrations, and CBOM interchange utilities. |
-| 🔍 **`qubit-scanner`** | **Discovery Engine.** Analyzes code via `tree-sitter`, enumerates live network TLS groups, and extracts cryptographic configuration and keys. Normalizes inputs deterministically. |
-| 📊 **`qubit-risk`** | **The HNDL Engine.** Houses the Monte-Carlo CRQC timeline simulator, Bayesian networks, the XGBoost regressor, and Mosca's margin calculator. |
-| 🛠️ **`qubit-migrate`** | **The Orchestrator.** Implements a 12-state Finite State Machine (FSM) for patches. Drives the local LLM transformations and `libcst` templates. Hardened against prompt-injections. |
-| 🌉 **`qubit-bridge`** | **Runtime Validation.** Orchestrates the OpenSSL 3.5+ hybrid classical+PQC TLS bridge, client-side probe tools (`s_client`), and the offline validation sandbox. |
-| 🔌 **`qubit-api`** | **The Control Plane.** A high-performance FastAPI service acting as the normative REST registry. Houses the `JobRunner` orchestration system and Server-Sent Events (SSE) streams. |
-| 💻 **`qubit-cli`** | **The Typer CLI.** Provides developer ergonomics via the `qubit` entrypoint (e.g., `qubit scan`, `qubit migrate plan`). |
-| 🎨 **`dashboard`** | **The User Interface.** A React 18 + Vite 8 frontend built with TailwindCSS v4. Features a stunning dark "liquid glass" UI to visualize the migration queue, risk posture, and patch diffs. |
-
----
-
-## 🧪 Evaluation & Research
-
-QUBIT is the foundation of an Annexure-1 / SCOPUS research paper exploring automated cryptographic agility. The project includes four rigorous evaluation suites (`experiments/run_all.py`):
-- **E1 (Discovery):** Precision, Recall, and F1 scores against baseline AST scanners (CryptoGuard, CogniCrypt).
-- **E2 (Risk):** Calibration of the CRQC Monte-Carlo probability density functions.
-- **E3 (Transformation):** LLM Patch generation success rate (Pass@k) in a sandboxed compilation environment.
-- **E4 (Performance):** Hybrid TLS handshake overhead analysis via network emulation (`tc netem`).
+| 📦 **`qubit-core`** | **Source of truth.** Frozen `CryptoAsset` Pydantic + SQLAlchemy models, the canonical algorithm registry, Alembic migrations (applied automatically at startup), fingerprinting, evidence redaction, CBOM export/import. |
+| 🔍 **`qubit-scanner`** | **Discovery engine.** The five sources above, plus deterministic normalization and dedup. |
+| 📊 **`qubit-risk`** | **HNDL engine.** CRQC Monte-Carlo timeline, Bayesian network, sensitivity classifier, XGBoost regressor, Mosca margin, CNSA 2.0 policy. All parameters live in versioned YAML with a reproducibility hash. |
+| 🛠️ **`qubit-migrate`** | **Orchestrator.** Dependency graph, WSJF queue, FSM, LLM + template transforms (prompt-injection hardened), IaC patches, migration KB, agility + governance policy. |
+| 🌉 **`qubit-bridge`** | **Runtime validation.** Hybrid TLS terminator images, `openssl s_client` probe/verify, capture/diff, same-port classical↔hybrid swap. |
+| 🔌 **`qubit-api`** | **Control plane.** FastAPI normative REST registry, `JobRunner` with crash recovery, SSE progress, and **real bearer-token auth** (DB-backed, sha256-hashed, `ro`/`rw` scopes, revocable). |
+| 💻 **`qubit-cli`** | **Typer CLI.** The `qubit` entrypoint — scan, risk, migrate, bridge, cbom, demo, serve, tokens, rules. |
+| 🎨 **`dashboard`** | **UI.** React 19 + Vite 8 + TailwindCSS v4 + Plotly, shipped both as a web app and as a **native Windows desktop app** (Tauri 2 — see [docs/DESKTOP_APP.md](docs/DESKTOP_APP.md)). |
 
 ---
 
 ## ⚙️ Quick Start
 
-### 1. Prerequisites
-- **Python 3.12+** (Managed by `uv`)
-- **uv** (Fast Python package manager: `winget install --id astral-sh.uv -e`)
-- **Node.js 22+** (For the React dashboard)
-- **Docker Desktop** (For sandbox validation and the OpenSSL 3.5 base image)
-- **Ollama** (Required for LLM migrations: `ollama pull qwen2.5-coder:7b-instruct-q4_K_M`)
+### Prerequisites
+- **Python 3.12 or 3.13** (`uv` manages the interpreter; 3.14 is not yet supported — `pgmpy`/`torch`)
+- **uv** — `winget install --id astral-sh.uv -e`
+- **Docker Desktop** — sandbox validation, the hybrid-TLS bridge, and integration tests
+- **Node.js 22+** — only to build the dashboard from source
+- **Ollama** *(optional)* — LLM-generated patches; deterministic templates work without it
+  (`ollama pull qwen2.5-coder:7b-instruct-q4_K_M`)
 
-### 2. Running the Complete Platform
-To bring up the FastAPI backend, the React Dashboard, and the vulnerable `demo-lab` targets:
+### Option A — full stack with Docker
 
 ```bash
-# Clone the repository
-git clone https://github.com/qubit-project/qubit.git
-cd qubit
+git clone https://github.com/Dharsan2024/QUBIT-Quantum-Upgrade-Bridge-Inventory-Tool.git
+cd QUBIT-Quantum-Upgrade-Bridge-Inventory-Tool
 
-# Bring up the entire stack
 docker compose up
 ```
-* The Dashboard will be available at `http://localhost`.
-* The API will be available at `http://localhost:8000`.
 
-### 3. Using the CLI Locally
-You can run QUBIT entirely from your terminal against any local codebase.
+- Dashboard: **<http://localhost:8080>**
+- API: same origin under **`/api/v1`** (the dashboard's nginx reverse-proxies it; the API container is
+  deliberately not published to the host)
+- Default bootstrap token: `dev_token` — override with `QUBIT_API_TOKEN`. It is honored only while the
+  token table is empty and self-disables the moment you mint a real one.
+
+Verified from a clean slate: **~9 seconds** from `docker compose up` to a working authenticated stack.
+
+### Option B — from source
 
 ```bash
-# Install the CLI locally
-pip install qubit-cli
+uv sync --all-packages          # installs every workspace package + dev tooling
 
-# Step 1: Discover crypto assets and export a CBOM
-qubit scan ./my-project --cbom out.json
-
-# Step 2: Run the Monte-Carlo risk engine to score vulnerabilities
-qubit risk run -p default
-
-# Step 3: Generate a ranked migration queue and execute LLM patches
-qubit migrate plan -p default
-qubit migrate apply --auto-approve
+uv run qubit scan ./my-project --cbom out.json    # discover + export a CBOM
+uv run qubit risk run -p default                  # score HNDL risk
+uv run qubit migrate plan -p default              # ranked migration queue
+uv run qubit migrate apply --auto-approve         # generate + validate + apply patches
 ```
+
+> `pip install qubit-cli` is **not yet available** — publishing to PyPI is deferred until after the
+> current hardening sprint. Use `uv sync --all-packages` for now.
+
+### The one-command demo
+
+```bash
+uv run qubit demo run --all
+```
+
+Runs the whole story: capture classical TLS → discover the vulnerable crypto → score HNDL risk →
+generate, validate and apply a patch → re-scan to prove remediation → bring up the hybrid bridge on the
+same port → verify `X25519MLKEM768` was negotiated. Add `--canned` to run it without Docker.
+
+### Other useful commands
+
+```bash
+uv run qubit scan-network example.com --port 443      # live TLS + PQC-group probe
+uv run qubit scan-vault http://127.0.0.1:8200 --token <tok>
+uv run qubit rules list                               # inspect the detection catalog
+uv run qubit serve token create --scopes rw           # mint a real API token
+uv run qubit cbom validate out.json                   # validate against CycloneDX 1.7
+```
+
+---
+
+## 📊 Project status
+
+Phases 0–2 are complete; the project is in its **Phase 3 hardening sprint** (deadline end of
+September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
+[docs/project-status/](docs/project-status/).
+
+**Done and verified:** all five scanner sources · CBOM 1.7 export/import · the full risk engine ·
+LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
+extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
+governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
+419 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+
+**Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video ·
+three known non-blocking defects listed in [BUILD_PLAN §Phase 3](docs/BUILD_PLAN.md).
+
+---
+
+## 🧪 Research & Evaluation
+
+QUBIT is the basis of a research paper on automated cryptographic agility. The paper and its four
+formal experiment suites (scanner precision/recall vs. baselines, risk calibration, LLM patch pass@k,
+hybrid-handshake overhead via `tc netem`) are **deliberately deferred** until after the product
+hardening deadline so they cannot compete with shipping. See
+[docs/RESEARCH_PAPER.md](docs/RESEARCH_PAPER.md).
 
 ---
 
 ## 🛠️ Developer Guide
 
-QUBIT is under active development. To contribute or build from source:
-
 ```bash
-# Sync the workspace and install dev dependencies
-uv sync --all-packages --group dev
+uv sync --all-packages
 
-# Run the strict quality gates (Ruff, Mypy, and Pytest)
-uv run poe check
+uv run poe check          # format + lint + typecheck + unit tests
+uv run poe unit           # tests that need no Docker/Ollama/network
+uv run poe integ          # Docker-backed integration tests
 ```
 
-*Note: QUBIT enforces a strict ≥70% test coverage threshold and 0 linting errors on the core packages.*
+Quality bar: **zero test failures, zero skips**, ruff clean, and ≥70% coverage on `qubit-core`,
+`qubit-scanner`, and `qubit-risk` (currently 82%).
+
+Adding a detection rule needs **no Python** — drop a YAML file in
+`packages/qubit-scanner/src/qubit_scanner/catalog/rules/<language>/` with embedded positive/negative
+examples, and the test suite picks it up automatically.
+
+Design documents live in [docs/design/](docs/design/) and are the implementable specification behind
+every module; start with [00-architecture-frame.md](docs/design/00-architecture-frame.md).
 
 ## 📜 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details. Third-party benchmark corpora and baseline tools used in evaluations are run-only and are subject to their respective upstream licenses.
+MIT — see [LICENSE](LICENSE). Third-party projects whose public schemas or data informed specific files
+are credited in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); benchmark corpora and baseline tools
+used in evaluation are run-only and subject to their own upstream licenses.

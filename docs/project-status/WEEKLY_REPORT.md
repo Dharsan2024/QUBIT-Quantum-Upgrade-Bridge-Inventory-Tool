@@ -23,9 +23,10 @@ Report what landed, what slipped, and the measured gate result. Timestamps: `dat
 | 4 | E1 per-asset recommendation (`/assets/{id}/recommendation` + Inventory drawer) | sub-agent (API) + Claude (drawer) | ✅ done (2026-08-10 — API + dashboard drawer) |
 | 5 | E3 dependency graph surfaced (`/plans/{id}/graph` + graph tab) | sub-agent → Claude review | ✅ done (2026-08-09) |
 | 6 | E4 governance sign-off + policy gate | sub-agent → Claude review | ✅ done (2026-08-09) |
-| 7 | Packaging + `docker compose up` verified on a clean machine + README quickstart | sub-agent + Claude fix/verify | ✅ done (2026-08-09 — 5 bugs fixed, run live) |
-| 8 | Test hygiene: fix bridge e2e probe; add `xgboost` to eval env; keep cov ≥70% | sub-agent | ✅ done (2026-08-09) |
-| 9 | Demo readiness: `qubit demo run --all` rehearsed + backup demo video | Claude + sub-agent | 🏃 rehearsed live ✅ (2026-08-09); backup video pending (manual) |
+| 7 | Packaging + `docker compose up` verified on a clean machine + README quickstart | sub-agent + Claude fix/verify | ✅ done (2026-08-09 — 5 bugs fixed, run live); **re-verified 2026-08-15** against freshly built `--no-cache` images + a true clean-room boot (9 s to authenticated stack). README rewritten 2026-08-15. *Still open: PyPI publication.* |
+| 8 | Test hygiene: fix bridge e2e probe; add `xgboost` to eval env; keep cov ≥70% | sub-agent | ✅ **actually** done 2026-08-15. Marked done 2026-08-09, but that fix was **not durable** — `xgboost` was installed into the environment without being declared, so a later `uv sync` dropped it and the regressor test was silently skipping again by 2026-08-15. Now declared in the root `dev` group. Suite: 419 pass / 0 skip; coverage 82%. |
+| 9 | Demo readiness: `qubit demo run --all` rehearsed + backup demo video | Claude + sub-agent | 🏃 rehearsed live ✅ (2026-08-09, re-rehearsed 2026-08-15 → `PASS negotiated=X25519MLKEM768`); backup video pending (manual) |
+| 10 | External-repo integrations (SCA scanner, Vault connector, CNSA 2.0 + real PQC probe) | Claude orchestrator | ✅ done (2026-08-15) — added mid-sprint from the 8-repo evaluation; traded against the backlog, not against items 1–9 |
 
 Status legend: ⬜ not started · 🏃 in progress · ✅ done · ⏸ blocked · ✂️ cut to cut-line.
 
@@ -57,12 +58,47 @@ Status legend: ⬜ not started · 🏃 in progress · ✅ done · ⏸ blocked ·
   every call — ~25 s, over the 10 s timeout, and offline-hostile; now runs openssl in an image that already
   ships the 3.5 CLI, no install) and installed `xgboost` so the regressor test runs.
 
-**Gate (end of week):** ruff clean; mypy clean per-package; **full suite green — 0 failures, 0 skips**
-(`289 passed`), Docker + Ollama up. Details in PROJECT_PHASE_MEMORY §5.
+**Gate (mid-week, 2026-08-09):** ruff clean; mypy clean per-package; **full suite green — 0 failures,
+0 skips** (`289 passed`), Docker + Ollama up. Details in PROJECT_PHASE_MEMORY §5.
 
-**Next week:** item 2 (E5 migration KB) → item 3 (E2 agility policy) → item 4 (E1 recommendation) — the
-substrate + read model, Claude's lane. Items 5–7 (E3 graph, E4 governance, packaging) are good parallel
-sub-agent hand-offs.
+### Addendum — rest of week 1 (2026-08-10 → 2026-08-15)
+
+- `[Claude — Opus 5]` E1 recommendation surfaced in the dashboard (completes E1 end-to-end); Stitch
+  "Quantum Command" HUD design implemented across the desktop app; desktop-app fixes (native folder
+  picker, CBOM export, in-app report + HTML export, lazy-loaded Plotly).
+- `[Claude — Sonnet 5]` App test pass → **3 genuine production bugs** found + fixed (app-wide pagination
+  silently capped at 50 assets; Alembic migrations not applied at startup causing `DELETE /projects` 500s;
+  KPI undercount). Dead tracked files removed.
+- `[Claude — Sonnet 5 → Opus 5]` **Integrated the 8 external reference repos** the user cloned into
+  `git help/` (item 10). Tier 1: JOSE/JWT canonical algorithm grounding + Go/JS/TS JWT rule packs (3
+  already-scannable languages that had zero JWT rules) + a `migration_kb.yaml` gap where every JWT-context
+  asset silently got no recommendation. Then backlog items **B3** (real raw-ClientHello PQC probe replacing
+  a pure mock, + CNSA 2.0 milestone evaluator), **B2** (dependency/SCA manifest scanner — closed a total
+  zero-SCA-parsing gap; created `THIRD_PARTY_NOTICES.md`), **B1** (Vault transit/PKI connector + demo-lab
+  compose service, verified live: 9 assets, 5 quantum-vulnerable).
+- `[Claude — Opus 5]` **Two process failures found in my own work, both corrected:** (a) I had been running
+  `ruff check` but never `ruff format`, which is `poe check`'s first step — 4 files were unformatted;
+  (b) I reported a Docker build as succeeding because I piped it into `tail`, which masked Docker's real
+  exit code — the dashboard build had actually failed on a transient npm registry timeout and the stack
+  I "verified" was running 5-day-old images. Both re-done properly.
+- `[Claude — Opus 5]` **Real bug caught by rehearsing the demo:** the new SCA scanner credited
+  `cryptography==42.0.8` with ML-KEM-768/ML-DSA-65 (which need `>=48`), so a quantum-*vulnerable*
+  dependency read as quantum-*ready*. Added version-aware capability gates (`min_version`), deliberately
+  conservative: unpinned/lower/unparseable ⇒ not claimed.
+- `[Claude — Opus 5]` Docs brought up to date: README rewritten against measured reality;
+  PROJECT_STATUS_REPORT re-grounded at `d89eb66`; BUILD_PLAN's stale "auth pending" and "test hygiene
+  pending" lines corrected; 3 pre-existing defects promoted from loose observations to tracked items.
+
+**Gate (end of week 1, 2026-08-15):** ruff clean · ruff-format clean · mypy clean (except 2 known
+pre-existing `union-attr` errors in `qubit_migrate/graph/order.py`) · **419 passed / 0 failed / 0 skipped** ·
+coverage **82%** on the 3 core packages · all 3 Docker integration tests passing · `qubit demo run --all`
+completing with `PASS negotiated=X25519MLKEM768` · `docker compose up` clean-room boot in 9 s.
+
+**Slipped / carried into week 2:** PyPI publication (item 7 remainder), structured logging, the backup
+demo video (manual), and the 3 known defects in PROJECT_STATUS_REPORT §4.
+
+**Next week's focus:** the 3 known defects (starting with the API's ignored `scanners` list), a minimal
+structured-logging story, and PyPI packaging.
 
 ---
 

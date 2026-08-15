@@ -627,3 +627,35 @@ def test_governance_endpoint(tmp_path: Path):
     assert data["status"] == "blocked"
     assert data["required"] == 1
     assert data["current"] == 0
+
+
+def test_list_jobs_with_a_real_job_row(tmp_path: Path) -> None:
+    """Regression: `JobOut` declared created_at/started_at/finished_at as `str` while the ORM stores
+    `datetime`, so Pydantic v2 response validation failed and BOTH /jobs and /jobs/{id} returned 500
+    for any non-empty jobs table. The previous tests only ever hit an EMPTY jobs list, which
+    validates trivially — hence this asserts against a real persisted row.
+    """
+    from uuid import uuid4
+
+    from qubit_core.db import Job
+
+    client = _make_client(tmp_path)
+    app = client.app
+
+    with app.state.session_factory() as db_session:  # type: ignore[attr-defined]
+        job = Job(id=uuid4(), kind="scan", status="succeeded", payload={"x": 1})
+        db_session.add(job)
+        db_session.commit()
+        job_id = job.id
+
+    listed = client.get("/api/v1/jobs")
+    assert listed.status_code == 200, listed.text
+    rows = listed.json()
+    assert any(r["id"] == str(job_id) for r in rows)
+    # ISO-8601 on the wire, not a Python repr
+    row = next(r for r in rows if r["id"] == str(job_id))
+    assert row["created_at"].startswith("20") and "T" in row["created_at"]
+
+    single = client.get(f"/api/v1/jobs/{job_id}")
+    assert single.status_code == 200, single.text
+    assert single.json()["kind"] == "scan"

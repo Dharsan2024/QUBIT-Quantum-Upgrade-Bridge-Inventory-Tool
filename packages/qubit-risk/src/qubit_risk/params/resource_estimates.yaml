@@ -15,6 +15,21 @@ algorithms:
   DH-2048:    {attack: shor, alias: RSA-2048}
   EC:         {attack: shor, alias: ECDSA-P256}
   RSA:        {attack: shor, alias: RSA-2048}   # bare RSA, unknown size -> worst-case anchor
+  # JOSE/JWT signature algorithms (RFC 7518). A JOSE `alg` header carries NO key size, so these
+  # anchor on RSA-2048 — the weakest size in common JOSE use, which therefore breaks earliest and
+  # yields the most conservative (highest) risk. Without these aliases the simulator returns no CDF
+  # at all for an RS256/PS256 asset and its risk is silently UNDER-stated, which is the wrong
+  # direction to fail. ES256/ES384/EdDSA need no entry: they resolve canonically to
+  # ECDSA-P256/ECDSA-P384/Ed25519, which are already covered above.
+  RS256:      {attack: shor, alias: RSA-2048}
+  RS384:      {attack: shor, alias: RSA-2048}
+  RS512:      {attack: shor, alias: RSA-2048}
+  PS256:      {attack: shor, alias: RSA-2048}
+  PS384:      {attack: shor, alias: RSA-2048}
+  PS512:      {attack: shor, alias: RSA-2048}
+  # P-521 is stronger than P-384, so modelling it at P-384's cost makes it break slightly EARLIER
+  # than reality — again the conservative direction. Replace with a real estimate if one is published.
+  ECDSA-P521: {attack: shor, alias: ECDSA-P384}
 # Grover-tier symmetric/hash: no CDF (tier treatment, doc 02 6.1.6)
 grover_tier:
   AES-128: {tier: marginal}

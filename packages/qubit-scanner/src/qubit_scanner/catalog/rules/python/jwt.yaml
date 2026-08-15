@@ -20,7 +20,11 @@ rules:
         - { capture: kw, equals: algorithm }
         - { capture: alg, regex: '^[rubfRUBF]*["'']RS256["'']$' }
     extract:
-      algorithm: { literal: RSA }
+      # The JOSE identifier itself, not the bare family — `RS256` is a canonical registry entry
+      # (qubit_core.algorithms), so an RS256-signed JWT normalizes identically whether it was found
+      # in Python, Go, JavaScript or TypeScript. Emitting bare `RSA` here would make the same
+      # finding look like a different asset depending on the language it came from.
+      algorithm: { literal: RS256 }
     asset: { asset_type: algorithm-use, usage_context: token }
     confidence: medium
     examples:
@@ -49,7 +53,7 @@ rules:
         - { capture: kw, equals: algorithm }
         - { capture: alg, regex: '^[rubfRUBF]*["'']ES256["'']$' }
     extract:
-      algorithm: { literal: ECDSA-P256 }
+      algorithm: { literal: ES256 } # see the RS256 note above — JOSE identifier, not bare family
     asset: { asset_type: algorithm-use, usage_context: token }
     confidence: medium
     examples:

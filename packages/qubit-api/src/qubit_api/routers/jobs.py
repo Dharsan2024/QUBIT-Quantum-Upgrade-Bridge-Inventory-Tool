@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -29,9 +30,14 @@ class JobOut(BaseModel):
     payload: dict
     result: dict | None = None
     error: str | None = None
-    created_at: str
-    started_at: str | None = None
-    finished_at: str | None = None
+    # These are `datetime` on the ORM model (qubit_core.db.models.Job) and every other router's
+    # schema declares them as `datetime` too. Declaring them `str` here made Pydantic v2 response
+    # validation fail on a real datetime, so BOTH /jobs and /jobs/{id} returned 500 for any
+    # non-empty jobs table. FastAPI serializes datetime to ISO-8601 in JSON, so the wire format is
+    # unchanged from what the schema intended.
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

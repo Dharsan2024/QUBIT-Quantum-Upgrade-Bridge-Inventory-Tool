@@ -12,7 +12,13 @@
 # verified starting set spanning the 4 supported ecosystems, weighted toward the JWT/JOSE and
 # general-crypto libraries QUBIT's own code-scanner rule packs already reference. Extend by adding
 # entries here — no code changes needed (matches the project's "rules/data, not code" convention).
-version: "2026.08"
+#
+# `min_version` (optional): the algorithm only exists from that library version onward. It is
+# reported ONLY when the manifest's pinned/floor version PROVES the requirement is met — an
+# unpinned or lower version means the capability is not claimed. This matters most for PQC
+# entries: falsely reporting ML-KEM on a library too old to have it would make a vulnerable
+# dependency look quantum-ready, which is the worst direction for a risk tool to be wrong in.
+version: "2026.09"
 
 packages:
   # --- PyPI ---
@@ -22,8 +28,11 @@ packages:
       - { algorithm: RSA, usage_context: kex }
       - { algorithm: ECDSA, usage_context: signature }
       - { algorithm: AES-256, usage_context: encryption-at-rest }
-      - { algorithm: ML-KEM-768, usage_context: kex } # native since >=48, doc 07 §10
-      - { algorithm: ML-DSA-65, usage_context: signature } # native since >=48, doc 07 §10
+      # PQC landed in pyca/cryptography 48 (doc 07 §10). This threshold is "when the capability
+      # first exists", deliberately looser than migration_kb.yaml's recommended target of >=49
+      # (which is a prefer-newer choice for generated patches, not a detection boundary).
+      - { algorithm: ML-KEM-768, usage_context: kex, min_version: "48" }
+      - { algorithm: ML-DSA-65, usage_context: signature, min_version: "48" }
 
   - package: pyjwt
     ecosystem: pypi
@@ -107,8 +116,9 @@ packages:
       - { algorithm: RSA, usage_context: kex }
       - { algorithm: ECDSA, usage_context: signature }
       - { algorithm: AES-256, usage_context: encryption-at-rest }
-      - { algorithm: ML-KEM-768, usage_context: kex } # BC >=1.79, doc 07 §10
-      - { algorithm: ML-DSA-65, usage_context: signature } # BC >=1.79, doc 07 §10
+      # BouncyCastle shipped ML-KEM/ML-DSA/SLH-DSA in 1.79 (doc 07 §10).
+      - { algorithm: ML-KEM-768, usage_context: kex, min_version: "1.79" }
+      - { algorithm: ML-DSA-65, usage_context: signature, min_version: "1.79" }
 
   - package: "io.jsonwebtoken:jjwt-api"
     ecosystem: maven

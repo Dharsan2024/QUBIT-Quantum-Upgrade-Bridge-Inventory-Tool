@@ -377,13 +377,25 @@ source of truth" principle, §4.2), so this data file can't drift out of sync wi
 
 `deps/scanner.py`'s `ManifestParser.parse(file_path) -> list[Detection]` follows the exact
 `NginxConfigParser`/`CertScanner` shape: dispatch on `file_path.name`, look up each dependency
-(ecosystem + name, version-agnostic), emit `asset_type="library"` / `scanner="config"` /
-`confidence="medium"` findings. **Packages absent from the curated map are silently skipped** —
-most manifest entries aren't crypto-relevant, and forcing an `UNKNOWN(...)` placeholder for every
-one of them (unlike a specific *detected* line of crypto usage, where "nothing silently dropped"
-applies) would be noise. Wired into `api.py::scan_paths` as a 5th toggleable source (`"dependency"`
-in the default `scanners` set), dispatching by exact filename alongside the existing config/cert
-suffix-based dispatch.
+(ecosystem + name), emit `asset_type="library"` / `scanner="config"` / `confidence="medium"`
+findings. **Packages absent from the curated map are silently skipped** — most manifest entries
+aren't crypto-relevant, and forcing an `UNKNOWN(...)` placeholder for every one of them (unlike a
+specific *detected* line of crypto usage, where "nothing silently dropped" applies) would be noise.
+Wired into `api.py::scan_paths` as a 5th toggleable source (`"dependency"` in the default
+`scanners` set), dispatching by exact filename alongside the existing config/cert suffix-based
+dispatch.
+
+**Capability version gates (`min_version`).** Package *lookup* is version-agnostic (most manifests
+pin a range, not a version), but individual algorithm entries may carry `min_version`, and those are
+claimed **only when the manifest proves the requirement is met** — an unpinned, lower, or
+unparseable version means the capability is not reported. This matters because several curated
+libraries gained PQC only recently (`cryptography` >= 48, BouncyCastle >= 1.79 — doc 07 §10): the
+first cut of this scanner reported them unconditionally, so `demo-lab/vulnapp-python`'s pinned
+`cryptography==42.0.8` was credited with ML-KEM-768/ML-DSA-65 and a quantum-vulnerable dependency
+read as quantum-ready. For a risk tool that is the worst direction to be wrong in, so the gate is
+deliberately conservative: a range like `>=41.0` is judged on its floor, since that is the weakest
+version the manifest actually permits. Ungated (always-true) entries such as RSA/ECDSA/AES are
+unaffected — the gate suppresses only the version-dependent claims, never the whole package.
 
 ### 4.4b Vault transit/PKI connector (`vault/`, 2026-08 backlog item B1)
 

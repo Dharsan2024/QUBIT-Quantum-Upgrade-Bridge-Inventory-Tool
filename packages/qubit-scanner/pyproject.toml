@@ -16,6 +16,8 @@ dependencies = [
   "cryptography>=43.0",
   "crossplane>=0.5.8",
   "httpx>=0.27",
+  # Version comparison for the SCA scanner's `min_version` capability gates (deps/scanner.py).
+  "packaging>=24",
 ]
 
 [build-system]

@@ -8,12 +8,17 @@ Packages absent from the curated database are silently skipped — most manifest
 crypto-relevant (a JSON parser, a web framework), and forcing a placeholder finding for every one
 of them would be noise, not signal (unlike a specific line of *detected* crypto usage, where
 doc 01's "nothing silently dropped" contract applies).
+
+Version-gated algorithms (``min_version`` in the curated map) are reported only when the manifest
+version *proves* the capability exists — see :func:`_satisfies_min_version`.
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
+from packaging.version import InvalidVersion, Version
 from qubit_core import Location
 
 from qubit_scanner.models import Detection
@@ -42,6 +47,29 @@ _RULE_ID = {
     "pypi": "DEP-PYPI-001",
     "maven": "DEP-MAVEN-001",
 }
+
+# Leading numeric-ish version core, after stripping specifier operators and a Go "v" prefix.
+# ">=41.0" -> "41.0"; "==42.0.8" -> "42.0.8"; "v5.2.1" -> "5.2.1"; "1.79" -> "1.79".
+_VERSION_CORE_RE = re.compile(r"(\d+(?:\.\d+)*)")
+
+
+def _satisfies_min_version(dep_version: str | None, min_version: str) -> bool:
+    """True only when ``dep_version`` PROVES the dependency is at least ``min_version``.
+
+    Conservative by design: an absent, unparseable, or open-ended-below version returns False. A
+    range like ``>=41.0`` is judged on its floor (41.0), because that is the weakest version the
+    manifest actually permits — claiming a capability the resolved install might not have would
+    make a vulnerable dependency look quantum-ready.
+    """
+    if not dep_version:
+        return False
+    m = _VERSION_CORE_RE.search(dep_version)
+    if m is None:
+        return False
+    try:
+        return Version(m.group(1)) >= Version(min_version)
+    except InvalidVersion:
+        return False
 
 
 class ManifestParser:
@@ -87,6 +115,9 @@ class ManifestParser:
                 confidence="medium",
             )
             for entry in algorithms
+            # A version-gated capability is claimed only when the manifest proves it exists.
+            if "min_version" not in entry
+            or _satisfies_min_version(dep.version, entry["min_version"])
         ]
 
 

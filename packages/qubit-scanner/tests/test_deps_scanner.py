@@ -18,7 +18,7 @@ from qubit_scanner.deps.manifest import (
     parse_pyproject_toml,
     parse_requirements_txt,
 )
-from qubit_scanner.deps.scanner import ManifestParser
+from qubit_scanner.deps.scanner import ManifestParser, _satisfies_min_version
 
 # ---------------------------------------------------------------------------
 # Manifest fixtures (realistic shape, mixing crypto and non-crypto packages)
@@ -163,6 +163,60 @@ def test_pom_xml_detects_bouncycastle_not_spring(tmp_path: Path) -> None:
     assert lib_names == {"org.bouncycastle:bcprov-jdk18on"}
     algos = {d.raw_algorithm for d in dets}
     assert "ML-KEM-768" in algos  # BC >=1.79 ships ML-KEM natively
+
+
+# ---------------------------------------------------------------------------
+# min_version capability gates — a version-dependent algorithm is only claimed when the
+# manifest PROVES the library is new enough. Regression guard: this was originally missing, and
+# `cryptography==42.0.8` (pre-PQC) was reported as providing ML-KEM-768/ML-DSA-65, which made a
+# quantum-vulnerable dependency look quantum-ready — the worst direction to be wrong in.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "version_spec,pqc_expected",
+    [
+        ("==42.0.8", False),  # pinned below the PQC threshold (48)
+        ("==48.0.0", True),  # pinned exactly at it
+        ("==49.1.0", True),  # pinned above it
+        (">=41.0", False),  # range floor below it -> not provable
+        (">=48", True),  # range floor at it
+        ("", False),  # unpinned -> not claimed
+    ],
+)
+def test_pqc_claimed_only_when_version_proves_it(
+    tmp_path: Path, version_spec: str, pqc_expected: bool
+) -> None:
+    f = _write(tmp_path, "requirements.txt", f"cryptography{version_spec}\n")
+    algos = {d.raw_algorithm for d in ManifestParser().parse(f)}
+
+    assert ("ML-KEM-768" in algos) is pqc_expected
+    assert ("ML-DSA-65" in algos) is pqc_expected
+    # The ungated, always-true classical capabilities are reported either way — the gate must
+    # suppress only the version-dependent entries, not silence the whole package.
+    assert {"RSA", "ECDSA", "AES-256"} <= algos
+
+
+def test_maven_pqc_gate_uses_bouncycastle_179_threshold(tmp_path: Path) -> None:
+    old = _POM_XML.replace("<version>1.79</version>", "<version>1.77</version>")
+    algos = {d.raw_algorithm for d in ManifestParser().parse(_write(tmp_path, "pom.xml", old))}
+    assert "ML-KEM-768" not in algos  # BC 1.77 predates PQC support
+    assert "RSA" in algos
+
+
+@pytest.mark.parametrize(
+    "dep_version,min_version,expected",
+    [
+        ("v5.2.1", "5.0", True),  # go module "v" prefix
+        ("1.77", "1.79", False),
+        ("garbage", "48", False),  # unparseable -> never claimed
+        (None, "48", False),
+    ],
+)
+def test_satisfies_min_version_is_conservative(
+    dep_version: str | None, min_version: str, expected: bool
+) -> None:
+    assert _satisfies_min_version(dep_version, min_version) is expected
 
 
 def test_unrecognized_filename_returns_empty(tmp_path: Path) -> None:

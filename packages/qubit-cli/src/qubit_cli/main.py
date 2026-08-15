@@ -188,9 +188,7 @@ def scan_network_cmd(
 
 @app.command(name="scan-vault")
 def scan_vault_cmd(
-    addr: Annotated[
-        str, typer.Argument(help="Vault server address, e.g. http://127.0.0.1:8200.")
-    ],
+    addr: Annotated[str, typer.Argument(help="Vault server address, e.g. http://127.0.0.1:8200.")],
     token: Annotated[
         str,
         typer.Option(
@@ -215,9 +213,7 @@ def scan_vault_cmd(
 
     from qubit_scanner import scan_vault
 
-    result = asyncio.run(
-        scan_vault(addr, token, mount_transit=mount_transit, mount_pki=mount_pki)
-    )
+    result = asyncio.run(scan_vault(addr, token, mount_transit=mount_transit, mount_pki=mount_pki))
 
     if as_json:
         console.print_json(

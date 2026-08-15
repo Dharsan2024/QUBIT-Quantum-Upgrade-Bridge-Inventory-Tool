@@ -166,7 +166,7 @@ def test_pom_xml_detects_bouncycastle_not_spring(tmp_path: Path) -> None:
 
 
 def test_unrecognized_filename_returns_empty(tmp_path: Path) -> None:
-    f = _write(tmp_path, "Cargo.toml", "[package]\nname = \"demo\"\n")
+    f = _write(tmp_path, "Cargo.toml", '[package]\nname = "demo"\n')
     assert ManifestParser().parse(f) == []
 
 

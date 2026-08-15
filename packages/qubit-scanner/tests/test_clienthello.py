@@ -23,9 +23,7 @@ from qubit_scanner.network.clienthello import (
     parse_probe_response,
 )
 
-_HRR_MAGIC = bytes.fromhex(
-    "CF21AD74E59A6111BE1D8C021E65B891C2A211167ABB8C5E079E09E2C8A8339C"
-)
+_HRR_MAGIC = bytes.fromhex("CF21AD74E59A6111BE1D8C021E65B891C2A211167ABB8C5E079E09E2C8A8339C")
 
 
 # ---------------------------------------------------------------------------

@@ -106,9 +106,7 @@ def build_probe_client_hello(sni: str, group_codepoint: int) -> bytes:
     )
 
     handshake = bytes([0x01]) + _u24(len(body)) + body  # msg_type = client_hello
-    record = (
-        bytes([_CONTENT_TYPE_HANDSHAKE]) + _u16(0x0301) + _u16(len(handshake)) + handshake
-    )
+    record = bytes([_CONTENT_TYPE_HANDSHAKE]) + _u16(0x0301) + _u16(len(handshake)) + handshake
     return record
 
 

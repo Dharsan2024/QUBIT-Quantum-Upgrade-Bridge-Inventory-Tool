@@ -2140,7 +2140,9 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-xdist" },
     { name = "ruff" },
+    { name = "scikit-learn" },
     { name = "testcontainers" },
+    { name = "xgboost" },
 ]
 
 [package.metadata]
@@ -2157,7 +2159,9 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "pytest-xdist", specifier = ">=3.6" },
     { name = "ruff", specifier = ">=0.8" },
+    { name = "scikit-learn", specifier = ">=1.4" },
     { name = "testcontainers", specifier = ">=4.5" },
+    { name = "xgboost", specifier = ">=2.0" },
 ]
 
 [[package]]

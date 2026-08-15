@@ -31,6 +31,12 @@ dev = [
   "httpx>=0.28",
   "testcontainers>=4.5",
   "pip-licenses>=5",
+  # The XGBoost regressor's tests (doc 02 §6.4) must run in the gate, not skip — the project
+  # mandate is zero skips. Only these two of qubit-risk's `ml` extra are needed for that; torch/
+  # transformers (the DistilBERT sensitivity classifier) stay opt-in via `--extra ml` since they
+  # are ~2.5 GB and their tests synthesize rather than train.
+  "xgboost>=2.0",
+  "scikit-learn>=1.4",
 ]
 
 [tool.ruff]

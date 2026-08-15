@@ -65,6 +65,20 @@ export async function whoami(): Promise<{ name: string; scopes: string }> {
   return send<{ name: string; scopes: string }>("/auth/whoami");
 }
 
+/** Engine liveness + version. Anonymous endpoint — no token needed. */
+export async function fetchHealth(): Promise<{ status: string; db: string; version: string }> {
+  return send<{ status: string; db: string; version: string }>("/health");
+}
+
+/** Optional local dependencies (Docker sandbox validation, Ollama LLM patches). */
+export async function fetchHealthDeps(): Promise<{
+  api: string;
+  docker: boolean;
+  ollama: boolean;
+}> {
+  return send<{ api: string; docker: boolean; ollama: boolean }>("/health/deps");
+}
+
 export async function fetchProjects(): Promise<Project[]> {
   return send<Project[]>("/projects");
 }

@@ -274,6 +274,16 @@ system faces and lost the whole look.
 7. Long absolute Windows paths overflowed the table; now tail-truncated with the full path in `title`.
 8. CRQC chart: P05/P50/P95 callouts were clipped outside the y-range and the legend collided with them —
    y-range extended to 1.16, callouts boxed, legend moved bottom-right, HNDL exposure window now labelled.
+9. **WebView2 served its own browser context menu** on right-click inside the "native" app — Back /
+   Refresh / **Save as** / **Print** / *Send tab to your devices*. Found by right-clicking the built exe,
+   not the dev server. Suppressed in production builds only (dev keeps Inspect); re-verified on the
+   installed binary: right-click now does nothing.
+10. The top rail read `QUBIT // COMMAND` on `/cbom` and `/m/:id` because those routes aren't in the
+   sidebar. Added an off-nav label map.
+11. Settings was one card in an otherwise empty window (the exact "wasted space" complaint). It now also
+   shows a live **Engine** panel (status / registry DB / version / Docker / Ollama, polled every 15 s via
+   new `fetchHealth` + `fetchHealthDeps` clients) and a **Local & offline** panel stating the guarantees.
+   Loading state reads "checking…" rather than a bare dash, which looked like a failure.
 
 **Feature work the design implied (real, wired to real data):** the asset inspector now shows the HNDL
 **exposure narrative** (the scanner's own `evidence.context.extra.hndl_narrative` for secret/PII findings,

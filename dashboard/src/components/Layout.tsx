@@ -28,12 +28,22 @@ const NAV_ITEMS = [
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
+/** Routes reachable from inside a page but absent from the sidebar — the rail still names them. */
+const OFF_NAV_LABELS: { prefix: string; label: string }[] = [
+  { prefix: '/cbom', label: 'CBOM Export' },
+  { prefix: '/m/', label: 'Migration Detail' },
+];
+
 export function Layout() {
   const location = useLocation();
   const normalizedPath = location.pathname.replace(/^\/p\/[^/]+/, '') || '/';
   const current = NAV_ITEMS.find((i) =>
     i.exact ? normalizedPath === i.path : normalizedPath.startsWith(i.path),
   );
+  const railLabel =
+    current?.label ??
+    OFF_NAV_LABELS.find((o) => normalizedPath.startsWith(o.prefix))?.label ??
+    'Command';
 
   return (
     <div className="relative flex h-screen w-full overflow-hidden text-[color:var(--color-ink)]">
@@ -107,9 +117,7 @@ export function Layout() {
           <div className="label-caps flex min-w-0 items-center gap-2 text-[color:var(--color-accent)]/70">
             <span className="text-[color:var(--color-ink-faint)]">QUBIT</span>
             <span className="text-[color:var(--color-ink-faint)]">//</span>
-            <span className="truncate text-[color:var(--color-accent-soft)]">
-              {current?.label ?? 'Command'}
-            </span>
+            <span className="truncate text-[color:var(--color-accent-soft)]">{railLabel}</span>
           </div>
           <div className="flex items-center gap-5">
             <DepsLeds />

@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-419%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-482%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 419 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 482 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
 
 ---
 
@@ -48,7 +48,7 @@ Five independent scanner sources, all real:
 
 | Source | What it does |
 |---|---|
-| **Code (AST)** | `tree-sitter` parsing driven by a data-only `qubit-rule/v1` YAML catalog — **40 rules across Python, Java, Go, JavaScript, TypeScript**. Every rule ships its own positive/negative fixtures, executed as tests. |
+| **Code (AST)** | `tree-sitter` parsing driven by a data-only `qubit-rule/v1` YAML catalog — **66 rules across Python (29), Java (14), Go (15), JavaScript (6), TypeScript (2)**, covering key generation, symmetric ciphers, hashes, MACs, KDFs, JWT/JOSE and Node's built-in `crypto`. Every rule ships its own positive/negative fixtures, executed as tests. |
 | **Config** | nginx parsing (`crossplane`) for `ssl_protocols` / `ssl_ciphers` / cert paths, with OpenSSL cipher-string expansion. |
 | **Network TLS** | Live handshake enumeration, plus a **raw-ClientHello PQC-group probe** that detects `X25519MLKEM768` / `SecP256r1MLKEM768` / `SecP384r1MLKEM1024` support with no OpenSSL dependency and no key generation (RFC 8446 HelloRetryRequest technique). |
 | **Certificates & keys** | X.509 PEM/DER parsing → public-key algorithm, key size, signature algorithm. |
@@ -56,7 +56,7 @@ Five independent scanner sources, all real:
 | **HashiCorp Vault** *(opt-in)* | Polls `transit` keys and `pki` certificates over Vault's HTTP API, including its `ml-dsa` / `slh-dsa` / `hybrid` key types. |
 
 ### 2. CycloneDX 1.7 Inventory
-Findings normalize into the frozen `CryptoAsset` schema against a canonical registry of **38 algorithms** (RSA/ECDSA/EdDSA/AES/SHA families, the JOSE-JWT `RS*`/`PS*`/`ES*`/`HS*`/`EdDSA` identifiers, ML-KEM, ML-DSA, SLH-DSA, and hybrid TLS groups). The DB is the source of truth; the CBOM is the exportable compliance artifact, validated against the official ECMA-424 schema.
+Findings normalize into the frozen `CryptoAsset` schema against a canonical registry of **49 algorithms** (RSA/ECDSA/EdDSA/AES/SHA families, the JOSE-JWT `RS*`/`PS*`/`ES*`/`HS*`/`EdDSA` identifiers, ML-KEM, ML-DSA, SLH-DSA, and hybrid TLS groups). The DB is the source of truth; the CBOM is the exportable compliance artifact, validated against the official ECMA-424 schema.
 
 ### 3. HNDL Risk Quantification
 A **Monte-Carlo simulation** of CRQC arrival blended with an expert-survey prior, a Bayesian network for HNDL exposure, a sensitivity classifier (PII/PHI/financial/credentials), an XGBoost regressor with split-conformal confidence intervals, and **Mosca's Inequality** (`margin = Z − (X + Y)`). A separate **CNSA 2.0 milestone evaluator** scores an inventory against NSA's regulatory deadlines (2025 → 2035) — a deterministic deadline source alongside the probabilistic one.
@@ -159,7 +159,7 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-419 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+482 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video ·
 three known non-blocking defects listed in [BUILD_PLAN §Phase 3](docs/BUILD_PLAN.md).

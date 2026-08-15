@@ -1,6 +1,6 @@
 # QUBIT — Project Status Report
 
-**Report date:** 2026-08-15 · **Grounded at commit:** `d89eb66` (branch `main`)
+**Report date:** 2026-08-15 · **Grounded at commit:** `f25a122` (branch `main`)
 *(Supersedes the 2026-08-09 / `b4c070c` edition. Several verdicts below were downgraded-to-done in the
 interim: auth, packaging, test hygiene, and E1–E5 all shipped.)*
 **Author:** QUBIT team (Dharsan L, Akshay Kumar S) · BE-CSE Cybersecurity final-year project
@@ -9,7 +9,7 @@ the research paper is deferred to after the deadline (see [BUILD_PLAN §5](../BU
 **Scope of this report:** how much is built, how production-ready it is, and what remains — measured
 against the repo as it stands, not the plan's aspirations.
 
-> **Honesty note.** Every number in this report was measured from the repository at `d89eb66`, not
+> **Honesty note.** Every number in this report was measured from the repository at `f25a122`, not
 > estimated. Where a capability is partial or a test is environment-dependent, this report says so
 > plainly. The project's standing rule — *no vanity metrics* — applies to its own status report first.
 
@@ -39,17 +39,17 @@ M1, and M2 are complete and the Phase-3 hardening sprint is most of the way thro
 
 ---
 
-## 2. Measured scale (at `b4c070c`)
+## 2. Measured scale (at `f25a122`)
 
 | Metric | Value | How measured |
 |---|---|---|
 | Python source (non-test) | **~15,360 LOC** across 135 files, 7 packages | `find packages -name '*.py' -not -path '*/tests/*'` |
 | Python tests | **~5,362 LOC** across 48 files | `find packages -name 'test_*.py'` |
 | Dashboard TypeScript/TSX | **~4,588 LOC** across 27 files | `find dashboard/src -name '*.ts*'` |
-| Test result | **419 passed · 0 failed · 0 skipped** | `uv run pytest packages -q` |
+| Test result | **482 passed · 0 failed · 0 skipped** | `uv run pytest packages -q` |
 | Coverage (3 core packages) | **82%** (gate: ≥70%) | `pytest --cov=qubit_core --cov=qubit_scanner --cov=qubit_risk` |
-| Detection rules | **40** across 5 languages (python 19, go 9, java 8, js 2, ts 2) | `RuleCatalog.load()` |
-| Canonical algorithms | **38** | `len(qubit_core.algorithms.ALGORITHMS)` |
+| Detection rules | **66** across 5 languages (python 29, go 15, java 14, js 6, ts 2) | `RuleCatalog.load()` |
+| Canonical algorithms | **49** | `len(qubit_core.algorithms.ALGORITHMS)` |
 | Alembic migrations | **4** (applied automatically at startup) | `alembic/versions/` |
 | Packages | 7 (`qubit-{core,scanner,risk,migrate,bridge,api,cli}`) + `dashboard` | monorepo layout |
 | Lint / format / types | **ruff clean, ruff-format clean, mypy clean** except 2 known pre-existing errors (§4) | frame CI gate |
@@ -65,7 +65,7 @@ Status legend: **built** = shipped + tested · **partial** = works but not fully
 | Subsystem | Status | What's done | What's left |
 |---|---|---|---|
 | `qubit-core` (schema, DB, CBOM, registry, fingerprint) | **built** | Frozen `CryptoAsset` Pydantic v2 + SQLAlchemy ORM; CycloneDX 1.7 export; POSIX-normalized fingerprint; algorithm registry | CBOM *import* (M3 cut-line); Postgres path (cut-line) |
-| `qubit-scanner` (discovery) | **built** | **Five real sources:** code AST (tree-sitter, segfault-pinned `<0.26` with regression test; 40 rules across Python/Java/Go/JS/TS), config (nginx), active TLS enumeration **+ a real raw-ClientHello PQC-group probe** (was a mock until 2026-08-15; now proven against a live OpenSSL 3.5 server), cert/key, **dependency/SCA manifests** (5 formats, version-aware capability gates), and an opt-in **HashiCorp Vault transit/PKI connector**. Evidence redaction; network-scan authorization guardrail + audit log | more language rule-packs and more curated SCA packages (breadth, ongoing) |
+| `qubit-scanner` (discovery) | **built** | **Five real sources:** code AST (tree-sitter, segfault-pinned `<0.26` with regression test; 66 rules across Python/Java/Go/JS/TS), config (nginx), active TLS enumeration **+ a real raw-ClientHello PQC-group probe** (was a mock until 2026-08-15; now proven against a live OpenSSL 3.5 server), cert/key, **dependency/SCA manifests** (5 formats, version-aware capability gates), and an opt-in **HashiCorp Vault transit/PKI connector**. Evidence redaction; network-scan authorization guardrail + audit log | more language rule-packs and more curated SCA packages (breadth, ongoing) |
 | `qubit-risk` (HNDL risk) | **built** (ML tiers opt-in) | Monte-Carlo CRQC timeline + expert-survey blend; closed-form P_HNDL + pgmpy Bayesian net (agree <0.02); XGBoost distillation regressor + split-conformal CI + TreeSHAP (**now runs in the default gate** — `xgboost` is in the `dev` group); DistilBERT sensitivity tier documented as an honest **negative result** → ship heuristic-only; **CNSA 2.0 milestone evaluator** (`cnsa2.py` + versioned params) | run the external-validation study with **real human rankings** (currently synthetic); expose CNSA 2.0 over REST (deliberately Python-only for now) |
 | `qubit-migrate` (orchestrator) | **built** | Dependency graph + SCC order; risk÷effort WSJF queue; Ollama LLM transformer + repair loop + prompt-injection/path hardening; deterministic template codemods; **5-stage docker-sandbox validation**; FSM + review inbox. **E1–E5 all landed:** migration KB (`migration_kb.yaml`, now incl. JWT `token`-context entries), agility policy, per-asset recommendation, graph API, governance gates | broader template rule-pack coverage (breadth, ongoing) |
 | `qubit-bridge` (hybrid PQC proof) | **built** | X25519MLKEM768 probe/verify against the nginx-hybrid demo bridge; `--canned` mode | `/bridge/measurements` bench chart (M3); the live e2e test needs docker host-networking (§4) |
@@ -77,7 +77,7 @@ Status legend: **built** = shipped + tested · **partial** = works but not fully
 
 ## 4. Test-suite honesty + known open defects
 
-`uv run pytest packages -q` at `d89eb66`: **419 passed, 0 failed, 0 skipped.**
+`uv run pytest packages -q` at `f25a122`: **482 passed, 0 failed, 0 skipped.**
 
 Both blemishes from the previous edition are closed:
 - The **bridge e2e failure** is resolved — the test is now marked `@pytest.mark.integration` (so the

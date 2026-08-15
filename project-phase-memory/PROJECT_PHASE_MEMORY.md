@@ -274,6 +274,94 @@ They were moved there to avoid two copies drifting. Edit prompts in CORE_PROMPTS
 
 ## 5. CHANGELOG (newest first — every agent appends here)
 
+### 2026-08-16 (overnight, autonomous) — Detection coverage 40→66 rules; 5 real bugs fixed; `qubit run` consent flow (Claude, Opus 5)
+User asked (paraphrased): update the README + docs to current reality, then test every module; and
+separately — improve model efficiency or build something useful, add a consent flow for git-link
+scans, find out what Ollama actually does during migration, and check whether scans finding "very
+few crypto risks" is a real problem. Ran autonomously; user was asleep.
+
+**Docs re-grounded (commit `66e6505`).** README was describing a Phase-1 project: wrong status badge,
+React 18 (actually 19), a clone URL that does not exist, wrong ports (dashboard is :8080 and the API
+is reverse-proxied under /api/v1, not published on :8000), and a `pip install qubit-cli` that is not
+published. Rewrote it against measured numbers and flagged the PyPI gap honestly instead of telling
+readers to run a command that fails. PROJECT_STATUS_REPORT re-grounded (auth had been listed as
+pending for days after shipping); WEEKLY_REPORT burndown item 8 corrected — it was marked done
+2026-08-09 but the fix was **not durable** (xgboost had been installed into the env without being
+declared, so a later `uv sync` dropped it and the regressor test was silently skipping again).
+
+**"Scans only find very few crypto risks" — real, and fixed (commit `5694b4d`).** The *engine* was
+fine (every existing rule fired accurately, no false positives). The *catalog* was the problem: 40 of
+doc 01's ~120 planned rules, with the gaps in the most common primitives. Measured against
+cryptoscan's purpose-built corpus: **15 → 34 detections**, and on its Python sample 4-of-11 → 11-of-11.
+- Added: the entire pyca/cryptography symmetric cipher API (AES was completely undetected), Node's
+  built-in `crypto` module (JS had only JWT rules), Go aes/hmac/ed25519/sha2/rc4, Java AES/EC/DSA/
+  Mac/PBKDF2, and strong-hash + KDF inventory. 40 → **66 rules**.
+- Two silent-recall bugs in EXISTING rules: `PY-CRYPTOGRAPHY-RSA-KEYGEN` required a literal integer
+  key size, so `generate_private_key(key_size=key_size)` — how real code usually writes it — did not
+  match the query at all and was dropped with no finding; and the X25519/Ed25519 rules only matched
+  the direct-import form, not the module-qualified form pyca's own docs use.
+- Registry gaps that made detections useless even when they fired: bare `AES` did not resolve, so real
+  AES normalized to `UNKNOWN(AES)` with a **not-vulnerable** verdict. Added bare AES/HMAC families
+  (weakest plausible verdict), AES-192, RC4, Blowfish, ChaCha20-Poly1305, SHA3-*, and the KDFs;
+  38 → **49 algorithms**. `resolve()` now strips OpenSSL/Node cipher-mode suffixes so `aes-128-cbc`
+  resolves. UNKNOWN on the corpus: 7 → 0.
+- **Two coupling defects this closed:** SHA3-256 is the migration KB's *target* for SHA-1/MD5 but was
+  not in the registry, so a successfully migrated asset re-scanned as `UNKNOWN(SHA3-256)` and the fix
+  could not be verified; and CNSA 2.0's "New NSS Systems" milestone checks for SHA-384/512, which no
+  rule could emit — making that milestone **permanently unsatisfiable**. Both now work.
+
+**"Why is every Mosca score 74.00" — it was wrong (commit `fba7f60`).** 74 = horizon 2100 − now 2026,
+a sentinel assigned to every asset with no CRQC curve and indistinguishable from a computed margin.
+Doc 02 F8 does sanction that fallback but specifies it as **Z**, the arrival-time input, so the margin
+is still Z − (X + Y); pipeline.py assigned Z straight to the margin, discarding the shelf-life it had
+just computed. Two MD5 assets — one holding PHI with a 31.3-year secrecy need, one ephemeral at 6.9 —
+both reported +74.00. Now +28.99 and +59.05; the modelled path is untouched.
+
+**What Ollama actually does (commit `43da4ce`).** Reproduced against the real qwen2.5-coder:7b.
+py-weakhash-01 offers two paths (argon2id for credentials, SHA-256 for digests) but nothing told the
+model to BRANCH, and every piece of guidance led with the password path. Measured:
+`usage_context=password` → argon2 (correct); `=hash` → sha256 (correct); **`=unknown` → sha256 AND a
+stray `import argon2`** — an unused, undeclared dependency that raises ModuleNotFoundError wherever
+argon2-cffi is absent. Since the scanner emits `unknown` whenever it cannot infer, and the rule
+matches `unknown`, this is a common path — exactly the "argon2 stuff appearing near unrelated code"
+that was observed. Fixed the prompt (branch on usage_context, tie-break to the digest path, ban
+unused imports) and made the rule's guidance symmetric with a second worked example. Stray-import
+rate after the fix: **0/5 runs**.
+
+**`qubit run` git-link consent flow (commit `f5760d4`).** Previously a git URL was shallow-cloned
+immediately and silently, and migrating copied that shallow clone to another temp dir and ran
+`git init`, throwing away real history — the "patched copy" sat in a path the user never chose, with
+no base branch to diff against. Now the two downloads are consented to separately: a temporary
+shallow clone to scan (always discarded), then — only if risks were found and the user opts to
+migrate — a full clone to a directory they choose, patched on a `qubit/pqc-migration` branch, with
+copy-pasteable diff/push commands whose base branch is read from the repo rather than assumed "main".
+
+**Two more bugs found while testing (commits `9eaecf3`, `f25a122`).**
+- `GET /api/v1/jobs` and `/jobs/{id}` returned **500 for any non-empty jobs table** — `JobOut`
+  declared the timestamps as `str` while the ORM stores `datetime`. Existing tests only ever listed an
+  EMPTY jobs table, which validates trivially, so the endpoint was broken in the real app while the
+  suite stayed green. Regression test verified to FAIL against the buggy types before fixing.
+- `_fail_task` fired `defer` unconditionally, but `deferred` only accepts `resume`, so a second
+  failure raised and replaced the real reason with "No transition 'defer' from state 'deferred'".
+  Ordinary path: one file with two findings, first patch fixes both, second task has nothing to do.
+- Efficiency: `_migrate` scanned the identical unpatched tree twice (~0.2 s demo app, ~0.4 s on a
+  40-file package, scales with repo size); one pre-scan now feeds both consumers.
+- JWT naming was inconsistent across languages (Python emitted bare `RSA`, the new Go/JS/TS packs
+  `RS256`), splitting the same finding into different assets by language. Aligned.
+
+**Gate at end:** ruff + ruff-format + mypy clean (except the 2 known pre-existing `union-attr` errors
+in `qubit_migrate/graph/order.py`) · **482 passed / 0 failed / 0 skipped** · coverage 82% on core ·
+all 3 docker integration tests green · dashboard tsc + oxlint + production build clean.
+
+**Process lesson worth keeping:** never pipe a build/test command into `tail`/`head` — it masks the
+real exit code. An earlier `docker compose build 2>&1 | tail -30` reported success while the dashboard
+build had actually failed on a transient npm timeout, and the stack "verified" afterwards was running
+5-day-old images.
+
+- **Next:** the 3 known API/type defects in BUILD_PLAN §Phase 3, structured logging, PyPI packaging,
+  backup demo video (human task). Also worth considering: an `UNKNOWN(...)`-rate check in CI, since
+  unresolved algorithms silently read as not-vulnerable.
+
 ### 2026-08-15 (night) — Integrated 8 external reference repos: JOSE/JWT grounding + backlog items B1/B2/B3 (Claude, Sonnet 5 → Opus 5)
 User cloned 8 repos into `git help/` (cryptoscan, cryptodeps, pqaudit, oqs-provider, golang-jwt/jwt,
 go-jose, tls-analyzer, hashicorp/vault) and asked to integrate them wherever possible + document

@@ -80,7 +80,7 @@ def test_deterministic_same_seed() -> None:
 def test_every_shor_vulnerable_algorithm_is_modellable() -> None:
     """Guard against a whole class of silent risk under-statement: if the canonical registry gains a
     Shor-vulnerable algorithm with no matching entry in `resource_estimates.yaml`, the simulator
-    returns no CDF for it and its risk score quietly collapses to the non-modellable fallback — i.e.
+    returns no CDF for it and its risk score quietly collapses to the non-modellable fallback: i.e.
     a breakable algorithm reads as unbreakable. This caught RS256/RS384/RS512/PS256/PS384/PS512 and
     ECDSA-P521 when the JOSE identifiers were added to the registry.
     """
@@ -102,7 +102,7 @@ def test_every_shor_vulnerable_algorithm_is_modellable() -> None:
 
 def test_jose_rsa_aliases_share_the_rsa2048_curve() -> None:
     """RS256/PS256 carry no key size in a JOSE header, so they anchor on RSA-2048 (weakest common
-    size ⇒ earliest break ⇒ most conservative risk). Their curves must therefore be identical."""
+    size = earliest break = most conservative risk). Their curves must therefore be identical."""
     sim = CRQCTimelineSimulator(CFG)
     base = sim.simulate("RSA-2048", n_trials=1500)
     for alg in ("RS256", "PS512"):

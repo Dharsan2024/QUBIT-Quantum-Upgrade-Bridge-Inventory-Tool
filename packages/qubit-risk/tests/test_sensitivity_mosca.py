@@ -71,3 +71,31 @@ def test_mosca_margin_and_too_late() -> None:
     assert long.margin_years < short.margin_years
     assert 0.0 <= long.p_too_late <= 1.0
     assert long.p_too_late >= short.p_too_late
+
+
+def test_no_curve_margin_still_subtracts_shelf_life_and_effort() -> None:
+    """Doc 02 F8 allows `Z = horizon - now` when no CRQC curve exists, but Z is the
+    arrival-time INPUT: the margin is still Z - (X + Y). The pipeline used to assign Z straight
+    to the margin, so every non-modelled asset reported the same horizon distance (+74.00y at
+    horizon 2100) and the shelf-life it had just computed was discarded. Two Grover-tier assets
+    with very different secrecy needs must NOT come out with the same margin.
+    """
+    from qubit_core.schemas import QuantumAttack, QuantumVulnerability
+    from qubit_risk import RiskPipeline
+
+    def grover_asset(snippet: str) -> CryptoAsset:
+        a = _asset(snippet=snippet)
+        a.algorithm = "MD5"
+        a.quantum_vulnerable = QuantumVulnerability(vulnerable=True, attack=QuantumAttack.grover)
+        return a
+
+    long_lived = grover_asset("medical_record_phi = patient.diagnosis")
+    ephemeral = grover_asset("tmp = ephemeral_cache_token")
+    assessed = RiskPipeline(CFG).assess([long_lived, ephemeral])
+    margins = {a.sensitivity.value: a.risk.mosca_margin_years for a in assessed}  # type: ignore[union-attr]
+
+    horizon_distance = float(CFG.hardware_priors["horizon_year"]) - assessed[0].discovered_at.year
+    # Never the bare horizon distance — X and Y must have been subtracted.
+    assert all(m < horizon_distance for m in margins.values()), margins
+    # And a longer secrecy requirement must leave a smaller margin.
+    assert len(set(margins.values())) > 1, f"shelf-life had no effect on the margin: {margins}"

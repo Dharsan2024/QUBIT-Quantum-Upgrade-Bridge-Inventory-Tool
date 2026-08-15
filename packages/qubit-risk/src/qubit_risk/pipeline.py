@@ -64,8 +64,8 @@ class RiskPipeline:
                 except Exception:
                     logger.exception("regressor.predict failed; using closed-form score")
 
+            y = migration_years(self.cfg, asset.usage_context.value)
             if curve is not None:
-                y = migration_years(self.cfg, asset.usage_context.value)
                 mr = mosca(
                     curve,
                     shelf_p90=sens.shelf_life_p90,
@@ -75,7 +75,16 @@ class RiskPipeline:
                 )
                 margin = mr.margin_years
             else:
-                margin = float(self.cfg.hardware_priors["horizon_year"] - self._now)
+                # No CRQC curve for this asset: Grover-tier symmetric/hash (doc 02 section 6.1.6),
+                # an already-quantum-safe algorithm, or an unresolved UNKNOWN(...). Doc 02 F8
+                # sanctions falling back to Z = horizon - now, but Z is the *arrival-time input*:
+                # the margin is still Z - (X + Y). This previously assigned Z straight to the
+                # margin, so every non-modelled asset reported an identical horizon distance
+                # (e.g. +74.00y at horizon 2100) and the shelf-life and migration effort this
+                # pipeline had just computed were silently discarded - two MD5 assets, one holding
+                # PHI with a 31-year secrecy need and one ephemeral, got the same margin.
+                z_margin = float(self.cfg.hardware_priors["horizon_year"] - self._now)
+                margin = round(z_margin - (sens.shelf_life_p90 + y), 2)
 
             asset.risk = RiskAnnotation(
                 score=score,

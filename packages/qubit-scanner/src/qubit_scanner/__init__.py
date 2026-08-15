@@ -6,7 +6,7 @@ Config / network / cert scanners land in later phases (see docs/design/01).
 
 from __future__ import annotations
 
-from .api import ScanAuthorizationError, scan_network, scan_paths
+from .api import ScanAuthorizationError, scan_network, scan_paths, scan_vault
 from .catalog import RuleCatalog
 from .code import CodeScanner
 from .models import Detection, ScanError, ScanResult, ScanStats
@@ -26,4 +26,5 @@ __all__ = [
     "normalize",
     "scan_network",
     "scan_paths",
+    "scan_vault",
 ]

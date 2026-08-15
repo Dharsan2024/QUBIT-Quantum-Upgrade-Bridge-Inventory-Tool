@@ -188,6 +188,36 @@ async def scan_network(
     return result
 
 
+async def scan_vault(
+    addr: str,
+    token: str,
+    *,
+    mount_transit: str = "transit",
+    mount_pki: str = "pki",
+) -> ScanResult:
+    """Poll a HashiCorp Vault server's transit/PKI mounts for managed keys and certs (backlog
+    item B1). Opt-in only — never runs as part of a default scan; requires an explicit Vault
+    address and token. Neither ``scan_paths`` (filesystem) nor ``scan_network`` (TLS-handshake)
+    fits this shape, so it's its own entry point — the same design ``scan_network`` itself uses
+    (not yet wired into qubit-api's job runner either; both are CLI-only for now)."""
+    from .vault.connector import scan_vault as _scan_vault
+
+    t0 = time.perf_counter()
+    result = ScanResult(stats=ScanStats())
+    detections = await _scan_vault(addr, token, mount_transit=mount_transit, mount_pki=mount_pki)
+
+    result.stats.detections = len(detections)
+    seen: dict[tuple[str, str | None, str | None, str | None], int] = {}
+    for det in detections:
+        key = (det.rule_id, det.raw_algorithm, det.location.host, det.location.service)
+        seen[key] = seen.get(key, 0) + 1
+        result.assets.append(normalize(det, occurrence=seen[key]))
+
+    result.stats.assets = len(result.assets)
+    result.stats.duration_s = round(time.perf_counter() - t0, 4)
+    return result
+
+
 def _collect_files(paths: list[Path], spec: pathspec.PathSpec) -> list[Path]:
     out: list[Path] = []
     for p in paths:
@@ -207,5 +237,6 @@ __all__ = [
     "ScanResult",
     "scan_network",
     "scan_paths",
+    "scan_vault",
     "verify_scan_authorization",
 ]

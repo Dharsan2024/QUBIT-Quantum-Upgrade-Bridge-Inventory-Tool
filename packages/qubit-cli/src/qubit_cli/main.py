@@ -186,6 +186,52 @@ def scan_network_cmd(
     raise typer.Exit(code=0 if result.assets else 3)
 
 
+@app.command(name="scan-vault")
+def scan_vault_cmd(
+    addr: Annotated[
+        str, typer.Argument(help="Vault server address, e.g. http://127.0.0.1:8200.")
+    ],
+    token: Annotated[
+        str,
+        typer.Option(
+            "--token",
+            envvar="VAULT_TOKEN",
+            help="Vault token (or set $VAULT_TOKEN). Never logged.",
+        ),
+    ],
+    mount_transit: Annotated[
+        str, typer.Option("--mount-transit", help="Transit secrets engine mount path.")
+    ] = "transit",
+    mount_pki: Annotated[
+        str, typer.Option("--mount-pki", help="PKI secrets engine mount path.")
+    ] = "pki",
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable JSON instead of a table.")
+    ] = False,
+) -> None:
+    """Scan a HashiCorp Vault server's transit/PKI mounts for managed keys and certs (opt-in;
+    never runs as part of `qubit scan`)."""
+    import asyncio
+
+    from qubit_scanner import scan_vault
+
+    result = asyncio.run(
+        scan_vault(addr, token, mount_transit=mount_transit, mount_pki=mount_pki)
+    )
+
+    if as_json:
+        console.print_json(
+            data={
+                "stats": result.stats.model_dump(),
+                "assets": [a.model_dump(mode="json") for a in result.assets],
+            }
+        )
+    else:
+        _render_table(result)
+
+    raise typer.Exit(code=0 if result.assets else 3)
+
+
 def _render_table(result) -> None:  # type: ignore[no-untyped-def]
     stats = result.stats
     console.print(

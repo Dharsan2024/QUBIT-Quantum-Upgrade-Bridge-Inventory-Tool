@@ -2103,6 +2103,7 @@ source = { editable = "packages/qubit-scanner" }
 dependencies = [
     { name = "crossplane" },
     { name = "cryptography" },
+    { name = "httpx" },
     { name = "pathspec" },
     { name = "pyyaml" },
     { name = "qubit-core" },
@@ -2114,6 +2115,7 @@ dependencies = [
 requires-dist = [
     { name = "crossplane", specifier = ">=0.5.8" },
     { name = "cryptography", specifier = ">=43.0" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "pathspec", specifier = ">=0.12" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "qubit-core", editable = "packages/qubit-core" },

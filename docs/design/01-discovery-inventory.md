@@ -385,6 +385,43 @@ applies) would be noise. Wired into `api.py::scan_paths` as a 5th toggleable sou
 in the default `scanners` set), dispatching by exact filename alongside the existing config/cert
 suffix-based dispatch.
 
+### 4.4b Vault transit/PKI connector (`vault/`, 2026-08 backlog item B1)
+
+An opt-in scanner source: `vault/connector.py`'s `scan_vault(addr, token, *, mount_transit=
+"transit", mount_pki="pki") -> list[Detection]` polls a running HashiCorp Vault server's HTTP API
+for managed keys and issued certificates. Original QUBIT code — Vault itself is BUSL-1.1 (not
+permissively open source), so nothing here is vendored; only its publicly-documented HTTP API
+response shapes are used, verified against the local reference clone (doc 07 §11 /
+[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)). Never runs as part of a default
+`scan_paths`/`scan_network` call — it's its own entry point, `qubit_scanner.api.scan_vault`,
+exposed as the `qubit scan-vault <addr> --token ...` CLI command, mirroring `scan_network`'s own
+"not yet wired into qubit-api's job runner" scope (both are CLI-only for now).
+
+**Transit:** `LIST transit/keys` → `GET transit/keys/:name` per key, mapping Vault's `type` string
+(`rsa-2048`, `ecdsa-p256/384/521`, `ed25519`, `aes*-gcm96`, `hmac`, and the Enterprise-only
+`ml-dsa`/`slh-dsa`/`hybrid` PQC types — confirmed Enterprise-gated in OSS Vault via the local
+source clone's `pqc_utils_ce.go` stub) to a `raw_algorithm` the registry can resolve where
+possible; `usage_context` inferred from the response's `supports_signing`/`supports_encryption`
+flags where Vault's type alone is ambiguous (RSA). **`source_scanner` reuses the existing `"key"`
+enum value** — `CryptoAsset.source_scanner` is a frozen 5-value enum (doc 00 binding frame); adding
+a 6th value would be a declared frame deviation (precedent: doc 04's hybrid-bridge additions), so
+this stays a zero-schema-change addition instead. **PKI:** `LIST pki/certs` (serials only) →
+`GET pki/cert/:serial` (returns the PEM) → handed to `CertScanner.parse_bytes` (§4.4b's own small
+additive refactor of `certs/scanner.py`: `parse_file` now delegates to a new
+`parse_bytes(content, location)`, so a cert fetched over HTTP gets the identical OID/algorithm
+mapping as one read from disk, not a second implementation).
+
+**Made real, not a stub:** `demo-lab/compose.vault.yml` (additive — doesn't touch
+`compose.classical.yml`/`compose.hybrid.yml` or the `vulnapp-python`/`vulnapp-java` contract) runs
+a Vault dev-mode server + a `vault-seed.sh` init container that creates 5 real transit keys (RSA,
+ECDSA, AES, Ed25519, HMAC — types guaranteed present in the public OSS image) and issues a real
+PKI certificate. Verified end-to-end against this exact stack: `qubit scan-vault
+http://localhost:8200 --token qubit-demo-root-token` → 9 real assets (5 keys + 2 certs × 2 findings
+each), 5 correctly flagged quantum-vulnerable. The PQC transit-type mapping logic (`ml-dsa`/
+`slh-dsa`/`hybrid`) is verified separately via crafted-response unit tests
+(`packages/qubit-scanner/tests/test_vault_connector.py`), since OSS Vault can't create those key
+types to test against live.
+
 ### 4.5 ScanJob
 
 ```python

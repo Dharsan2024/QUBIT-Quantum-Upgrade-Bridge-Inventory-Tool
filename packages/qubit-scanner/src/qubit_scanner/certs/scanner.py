@@ -11,9 +11,18 @@ class CertScanner:
     """Scans for and parses PEM/DER certificates."""
 
     def parse_file(self, file_path: Path) -> list[Detection]:
-        detections = []
         try:
             content = file_path.read_bytes()
+        except OSError:
+            return []
+        return self.parse_bytes(content, Location(file_path=str(file_path)))
+
+    def parse_bytes(self, content: bytes, location: Location) -> list[Detection]:
+        """Parse PEM/DER certificate bytes already in memory (e.g. fetched over HTTP from a
+        Vault PKI mount) — the byte-parsing counterpart of ``parse_file``, reused so certs
+        fetched from a live source get the same OID/algorithm-mapping logic as ones on disk."""
+        detections = []
+        try:
             # Basic heuristic to check if it's PEM or DER
             if b"-----BEGIN CERTIFICATE-----" in content:
                 certs = x509.load_pem_x509_certificates(content)
@@ -21,8 +30,6 @@ class CertScanner:
                 certs = [x509.load_der_x509_certificate(content)]
 
             for cert in certs:
-                loc = Location(file_path=str(file_path))
-
                 # Public Key Algorithm
                 pub_key = cert.public_key()
                 algo = "UNKNOWN"
@@ -48,7 +55,7 @@ class CertScanner:
                         key_size=key_size,
                         asset_type="certificate",
                         usage_context="signature",
-                        location=loc,
+                        location=location,
                         evidence_snippet=f"Subject: {cert.subject.rfc4514_string()}",
                         confidence="high",
                     )
@@ -64,7 +71,7 @@ class CertScanner:
                             raw_algorithm=sig_algo,
                             asset_type="algorithm-use",
                             usage_context="signature",
-                            location=loc,
+                            location=location,
                             evidence_snippet=f"Signature Algorithm: {sig_algo}",
                             confidence="high",
                         )

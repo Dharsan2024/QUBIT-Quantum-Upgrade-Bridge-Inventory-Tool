@@ -163,15 +163,16 @@ CI green incl. coverage gate; E5+E2+E1 landed (E3/E4 at least to their cut-line)
 ### Backlog: scoped future integrations (not in the Sep-30 critical path)
 
 Three genuinely new subsystems surfaced by the [external-repo evaluation](design/07-ecosystem-factcheck.md#11-external-reference-repos-evaluated-for-integration-2026-08-local-snapshot)
-(2026-08) — real product value, but each is bigger than the small JOSE/JWT gap-fill above and would
-displace committed Phase-3 scope if built now. Tracked here so they aren't forgotten; being built
-one at a time (B3 → B2 → B1), each traded explicitly against this backlog rather than Phase-3 scope:
+(2026-08) — real product value, bigger than the small JOSE/JWT gap-fill above. Built one at a time
+(B3 → B2 → B1), each traded explicitly against this backlog rather than committed Phase-3 scope.
+**All three landed 2026-08-15** — kept here (not folded into §4.1's coverage table) since they
+were never part of the committed Sep-30 critical path and this table is their evaluation record:
 
 | # | Feature | Source repo | One-line description | Status |
 |---|---|---|---|---|
 | B3 | **CNSA 2.0 policy timeline + live PQC-group probe upgrade** | csnp/tls-analyzer (MIT) | tls-analyzer's `cnsa2.go` milestone table (2025/2027/2030/2033/2035), generalized to QUBIT's asset-inventory model in `qubit_risk.cnsa2`; `network/clienthello.py`'s stub replaced with a real raw-ClientHello HelloRetryRequest probe covering all 3 standardized hybrid groups (not just `X25519MLKEM768`, unlike the reference's known toolchain-constrained gap). | **done** — see [02-risk-engine §6.7](design/02-risk-engine.md#67-cnsa-20-milestone-policy-qubit_riskcnsa2-2026-08-backlog-item-b3), [01-discovery-inventory §6.3](design/01-discovery-inventory.md#63-active-tls-enumeration-builtin-engine) |
 | B2 | **Dependency/SCA manifest scanner** | csnp/cryptodeps (Apache-2.0) | Parse `go.mod`/`package.json`/`requirements.txt`/`pyproject.toml`/`pom.xml`, map known crypto libraries to algorithms via a curated library database modeled on cryptodeps'. Fills QUBIT's former zero-SCA-parsing gap (previously, library attribution only came from source-level import detection). | **done** — see [01-discovery-inventory §4.4a](design/01-discovery-inventory.md#44a-dependencysca-manifest-scanner-deps-2026-08-backlog-item-b2), [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) |
-| B1 | **Vault transit/PKI connector** | hashicorp/vault (BUSL — API contract only, no vendored code) | New opt-in `qubit-scanner` source polling Vault's HTTP API (`LIST/GET transit/keys`, `LIST/GET pki/certs`) to inventory Vault-managed keys/certs as `CryptoAsset`s; Vault's transit engine already defines `ML_DSA`/`SLH_DSA`/`HYBRID` key types worth surfacing. Needs demo-lab wiring (a seeded Vault dev-mode service) to be real, not a stub. | pending |
+| B1 | **Vault transit/PKI connector** | hashicorp/vault (BUSL — API contract only, no vendored code) | New opt-in `qubit-scanner` source polling Vault's HTTP API (`LIST/GET transit/keys`, `LIST/GET pki/certs`) to inventory Vault-managed keys/certs as `CryptoAsset`s; Vault's transit engine already defines `ml-dsa`/`slh-dsa`/`hybrid` key types worth surfacing (Enterprise-only in OSS builds, confirmed). Demo-lab wiring (a seeded Vault dev-mode service, `compose.vault.yml`) makes it real, not a stub — verified end-to-end: 9 real assets, 5 quantum-vulnerable. | **done** — see [01-discovery-inventory §4.4b](design/01-discovery-inventory.md#44b-vault-transitpki-connector-vault-2026-08-backlog-item-b1) |
 
 ### Deferred to after the deadline (paper track — NOT required for Sep 30)
 Baselines (CryptoGuard, CogniCrypt) in containers; the four **experiment suites** (scanner P/R/F1 vs

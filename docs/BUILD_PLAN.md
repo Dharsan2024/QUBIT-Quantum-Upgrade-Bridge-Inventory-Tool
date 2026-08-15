@@ -142,6 +142,12 @@ paper. Scope is ordered by shippable-product value; the paper/experiment items a
   | E3 | Dependency graph surfaced (API + viz) | `GET /plans/{id}/graph` serializes nodes/edges/units; Migration-queue graph tab | **cut to endpoint-only** (drop the interactive viz) |
   | E4 | Governance sign-off + policy gate | apply blocked with `409 governance_gate` when policy unmet; approver `actor` logged; approvals strip in UI | **cut to single-approval + actor logging** |
 
+- **JOSE/JWT registry + rule-pack gap fill (landed 2026-08):** JWT `alg` identifiers (RS/PS/ES/HS/EdDSA)
+  are now canonical algorithm-registry entries, grounded against two external reference implementations
+  (go-jose, golang-jwt — see [07-ecosystem-factcheck §11](design/07-ecosystem-factcheck.md#11-external-reference-repos-evaluated-for-integration-2026-08-local-snapshot));
+  new Go/JS/TS JWT detection rule packs fill a gap where those 3 already-supported languages had zero JWT
+  rules; a `migration_kb.yaml` coverage gap (JWT-context assets got no recommendation) fixed alongside it.
+  Small and additive — did not displace anything else in this list.
 - **Packaging + ops:** `pip install qubit-cli` from a clean clone + `docker compose up` full stack verified
   on a fresh machine; a minimal structured-logging story; README quickstart.
 - **Test-suite hygiene:** mark the bridge e2e probe test `@pytest.mark.integration` (§ status report); add
@@ -153,6 +159,19 @@ Each item ships with its quality gate (`uv run ruff check <pkg> && uv run mypy <
 **Product acceptance (Sep 30):** on a clean machine, `docker compose up` (or `pip install`) yields a
 working product in <10 min (excl. model pull); real token auth enforced; the 4-phase demo runs end-to-end;
 CI green incl. coverage gate; E5+E2+E1 landed (E3/E4 at least to their cut-line).
+
+### Backlog: scoped future integrations (not in the Sep-30 critical path)
+
+Three genuinely new subsystems surfaced by the [external-repo evaluation](design/07-ecosystem-factcheck.md#11-external-reference-repos-evaluated-for-integration-2026-08-local-snapshot)
+(2026-08) — real product value, but each is bigger than the small JOSE/JWT gap-fill above and would
+displace committed Phase-3 scope if built now. Tracked here so they aren't forgotten, not built until
+capacity exists (post-Sep-30, or traded explicitly against something else in this list):
+
+| # | Feature | Source repo | One-line description | Rough size |
+|---|---|---|---|---|
+| B1 | **Vault transit/PKI connector** | hashicorp/vault (BUSL — API contract only, no vendored code) | New opt-in `qubit-scanner` source polling Vault's HTTP API (`LIST/GET transit/keys`, `LIST/GET pki/certs`) to inventory Vault-managed keys/certs as `CryptoAsset`s; Vault's transit engine already defines `ML_DSA`/`SLH_DSA`/`HYBRID` key types worth surfacing. Needs demo-lab wiring (a seeded Vault dev-mode service) to be real, not a stub. | New scanner source + demo-lab service + tests |
+| B2 | **Dependency/SCA manifest scanner** | csnp/cryptodeps (Apache-2.0) | Parse `go.mod`/`package.json`/`requirements.txt`/`pom.xml`, map known crypto libraries to algorithms via a curated library database modeled on cryptodeps'. Fills QUBIT's current zero-SCA-parsing gap (today, library attribution only comes from source-level import detection). | New qubit-scanner module (4 manifest parsers + curated data file) |
+| B3 | **CNSA 2.0 policy timeline + live PQC-group probe upgrade** | csnp/tls-analyzer (MIT) | tls-analyzer's `cnsa2.go` milestone table (2025/2027/2030/2033/2035) as a reference for migration-deadline tracking; its `quantum.go` as a reference implementation for replacing `network/clienthello.py`'s current stub (note its known upstream gap: only probes `X25519MLKEM768`, not the other two standardized hybrid groups — don't repeat that). | Design reference only until scoped |
 
 ### Deferred to after the deadline (paper track — NOT required for Sep 30)
 Baselines (CryptoGuard, CogniCrypt) in containers; the four **experiment suites** (scanner P/R/F1 vs

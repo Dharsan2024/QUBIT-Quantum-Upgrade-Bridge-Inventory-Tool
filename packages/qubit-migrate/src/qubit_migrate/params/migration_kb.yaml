@@ -97,6 +97,70 @@ entries:
       primitive layer.
 
   - vuln:
+      family: RSA
+      usage_context: token
+    target:
+      algorithm: ML-DSA-65
+      mode: pure
+      parameter_set: ML-DSA-65
+      category: 3
+      fips: FIPS-204
+    library:
+      python:
+        name: cryptography
+        min_version: "49"
+      java:
+        name: bouncycastle
+        min_version: "1.84"
+    guidance: >
+      RS256/RS384/RS512/PS256/PS384/PS512 (RSA-family JWT/JOSE signing) are Shor-breakable.
+      No mainstream JOSE library registers an ML-DSA `alg` identifier in 2026 — patch the
+      underlying signing primitive/key, not the JOSE layer, and rotate any long-lived tokens
+      signed under the old key.
+
+  - vuln:
+      family: ECDSA
+      usage_context: token
+    target:
+      algorithm: ML-DSA-65
+      mode: pure
+      parameter_set: ML-DSA-65
+      category: 3
+      fips: FIPS-204
+    library:
+      python:
+        name: cryptography
+        min_version: "49"
+      java:
+        name: bouncycastle
+        min_version: "1.84"
+    guidance: >
+      ES256/ES384/ES512 (ECDSA-family JWT/JOSE signing) are Shor-breakable. No mainstream JOSE
+      library registers an ML-DSA `alg` identifier in 2026 — patch the underlying signing
+      primitive/key, not the JOSE layer, and rotate any long-lived tokens signed under the old key.
+
+  - vuln:
+      family: HMAC
+      usage_context: token
+    target:
+      algorithm: HS384
+      mode: pure
+      parameter_set: HS384
+      category: 1
+      fips: FIPS-198-1
+    library:
+      python:
+        name: cryptography
+        min_version: "38"
+      java:
+        name: bouncycastle
+        min_version: "1.70"
+    guidance: >
+      HS256/HS384/HS512 (HMAC-family JWT/JOSE signing) are symmetric-keyed and only
+      Grover-weakened, not Shor-broken. This is a key-length upgrade (prefer HS384/HS512 over
+      HS256), not a KEM or signature-scheme replacement.
+
+  - vuln:
       family: ECDH
       usage_context: kex
     target:

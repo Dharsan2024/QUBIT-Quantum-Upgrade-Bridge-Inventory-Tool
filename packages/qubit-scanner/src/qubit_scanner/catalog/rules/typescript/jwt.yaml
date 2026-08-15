@@ -1,0 +1,83 @@
+schema: qubit-rule/v1
+language: typescript
+library:
+  name: jsonwebtoken
+  # See the identical comment in catalog/rules/javascript/jwt.yaml: no JS/TS import-extraction
+  # query exists yet in resolve.py, so detect_imports must stay empty or this rule never fires.
+  detect_imports: []
+rules:
+  - id: TS-JWT-RS256
+    title: "jsonwebtoken RS256 token signing (jwt.sign(payload, key, { algorithm: 'RS256' }))"
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @meth)
+          arguments: (arguments
+            (object
+              (pair
+                key: (property_identifier) @key
+                value: (string (string_fragment) @alg))))) @call
+      where:
+        - { capture: obj, equals: jwt }
+        - { capture: meth, equals: sign }
+        - { capture: key, equals: algorithm }
+        - { capture: alg, equals: RS256 }
+    extract:
+      algorithm: { literal: RS256 }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import jwt from 'jsonwebtoken';
+          function f(payload: object, privateKey: string): string {
+            const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
+            return token;
+          }
+      negative:
+        - |
+          import jwt from 'jsonwebtoken';
+          function f(payload: object, secret: string): string {
+            const token = jwt.sign(payload, secret, { algorithm: 'HS256' });
+            return token;
+          }
+
+  - id: TS-JWT-ES256
+    title: "jsonwebtoken ES256 token signing (jwt.sign(payload, key, { algorithm: 'ES256' }))"
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @meth)
+          arguments: (arguments
+            (object
+              (pair
+                key: (property_identifier) @key
+                value: (string (string_fragment) @alg))))) @call
+      where:
+        - { capture: obj, equals: jwt }
+        - { capture: meth, equals: sign }
+        - { capture: key, equals: algorithm }
+        - { capture: alg, equals: ES256 }
+    extract:
+      algorithm: { literal: ES256 }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import jwt from 'jsonwebtoken';
+          function f(payload: object, ecPrivateKey: string): string {
+            const token = jwt.sign(payload, ecPrivateKey, { algorithm: 'ES256' });
+            return token;
+          }
+      negative:
+        - |
+          import jwt from 'jsonwebtoken';
+          function f(payload: object, secret: string): string {
+            const token = jwt.sign(payload, secret, { algorithm: 'HS256' });
+            return token;
+          }

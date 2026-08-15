@@ -28,6 +28,16 @@ Sources: [NIST PQC Standardization](https://csrc.nist.gov/projects/post-quantum-
 - **OpenSSL 3.5.0 (LTS, released 2025-04-08, supported to 2030)** ships **native ML-KEM, ML-DSA, SLH-DSA** and enables **X25519MLKEM768 as a default TLS key-share**. OpenSSL 3.6 (Oct 2025) added LMS verification; composite-certificate verification remains a 2026 gap.
 - **liboqs-python 0.15.0** (PyPI upload 2026-05-15, Python >= 3.10, MIT) — actively maintained by Open Quantum Safe / PQCA.
 - **Verdict: oqs-provider is no longer needed for standard hybrid TLS.** OpenSSL 3.5+ does it natively and by default. oqs-provider remains useful only for non-standardized/experimental algorithms (e.g., FrodoKEM, HQC-in-TLS, exotic hybrids). QUBIT recommendations should target native OpenSSL 3.5+.
+- **2026-08 local verification:** cloned `open-quantum-safe/oqs-provider` @ `7e70df2` (2026-08-12,
+  `OQSPROVIDER_VERSION_TEXT = "0.12.0-dev"` — a dev snapshot past 0.11.0, not itself a tagged
+  release; treat its exact enable/disable set as directional, not gospel) to cross-check
+  `qubit_bridge/registry.py`'s hardcoded hybrid-group codepoints against its `ALGORITHMS.md`. All
+  three match: `X25519MLKEM768` = `0x11EC`, `SecP256r1MLKEM768` = `0x11EB`,
+  `SecP384r1MLKEM1024` = `0x11ED`. `ALGORITHMS.md` and `oqsprov/oqsprov_capabilities.c` confirm the
+  self-disabling behavior above directly in source: on OpenSSL >= 3.5, oqs-provider auto-disables
+  its own registrations for ML-KEM/ML-DSA/SLH-DSA and these three standardized hybrid groups in
+  favor of OpenSSL's native implementation — i.e. oqs-provider's own upstream code agrees it should
+  get out of the way here, independently confirming this design's choice not to depend on it.
 
 Sources: [liboqs releases](https://github.com/open-quantum-safe/liboqs/releases), [oqs-provider](https://github.com/open-quantum-safe/oqs-provider), [OpenSSL 3.5 notes](https://openssl-library.org/news/openssl-3.5-notes/), [liboqs-python PyPI](https://pypi.org/project/liboqs-python/), [OpenSSL 3.6 / LMS](https://linuxiac.com/openssl-3-6-released-with-new-fips-lms-signatures/)
 
@@ -59,7 +69,7 @@ Sources: [CycloneDX 1.7 release](https://cyclonedx.org/news/cyclonedx-v1.7-relea
 - **cryptobom-forge (Santander)** — builds CBOMs from CodeQL multi-repo variant-analysis output; niche, CodeQL-dependent, low activity.
 - **cdxgen** — CBOM as a side feature of SBOM generation; JS/TS/Java/Python; no PQC risk scoring.
 - **pqcscan (Anvil Secure, July 2025 — new since 2025)** — single-purpose scanner listing PQC algorithms supported by SSH/TLS servers; network-side, not code-side.
-- **CryptoScan / QRAMM toolkit (CSNP)** — code/config/dependency crypto discovery with CycloneDX CBOM export and quantum-risk flags.
+- **CryptoScan / QRAMM toolkit (CSNP)** — code/config/dependency crypto discovery with CycloneDX CBOM export and quantum-risk flags. Evaluated locally alongside 7 other repos for direct integration — see §11.
 - **CipherIQ cbom-generator (new)** — crypto asset discovery + PQC readiness scanner with CBOM output.
 
 **Commercial**
@@ -127,9 +137,37 @@ Sources: [GRI Quantum Threat Timeline 2025](https://globalriskinstitute.org/publ
 
 Sources: [BouncyCastle 1.79](https://www.bouncycastle.org/resources/latest-nist-pqc-standards-and-more-bouncy-castle-java-1-79/), [BouncyCastle 1.84](https://www.bouncycastle.org/resources/new-releases-bouncy-castle-java-1-84-and-bouncy-castle-java-lts-2-73-11/), [Trail of Bits: PQC in Python](https://blog.trailofbits.com/2026/06/30/shipping-post-quantum-cryptography-to-python/), [pyca tracking issue #14690](https://github.com/pyca/cryptography/issues/14690)
 
+## 11. External reference repos evaluated for integration (2026-08 local snapshot)
+
+Eight repos were cloned into `git help/` (git-ignored, not vendored/tracked — see §Caveats) and evaluated
+against QUBIT's actual current code for concrete integration opportunities. Two — golang-jwt and go-jose —
+were **adopted**: they ground the JOSE/JWT canonical-algorithm registry additions and the new Go/JS/TS JWT
+detection rule packs (see [01-discovery-inventory §4.2/§4.4](01-discovery-inventory.md#42-canonical-algorithm-registry-qubit-corealgorithmspy)).
+oqs-provider was **cited, not adopted** — it strengthens §2's OpenSSL-vs-oqs-provider verdict above with
+an exact local-source citation. The remaining five are real opportunities **scoped to backlog**
+(BUILD_PLAN.md "Backlog: scoped future integrations") rather than built now — each would be a genuinely
+new subsystem, and the current Phase-3 sprint (auth, E1–E5, packaging, demo readiness) is already fully
+budgeted through the Sep-30-2026 deadline. No code is vendored from any of the eight — only
+publicly-documented algorithm identifiers and HTTP API contracts are used, cross-verified against real
+implementations.
+
+| Repo | License | Commit pinned | What it does | Disposition |
+|---|---|---|---|---|
+| [golang-jwt/jwt](https://github.com/golang-jwt/jwt) | MIT | `1a11d37` (2026-07-06) | Go JWT signing/verification library; one file per alg family (`hmac.go`, `rsa.go`, `rsa_pss.go`, `ecdsa.go`, `ed25519.go`) | **Adopted** — grounds the Go JWT rule pack (`catalog/rules/go/jwt.yaml`) and cross-verifies the JOSE alg-name registry |
+| [go-jose/go-jose](https://github.com/go-jose/go-jose) | Apache-2.0 | `8d4e64d` (2026-06-22) | Go JOSE (JWE/JWS/JWT) implementation; `shared.go` has the fullest RFC 7518 alg-identifier list of any repo evaluated | **Adopted** — primary source-of-truth for the new `RS/PS/ES/HS`/`EdDSA` canonical registry entries |
+| [open-quantum-safe/oqs-provider](https://github.com/open-quantum-safe/oqs-provider) | MIT | `7e70df2` (2026-08-12) | OpenSSL 3.x provider implementing PQC/hybrid KEMs and signatures (ML-KEM, ML-DSA, SLH-DSA, Falcon, BIKE, HQC, FrodoKEM) | **Cited only** — confirms `qubit_bridge/registry.py`'s hybrid-group codepoints and its own self-disabling behavior on OpenSSL >= 3.5 (§2) |
+| [csnp/cryptoscan](https://github.com/csnp/cryptoscan) | Apache-2.0 | `11f0e46` (2026-07-28) | Go CLI: regex-based crypto-pattern scanner, quantum-risk classifier, migration-readiness score, CBOM/SARIF export; `PATTERNS.md` documents 90+ pattern IDs | **Backlog** — its pattern taxonomy and scoring formula are a reference for a future rule-pack expansion, not built now |
+| [csnp/cryptodeps](https://github.com/csnp/cryptodeps) | Apache-2.0 | `250c40d` (2026-08-10) | Go CLI: dependency-manifest (go.mod/package.json/requirements.txt/pom.xml) crypto-usage scanner with call-graph reachability (CONFIRMED/REACHABLE/AVAILABLE) and a 70k-line curated crypto-library database | **Backlog item 2** ("Dependency/SCA manifest scanner") — QUBIT currently has zero dependency-manifest parsing; this is the model for filling that gap |
+| [PQCWorld/pqaudit](https://github.com/PQCWorld/pqaudit) | MIT | `5e389b2` (2026-04-07) | TypeScript CLI: regex + tree-sitter AST scanning, 5-ecosystem dependency scanning, live TLS/SSH endpoint probing, YAML-driven (not hardcoded) rule schema | **Backlog** — its live-endpoint probing is a reference for the `network/clienthello.py` stub upgrade (backlog item 3) |
+| [csnp/tls-analyzer](https://github.com/csnp/tls-analyzer) | MIT | `82e63e6` (2026-08-05) | Go CLI: live TLS handshake grading, quantum-readiness scoring, CNSA 2.0 milestone compliance (policy-as-code YAML) | **Backlog item 3** ("CNSA 2.0 policy + live PQC-group probe") — `quantum.go` probes only `X25519MLKEM768` (a known upstream gap, not the other two standardized hybrid groups); don't repeat that if/when this is built |
+| [hashicorp/vault](https://github.com/hashicorp/vault) | **BUSL-1.1** (not permissive — flagged, not vendorable) | `744b611b` (2026-08-14) | Secrets-management server; `transit` (crypto-as-a-service, key types now include `ML_DSA`/`SLH_DSA`/`HYBRID`) and `pki` (X.509 CA/cert issuance) engines evaluated | **Backlog item 1** ("Vault transit/PKI connector") — original QUBIT code polling Vault's public HTTP API (`LIST/GET transit/keys`, `LIST/GET pki/certs`); the API *contract* isn't copyrighted even though the server implementation is BUSL |
+
 ---
 
 ## Caveats
+- The `git help/` local clones (§11) are research-only and git-ignored — never vendored, never
+  committed, no submodule. Anything actually adopted from them (the JOSE registry entries, the
+  Go/JS/TS JWT rules) is original QUBIT code/data, not copied source.
 - oqs-provider 0.11.0 release date reported inconsistently across sources (Dec 2024 vs Dec 2025); the release notes' statement that it syncs with liboqs 0.15.0 (Nov 2025) supports **Dec 2025**.
 - HQC draft FIPS: NIST page (updated 2026-06-16) still lists no draft — treat "draft 2026, final 2027" as expectation, not fact.
 - XGBoost patch version (3.1.1 vs 3.1.3) varies by source; pin ">=3.1,<4" and verify at build time.

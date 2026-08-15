@@ -1,0 +1,92 @@
+schema: qubit-rule/v1
+language: go
+library:
+  name: golang-jwt/jwt
+  # Left empty deliberately: resolve.py's Go import-extraction takes the first "/"-split
+  # segment of the import path (works for stdlib paths like "crypto/rsa" -> "crypto", but a
+  # hosted module path like "github.com/golang-jwt/jwt/v5" yields "github", not "jwt" — the
+  # identifier actually used in code per this package's `package jwt` clause). Grounded against
+  # the real golang-jwt source (git help/jwt/*.go): a non-empty detect_imports here would either
+  # be wrong ("jwt") and gate the rule off entirely, or right-but-meaningless ("github") and gate
+  # in every github.com import. Running the query unconditionally is the correct choice.
+  detect_imports: []
+rules:
+  - id: GO-JWT-RS256
+    title: golang-jwt RS256 token signing (jwt.NewWithClaims(jwt.SigningMethodRS256, ...))
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)
+          arguments: (argument_list
+            (selector_expression
+              operand: (identifier) @sm_pkg
+              field: (field_identifier) @sm)
+            (_))) @call
+      where:
+        - { capture: pkg, equals: jwt }
+        - { capture: fn, equals: NewWithClaims }
+        - { capture: sm_pkg, equals: jwt }
+        - { capture: sm, equals: SigningMethodRS256 }
+    extract:
+      algorithm: { literal: RS256 }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "github.com/golang-jwt/jwt/v5"
+          func f() {
+            token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.RegisteredClaims{})
+            _ = token
+          }
+      negative:
+        - |
+          package main
+          import "github.com/golang-jwt/jwt/v5"
+          func f() {
+            token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{})
+            _ = token
+          }
+
+  - id: GO-JWT-ES256
+    title: golang-jwt ES256 token signing (jwt.NewWithClaims(jwt.SigningMethodES256, ...))
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)
+          arguments: (argument_list
+            (selector_expression
+              operand: (identifier) @sm_pkg
+              field: (field_identifier) @sm)
+            (_))) @call
+      where:
+        - { capture: pkg, equals: jwt }
+        - { capture: fn, equals: NewWithClaims }
+        - { capture: sm_pkg, equals: jwt }
+        - { capture: sm, equals: SigningMethodES256 }
+    extract:
+      algorithm: { literal: ES256 }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "github.com/golang-jwt/jwt/v5"
+          func f() {
+            token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.RegisteredClaims{})
+            _ = token
+          }
+      negative:
+        - |
+          package main
+          import "github.com/golang-jwt/jwt/v5"
+          func f() {
+            token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{})
+            _ = token
+          }

@@ -217,6 +217,17 @@ Data file `algorithms.yaml` shipped in qubit-core; one entry per canonical algor
 
 API: `resolve(name_or_alias, key_size=None) -> CanonicalAlgorithm | None` (case-insensitive, strips separators, applies key size to parameterize families: `("rsa", 4096) -> RSA-4096`). Rules never encode quantum properties — the registry is the single source of truth (rules only name algorithms).
 
+**JOSE/JWT identifiers (2026-08, external-repo grounding):** `RS256/384/512`, `PS256/384/512`
+(family `RSA`), `ES256/384/512` (aliased onto `ECDSA-P256/P384/P521` — `ES512` means P-521, *not*
+P-384, an easy mistake), `EdDSA` (aliased onto `Ed25519`), and `HS256/384/512` (new family `HMAC`,
+kind `mac`, Grover-only) are now first-class canonical entries, so a JWT/JOSE `alg` header resolves
+through the registry instead of being collapsed to a bare family inline in each rule. Cross-verified
+against two independent RFC 7518 implementations pulled in for design research: go-jose (`shared.go`
+— the fullest identifier list) and golang-jwt (`hmac.go`/`rsa.go`/`rsa_pss.go`/`ecdsa.go`/
+`ed25519.go` — confirms the same names via a second implementation). See
+[07-ecosystem-factcheck §external reference repos](07-ecosystem-factcheck.md) for the full evaluation
+of both, plus 6 other repos considered and scoped to backlog.
+
 ### 4.3 Detection (scanner-internal, pre-normalization)
 
 ```python
@@ -307,6 +318,20 @@ Rule fields:
 - `extract.*.transform`: named parser — `java-transformation`, `openssl-cipherstring`, `hashlib-name`, `identity`.
 - `extract.key_size.from_sibling_call`: search the enclosing scope for a call on the same receiver variable (handles the `getInstance` + `initialize(2048)` split).
 - `examples.positive/negative`: **every rule ships its own test fixtures**; `qubit rules test` compiles them into pytest cases automatically (§8.2).
+
+**JWT rule packs (2026-08):** `catalog/rules/go/jwt.yaml` and `catalog/rules/{javascript,typescript}/jwt.yaml`
+fill a gap the language map (§3, `code/languages.py`) had left open since M1 — `.go`/`.js`/`.mjs`/`.ts`
+were parseable but had zero JWT detection rules. Go's pack targets golang-jwt's real API
+(`jwt.NewWithClaims(jwt.SigningMethodRS256, …)`, grounded directly against the local golang-jwt
+clone); the JS/TS packs target the `jsonwebtoken` npm API (`jwt.sign(payload, key, { algorithm:
+'RS256' })`), alg strings cross-verified against go-jose's RFC 7518 registry. Both mirror the
+existing `python/jwt.yaml` (PyJWT) pack's structure and scope (RS256 + ES256, HS256 as the negative
+example) — `test_rule_examples.py` proves each rule's embedded examples end-to-end, including the
+`_import_gate`, which these three packs deliberately set `detect_imports: []` to bypass:
+`resolve.py`'s Go import extractor takes a hosted module path's first "/"-segment (`"github"`, not
+`"jwt"`, for `github.com/golang-jwt/jwt/v5`), and there is no import-extraction query at all yet for
+javascript/typescript — a non-empty `detect_imports` on any of these three packs would silently gate
+the rule off forever rather than fail loudly.
 
 Config-scanner rules use the same envelope with `match.directive` instead of `match.query`:
 
@@ -675,7 +700,8 @@ registry: 12 new, 5 refreshed        cbom: docs/cbom-2026-09-14.json (valid, spe
 - IANA TLS Cipher Suites CSV + IANA Supported Groups CSV (public registry data) → generated Python tables (`make regen-tables`).
 - OpenSSL cipher-string keyword→suite map (extracted once from `openssl ciphers -V` across 1.1.1/3.0/3.5 in containers; committed).
 - CycloneDX `bom-1.7.schema.json` (Apache-2.0) for validation.
-- `algorithms.yaml` canonical registry (~90 entries at M2).
+- `algorithms.yaml` canonical registry (~90 entries at M2; +19 JOSE/JWT entries and aliases,
+  2026-08, grounded against go-jose + golang-jwt — see §4.2).
 
 ### 11.3 Frame deviations & clarifications
 

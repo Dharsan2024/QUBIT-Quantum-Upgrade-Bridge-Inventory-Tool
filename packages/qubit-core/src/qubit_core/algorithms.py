@@ -84,6 +84,16 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         classical_security_level=80,
         aliases=("rsa1024",),
     ),
+    # --- JOSE/JWT RSA signature algs (RFC 7518) — kept as their own canonical identities rather
+    # than collapsed into bare "RSA": PSS vs PKCS1-v1.5 is a real, worth-preserving distinction in
+    # CBOM output, and a JOSE `alg` header never carries a key size. Cross-verified against two
+    # independent implementations (go-jose `shared.go`, golang-jwt `rsa.go`/`rsa_pss.go`). ---
+    _shor(canonical="RS256", family="RSA", kind="asymmetric", aliases=("rs256",)),
+    _shor(canonical="RS384", family="RSA", kind="asymmetric", aliases=("rs384",)),
+    _shor(canonical="RS512", family="RSA", kind="asymmetric", aliases=("rs512",)),
+    _shor(canonical="PS256", family="RSA", kind="asymmetric", aliases=("ps256",)),
+    _shor(canonical="PS384", family="RSA", kind="asymmetric", aliases=("ps384",)),
+    _shor(canonical="PS512", family="RSA", kind="asymmetric", aliases=("ps512",)),
     # --- Elliptic curve (Shor-broken) ---
     _shor(
         canonical="ECDSA-P256",
@@ -91,14 +101,23 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         kind="asymmetric",
         key_size=256,
         classical_security_level=128,
-        aliases=("ecdsa", "prime256v1", "secp256r1", "p-256", "p256"),
+        aliases=("ecdsa", "prime256v1", "secp256r1", "p-256", "p256", "es256"),
     ),
     _shor(
         canonical="ECDSA-P384",
         family="ECDSA",
         kind="asymmetric",
         key_size=384,
-        aliases=("secp384r1", "p-384", "p384"),
+        aliases=("secp384r1", "p-384", "p384", "es384"),
+    ),
+    _shor(
+        # JOSE ES512 means P-521 (not P-512/P-384) — the curve is named for its ~521-bit prime
+        # field while the "512" in ES512 refers to the paired SHA-512 hash. Easy to get wrong.
+        canonical="ECDSA-P521",
+        family="ECDSA",
+        kind="asymmetric",
+        key_size=521,
+        aliases=("secp521r1", "p-521", "p521", "es512"),
     ),
     _shor(
         canonical="ECDH-P256",
@@ -115,7 +134,11 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         aliases=("curve25519", "x25519"),
     ),
     _shor(
-        canonical="Ed25519", family="EdDSA", kind="asymmetric", key_size=256, aliases=("ed25519",)
+        canonical="Ed25519",
+        family="EdDSA",
+        kind="asymmetric",
+        key_size=256,
+        aliases=("ed25519", "eddsa"),
     ),
     _shor(
         canonical="DH-2048",
@@ -147,6 +170,10 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         aliases=("3des", "des-ede3", "tripledes", "des3"),
     ),
     _grover(canonical="DES", family="DES", kind="symmetric", key_size=56, aliases=("des",)),
+    # --- JOSE/JWT HMAC algs (RFC 7518) — symmetric-keyed MAC, Grover-only (not Shor-broken). ---
+    _grover(canonical="HS256", family="HMAC", kind="mac", aliases=("hs256", "hmac-sha256")),
+    _grover(canonical="HS384", family="HMAC", kind="mac", aliases=("hs384", "hmac-sha384")),
+    _grover(canonical="HS512", family="HMAC", kind="mac", aliases=("hs512", "hmac-sha512")),
     # --- Hashes ---
     _safe(canonical="SHA-256", family="SHA-2", kind="hash", aliases=("sha256", "sha-256")),
     _safe(canonical="SHA-384", family="SHA-2", kind="hash", aliases=("sha384",)),

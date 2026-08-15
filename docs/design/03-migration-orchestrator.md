@@ -76,6 +76,16 @@ the code below, add no new graph/FSM logic, and do not touch the frozen `CryptoA
 Full designs, params-file shapes, and endpoint specs are in [doc 08 §2](08-extended-modules.md); tracking
 and cut-lines are in [BUILD_PLAN.md](../BUILD_PLAN.md).
 
+**`migration_kb.yaml` coverage fix (2026-08):** `lookup_kb()` requires an exact `family` +
+`usage_context` match (§4.5). The scanner's JWT rules (Python `python/jwt.yaml`, and the new Go/JS/TS
+packs added alongside this fix — see
+[01-discovery-inventory](01-discovery-inventory.md#44-rule-catalog-format--qubit-rulev1-the-rules-are-data-contract))
+all emit `usage_context: token`, but the KB only had `kex`/`signature`/`encryption-at-rest`/`hash`
+entries — every JWT-context detection silently got **no** migration recommendation. Added
+`{family: RSA, usage_context: token}`, `{family: ECDSA, usage_context: token}` (both → `ML-DSA-65`,
+same target as their `signature` siblings) and `{family: HMAC, usage_context: token}` (Grover-only:
+prefer `HS384`/`HS512` over `HS256`, a key-length upgrade not a signature-scheme swap).
+
 ---
 
 ## 2. Component breakdown

@@ -18,11 +18,32 @@ from qubit_core.schemas import QuantumAttack
         ("des", "DES"),
         ("DES", "DES"),
         ("x25519mlkem768", "X25519MLKEM768"),
+        # JOSE/JWT alg identifiers (RFC 7518) — added to ground the Go/JS JWT rule packs.
+        ("es256", "ECDSA-P256"),
+        ("es384", "ECDSA-P384"),
+        ("es512", "ECDSA-P521"),
+        ("eddsa", "Ed25519"),
+        ("RS256", "RS256"),
+        ("ps256", "PS256"),
+        ("HS256", "HS256"),
+        ("hmac-sha384", "HS384"),
     ],
 )
 def test_resolve_aliases(raw: str, expected: str) -> None:
     got = algorithms.resolve(raw)
     assert got is not None and got.canonical == expected
+
+
+def test_jose_alg_quantum_verdicts() -> None:
+    # RSA-signature and ECDSA-based JOSE algs are Shor-broken; HMAC is Grover-only.
+    for name in ("RS256", "PS256", "ES256", "ES512", "EdDSA"):
+        entry = algorithms.resolve(name)
+        assert entry is not None, name
+        assert entry.vulnerable is True and entry.attack is QuantumAttack.shor, name
+    for name in ("HS256", "HS384", "HS512"):
+        entry = algorithms.resolve(name)
+        assert entry is not None, name
+        assert entry.vulnerable is True and entry.attack is QuantumAttack.grover, name
 
 
 def test_resolve_rsa_by_key_size() -> None:

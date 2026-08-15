@@ -59,6 +59,32 @@ def test_lookup_md5_hash() -> None:
     assert entry.target.algorithm == "SHA3-256"
 
 
+def test_lookup_rsa_token() -> None:
+    """RSA-family JWT/JOSE signing (RS256/PS256/...) — previously an uncovered gap: the JWT
+    detection rules emit usage_context="token", but the KB only had kex/signature/
+    encryption-at-rest/hash entries, so every JWT-context asset silently got no recommendation."""
+    entry = lookup_kb("RSA", "token")
+    assert entry is not None
+    assert entry.target.algorithm == "ML-DSA-65"
+    assert entry.target.mode == "pure"
+
+
+def test_lookup_ecdsa_token() -> None:
+    entry = lookup_kb("ECDSA", "token")
+    assert entry is not None
+    assert entry.target.algorithm == "ML-DSA-65"
+    assert entry.target.mode == "pure"
+
+
+def test_lookup_hmac_token() -> None:
+    """HMAC-family JWT/JOSE signing (HS256/...) is Grover-only — a key-length upgrade, not a
+    signature-scheme replacement."""
+    entry = lookup_kb("HMAC", "token")
+    assert entry is not None
+    assert entry.target.mode == "pure"
+    assert entry.target.category == 1
+
+
 def test_lookup_case_insensitive() -> None:
     """Family matching is case-insensitive."""
     entry_lower = lookup_kb("rsa", "kex")

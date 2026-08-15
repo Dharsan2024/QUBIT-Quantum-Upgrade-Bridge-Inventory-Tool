@@ -71,3 +71,8 @@ Thumbs.db
 
 # Reproducible synthetic corpora (regenerate: qubit risk gen-dataset)
 datasets/
+
+# --- Local reference material (not part of the product, not vendored) ---
+# Third-party repos cloned for design research (see docs/design/07-ecosystem-factcheck.md).
+# Each contains its own nested .git — never stage this.
+git help/

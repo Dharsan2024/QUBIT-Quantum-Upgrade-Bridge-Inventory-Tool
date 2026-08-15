@@ -24,6 +24,7 @@ _FILES = (
     "mosca",
     "expert_survey",
     "bn_cpds",
+    "cnsa2_milestones",
 )
 
 
@@ -36,6 +37,7 @@ class RiskConfig:
     mosca: dict[str, Any]
     expert_survey: dict[str, Any] = field(default_factory=dict)
     bn_cpds: dict[str, Any] = field(default_factory=dict)
+    cnsa2_milestones: dict[str, Any] = field(default_factory=dict)
     params_hash: str = field(default="")
 
     @property

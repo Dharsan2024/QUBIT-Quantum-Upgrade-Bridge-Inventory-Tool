@@ -732,6 +732,34 @@ Both stored (`margin` on the asset per shared schema; `p_too_late` in `RiskExpla
 
 Commits are chunked (500 assets/transaction) so a crash leaves a resumable partial run.
 
+### 6.7 CNSA 2.0 milestone policy (`qubit_risk.cnsa2`, 2026-08 backlog item B3)
+
+A second, deterministic "deadline source" alongside the probabilistic Mosca `Z` (§6.5): NSA's
+Commercial National Security Algorithm Suite 2.0 defines 5 hard regulatory milestones
+(2025-12-31 → 2035-01-01) rather than a probabilistic CRQC-arrival estimate. Ported/adapted from
+`csnp/tls-analyzer`'s `cnsa2.go` (MIT) — see
+[07-ecosystem-factcheck §11](07-ecosystem-factcheck.md#11-external-reference-repos-evaluated-for-integration-2026-08-local-snapshot).
+Params: `qubit_risk/params/cnsa2_milestones.yaml` (loaded via the existing `RiskConfig`/
+`load_config` mechanism, same reproducibility-hash pattern as `mosca.yaml`).
+
+`evaluate_cnsa2(assets: list[CryptoAsset], cfg: RiskConfig, *, as_of: date | None = None) ->
+CNSA2Report`: for each milestone, checks whether the given asset inventory contains evidence
+satisfying its requirement (e.g. "hybrid KEX present" = any asset whose `algorithm` is one of the
+3 standardized hybrid groups) → `compliant | partial | in-progress | non-compliant`, weighted into
+an overall score. Milestones not yet due (relative to `as_of`) always score 100 regardless of
+current evidence — CNSA 2.0 milestones are forward-looking deadlines, not retroactive
+requirements, matching the reference's treatment of future milestones.
+
+**Deliberately kept separate** (a distinction the reference project documents having to add after
+shipping contradictory verdicts for the same scan): this module answers only "can the required
+algorithm class be produced at all" (the milestone question), never the stricter "is *everything*
+in the inventory compliant." A caller wanting that stricter pass builds it from the same asset list.
+
+**Scope line drawn here:** no REST endpoint or dashboard view yet — pure Python + params + tests
+(`packages/qubit-risk/tests/test_cnsa2.py`), structured so a thin `GET /scans/{id}/cnsa2` wrapper
+is a trivial future addition (matches the E3/E4 "cut to endpoint-only" precedent in
+[08-extended-modules](08-extended-modules.md)).
+
 ---
 
 ## 7. Failure modes & handling

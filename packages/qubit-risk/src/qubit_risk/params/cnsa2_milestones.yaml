@@ -1,0 +1,50 @@
+# CNSA 2.0 (Commercial National Security Algorithm Suite 2.0) migration-timeline policy.
+#
+# Ported/adapted from csnp/tls-analyzer's `internal/analyzer/cnsa2.go` (MIT license) — see
+# docs/design/07-ecosystem-factcheck.md §11 for the source evaluation. Weights sum to 100 and
+# come directly from the reference's `calculateTimelineScore`; algorithm-name values are
+# translated to QUBIT's own canonical registry names (qubit_core.algorithms).
+version: "2026.08"
+
+milestones:
+  - name: "Preparation Phase"
+    deadline: "2025-12-31"
+    weight: 10
+    requirements: >
+      Inventory crypto assets; identify quantum-vulnerable systems; begin testing PQC.
+  - name: "New NSS Systems"
+    deadline: "2027-01-01"
+    weight: 30
+    requirements: >
+      ML-KEM for key establishment; ML-DSA/SLH-DSA for signatures; AES-256; SHA-384/512.
+  - name: "TLS 1.3 Required"
+    deadline: "2030-01-02"
+    weight: 25
+    requirements: >
+      TLS 1.3 mandatory; hybrid PQC key exchange required; RSA/ECDH no longer acceptable.
+  - name: "Legacy System Update"
+    deadline: "2033-01-01"
+    weight: 20
+    requirements: >
+      Complete migration of existing systems; PQC certificates widely deployed.
+  - name: "Full PQC Transition"
+    deadline: "2035-01-01"
+    weight: 15
+    requirements: >
+      Pure PQC (no hybrid required); classical algorithms fully retired.
+
+# Algorithm classification, translated to qubit_core.algorithms canonical names.
+approved_key_exchange:
+  pure: ["ML-KEM-768", "ML-KEM-1024"]
+  hybrid: ["X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024"]
+approved_signatures: ["ML-DSA-65", "ML-DSA-87", "SLH-DSA"]
+approved_symmetric: ["AES-256"]
+approved_hash: ["SHA-384", "SHA-512"]
+
+# Allowed only until the "TLS 1.3 Required" (2030) deadline.
+transitional_until_2030: ["RSA-3072", "RSA-4096", "ECDSA-P384", "ECDH-P256", "X25519", "SHA-256"]
+
+# Unacceptable immediately.
+deprecated_immediately: ["RSA-2048", "RSA-1024", "SHA-1", "MD5", "3DES", "DES"]
+# Unacceptable from the "New NSS Systems" (2027) deadline onward.
+deprecated_by_2027: ["ECDSA-P256"]

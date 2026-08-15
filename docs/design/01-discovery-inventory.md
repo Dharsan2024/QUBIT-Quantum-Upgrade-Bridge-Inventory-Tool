@@ -490,6 +490,18 @@ for g in [0x11EC X25519MLKEM768, 0x11EB SecP256r1MLKEM768,
     probe(g) -> supported_groups
 ```
 
+**Implemented (2026-08, backlog item B3):** the PQC-group probe above is real —
+`network/clienthello.py`'s `RawClientHelloProber.probe_pqc_group` hand-builds and parses the raw
+TLS 1.3 bytes exactly as specified (no OpenSSL dependency, no real key generation), covering the 3
+standardized hybrid groups from `qubit_bridge.registry.HYBRID_GROUPS` (the legacy
+`0x6399` draft codepoint above is pre-standardization and intentionally not probed — it isn't in
+that registry). Verified both at the unit level (hand-crafted HRR/Alert byte fixtures) and against
+a real OpenSSL 3.5+ server (`qubit-nginx-hybrid`, `@pytest.mark.integration`,
+`packages/qubit-scanner/tests/test_clienthello.py`) — see
+[07-ecosystem-factcheck §11](07-ecosystem-factcheck.md#11-external-reference-repos-evaluated-for-integration-2026-08-local-snapshot).
+The general TLS1.2/1.3 cipher-suite enumeration loop above it remains out of scope for B3 (a
+separate, larger effort partially covered today by `active.py`'s `TlsEnumerator`).
+
 Concurrency: asyncio, per-host semaphore, global token-bucket rate limiter, 5 s connect / 5 s read timeouts, ≤ 3 retries with jitter. Output `TlsEndpointReport {host, port, versions:{v:[suites]}, groups[], cert_chain[], sni_used, timing}`.
 
 ### 6.4 Passive pcap analysis

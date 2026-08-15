@@ -155,7 +155,7 @@ async def scan_network(
             found = await enumerator.enumerate(target, port)
             detections.extend(found)
 
-            # Active probe B (Raw PQC)
+            # Active probe B (Raw PQC) — probes all 3 standardized hybrid groups internally
             if probe_pqc:
                 from .network.clienthello import RawClientHelloProber
 

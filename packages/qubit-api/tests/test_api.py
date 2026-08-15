@@ -78,6 +78,42 @@ def test_project_crud_and_scan_asset_flow(tmp_path: Path) -> None:
         assert cbom_resp.json()["specVersion"] == "1.7"
 
 
+def test_delete_project_cascades_through_job_history(tmp_path: Path) -> None:
+    """Regression test: DELETE /projects/{id} 500ed (FOREIGN KEY constraint failed) for any
+    project with a job history, because jobs.project_id's ondelete=CASCADE fix (see
+    qubit_core.db.models.Job) was only ever applied to the model source — Base.metadata
+    .create_all() cannot retroactively alter an existing table's constraints, and there was no
+    Alembic migration for it either. Every scan creates a Job row, so this hit every real
+    project. Fixed by migration 29c500adeb13 + running pending migrations at API startup
+    (qubit_api.app.create_app). A brand-new test database always goes through create_all(), which
+    already has today's schema, so this test only proves the endpoint itself now succeeds
+    end-to-end — the migration-application path is exercised separately against a real,
+    pre-existing database (verified manually; the migration predates any app code that could
+    assert it in a hermetic test without shipping a stale fixture database)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_repo(repo)
+    with _make_client(tmp_path) as client:
+        project_id = client.post(
+            "/api/v1/projects",
+            json={"name": "Delete Me", "root_path": str(repo)},
+        ).json()["id"]
+
+        scan_id = client.post(
+            f"/api/v1/projects/{project_id}/scans",
+            json={"targets": [str(repo)]},
+        ).json()["scan"]["id"]
+        _wait_for_scan(client, scan_id)
+
+        # The scan above created at least one Job row referencing this project — the exact
+        # shape that used to trip the FK constraint on delete.
+        delete_resp = client.delete(f"/api/v1/projects/{project_id}")
+        assert delete_resp.status_code == 204
+
+        assert client.get(f"/api/v1/projects/{project_id}").status_code == 404
+        assert client.get(f"/api/v1/scans/{scan_id}").status_code == 404
+
+
 def test_trends_and_scan_diff(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()

@@ -3,7 +3,14 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from qubit_core.db import Base, get_engine, session_factory
+from qubit_core.db import (
+    Base,
+    get_engine,
+    has_alembic_history,
+    session_factory,
+    stamp_head,
+    upgrade_to_head,
+)
 
 from .routers import assets_router, meta_router, projects_router, registry_router, scans_router
 from .routers.jobs import router as jobs_router
@@ -39,7 +46,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_factory = session_factory(engine)
 
     if settings.create_schema_on_startup:
-        Base.metadata.create_all(engine)
+        # create_all() only creates missing tables — it can never retroactively fix a constraint
+        # on a table that already exists (e.g. an ON DELETE clause corrected in a later model
+        # change). A database that already has Alembic history needs the actual migrations
+        # applied to receive fixes like that; a brand-new one gets today's schema for free from
+        # create_all() and just needs to be stamped so future migrations know where to start.
+        if has_alembic_history(engine):
+            upgrade_to_head(settings.db_url)
+        else:
+            Base.metadata.create_all(engine)
+            stamp_head(settings.db_url)
 
     # CORS: the desktop app's WebView loads the dashboard from tauri://localhost (or
     # http://tauri.localhost on Windows WebView2), which is a DIFFERENT origin from the API on

@@ -191,16 +191,16 @@ def scan_trends(session: Session, project_id: UUID) -> list[TrendPoint]:
     scans = session.scalars(
         select(ScanRow).where(ScanRow.project_id == project_id).order_by(ScanRow.seq.asc())
     ).all()
-    
+
     scan_ids = [s.id for s in scans]
     if not scan_ids:
         return []
-        
+
     all_rows = session.scalars(select(AssetRow).where(AssetRow.scan_id.in_(scan_ids))).all()
     rows_by_scan: dict[UUID, list[AssetRow]] = {sid: [] for sid in scan_ids}
     for r in all_rows:
         rows_by_scan[r.scan_id].append(r)
-        
+
     out: list[TrendPoint] = []
     for scan in scans:
         rows = rows_by_scan[scan.id]

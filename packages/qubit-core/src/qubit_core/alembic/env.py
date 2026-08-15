@@ -1,10 +1,12 @@
 """Alembic migration environment — wired to the qubit-core ORM models.
 
 The DB URL is resolved (in order of priority):
-1. The ``QUBIT_DB_URL`` environment variable.
-2. The ``sqlalchemy.url`` in alembic.ini (used only when running ``alembic``
+1. ``config.attributes["db_url"]`` — set by ``qubit_core.db.migrate`` when Alembic is driven
+   programmatically (e.g. from qubit-api startup), so it never has to touch process-global state.
+2. The ``QUBIT_DB_URL`` environment variable.
+3. The ``sqlalchemy.url`` in alembic.ini (used only when running ``alembic``
    directly from the CLI outside of the ``qubit db`` command).
-3. The default offline SQLite path from ``qubit_core.db.session.default_db_url()``.
+4. The default offline SQLite path from ``qubit_core.db.session.default_db_url()``.
 
 All sub-packages that add tables (qubit-migrate, qubit-risk) import and extend
 ``Base`` from ``qubit_core.db`` so that a single Alembic ``target_metadata``
@@ -40,7 +42,10 @@ target_metadata = Base.metadata
 
 
 def _get_url() -> str:
-    """Resolve the DB URL from the environment or alembic.ini."""
+    """Resolve the DB URL from Alembic config attributes, the environment, or alembic.ini."""
+    attr_url = config.attributes.get("db_url")
+    if attr_url:
+        return attr_url
     env_url = os.getenv("QUBIT_DB_URL")
     if env_url:
         return env_url

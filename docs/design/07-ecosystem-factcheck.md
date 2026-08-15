@@ -167,7 +167,9 @@ implementations.
 ## Caveats
 - The `git help/` local clones (§11) are research-only and git-ignored — never vendored, never
   committed, no submodule. Anything actually adopted from them (the JOSE registry entries, the
-  Go/JS/TS JWT rules) is original QUBIT code/data, not copied source.
+  Go/JS/TS JWT rules, the B2/B3 backlog items) is original QUBIT code/data, not copied source —
+  full attribution for what *was* adapted (schemas, data tables, cross-checked identifiers) is in
+  [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md).
 - oqs-provider 0.11.0 release date reported inconsistently across sources (Dec 2024 vs Dec 2025); the release notes' statement that it syncs with liboqs 0.15.0 (Nov 2025) supports **Dec 2025**.
 - HQC draft FIPS: NIST page (updated 2026-06-16) still lists no draft — treat "draft 2026, final 2027" as expectation, not fact.
 - XGBoost patch version (3.1.1 vs 3.1.3) varies by source; pin ">=3.1,<4" and verify at build time.

@@ -1,0 +1,127 @@
+# Curated dependency -> algorithm map. Schema and general approach adapted from csnp/cryptodeps'
+# `data/crypto-database.json` (Apache-2.0, Copyright 2025-2026 CyberSecurity NonProfit (CSNP)) —
+# see docs/design/07-ecosystem-factcheck.md §11 and THIRD_PARTY_NOTICES.md. Not a copy: this is a
+# small, independently-curated subset (verified against each library's real, documented API),
+# and deliberately schema-differs from the upstream dataset — algorithm entries name QUBIT's own
+# canonical registry identifiers (qubit_core.algorithms) and let normalize() resolve the quantum
+# verdict, rather than duplicating a quantum_risk/severity classification here (doc 01 §4.2: "the
+# registry is the single source of truth" — rules/data should only name algorithms, never judge
+# them).
+#
+# Deliberately NOT exhaustive (cryptodeps' source dataset has ~850 packages). This is a curated,
+# verified starting set spanning the 4 supported ecosystems, weighted toward the JWT/JOSE and
+# general-crypto libraries QUBIT's own code-scanner rule packs already reference. Extend by adding
+# entries here — no code changes needed (matches the project's "rules/data, not code" convention).
+version: "2026.08"
+
+packages:
+  # --- PyPI ---
+  - package: cryptography
+    ecosystem: pypi
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: ECDSA, usage_context: signature }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: ML-KEM-768, usage_context: kex } # native since >=48, doc 07 §10
+      - { algorithm: ML-DSA-65, usage_context: signature } # native since >=48, doc 07 §10
+
+  - package: pyjwt
+    ecosystem: pypi
+    algorithms:
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: HS256, usage_context: token }
+
+  - package: pycryptodome
+    ecosystem: pypi
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: DES, usage_context: encryption-at-rest } # legacy cipher still exposed by the API
+      - { algorithm: SHA-1, usage_context: hash }
+
+  - package: paramiko
+    ecosystem: pypi
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: ECDSA, usage_context: signature }
+      - { algorithm: Ed25519, usage_context: signature }
+
+  - package: pyopenssl
+    ecosystem: pypi
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: ECDSA, usage_context: signature }
+
+  # --- Go (go.mod module paths) ---
+  - package: github.com/golang-jwt/jwt/v5
+    ecosystem: go
+    algorithms:
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: HS256, usage_context: token }
+
+  - package: github.com/go-jose/go-jose/v4
+    ecosystem: go
+    algorithms:
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: HS256, usage_context: token }
+      - { algorithm: EdDSA, usage_context: token }
+
+  # --- npm ---
+  - package: jsonwebtoken
+    ecosystem: npm
+    algorithms:
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: HS256, usage_context: token }
+
+  - package: jose
+    ecosystem: npm
+    algorithms:
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: PS256, usage_context: token }
+      - { algorithm: EdDSA, usage_context: token }
+      - { algorithm: HS256, usage_context: token }
+
+  - package: node-jose
+    ecosystem: npm
+    algorithms:
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: HS256, usage_context: token }
+
+  - package: node-forge
+    ecosystem: npm
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: SHA-256, usage_context: hash }
+
+  # --- Maven (groupId:artifactId) ---
+  - package: "org.bouncycastle:bcprov-jdk18on"
+    ecosystem: maven
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: ECDSA, usage_context: signature }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: ML-KEM-768, usage_context: kex } # BC >=1.79, doc 07 §10
+      - { algorithm: ML-DSA-65, usage_context: signature } # BC >=1.79, doc 07 §10
+
+  - package: "io.jsonwebtoken:jjwt-api"
+    ecosystem: maven
+    algorithms:
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: HS256, usage_context: token }
+
+  - package: "com.nimbusds:nimbus-jose-jwt"
+    ecosystem: maven
+    algorithms:
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: PS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: EdDSA, usage_context: token }
+      - { algorithm: HS256, usage_context: token }

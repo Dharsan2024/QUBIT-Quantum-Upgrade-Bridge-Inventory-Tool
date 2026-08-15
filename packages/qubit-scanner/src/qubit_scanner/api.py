@@ -16,6 +16,7 @@ from .catalog import RuleCatalog
 from .certs.scanner import CertScanner
 from .code import CodeScanner, language_for
 from .config.parsers import NginxConfigParser
+from .deps.scanner import ManifestParser
 from .models import Detection, ScanError, ScanResult, ScanStats
 from .network.active import TlsEnumerator
 from .network.auth import (
@@ -41,6 +42,9 @@ _DEFAULT_IGNORES = [
 
 _MAX_FILE_BYTES = 2_000_000  # 2 MB per-file cap (NFR-8)
 
+# Dependency-manifest filenames the SCA scanner dispatches on (matched by exact name, not suffix).
+_MANIFEST_NAMES = {"go.mod", "package.json", "requirements.txt", "pyproject.toml", "pom.xml"}
+
 ProgressFn = Callable[[str, int, int], None]  # (stage, done, total)
 
 
@@ -55,12 +59,13 @@ def scan_paths(
     """Scan files and directories for cryptographic assets in source code, configs, and certs."""
     t0 = time.perf_counter()
     catalog = catalog or RuleCatalog.load()
-    scanners = scanners or {"code", "config", "cert", "secret"}
+    scanners = scanners or {"code", "config", "cert", "secret", "dependency"}
 
     code_scanner = CodeScanner(catalog)
     config_scanner = NginxConfigParser()
     cert_scanner = CertScanner()
     secret_scanner = SecretScanner()
+    manifest_scanner = ManifestParser()
     spec = pathspec.PathSpec.from_lines("gitignore", _DEFAULT_IGNORES)
 
     files = _collect_files(paths, spec)
@@ -102,6 +107,13 @@ def scan_paths(
                 found = secret_scanner.scan_file(f, repo=repo)
                 if found:
                     detections.extend(found)
+
+            # Dependency/SCA manifest scanner
+            if "dependency" in scanners and f.name in _MANIFEST_NAMES:
+                found = manifest_scanner.parse(f)
+                if found:
+                    detections.extend(found)
+                    result.stats.files_scanned += 1
 
         except Exception as e:  # never let one file abort the scan
             result.errors.append(ScanError(file=str(f), reason=repr(e)))

@@ -356,6 +356,35 @@ rules:
 
 Initial catalog (M1+M2 target ≈ 120 rules): Python `cryptography` (14), `pycryptodome` (12), `ssl`/`hashlib`/`hmac` (10); Java JCA/JCE (16), BouncyCastle (8); C OpenSSL EVP + legacy (18); Go `crypto/*` (16), `x/crypto` (6); Node `crypto`/`tls` (12); configs (~12).
 
+### 4.4a Dependency/SCA manifest scanner (`deps/`, 2026-08 backlog item B2)
+
+Fills a previously-total gap: before this, library attribution only came indirectly from
+source-level `import`/`detect_imports` gating in the code-scanner rules — there was no parsing of
+dependency manifests themselves. Grounded against csnp/cryptodeps (Apache-2.0) — see
+[07-ecosystem-factcheck §11](07-ecosystem-factcheck.md#11-external-reference-repos-evaluated-for-integration-2026-08-local-snapshot)
+and [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md).
+
+`deps/manifest.py`: one pure-stdlib parser per ecosystem (`go.mod`, `package.json`,
+`requirements.txt`, `pyproject.toml`'s PEP 621 `[project.dependencies]` only — not Poetry's
+table, `pom.xml`) → `Dependency(name, version, ecosystem)`. `deps/crypto_library_map.yaml`: a
+curated (not exhaustive — cryptodeps' own source dataset has ~850 packages; this is a
+hand-verified starting set spanning all 4 ecosystems, weighted toward the JWT/JOSE libraries
+QUBIT's own code-scanner rules already reference) `package → [{algorithm, usage_context}]` map.
+Unlike cryptodeps' schema, entries name QUBIT's own canonical registry identifiers directly and
+carry no separate quantum-risk classification — `normalize()`'s existing `algorithms.resolve()`
+call is the only place that decides quantum vulnerability (doc's own "registry is the single
+source of truth" principle, §4.2), so this data file can't drift out of sync with it.
+
+`deps/scanner.py`'s `ManifestParser.parse(file_path) -> list[Detection]` follows the exact
+`NginxConfigParser`/`CertScanner` shape: dispatch on `file_path.name`, look up each dependency
+(ecosystem + name, version-agnostic), emit `asset_type="library"` / `scanner="config"` /
+`confidence="medium"` findings. **Packages absent from the curated map are silently skipped** —
+most manifest entries aren't crypto-relevant, and forcing an `UNKNOWN(...)` placeholder for every
+one of them (unlike a specific *detected* line of crypto usage, where "nothing silently dropped"
+applies) would be noise. Wired into `api.py::scan_paths` as a 5th toggleable source (`"dependency"`
+in the default `scanners` set), dispatching by exact filename alongside the existing config/cert
+suffix-based dispatch.
+
 ### 4.5 ScanJob
 
 ```python

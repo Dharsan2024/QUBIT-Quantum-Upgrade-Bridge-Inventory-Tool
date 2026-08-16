@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-688%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-752%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 688 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 752 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
 
 ---
 
@@ -49,20 +49,24 @@ Five independent scanner sources, all real:
 | Source | What it does |
 |---|---|
 | **Code (AST)** | `tree-sitter` parsing driven by a data-only `qubit-rule/v1` YAML catalog — **145 rules across Python (39), Go (29), Java (21), JavaScript (23), TypeScript (23), C/C++ (10)**, covering key generation *and use* (sign/verify/encrypt/decrypt), symmetric ciphers, hashes, MACs, KDFs, JWT/JOSE, WebCrypto, OpenSSL EVP, TLS configuration, and the most-installed third-party crypto libraries. Every rule ships its own positive/negative fixtures, executed as tests. |
-| **Config** | **nginx, Apache httpd/mod_ssl, and OpenSSH** `sshd_config`/`ssh_config` — protocol versions, cipher suites, MACs, key-exchange and host-key algorithms. IANA suite names reduce to the component that governs HNDL risk; OpenSSH vendor suffixes and DH group numbers resolve to real algorithms and sizes. |
+| **Config** | **nginx, Apache httpd/mod_ssl, and OpenSSH** `sshd_config`/`ssh_config` — protocol versions, cipher suites, MACs, **key-exchange groups** (`ssl_ecdh_curve`, `SSLECDHCurve`, `SSLOpenSSLConfCmd Curves`) and host-key algorithms. Cipher-suite names resolve in **both** spellings — IANA `TLS_..._WITH_...` and the OpenSSL form real configs actually contain (`ECDHE-RSA-AES128-SHA`) — each reducing to the component that governs HNDL risk, with a prefix-less suite correctly read as static RSA key transport. OpenSSH vendor suffixes, DH group numbers, and the PQC hybrid KEX (`sntrup761x25519-sha512@openssh.com`) all resolve to real algorithms and sizes; a bare curve in a key-exchange list is reported as ECDH, not as a signature. |
 | **Network TLS** | Live handshake enumeration, plus a **raw-ClientHello PQC-group probe** that detects `X25519MLKEM768` / `SecP256r1MLKEM768` / `SecP384r1MLKEM1024` support with no OpenSSL dependency and no key generation (RFC 8446 HelloRetryRequest technique). |
 | **Certificates & keys** | X.509 PEM/DER parsing → public-key algorithm, key size, signature algorithm. |
 | **Dependencies (SCA)** | `go.mod` / `package.json` / `requirements.txt` / `pyproject.toml` / `pom.xml` → a curated library→algorithm map (14 packages across 4 ecosystems), with **version-aware capability gates** so a library too old to have PQC is never credited with it. |
 | **HashiCorp Vault** *(opt-in)* | Polls `transit` keys and `pki` certificates over Vault's HTTP API, including its `ml-dsa` / `slh-dsa` / `hybrid` key types. |
 
 ### 2. CycloneDX 1.7 Inventory
-Findings normalize into the frozen `CryptoAsset` schema against a canonical registry of **115 algorithms** (RSA/ECDSA/EdDSA/AES/SHA families, the JOSE-JWT `RS*`/`PS*`/`ES*`/`HS*`/`EdDSA` identifiers, ML-KEM, ML-DSA, SLH-DSA, and hybrid TLS groups). The DB is the source of truth; the CBOM is the exportable compliance artifact, validated against the official ECMA-424 schema.
+Findings normalize into the frozen `CryptoAsset` schema against a canonical registry of **120 algorithms** (RSA/ECDSA/EdDSA/AES/SHA families, the JOSE-JWT `RS*`/`PS*`/`ES*`/`HS*`/`EdDSA` identifiers, ML-KEM, ML-DSA, SLH-DSA, and hybrid TLS groups). The DB is the source of truth; the CBOM is the exportable compliance artifact, validated against the official ECMA-424 schema.
 
 ### 3. HNDL Risk Quantification
 A **Monte-Carlo simulation** of CRQC arrival blended with an expert-survey prior, a Bayesian network for HNDL exposure, a sensitivity classifier (PII/PHI/financial/credentials), an XGBoost regressor with split-conformal confidence intervals, and **Mosca's Inequality** (`margin = Z − (X + Y)`). A separate **CNSA 2.0 milestone evaluator** scores an inventory against NSA's regulatory deadlines (2025 → 2035) — a deterministic deadline source alongside the probabilistic one.
 
 ### 4. Automated Migration
-A dependency graph plus WSJF prioritization feeds a 12-state FSM. Patches come from deterministic `libcst` templates first and a **local, sandboxed LLM** where structural rewrites are needed (e.g. RSA key exchange → an ML-KEM-768 KEM-DEM pattern). A versioned migration knowledge base (`migration_kb.yaml`) and crypto-agility policy decide each target. Governance gates require sign-off before a patch can be applied.
+A dependency graph plus WSJF prioritization feeds a 12-state FSM. **9 transform rules** cover every asset class QUBIT discovers — web-server and OpenSSH configuration, dependency manifests, and code across Python/Go/C/JS/TS/Java — each declaring its target, its `data_compat` hazard (`in_place` / `dual_read` / `reencrypt_required`), and a worked example that doubles as few-shot prompt content.
+
+The division of labour between deterministic codemods and the **local, sandboxed LLM** is explicit rather than incidental. Where the correct output is a *constant* — `ssl_ecdh_curve X25519MLKEM768`, `KexAlgorithms sntrup761x25519-sha512@openssh.com`, a dependency version floor — the codemod is marked `codemod_authoritative` and an LLM never replaces it, even when one is explicitly requested: a 7B model asked to harden an nginx.conf produced a config that *looked* modern (TLS 1.2+1.3, AEAD suites) while silently omitting the hybrid group, which is the one line that actually makes the deployment quantum-safe. The LLM is used where the transform needs judgement about surrounding code (key lengths, nonce handling, call-site changes), behind a repair loop that feeds rejections back for up to 3 attempts and a preservation guard that refuses a rewrite which drops unrelated code or fails to parse.
+
+Because remediation output is also scanner *input*, hardened files are re-scanned and asserted on: the algorithms the codemods write must resolve in the canonical registry and must be rated quantum-safe, so a migration can prove where it landed instead of reporting its own output as `UNKNOWN`. A versioned migration knowledge base (`migration_kb.yaml`) and crypto-agility policy decide each target. Governance gates require sign-off before a patch can be applied.
 
 ### 5. Verification & Hybrid TLS Bridge
 No patch is trusted blindly: every patch is validated in a Docker sandbox and proven by re-scan. The bridge stands up a **hybrid PQC TLS terminator** on native **OpenSSL 3.5+** negotiating `X25519MLKEM768`, then swaps classical→hybrid **on the same port** and verifies the negotiated group.
@@ -159,7 +163,7 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-688 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+752 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video ·
 three known non-blocking defects listed in [BUILD_PLAN §Phase 3](docs/BUILD_PLAN.md).

@@ -396,6 +396,55 @@ rescan_expect:                  # validation stage 5 assertions
 
 Shipped **M2 rule pack (6 rules)** — trimmed from 10 to fit the reconciled M2 budget (cut per §10 cut-lines 3 & 4, applied up front): `py-rsa-enc-01`, `py-rsa-sig-01` (RSA-PSS→ML-DSA-65), `py-ecdsa-sig-01` (ECDSA→ML-DSA-65), `py-ecdh-kex-01` (ECDH→ML-KEM-768 hybrid TLS), `py-weakhash-01` (SHA-1/MD5 **password** hash → argon2id via `argon2-cffi`; generic SHA-1 digest → SHA-256; `data_compat: dual_read` with documented rehash-on-next-login guidance — SHA-256 is *not* a valid password-hash target), `conf-nginx-tls-01`. **Deferred to M3/stretch:** `java-rsa-enc-01`, `java-ecdsa-sig-01`, `java-rsa-keygen-01` (Java LLM path, cut-line 3 — Java ships template-only at M2), `conf-apache-tls-01` (cut-line 4). Note there is **no JWT/RS256→PQC-JOSE rule**: no mainstream JOSE library registers an ML-DSA `alg` as of mid-2026, so JWT signing assets get an inventory recommendation, not an automated patch.
 
+### 4.6 Shipped transform rule pack (9 rules) and matcher discipline
+
+*Updated 2026-08-16.* Detection outgrew migration badly — 145 detection rules against 2 transform rules — so the pack was extended to cover **every asset class the scanner can produce**, not only Python source. The shipped set:
+
+| Rule | Covers | Codemod | `data_compat` |
+|---|---|---|---|
+| `cfg-tls-01` | nginx / Apache TLS → TLSv1.2+1.3, AEAD suites, `ssl_ecdh_curve X25519MLKEM768` | `harden_tls_config` | `in_place` |
+| `cfg-ssh-01` | OpenSSH → `sntrup761x25519-sha512@openssh.com`, AEAD ciphers, SHA-2 MACs, Ed25519 host keys | `harden_tls_config` | `in_place` |
+| `dep-pqc-01` | dependency manifests → raise the pin to the PQC-capable release | `bump_crypto_dependency` | `in_place` |
+| `py-weakhash-01` | Python MD5/SHA-1 (password → argon2id, digest → SHA-256) | `weakhash_to_argon2_or_sha256` | `dual_read` |
+| `code-weakhash-02` | the same swap for Go / C / C++ / JS / TS / Java, moving the import with the call | `weakhash_to_sha256` | `dual_read` |
+| `py-rsa-kex-01` | RSA key exchange → ML-KEM-768 KEM+DEM | — (LLM) | `reencrypt_required` |
+| `py-ecdh-kex-01` | ECDH / X25519 key agreement → hybrid ML-KEM-768 | — (LLM) | `reencrypt_required` |
+| `py-signature-01` | ECDSA / RSA / JOSE `RS*`/`ES*` signing → ML-DSA-65 | — (LLM) | `dual_read` |
+| `py-weakcipher-01` | DES/3DES/RC4/Blowfish/AES-128 → AES-256-GCM | — (LLM) | `reencrypt_required` |
+
+**Matching is on provenance and path, not algorithm alone.** A config-hardening rule legitimately lists `RSA`, `AES-128` and `3DES`, because a weak TLS suite really does contain them — so `matches` gained three discriminators, each added to fix a concrete misroute:
+
+- `source_scanner` — without it, `cfg-tls-01` also claimed Python and Go **code** assets with the same algorithm names, and the config codemod was handed a source file it cannot edit.
+- `file_suffix` — separates rules that differ only by language (`py-weakhash-01`'s precise libcst codemod vs `code-weakhash-02`'s line-scoped token swap; both match MD5 in code).
+- `file_name` (basename globs) — provenance is *not* sufficient, because the dependency scanner also reports manifests as `source_scanner=config`. An `ECDSA-P256` pin in `requirements.txt` was therefore claimed by `cfg-ssh-01`, pointing the sshd codemod at a pip manifest. A suffix cannot fix this either: `sshd_config` has none, and nginx and Apache both use `.conf`.
+
+### 4.7 Where the local LLM belongs — and where it must not go
+
+§6.3's repair loop describes *how* the model is driven. This is the prior question of **when** it is used at all, and the answer is now declared in the rule data rather than inferred:
+
+```yaml
+codemod: harden_tls_config
+codemod_authoritative: true   # an LLM must never replace this, even under --generator llm
+```
+
+The rule is: **where the correct output is a constant, a model can only lose information.** `ssl_ecdh_curve X25519MLKEM768`, `KexAlgorithms sntrup761x25519-sha512@openssh.com` and a dependency version floor are fixed, known-correct edits that a tested, idempotent codemod writes exactly. Handing the same file to `qwen2.5-coder:7b` produced a config that *looked* modern — TLS 1.2+1.3, AEAD suites — while silently omitting the hybrid group, i.e. the one line that actually makes the deployment quantum-safe. Worse, it then blocked every sibling asset in that file: the model saw an already-modern-looking config and returned it unchanged, burning three repair attempts per asset. Marking those three rules authoritative cut an end-to-end LLM run from **1m43s to 17s** and restored the PQC group.
+
+The LLM keeps the work it is actually good at — transforms needing judgement about surrounding code: key lengths that change with the algorithm, nonce generation and storage, authentication tags the old call site has nowhere to put, and matching encrypt/decrypt sites. Two further guards apply there:
+
+- **A codemod probe before generation.** Several assets routinely share one file, so whichever task runs first remediates it for all of them. Where the rule has a codemod, it is run first purely as a *probe* — it reports "no change" exactly when its target pattern is gone — and the task is skipped immediately instead of spending attempts on a file with nothing left to fix. The probe's output is discarded.
+- **A preservation guard** (`check_rewrite`) rejects a rewrite that comes back empty, unchanged, retains under 70% of the original lines, fails `ast.parse` (Python), or has unbalanced brackets.
+
+### 4.8 Remediation output is scanner input
+
+Validation stage 5 re-scans the patched tree, which means **the algorithms a codemod writes must be names the canonical registry knows**. This was not merely a reporting nicety: `sntrup761x25519-sha512@openssh.com` — the post-quantum KEX the SSH codemod itself writes — did not resolve, so a freshly hardened `sshd_config` reported its strongest algorithm as `UNKNOWN(...)`, and `normalize()` rates `UNKNOWN` as **not vulnerable**. The migration appeared to succeed while producing an inventory that could not demonstrate it had landed on anything post-quantum.
+
+`packages/qubit-cli/tests/test_hardening_roundtrip.py` closes the loop as a standing guard: harden a deliberately weak config, re-scan the result through the real scanner, and assert (a) nothing in it is unrecognised and (b) a quantum-**safe** asset of the expected PQC algorithm is actually present. Only running the pipeline in this direction catches a name the writer and the reader disagree about.
+
+Two adjacent fixes came out of the same work:
+
+- `_stage_parses` in `transform/validate.py` defaulted every unknown language to Python, so a hardened `nginx.conf` was parsed as Python, produced ERROR nodes and had its patch rejected — which made config hardening, the highest-value transform in the system, impossible to apply at all. Non-code languages now **skip** the stage rather than being parsed as something else.
+- The `qubit run` summary counted `sum(before) − sum(after)` as "findings fixed" and so reported **zero** on a run that had just eliminated eight weak algorithms: hardening changes the inventory's granularity (one `ssl_ciphers` line becomes six explicit suites) and the replacements are modern but still Shor-breakable. It now names what was eliminated and what replaced it, and never lets a modern replacement pass as post-quantum.
+
 ---
 
 ## 5. Public interfaces

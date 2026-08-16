@@ -228,6 +228,15 @@ against two independent RFC 7518 implementations pulled in for design research: 
 [07-ecosystem-factcheck §external reference repos](07-ecosystem-factcheck.md) for the full evaluation
 of both, plus 6 other repos considered and scoped to backlog.
 
+**TLS cipher-suite names in BOTH spellings (2026-08-16).** A suite name describes a *set* of algorithms, so it reduces to the single component that governs HNDL exposure — the key exchange, because harvested traffic is decrypted by breaking it. The registry originally understood only the IANA form (`TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`), which is the form that appears in a TLS handshake. But real nginx `ssl_ciphers` and Apache `SSLCipherSuite` directives are written in **OpenSSL's** hyphenated spelling (`ECDHE-RSA-AES128-SHA`), so every cipher list in every production config resolved to `UNKNOWN(...)` — and since `normalize()` rates `UNKNOWN` as *not vulnerable*, a server pinned to a SHA-1 suite was reported clean. Both spellings now reduce identically, with two cases worth stating explicitly:
+
+- **A suite with no key-exchange prefix** (`AES128-SHA`, `DES-CBC3-SHA`, `RC4-MD5`) means static **RSA key transport** in OpenSSL's naming, so it resolves to RSA. These are the *worst* suites for harvest-now-decrypt-later precisely because they have no forward secrecy: one recovered RSA key opens every session ever recorded under it.
+- **`PSK` and `NULL`** were named by the suite-reduction tables but had no registry entry, so `TLS_PSK_WITH_*` and NULL-cipher suites fell through. TLS-PSK carries no public-key key exchange and is therefore honestly rated quantum-safe (assuming adequate PSK entropy, which this registry does not judge); a NULL cipher is plaintext on the wire and is flagged, since calling it "not quantum-vulnerable" would be true but badly misleading.
+
+To keep the OpenSSL reducer from hijacking ordinary cipher strings, it runs **last** in `resolve()` — after normal cipher/mode resolution — and requires a terminating MAC/PRF token. `aes-128-cbc` is a cipher and still resolves to AES-128; `AES128-SHA` is a suite.
+
+**Post-quantum and SSH host-key names.** `sntrup761x25519-sha512@openssh.com` (OpenSSH 9.x default hybrid KEX) and `mlkem768x25519-sha256` (OpenSSH 10) are registry entries, not just migration targets — a hardened config must be *recognisable* as hardened on re-scan, see [doc 03 §4.8](03-migration-orchestrator.md). Relatedly, `ssh-rsa` and `rsa-sha2-256/512` are now **separate** canonical entries: `ssh-rsa` specifically means RSA with a SHA-1 signature (deprecated by OpenSSH 8.8+), while `rsa-sha2-*` are the recommended replacements. Aliasing them together meant a hardened `sshd_config` still reported `ssh-rsa` as present, making the remediation look like it had achieved nothing. Both remain Shor-breakable — they are RSA — and that shared verdict is correct; only the key type escapes Shor.
+
 ### 4.3 Detection (scanner-internal, pre-normalization)
 
 ```python
@@ -355,6 +364,13 @@ rules:
 ```
 
 Initial catalog (M1+M2 target ≈ 120 rules): Python `cryptography` (14), `pycryptodome` (12), `ssl`/`hashlib`/`hmac` (10); Java JCA/JCE (16), BouncyCastle (8); C OpenSSL EVP + legacy (18); Go `crypto/*` (16), `x/crypto` (6); Node `crypto`/`tls` (12); configs (~12).
+
+**Key-exchange GROUP directives (added 2026-08-16).** The config parsers read protocol versions, cipher lists and certificate paths, but not the directive that selects the key-exchange group — `ssl_ecdh_curve` (nginx), `SSLECDHCurve` and the modern passthrough `SSLOpenSSLConfCmd Curves` (Apache). That is the **most consequential TLS directive for post-quantum readiness**: it is where `X25519MLKEM768` is enabled, and equally where a server pinned to `prime256v1` advertises a Shor-breakable key exchange. Omitting it meant the group governing HNDL exposure was absent from the inventory entirely, and a hardened config was indistinguishable from a vulnerable one on re-scan.
+
+Two details this required:
+
+- **`auto` names no algorithm.** nginx's `ssl_ecdh_curve auto` delegates the choice to OpenSSL, so it is skipped rather than reported — inventing a group would put a fabricated finding in the inventory.
+- **A bare curve name in a key-exchange list means key agreement, not signing.** `prime256v1` is the same curve whether it signs a certificate (ECDSA-P256) or agrees a session key (ECDH-P256), and the registry must pick one meaning for the bare name — it picks the signature one, which is right for a certificate's key algorithm and wrong here. Reporting a kex group as ECDSA understates HNDL urgency (a signature is not retroactively forgeable from a recording, so it carries no HNDL exposure at all) *and* misroutes migration, since transform rules match on `usage_context`. `config/groups.py::normalize_kex_group` re-spells bare curves to their ECDH identity; names already unambiguous (`X25519`, `X25519MLKEM768`) and anything unrecognised pass through untouched, so a new group name still reaches the registry and is still flagged if it does not resolve.
 
 ### 4.4a Dependency/SCA manifest scanner (`deps/`, 2026-08 backlog item B2)
 

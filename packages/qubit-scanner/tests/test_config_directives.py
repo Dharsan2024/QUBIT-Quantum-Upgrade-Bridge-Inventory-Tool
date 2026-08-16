@@ -9,8 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from qubit_core import algorithms
 from qubit_scanner.config.directives import ApacheConfigParser, SshConfigParser
+from qubit_scanner.config.parsers import NginxConfigParser
 from qubit_scanner.normalize import normalize
 
 _APACHE = """\
@@ -147,3 +149,77 @@ def test_tls13_suite_reduces_to_its_bulk_cipher() -> None:
     by the network scanner as its own asset — so the bulk cipher is the honest answer."""
     assert algorithms.resolve("TLS_AES_256_GCM_SHA384").canonical == "AES-256"  # type: ignore[union-attr]
     assert algorithms.resolve("TLS_CHACHA20_POLY1305_SHA256").canonical == "ChaCha20-Poly1305"  # type: ignore[union-attr]
+
+
+# ---------------------------------------------------------------------------
+# Key-exchange GROUP directives
+# ---------------------------------------------------------------------------
+
+
+def _algs(detections: list) -> set[str]:
+    return {d.raw_algorithm for d in detections}
+
+
+def test_nginx_ecdh_curve_directive_is_detected(tmp_path: Path) -> None:
+    """`ssl_ecdh_curve` is the most consequential TLS directive for post-quantum readiness - it is
+    where X25519MLKEM768 is enabled - and it was not being read at all, so the group governing HNDL
+    exposure was absent from the inventory entirely."""
+    cfg = tmp_path / "nginx.conf"
+    cfg.write_text(
+        "server {\n    ssl_ecdh_curve X25519MLKEM768:prime256v1;\n}\n",
+        encoding="utf-8",
+    )
+    found = _algs(NginxConfigParser().parse(cfg))
+    assert "X25519MLKEM768" in found
+    # A bare curve name in a KEX list means key agreement, not signing.
+    assert "ECDH-P256" in found
+    assert "ECDSA-P256" not in found
+
+
+def test_nginx_ecdh_curve_auto_names_no_algorithm(tmp_path: Path) -> None:
+    """`auto` delegates the choice to OpenSSL, so there is no algorithm to report; inventing one
+    would put a fabricated group in the inventory."""
+    cfg = tmp_path / "nginx.conf"
+    cfg.write_text("server {\n    ssl_ecdh_curve auto;\n}\n", encoding="utf-8")
+    assert not [d for d in NginxConfigParser().parse(cfg) if d.rule_id == "CFG-NGINX-CURVE-001"]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "SSLOpenSSLConfCmd Curves X25519MLKEM768:secp384r1",
+        "SSLECDHCurve X25519MLKEM768:secp384r1",
+    ],
+)
+def test_apache_curve_directives_both_spellings(line: str, tmp_path: Path) -> None:
+    """Apache spells the group list two ways and both appear in real configs."""
+    cfg = tmp_path / "httpd.conf"
+    cfg.write_text(line + "\n", encoding="utf-8")
+    found = _algs(ApacheConfigParser().parse(cfg))
+    assert "X25519MLKEM768" in found
+    assert "ECDH-P384" in found
+    # `Curves` is the OpenSSL config command name, not an algorithm.
+    assert "Curves" not in found
+
+
+def test_apache_confcmd_without_a_value_does_not_lose_the_rest_of_the_file(tmp_path: Path) -> None:
+    """A malformed `Curves` line used to raise IndexError, which the parser's broad handler turned
+    into a silent loss of every remaining finding in the file."""
+    cfg = tmp_path / "httpd.conf"
+    cfg.write_text("SSLOpenSSLConfCmd Curves\nSSLProtocol +TLSv1\n", encoding="utf-8")
+    assert "TLSv1" in _algs(ApacheConfigParser().parse(cfg))
+
+
+def test_weak_openssl_cipher_list_is_not_reported_clean(tmp_path: Path) -> None:
+    """End-to-end form of the resolution gap: a config pinned to OpenSSL-spelled weak suites must
+    produce vulnerable findings, not a clean bill of health."""
+    cfg = tmp_path / "nginx.conf"
+    cfg.write_text(
+        "server {\n    ssl_ciphers ECDHE-RSA-AES128-SHA:DES-CBC3-SHA:RC4-MD5;\n}\n",
+        encoding="utf-8",
+    )
+    found = _algs(NginxConfigParser().parse(cfg))
+    assert found, "weak OpenSSL cipher list produced no findings at all"
+    resolved = [algorithms.resolve(a) for a in found]
+    assert all(r is not None for r in resolved), f"unresolvable suites in {sorted(found)}"
+    assert any(r.vulnerable for r in resolved if r is not None)

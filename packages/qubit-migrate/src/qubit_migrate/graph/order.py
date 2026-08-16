@@ -22,12 +22,12 @@ class MigrationUnitInfo:
         return len(self.member_ids) == 1
 
     def max_risk(self, id_to_asset: dict[UUID, CryptoAsset]) -> float:
-        scores = [
-            id_to_asset[mid].risk.score
-            for mid in self.member_ids
-            if mid in id_to_asset and id_to_asset[mid].risk
-        ]
-        return max(scores, default=0.0)
+        # Bind the asset once instead of subscripting twice: it drops a redundant dict lookup per
+        # member and lets the `risk is not None` check actually narrow the type, which a
+        # `d[k].risk.score ... if d[k].risk` comprehension cannot do (nothing proves the two
+        # subscripts return the same object).
+        assets = (id_to_asset[mid] for mid in self.member_ids if mid in id_to_asset)
+        return max((a.risk.score for a in assets if a.risk is not None), default=0.0)
 
 
 def migration_order(
@@ -48,8 +48,8 @@ def migration_order(
 
     def _risk_key(node: int) -> float:
         members: list[UUID] = [g.nodes[n]["asset"].id for n in cond.nodes[node]["members"]]
-        scores = [id_map[m].risk.score for m in members if m in id_map and id_map[m].risk]
-        return -max(scores, default=0.0)
+        assets = (id_map[m] for m in members if m in id_map)
+        return -max((a.risk.score for a in assets if a.risk is not None), default=0.0)
 
     try:
         order = list(nx.lexicographical_topological_sort(cond, key=_risk_key))

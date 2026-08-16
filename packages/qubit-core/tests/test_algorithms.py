@@ -76,3 +76,78 @@ def test_size_wins_over_bare_family() -> None:
 def test_unknown_returns_none() -> None:
     assert algorithms.resolve("totally-made-up-cipher") is None
     assert algorithms.resolve("") is None
+
+
+# ---------------------------------------------------------------------------
+# OpenSSL-spelled cipher suites (nginx `ssl_ciphers` / Apache `SSLCipherSuite`)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "suite,expected",
+    [
+        # ECDHE-prefixed: the key exchange governs harvest-now-decrypt-later exposure.
+        ("ECDHE-RSA-AES128-GCM-SHA256", "ECDH-P256"),
+        ("ECDHE-ECDSA-CHACHA20-POLY1305", "ECDH-P256"),
+        ("ECDHE-RSA-AES128-SHA", "ECDH-P256"),
+        ("DHE-RSA-AES256-SHA", "DH"),
+        # No kex prefix is OpenSSL's spelling for static RSA key transport - no forward secrecy at
+        # all, so one recovered RSA key opens every recorded session. These are the worst suites for
+        # HNDL and they must not come back unresolved.
+        ("AES128-SHA", "RSA"),
+        ("DES-CBC3-SHA", "RSA"),
+        ("RC4-MD5", "RSA"),
+    ],
+)
+def test_openssl_cipher_suite_names_resolve(suite: str, expected: str) -> None:
+    """Real nginx and Apache configs use OpenSSL's hyphenated suite spelling, not the IANA
+    `TLS_..._WITH_...` form. Until these resolved, every `ssl_ciphers` line in every real config
+    became `UNKNOWN(...)`, which `normalize()` rates NOT vulnerable - so a server pinned to
+    `ECDHE-RSA-AES128-SHA` was reported clean."""
+    resolved = algorithms.resolve(suite)
+    assert resolved is not None, f"{suite} did not resolve"
+    assert resolved.canonical == expected
+    assert resolved.vulnerable, f"{suite} resolved to {expected} but is rated not vulnerable"
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("aes-128-cbc", "AES-128"),
+        ("aes-256-gcm", "AES-256"),
+        ("des-ede3-cbc", "3DES"),
+        ("chacha20-poly1305", "ChaCha20-Poly1305"),
+        ("hmac-sha256", "HS256"),
+        ("DESede/CBC/PKCS5Padding", "3DES"),
+    ],
+)
+def test_plain_cipher_strings_are_not_hijacked_by_suite_reduction(name: str, expected: str) -> None:
+    """The OpenSSL suite reducer runs LAST in `resolve()` precisely so it cannot pre-empt an
+    ordinary cipher string. `aes-128-cbc` is a cipher, not a suite, and must stay AES-128."""
+    resolved = algorithms.resolve(name)
+    assert resolved is not None and resolved.canonical == expected
+
+
+def test_null_cipher_is_flagged_rather_than_reported_safe() -> None:
+    """A NULL cipher is plaintext on the wire. No quantum attack is involved, but reporting it as
+    "not vulnerable" would be badly misleading - it is already harvested, no CRQC needed."""
+    resolved = algorithms.resolve("NULL")
+    assert resolved is not None
+    assert resolved.vulnerable
+
+
+def test_psk_suite_resolves_and_is_honestly_rated_quantum_safe() -> None:
+    """A PSK suite has no public-key key exchange, so there is nothing for Shor to factor - a long,
+    secret pre-shared key really is a quantum-safe stopgap. What matters is that it RESOLVES: as
+    `UNKNOWN(...)` it would also read as not-vulnerable, but for the wrong reason and with no way to
+    tell the two apart."""
+    resolved = algorithms.resolve("PSK-AES128-CBC-SHA")
+    assert resolved is not None and resolved.canonical == "PSK"
+    assert not resolved.vulnerable
+    assert resolved.attack is QuantumAttack.none
+
+
+def test_iana_psk_and_null_suites_no_longer_fall_through() -> None:
+    """`PSK` and `NULL` were named by the IANA suite-reduction tables but never existed as registry
+    entries, so `TLS_PSK_WITH_*` reduced to a name nothing could resolve."""
+    assert algorithms.resolve("TLS_PSK_WITH_AES_128_CBC_SHA") is not None

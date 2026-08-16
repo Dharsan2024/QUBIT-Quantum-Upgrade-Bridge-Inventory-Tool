@@ -242,7 +242,12 @@ def _migrate(path: Path, generator: str, *, in_place: bool = False) -> None:
         # Scratch git repo so real files are never edited in place.
         repo = scratch / "repo"
         if path.is_dir():
-            shutil.copytree(path, repo)
+            # `.git` is excluded deliberately. Copying it brought the SOURCE repo's history along,
+            # so `git init` landed on an already-initialised repo whose files were all committed
+            # already — `git add .` then staged nothing and `git commit -m baseline` exited 1,
+            # crashing the whole run. This only shows up when the target is itself a git repo,
+            # which is the common case for a real project.
+            shutil.copytree(path, repo, ignore=shutil.ignore_patterns(".git"))
         else:
             repo.mkdir(parents=True)
             shutil.copy2(path, repo / path.name)
@@ -304,11 +309,33 @@ def _migrate(path: Path, generator: str, *, in_place: bool = False) -> None:
         table.add_row(algo, str(b), f"[{style}]{a}[/{style}]" if style else str(a))
     console.print(table)
 
-    fixed = sum(before.values()) - sum(after.values())
-    if fixed > 0:
+    # A raw count delta (`sum(before) - sum(after)`) is NOT a fix metric, and reported one as zero
+    # on a run that had just correctly remediated eight weak algorithms. Two reasons it cannot work:
+    #
+    #  * Hardening changes the GRANULARITY of the inventory. One `ssl_ciphers HIGH:!aNULL` line
+    #    becomes six explicit AEAD suites, so the number of findings rises while the posture
+    #    improves. Comparing the cardinality of two differently-grained sets is meaningless.
+    #  * The replacements are modern but mostly still quantum-vulnerable. Swapping 3DES/TLSv1.0/
+    #    ssh-rsa for ECDHE/X25519/Ed25519/rsa-sha2 is a real classical win and Shor still breaks all
+    #    of the latter, so a vulnerable-count delta understates the classical progress AND
+    #    overstates the quantum progress at the same time.
+    #
+    # What is honest is set membership: which weak algorithms are GONE, and what took their place.
+    eliminated = sorted(a for a in before if after.get(a, 0) == 0)
+    introduced = sorted(a for a in after if before.get(a, 0) == 0)
+
+    if applied and eliminated:
         console.print(
-            f"[bold green]✔ {applied} patch(es) applied — {fixed} finding(s) fixed.[/bold green]"
+            f"[bold green]✔ {applied} patch(es) applied — "
+            f"{len(eliminated)} weak algorithm(s) eliminated:[/bold green] "
+            f"{', '.join(eliminated)}"
         )
+        if introduced:
+            # Never let a replacement pass as post-quantum just because it is modern.
+            console.print(
+                f"[dim]Replaced by (still quantum-vulnerable, so not the end of the job): "
+                f"{', '.join(introduced)}[/dim]"
+            )
         if in_place:
             console.print(f"[dim]Patched on branch [bold]{branch}[/bold] in {repo}[/dim]")
             console.print(
@@ -317,11 +344,39 @@ def _migrate(path: Path, generator: str, *, in_place: bool = False) -> None:
             )
         else:
             console.print(f"[dim]Patched copy kept at {repo} (your files were not touched)[/dim]")
+        if after:
+            console.print(
+                f"[yellow]{sum(after.values())} quantum-vulnerable finding(s) remain.[/yellow] "
+                f"{_next_step_hint(generator)}"
+            )
     else:
-        console.print(
-            "[yellow]No findings auto-fixed.[/yellow] Some algorithms (e.g. RSA key-exchange) "
-            "need the LLM generator: re-run with [bold]--generator llm[/bold] and Ollama running."
+        console.print(f"[yellow]No findings auto-fixed.[/yellow] {_next_step_hint(generator)}")
+
+
+def _next_step_hint(generator: str) -> str:
+    """What to actually do about the findings that are still there.
+
+    Telling someone to "re-run with --generator llm" on a run that ALREADY used the LLM generator is
+    worse than saying nothing: it implies an untried option exists and hides the real reason those
+    findings survived. Once the LLM has had its three attempts, what remains is either work the
+    rewrite guard rejected (a patch that did not preserve the file) or work no code patch can do at
+    all — reissuing a certificate, rotating an HSM/Vault key, upgrading a peer that has to agree on
+    the algorithm.
+
+    `auto` counts as having used the LLM: the orchestrator routes every rule WITHOUT a codemod to
+    it, which is precisely the set — key exchange, signatures, cipher rewrites — that the hint used
+    to point at. Only `template` genuinely leaves the LLM untried.
+    """
+    if generator in ("llm", "auto"):
+        return (
+            "The LLM generator has already run. What is left needs a human: rewrites its "
+            "preservation guard rejected, plus assets no patch can fix — certificate reissue, "
+            "HSM/Vault key rotation, and peers that must agree on the new algorithm."
         )
+    return (
+        "Key exchange and signatures need the LLM generator: re-run with "
+        "[bold]--generator llm[/bold] and Ollama running."
+    )
 
 
 def _counts(assets) -> dict[str, int]:  # type: ignore[no-untyped-def]

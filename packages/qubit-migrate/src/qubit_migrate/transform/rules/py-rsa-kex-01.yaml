@@ -2,6 +2,7 @@ id: py-rsa-kex-01
 language: python
 title: "RSA key transport/encryption → ML-KEM-768 hybrid (HPKE pattern)"
 matches:
+  source_scanner: [code]  # not config/cert/key assets — this codemod edits source
   algorithm: ["RSA-1024", "RSA-2048", "RSA-3072", "RSA-4096"]
   # canonical qubit-core UsageContext values
   usage_context: ["kex", "encryption-at-rest", "unknown"]

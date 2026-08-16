@@ -1,0 +1,51 @@
+id: cfg-ssh-01
+language: sshd_config
+title: "Weak OpenSSH algorithms → PQC-hybrid key exchange with AEAD ciphers"
+matches:
+  # Config-scanner assets ONLY. These algorithm names also occur in application code, and
+  # without this the config codemod would be pointed at a source file it cannot edit.
+  source_scanner: [config]
+  # OpenSSH config filenames. `source_scanner: [config]` is not enough on its own: the dependency
+  # scanner reports manifests as `config` too, so without this an ECDSA-P256 pin in
+  # requirements.txt was claimed here and the sshd codemod was pointed at a pip manifest.
+  file_name: ["sshd_config", "ssh_config", "sshd_config.*", "*.sshd_config"]
+  algorithm:
+    ["ssh-rsa", "ssh-dss", "DH-1024-group1", "DH-2048-group14", "HMAC-SHA1", "HMAC-MD5",
+     "3DES", "AES-128", "RC4", "ECDSA-P256"]
+  usage_context: ["kex", "signature", "token", "encryption-at-rest"]
+  library_name: [null]
+target:
+  algorithm: sntrup761x25519-sha512
+  mode: hybrid
+  hybrid_group: sntrup761x25519-sha512
+  category: 3
+  fips: none
+data_compat: in_place
+semantic_note: >
+  OpenSSH's sntrup761x25519-sha512 is a post-quantum hybrid key exchange (default since OpenSSH 9.x),
+  so this is the SSH equivalent of adding X25519MLKEM768 to a TLS terminator - it protects recorded
+  SSH sessions against harvest-now-decrypt-later immediately. Ciphers are reduced to AEAD
+  (aes256-gcm, chacha20-poly1305), MACs to encrypt-then-MAC SHA-2, and host keys to Ed25519 plus
+  rsa-sha2-* - dropping ssh-rsa, which is RSA with a SHA-1 signature and deprecated by OpenSSH 8.8+
+  for that reason. Nothing stored is re-encrypted, so this takes effect on the next connection.
+codemod: harden_tls_config
+# The correct output here is a constant (the hybrid group / the version floor), so the codemod is
+# authoritative and an LLM must not replace it even under --generator llm.
+codemod_authoritative: true
+prompt_constraints:
+  - "KexAlgorithms must list sntrup761x25519-sha512@openssh.com first."
+  - "Do not remove all host-key algorithms; keep ssh-ed25519 and rsa-sha2-512 so logins still work."
+example:
+  before: |
+    Ciphers aes128-cbc,3des-cbc
+    MACs hmac-sha1
+    KexAlgorithms diffie-hellman-group1-sha1
+    HostKeyAlgorithms ssh-rsa
+  after: |
+    Ciphers aes256-gcm@openssh.com,chacha20-poly1305@openssh.com,aes256-ctr
+    MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+    KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256
+    HostKeyAlgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256
+rescan_expect:
+  gone:
+    algorithm_prefix: ["ssh-rsa", "ssh-dss", "DH-1024-group1", "HMAC-SHA1", "3DES"]

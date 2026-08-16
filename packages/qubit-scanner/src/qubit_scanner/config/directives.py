@@ -17,12 +17,17 @@ from qubit_core import Location
 from qubit_scanner.models import Detection
 
 from .cipherstring import expand_cipher_string
+from .groups import normalize_kex_group
 
 # --- Apache httpd / mod_ssl -------------------------------------------------------------------
 # `SSLProtocol -all +TLSv1.2` — tokens may carry +/- prefixes, which are stripped before resolving.
 _APACHE_PROTOCOL_DIRECTIVES = {"sslprotocol", "sslproxyprotocol"}
 _APACHE_CIPHER_DIRECTIVES = {"sslciphersuite", "sslproxyciphersuite"}
 _APACHE_CERT_DIRECTIVES = {"sslcertificatefile", "sslcertificatechainfile", "sslcacertificatefile"}
+# Legacy spelling of the key-exchange group list; the modern one is
+# `SSLOpenSSLConfCmd Curves <list>`, matched separately because its first token is a command name
+# rather than an algorithm.
+_APACHE_CURVE_DIRECTIVES = {"sslecdhcurve", "sslproxyecdhcurve"}
 
 # --- OpenSSH sshd_config / ssh_config ---------------------------------------------------------
 # Comma-separated algorithm lists. Each element is a real algorithm name, so each becomes a finding.
@@ -97,6 +102,37 @@ class ApacheConfigParser:
                                 raw_algorithm=suite,
                                 asset_type="protocol",
                                 usage_context="tls",
+                                location=loc,
+                                evidence_snippet=f"{name} {value}",
+                            )
+                        )
+                elif name in _APACHE_CURVE_DIRECTIVES or (
+                    name == "sslopensslconfcmd" and value.split(None, 1)[0].lower() == "curves"
+                ):
+                    # The key-exchange GROUP — where X25519MLKEM768 is enabled, and where a server
+                    # pinned to prime256v1 admits a Shor-breakable key exchange. Apache spells this
+                    # two ways: the legacy `SSLECDHCurve <list>` and the modern passthrough
+                    # `SSLOpenSSLConfCmd Curves <list>`, whose first token is the OpenSSL config
+                    # command name and not an algorithm, so it is dropped.
+                    if name == "sslopensslconfcmd":
+                        # `Curves` with no list is malformed; skip rather than IndexError, which the
+                        # broad handler below would turn into a silent loss of the whole file.
+                        parts = value.split(None, 1)
+                        if len(parts) < 2:
+                            continue
+                        curve_list = parts[1]
+                    else:
+                        curve_list = value
+                    for curve in (c.strip() for c in curve_list.replace(" ", ":").split(":")):
+                        if not curve or curve.lower() == "auto":
+                            continue
+                        detections.append(
+                            Detection(
+                                scanner="config",
+                                rule_id="CFG-APACHE-CURVE-001",
+                                raw_algorithm=normalize_kex_group(curve),
+                                asset_type="protocol",
+                                usage_context="kex",
                                 location=loc,
                                 evidence_snippet=f"{name} {value}",
                             )

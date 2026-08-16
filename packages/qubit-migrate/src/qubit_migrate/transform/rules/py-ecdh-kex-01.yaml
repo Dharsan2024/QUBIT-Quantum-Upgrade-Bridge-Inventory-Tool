@@ -1,0 +1,64 @@
+id: py-ecdh-kex-01
+language: python
+title: "ECDH/X25519 key agreement → X25519 + ML-KEM-768 hybrid KEM"
+matches:
+  source_scanner: [code]
+  file_suffix: [".py"]
+  algorithm: ["ECDH-P256", "ECDH-P384", "ECDH-P521", "X25519", "X448", "EC", "ECDH"]
+  usage_context: ["kex", "unknown"]
+  library_name: ["cryptography", null]
+target:
+  algorithm: ML-KEM-768
+  mode: hybrid
+  hybrid_group: X25519MLKEM768
+  parameter_set: ML-KEM-768
+  category: 3
+  fips: FIPS-203
+# The wire format changes: a KEM sends an encapsulation instead of a public-key share, so both peers
+# must be upgraded together and a recorded handshake cannot be replayed against the new code.
+data_compat: reencrypt_required
+semantic_note: >
+  ECDH key agreement is Shor-breakable, and it is the single worst case for
+  harvest-now-decrypt-later: an adversary recording traffic today derives the shared secret once a
+  CRQC exists and reads everything retroactively. Migrate to a HYBRID construction - keep the
+  existing X25519 exchange and additionally encapsulate with ML-KEM-768, then feed BOTH shared
+  secrets into the KDF (X25519 output concatenated with the ML-KEM output, before HKDF). Hybrid
+  rather than pure PQC is deliberate: it stays secure if either primitive is broken, which is the
+  accepted transition posture while PQC implementations mature. Requires cryptography>=48 for the
+  mlkem module. Both sides of the exchange must be upgraded together, because this changes the wire
+  format.
+prompt_constraints:
+  - "Keep the existing X25519/ECDH exchange; ADD ML-KEM-768, do not replace it."
+  - "Combine both shared secrets into the KDF input; never use only one of them."
+  - "Use cryptography's mlkem module (MLKEM768PrivateKey); do NOT import liboqs."
+  - "Preserve the function signatures so existing callers keep working."
+example:
+  before: |
+    from cryptography.hazmat.primitives.asymmetric import x25519
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.primitives import hashes
+
+    def derive_shared(peer_public_bytes: bytes) -> bytes:
+        priv = x25519.X25519PrivateKey.generate()
+        peer = x25519.X25519PublicKey.from_public_bytes(peer_public_bytes)
+        shared = priv.exchange(peer)
+        return HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"hs").derive(shared)
+  after: |
+    from cryptography.hazmat.primitives.asymmetric import mlkem, x25519
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.primitives import hashes
+
+    def derive_shared(peer_public_bytes: bytes, peer_kem_public: bytes) -> bytes:
+        priv = x25519.X25519PrivateKey.generate()
+        peer = x25519.X25519PublicKey.from_public_bytes(peer_public_bytes)
+        classical_shared = priv.exchange(peer)
+
+        kem_public = mlkem.MLKEM768PublicKey.from_public_bytes(peer_kem_public)
+        ciphertext, pq_shared = kem_public.encapsulate()
+
+        # Hybrid: remains secure while EITHER primitive holds.
+        combined = classical_shared + pq_shared
+        return HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"hs").derive(combined)
+rescan_expect:
+  present:
+    algorithm_prefix: ["ML-KEM-768"]

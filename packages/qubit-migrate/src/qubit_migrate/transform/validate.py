@@ -75,15 +75,52 @@ def _stage_applies(
         return StageResult("fail", str(exc), time.monotonic() - t0)
 
 
+# Rule languages that are NOT source code and therefore have no tree-sitter grammar: config files
+# and dependency manifests. They must SKIP the parse stage, not be parsed as something else.
+_NON_CODE_LANGUAGES = frozenset(
+    {"nginx", "apache", "httpd", "sshd_config", "ssh_config", "config", "manifest", "multi", ""}
+)
+
+# Rule language -> tree-sitter grammar name, for the languages that do have one.
+_TS_LANGUAGES = {
+    "python": "python",
+    "java": "java",
+    "go": "go",
+    "javascript": "javascript",
+    "typescript": "typescript",
+    "c": "c",
+    "cpp": "cpp",
+}
+
+
 def _stage_parses(patched_source: str, language: str = "python") -> StageResult:
     t0 = time.monotonic()
+    lang = (language or "").lower()
+
+    # This defaulted ANY unrecognised language to "python", so a hardened nginx.conf or sshd_config
+    # was parsed as Python, produced ERROR nodes, and the patch was rejected — which made config
+    # hardening (the highest-value quantum-safety transform there is, since it turns on
+    # X25519MLKEM768 for all traffic) impossible to apply. A non-code file has no grammar to check
+    # against, so the honest result is `skipped`; the `applies` and `rescan` stages still gate it.
+    if lang in _NON_CODE_LANGUAGES:
+        return StageResult(
+            "skipped",
+            f"{lang or 'unknown'} is not source code — no tree-sitter grammar to parse against",
+            time.monotonic() - t0,
+        )
+
     try:
         from tree_sitter_language_pack import (  # type: ignore[import-untyped]
             get_parser,
         )
 
-        lang_map = {"python": "python", "java": "java", "go": "go"}
-        ts_lang_name = lang_map.get(language, "python")
+        ts_lang_name = _TS_LANGUAGES.get(lang)
+        if ts_lang_name is None:
+            return StageResult(
+                "skipped",
+                f"no tree-sitter grammar mapped for language {lang!r}",
+                time.monotonic() - t0,
+            )
         parser = get_parser(ts_lang_name)
         tree = parser.parse(patched_source.encode("utf-8", errors="replace"))
         error_nodes = [n for n in tree.root_node.children if n.type == "ERROR"]

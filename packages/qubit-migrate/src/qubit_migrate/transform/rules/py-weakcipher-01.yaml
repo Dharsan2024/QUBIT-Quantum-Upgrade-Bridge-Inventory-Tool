@@ -1,0 +1,52 @@
+id: py-weakcipher-01
+language: python
+title: "DES/3DES/RC4/Blowfish/AES-128 → AES-256-GCM"
+matches:
+  source_scanner: [code]
+  file_suffix: [".py"]
+  algorithm: ["DES", "3DES", "RC4", "Blowfish", "CAST5", "IDEA", "RC2", "AES-128", "AES-192"]
+  usage_context: ["encryption-at-rest", "unknown"]
+  library_name: ["cryptography", "pycryptodome", null]
+target:
+  algorithm: AES-256
+  mode: pure
+  parameter_set: AES-256
+  category: 1
+  fips: FIPS-197
+# Anything already encrypted under the old cipher can only be read by the old cipher, so this
+# genuinely needs a re-encryption pass. It is NOT a drop-in swap.
+data_compat: reencrypt_required
+semantic_note: >
+  DES, 3DES, RC4, Blowfish, CAST5, IDEA and RC2 are classically broken or use 64-bit blocks, and
+  AES-128/192 fall below the 128-bit post-quantum bar under Grover. Migrate to AES-256-GCM. This is
+  deliberately an LLM transform rather than a token swap, because a constructor swap compiles and
+  then fails at runtime: the key length changes (DES 8 bytes to AES-256 32 bytes), GCM needs a
+  12-byte nonce that must never repeat for a given key, and it returns an authentication tag that the
+  old call site has nowhere to put. Existing ciphertext CANNOT be read by the new code, so a
+  re-encryption pass is required - do not delete the old decrypt path until stored data has been
+  migrated.
+prompt_constraints:
+  - "Use AESGCM from cryptography.hazmat.primitives.ciphers.aead, not the low-level Cipher API."
+  - "Derive or accept a 32-byte key; do not reuse the old shorter key length."
+  - "Generate a fresh 12-byte nonce per encryption with os.urandom and return/store it with the ciphertext."
+  - "Keep the old decrypt path available so already-encrypted data can still be read."
+example:
+  before: |
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    def encrypt(key: bytes, iv: bytes, plaintext: bytes) -> bytes:
+        cipher = Cipher(algorithms.TripleDES(key), modes.CBC(iv))
+        enc = cipher.encryptor()
+        return enc.update(plaintext) + enc.finalize()
+  after: |
+    import os
+
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+    def encrypt(key: bytes, plaintext: bytes) -> tuple[bytes, bytes]:
+        # key must be 32 bytes; the nonce is fresh per message and stored with the ciphertext.
+        nonce = os.urandom(12)
+        return nonce, AESGCM(key).encrypt(nonce, plaintext, None)
+rescan_expect:
+  gone:
+    algorithm_prefix: ["DES", "3DES", "RC4", "Blowfish"]

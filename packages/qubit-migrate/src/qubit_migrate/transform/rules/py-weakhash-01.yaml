@@ -2,6 +2,7 @@ id: py-weakhash-01
 language: python
 title: "SHA-1/MD5 weak hash → argon2id (passwords) or SHA-256 (generic digests)"
 matches:
+  source_scanner: [code]  # not config/cert/key assets — this codemod edits source
   algorithm: ["MD5", "SHA-1"]
   # canonical qubit-core UsageContext values (frozen schema): "hash" covers generic
   # digests/MACs, "password" the credential-hashing path.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from fnmatch import fnmatch
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,21 @@ class MigrationRule(BaseModel):
     data_compat: str = "in_place"
     semantic_note: str = ""
     codemod: str | None = None
+    # True when the codemod is the AUTHORITY for this transform and an LLM must never replace it,
+    # even under an explicit `--generator llm`.
+    #
+    # This is not a stylistic preference. Config and manifest hardening is a fixed, known-correct
+    # edit: `ssl_ecdh_curve X25519MLKEM768`, `KexAlgorithms sntrup761x25519-sha512@openssh.com`, a
+    # version floor. The codemod writes exactly that and is idempotent. Handing the same file to a
+    # 7B model produced a config that looked modern — TLS 1.2+1.3, AEAD ciphers — but silently
+    # omitted the hybrid group, which is the ONE line that makes the deployment quantum-safe. It
+    # then left every sibling asset in that file unfixable, because the model saw an
+    # already-modern-looking config and returned it unchanged.
+    #
+    # LLM rewrites earn their place where the transform needs semantic judgement about surrounding
+    # code (key lengths, nonce handling, call-site changes). They have no place where the correct
+    # output is a constant.
+    codemod_authoritative: bool = False
     prompt_constraints: list[str] = []
     example: dict[str, str] | None = None
     # Additional worked examples for rules with more than one replacement path, keyed by the YAML
@@ -90,6 +106,35 @@ def match_rule(
 
     for rule in all_rules:
         m = rule.matches
+        # source_scanner match. WITHOUT this, a config-hardening rule listing common algorithm
+        # names (a weak TLS suite legitimately contains RSA / AES-128 / 3DES) would also claim
+        # Python or Go CODE assets with the same algorithm, and the config codemod would then be
+        # pointed at a source file it cannot edit. Provenance has to be part of matching.
+        src_list = m.get("source_scanner")
+        if src_list and asset.source_scanner.value not in src_list:
+            continue
+        # file_suffix match. Needed to separate rules that differ only by LANGUAGE: the Python
+        # weak-hash rule uses a precise libcst codemod, while the cross-language one does a
+        # line-scoped token swap. Both match MD5/SHA-1 in code, so without this the generic
+        # rule (earlier alphabetically) would claim .py files and apply the blunter transform.
+        suffix_list = m.get("file_suffix")
+        if suffix_list:
+            path = asset.location.file_path if asset.location else None
+            suffix = Path(path).suffix.lower() if path else ""
+            if suffix not in suffix_list:
+                continue
+        # file_name match (basename globs). A suffix cannot separate the config rules:
+        # `sshd_config` has none at all, and nginx/Apache both use `.conf`. Without this, cfg-ssh-01
+        # and cfg-tls-01 matched ANY config-scanner asset carrying one of their algorithm names — so
+        # an ECDSA-P256 finding in `requirements.txt` (the dependency scanner also reports
+        # `source_scanner=config`) was claimed by the SSH rule, which then pointed the sshd
+        # hardening codemod at a pip manifest instead of letting dep-pqc-01 bump the pin.
+        name_list = m.get("file_name")
+        if name_list:
+            path = asset.location.file_path if asset.location else None
+            name = Path(path).name.lower() if path else ""
+            if not any(fnmatch(name, pattern.lower()) for pattern in name_list):
+                continue
         # algorithm match
         alg_list = m.get("algorithm")
         if alg_list and asset.algorithm not in alg_list:

@@ -1,0 +1,41 @@
+id: code-weakhash-02
+language: multi
+title: "Weak hash in Go/Java/JS/TS/C → SHA-256 (line-scoped swap)"
+matches:
+  source_scanner: [code]
+  # Everything EXCEPT .py — Python has its own rule using a precise libcst codemod that can also
+  # take the argon2id password path, which a token swap cannot do.
+  file_suffix: [".go", ".java", ".js", ".mjs", ".ts", ".c", ".h", ".cc", ".cpp", ".hpp"]
+  algorithm: ["MD5", "SHA-1", "MD4", "RIPEMD-160", "SHA-224"]
+  usage_context: ["hash", "unknown", "signature", "token"]
+  library_name: [null]
+target:
+  algorithm: SHA-256
+  mode: pure
+  parameter_set: SHA-256
+  category: 2
+  fips: FIPS-180-4
+# The digest LENGTH changes (MD5 16 bytes -> SHA-256 32), so any column, cache key or protocol field
+# sized for the old digest must accept the new one. Existing stored digests stay verifiable only if
+# the code can read both, hence dual_read rather than in_place.
+data_compat: dual_read
+semantic_note: >
+  MD5, SHA-1, MD4 and RIPEMD-160 are classically broken (practical collisions) and additionally
+  Grover-weakened. Replace the digest constructor with SHA-256, keeping the surrounding call shape.
+  This is a line-scoped token swap rather than a structural rewrite, so the diff is one line per call
+  site. Note the output grows from 16/20 to 32 bytes: check fixed-width storage and any wire format
+  before applying, and keep a dual-read path for digests already persisted.
+codemod: weakhash_to_sha256
+prompt_constraints:
+  - "Swap only the digest constructor; do not restructure the surrounding code."
+  - "Update the corresponding import/include so the new digest package is available."
+example:
+  before: |
+    import "crypto/md5"
+    func checksum(b []byte) [16]byte { return md5.Sum(b) }
+  after: |
+    import "crypto/sha256"
+    func checksum(b []byte) [32]byte { return sha256.Sum256(b) }
+rescan_expect:
+  gone:
+    algorithm_prefix: ["MD5", "SHA-1", "MD4", "RIPEMD-160"]

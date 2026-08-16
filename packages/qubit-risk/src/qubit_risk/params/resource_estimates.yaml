@@ -51,6 +51,10 @@ algorithms:
   # --- OpenSSH host-key and Kex algorithm names. Same Shor cost as the underlying primitive at the
   # matching modulus size; the DH group numbers are fixed sizes from RFC 3526.
   ssh-rsa:          {attack: shor, alias: RSA-2048}   # RSA, size not stated in the name
+  # rsa-sha2-256/512, the SHA-2 SSH host-key algorithms. Split out from ssh-rsa (which specifically
+  # means the deprecated SHA-1 variant) so a hardened sshd_config is distinguishable from a
+  # vulnerable one. The signature hash does not change the Shor cost: the RSA modulus does.
+  rsa-sha2:         {attack: shor, alias: RSA-2048}   # RSA, size not stated in the name
   ssh-dss:          {attack: shor, alias: RSA-1024}   # DSA-1024 by definition
   DH-1024-group1:   {attack: shor, alias: RSA-1024}
   DH-2048-group14:  {attack: shor, alias: RSA-2048}

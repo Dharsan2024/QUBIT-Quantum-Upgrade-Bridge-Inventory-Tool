@@ -1,0 +1,36 @@
+id: dep-pqc-01
+language: manifest
+title: "Crypto dependency pinned below its PQC-capable version → bump the floor"
+matches:
+  source_scanner: [config]
+  file_suffix: [".txt", ".toml", ".xml"]
+  # SCA findings for libraries whose newer releases provide PQC primitives.
+  algorithm: ["RSA", "ECDSA-P256", "AES-256", "RS256", "ES256", "HS256"]
+  usage_context: ["kex", "signature", "token", "encryption-at-rest"]
+target:
+  algorithm: ML-KEM-768
+  mode: hybrid
+  hybrid_group: X25519MLKEM768
+  category: 3
+  fips: FIPS-203
+data_compat: in_place
+semantic_note: >
+  This is a PREREQUISITE patch, not a migration on its own: a code patch to ML-KEM cannot be applied
+  at all while the pinned library predates PQC support, so raising the floor is what makes the real
+  migration possible. pyca/cryptography ships native ML-KEM and ML-DSA from version 48;
+  BouncyCastle from 1.79 (see docs/design/07-ecosystem-factcheck.md §10). An exact `==` pin is
+  relaxed to `>=` deliberately - re-freezing the dependency would defeat the purpose - and a project
+  already ahead of the minimum is left untouched. No code or data changes, so nothing to re-encrypt.
+codemod: bump_crypto_dependency
+# The correct output here is a constant (the hybrid group / the version floor), so the codemod is
+# authoritative and an LLM must not replace it even under --generator llm.
+codemod_authoritative: true
+prompt_constraints:
+  - "Only ever raise a version floor; never lower one."
+  - "Do not add new dependencies, only change existing pins."
+example:
+  before: |
+    cryptography==42.0.8
+  after: |
+    cryptography>=48.0.0
+rescan_expect: null

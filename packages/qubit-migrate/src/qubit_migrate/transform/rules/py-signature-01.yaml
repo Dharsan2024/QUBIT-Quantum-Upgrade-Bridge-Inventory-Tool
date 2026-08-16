@@ -1,0 +1,65 @@
+id: py-signature-01
+language: python
+title: "RSA/ECDSA/Ed25519/DSA signature → ML-DSA-65 (FIPS-204)"
+matches:
+  source_scanner: [code]
+  file_suffix: [".py"]
+  algorithm:
+    [
+      "RSA",
+      "RSA-1024",
+      "RSA-2048",
+      "RSA-3072",
+      "RSA-4096",
+      "ECDSA-P256",
+      "ECDSA-P384",
+      "ECDSA-P521",
+      "Ed25519",
+      "DSA",
+      "DSA-1024",
+      "DSA-2048",
+      "RS256",
+      "PS256",
+      "ES256",
+    ]
+  usage_context: ["signature", "token"]
+  library_name: ["cryptography", "PyJWT", null]
+target:
+  algorithm: ML-DSA-65
+  mode: pure
+  parameter_set: ML-DSA-65
+  category: 3
+  fips: FIPS-204
+# Signatures already issued stay verifiable only if the old verify path is retained, so the migration
+# runs both schemes through the rotation window rather than swapping outright.
+data_compat: dual_read
+semantic_note: >
+  RSA, ECDSA, DSA and Ed25519 signatures are all Shor-breakable. Replace with ML-DSA-65 (FIPS-204,
+  NIST category 3) from cryptography>=48. Unlike key exchange, signatures are NOT
+  harvest-now-decrypt-later exposed - a recorded signature cannot be forged retroactively, it can
+  only be forged once a CRQC exists - so the urgency is lower and the real drivers are long-lived
+  trust anchors, code signing and certificates. Keep the existing VERIFY path alongside the new one
+  so already-issued signatures remain checkable, and rotate signing keys forward. IMPORTANT for
+  JWT/JOSE: no mainstream JOSE library registers an ML-DSA "alg" identifier in 2026, so patch the
+  signing primitive and NOT the JOSE layer - inventing an "alg" value would produce tokens that no
+  other implementation can verify.
+prompt_constraints:
+  - "Use cryptography's mldsa module (MLDSA65PrivateKey); do NOT import liboqs."
+  - "Keep the existing verification path so previously-issued signatures still verify."
+  - "Do NOT invent a JOSE/JWT alg value for ML-DSA; patch the primitive, not the token header."
+  - "Preserve function signatures so existing callers keep working."
+example:
+  before: |
+    from cryptography.hazmat.primitives.asymmetric import padding, rsa
+    from cryptography.hazmat.primitives import hashes
+
+    def sign(private_key, message: bytes) -> bytes:
+        return private_key.sign(message, padding.PKCS1v15(), hashes.SHA256())
+  after: |
+    from cryptography.hazmat.primitives.asymmetric import mldsa
+
+    def sign(private_key: mldsa.MLDSA65PrivateKey, message: bytes) -> bytes:
+        return private_key.sign(message)
+rescan_expect:
+  present:
+    algorithm_prefix: ["ML-DSA-65"]

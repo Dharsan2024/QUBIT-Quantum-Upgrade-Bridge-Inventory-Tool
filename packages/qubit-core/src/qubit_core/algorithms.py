@@ -363,8 +363,20 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         canonical="ssh-rsa",
         family="RSA",
         kind="asymmetric",
-        # ssh-rsa is RSA with a SHA-1 signature, deprecated by OpenSSH 8.8+ for that reason.
-        aliases=("sshrsa", "rsasha2256", "rsasha2512", "rsa-sha2-256", "rsa-sha2-512"),
+        # ssh-rsa specifically means RSA with a SHA-1 signature, deprecated by OpenSSH 8.8+ for that
+        # reason. It must NOT absorb `rsa-sha2-256/512`, which are the recommended SHA-2 variants:
+        # aliasing them together made a hardened sshd_config still report `ssh-rsa` present, so the
+        # remediation looked like it had achieved nothing.
+        aliases=("sshrsa",),
+    ),
+    _shor(
+        canonical="rsa-sha2",
+        family="RSA",
+        kind="asymmetric",
+        # Still RSA and therefore still Shor-breakable — the honest verdict — but not the
+        # deprecated SHA-1 variant. The real fix for an SSH host key is Ed25519 today, and a
+        # post-quantum signature once one is available for SSH.
+        aliases=("rsa-sha2-256", "rsa-sha2-512", "rsasha2256", "rsasha2512"),
     ),
     _shor(
         canonical="ssh-dss",
@@ -495,6 +507,38 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         kind="protocol",
         aliases=("secp384r1mlkem1024",),
     ),
+    # OpenSSH's post-quantum hybrid key exchange (Streamlined NTRU Prime 761 + X25519), default
+    # since OpenSSH 9.x. This is the algorithm the SSH hardening codemod WRITES, so leaving it
+    # unresolvable meant a freshly hardened sshd_config reported its strongest algorithm as
+    # UNKNOWN(...) — the remediation could not be verified as having landed on anything PQC.
+    _safe(
+        canonical="sntrup761x25519-sha512",
+        family="hybrid-kem",
+        kind="protocol",
+        aliases=("sntrup761x25519sha512", "sntrup761x25519"),
+    ),
+    # OpenSSH 10's ML-KEM hybrid, for configurations that have moved to the standardized KEM.
+    _safe(
+        canonical="mlkem768x25519-sha256",
+        family="hybrid-kem",
+        kind="protocol",
+        aliases=("mlkem768x25519sha256", "mlkem768x25519"),
+    ),
+    # `PSK` and `NULL` were already NAMED by the IANA suite-reduction tables (_SUITE_KEX /
+    # _SUITE_CIPHERS) but never existed as entries, so every `TLS_PSK_*` and NULL-cipher suite
+    # reduced to a name the registry could not resolve and came back as UNKNOWN(...).
+    #
+    # TLS-PSK carries no public-key key exchange, so there is nothing for Shor to factor — a
+    # sufficiently long, secret pre-shared key is a genuine quantum-safe stopgap. That verdict
+    # assumes the PSK's own entropy is adequate; a short or shared-by-default PSK is a classical
+    # problem this registry does not judge.
+    _safe(canonical="PSK", family="PSK", kind="symmetric", aliases=("psk", "tlspsk")),
+    # A NULL cipher means the traffic is not encrypted at all. No quantum attack is involved — there
+    # is nothing to break — but reporting it as "not vulnerable" would be badly misleading, since
+    # plaintext on the wire is already harvested with no CRQC required. It therefore goes in the
+    # same flagged bucket this registry already uses for classically-broken symmetric
+    # primitives (MD5, RC4, DES): `vulnerable=True` with `grover` as the tiered-concern marker.
+    _grover(canonical="NULL", family="NULL", kind="symmetric", aliases=("null", "enull")),
     # --- TLS/SSH protocol versions. `kind="protocol"` follows the hybrid-group precedent above.
     # These are emitted by the config and network scanners (`ssl_protocols TLSv1.2;`), which
     # previously produced UNKNOWN(TLSv1) with a not-vulnerable verdict — a deprecated protocol
@@ -647,6 +691,65 @@ _SUITE_KEX: tuple[tuple[str, str], ...] = (
 )
 
 
+# Key-exchange prefixes in OpenSSL's *own* cipher-suite spelling, which is what nginx `ssl_ciphers`
+# and Apache `SSLCipherSuite` actually contain — `ECDHE-RSA-AES128-GCM-SHA256`, not the IANA
+# `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`. Longest first so `ecdhe` wins over `ecdh`.
+_OPENSSL_SUITE_KEX: tuple[tuple[str, str], ...] = (
+    ("ecdhe-", "ECDH-P256"),
+    ("aecdh-", "ECDH-P256"),
+    ("ecdh-", "ECDH-P256"),
+    ("dhe-", "DH"),
+    ("edh-", "DH"),
+    ("adh-", "DH"),
+    ("srp-", "DH"),
+    ("psk-", "PSK"),
+    ("rsa-psk-", "RSA"),
+    ("dhe-psk-", "DH"),
+    ("ecdhe-psk-", "ECDH-P256"),
+)
+
+# MAC/PRF tokens that terminate an OpenSSL suite name. Their presence is what distinguishes a SUITE
+# (`AES128-SHA`) from a plain cipher string (`aes-128-cbc`), which must keep resolving as a cipher.
+_OPENSSL_SUITE_MACS = frozenset({"sha", "sha1", "sha256", "sha384", "md5", "poly1305"})
+
+
+def _openssl_suite_component(name: str) -> CanonicalAlgorithm | None:
+    """Reduce an OpenSSL-spelled TLS cipher-suite name to the algorithm governing its quantum risk.
+
+    Same principle as `_suite_component` for IANA names: harvested traffic is decrypted by breaking
+    the KEY EXCHANGE, so a suite collapses to its KEX.
+
+    The subtle and important case is a suite with NO kex prefix — `AES128-SHA`, `DES-CBC3-SHA`,
+    `RC4-MD5`. In OpenSSL's naming those mean static **RSA key transport**, so they resolve to RSA.
+    Those are the worst suites for harvest-now-decrypt-later precisely because they have no forward
+    secrecy at all: one recovered RSA key opens every session ever recorded under it.
+
+    Until this existed, every `ssl_ciphers` / `SSLCipherSuite` value in every real nginx and Apache
+    config resolved to `UNKNOWN(...)`, and `normalize()` rates UNKNOWN as **not vulnerable** — so a
+    server pinned to `ECDHE-RSA-AES128-SHA` was reported clean. This runs as a LATE fallback in
+    `resolve()`, after ordinary cipher resolution, so `aes-128-cbc` and friends are untouched.
+    """
+    lowered = name.strip().lower()
+    if "-" not in lowered:
+        return None
+
+    tokens = lowered.split("-")
+    # Require a terminating MAC/PRF token: that is what makes this a suite rather than a cipher.
+    if tokens[-1] not in _OPENSSL_SUITE_MACS:
+        return None
+
+    for prefix, kex in _OPENSSL_SUITE_KEX:
+        if lowered.startswith(prefix):
+            return _BY_KEY.get(_normkey(kex)) or _BARE_FAMILY.get(_normkey(kex))
+
+    # An anonymous/PSK suite has no public-key kex to break; report the bulk cipher instead.
+    if lowered.startswith(("anon-", "null-")):
+        return _BY_KEY.get(_normkey("NULL"))
+
+    # No kex prefix => static RSA key transport (no forward secrecy).
+    return _BY_KEY.get(_normkey("RSA")) or _BARE_FAMILY.get(_normkey("RSA"))
+
+
 def _suite_component(name: str) -> CanonicalAlgorithm | None:
     """Reduce an IANA TLS cipher-suite name to the one algorithm that governs its quantum risk.
 
@@ -739,7 +842,13 @@ def resolve(name: str, key_size: int | None = None) -> CanonicalAlgorithm | None
             return stripped
 
     # 5. bare public-key family with unknown size -> keep the Shor-vulnerable verdict
-    return _BARE_FAMILY.get(key)
+    bare = _BARE_FAMILY.get(key)
+    if bare is not None:
+        return bare
+
+    # 6. OpenSSL-spelled cipher SUITE (`ECDHE-RSA-AES128-GCM-SHA256`). Deliberately last: it must
+    #    never pre-empt a plain cipher string, only rescue a name that would otherwise be UNKNOWN.
+    return _openssl_suite_component(name)
 
 
 def get(canonical: str) -> CanonicalAlgorithm | None:

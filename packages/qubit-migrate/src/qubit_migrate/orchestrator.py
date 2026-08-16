@@ -181,9 +181,29 @@ class MigrationOrchestrator:
         # auto prefers the deterministic codemod; LLM is used when forced or when the
         # rule has no codemod. Either way the same validation pipeline gates the result.
         use_llm = generator == "llm" or (generator == "auto" and not rule.codemod)
+        # Some codemods are the authority for their transform and outrank an explicit
+        # `--generator llm` (see MigrationRule.codemod_authoritative): the correct output is a
+        # constant, so a model can only lose information. This is what kept X25519MLKEM768 out of
+        # LLM-generated configs.
+        if use_llm and rule.codemod and rule.codemod_authoritative:
+            use_llm = False
         model_name: str | None = None
 
         if use_llm:
+            # Several assets routinely share one file — a weak sshd_config yields a finding per
+            # algorithm in every list — so whichever task runs first remediates the file for all of
+            # them. The rest then have nothing to do. The deterministic codemod is the cheapest
+            # authority on that: it reports "no change" exactly when its target pattern is gone.
+            # Probing it first turns three wasted 7B-model attempts and a misleading "LLM rewrite
+            # rejected" into an immediate, accurate skip. The probe result is DISCARDED — an
+            # explicit `--generator llm` still gets its rewrite from the model when work remains.
+            if rule.codemod:
+                probe_found_work = True
+                with contextlib.suppress(Exception):  # a probe failure must not block generation
+                    probe_found_work = run_codemod(rule.codemod, asset, file_path) is not None
+                if not probe_found_work:
+                    self._fail_task(task, "already remediated by an earlier task in this plan")
+                    raise ValueError("already remediated by an earlier task in this plan")
             try:
                 orig = file_path.read_text(encoding="utf-8")
                 new = generate_llm_source(orig, rule, asset, model=self.config.model)

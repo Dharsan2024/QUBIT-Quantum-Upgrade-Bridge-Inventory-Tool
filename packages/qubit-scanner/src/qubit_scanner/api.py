@@ -52,6 +52,14 @@ _APACHE_CONFIG_NAMES = {"httpd.conf", "apache2.conf", "ssl.conf", "vhost.conf", 
 
 ProgressFn = Callable[[str, int, int], None]  # (stage, done, total)
 
+# Which filesystem scanners `scan_paths` can run. This is the selection vocabulary and it is
+# deliberately NOT `qubit_core.SourceScanner`, which is a different thing: that enum labels where
+# an ASSET came from, while these names choose which SCANNERS RUN. The two overlap but do not
+# agree — `network` is not a filesystem scanner at all, `key` material is reported by the `cert`
+# scanner, and `secret`/`dependency` are real scanners with no provenance member of their own.
+# Conflating them is how the API ended up accepting a selection it could not act on.
+SCANNER_NAMES: frozenset[str] = frozenset({"code", "config", "cert", "secret", "dependency"})
+
 
 def scan_paths(
     paths: list[Path],
@@ -64,7 +72,14 @@ def scan_paths(
     """Scan files and directories for cryptographic assets in source code, configs, and certs."""
     t0 = time.perf_counter()
     catalog = catalog or RuleCatalog.load()
-    scanners = scanners or {"code", "config", "cert", "secret", "dependency"}
+    scanners = scanners or set(SCANNER_NAMES)
+    # A caller asking for a scanner that does not exist has made a mistake that must not present
+    # as a clean scan of zero findings (NFR-7: fail loudly). Typos are the common case.
+    unknown = scanners - SCANNER_NAMES
+    if unknown:
+        raise ValueError(
+            f"unknown scanner(s): {sorted(unknown)}; valid names are {sorted(SCANNER_NAMES)}"
+        )
 
     code_scanner = CodeScanner(catalog)
     config_scanner = NginxConfigParser()

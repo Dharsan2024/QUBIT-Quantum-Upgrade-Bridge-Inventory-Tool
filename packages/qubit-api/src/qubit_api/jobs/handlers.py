@@ -12,7 +12,7 @@ from uuid import UUID
 from qubit_core import asset_to_row
 from qubit_core.db import AssetRow, ProjectRow, ScanRow
 from qubit_risk.pipeline import RiskPipeline
-from qubit_scanner import scan_paths
+from qubit_scanner import SCANNER_NAMES, scan_paths
 
 from ..services import is_git_url
 from .runner import ProgressReporter
@@ -49,7 +49,9 @@ def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[st
     project_id = UUID(payload["project_id"])
     scan_id = UUID(payload["scan_id"])
     targets = payload.get("targets", [])
-    payload.get("scanners", ["code", "config"])
+    # This line used to fetch the requested scanners and discard the value outright, so the async
+    # path ignored the caller's selection exactly as the synchronous one did.
+    scanners = set(payload.get("scanners") or SCANNER_NAMES)
     run_risk = payload.get("run_risk", True)
 
     with reporter.sf() as session:
@@ -79,19 +81,21 @@ def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[st
                 raise ValueError(f"Scan target outside project root: {raw}")
             resolved_targets.append(path)
 
-    # Note: For M1, we run the scan_paths synchronously (in a thread)
-    # The scan_paths doesn't currently accept a callback, so we simulate it or pass it.
-    # The design says `progress=reporter.on_scan_progress`, we'll pass it if supported,
-    # but currently qubit_scanner might not have it. Let's pass it anyway as `progress`.
+    # `scan_paths` runs synchronously here; the job runner is what makes the API asynchronous, by
+    # executing this handler off the request path.
+    #
+    # There used to be an `except TypeError` fallback around this call, guarding against a
+    # `scan_paths` that did not accept `progress`. It does accept it (and has for some time), so the
+    # fallback was unreachable for its stated purpose while remaining reachable for a genuine
+    # TypeError raised *inside* the scan — which it would have swallowed, silently re-running the
+    # whole scan without progress reporting and hiding the real bug.
     try:
-        try:
-            result = scan_paths(
-                resolved_targets, repo=project.slug, progress=_scan_progress_callback(reporter)
-            )
-        except TypeError:
-            # Fallback if qubit_scanner.scan_paths doesn't accept 'progress'
-            reporter.update(0.1, "scanning", "Starting scan (progress callback unsupported)")
-            result = scan_paths(resolved_targets, repo=project.slug)
+        result = scan_paths(
+            resolved_targets,
+            repo=project.slug,
+            scanners=scanners,
+            progress=_scan_progress_callback(reporter),
+        )
     finally:
         for d in clone_dirs:  # always clean up temp git clones, even on scan failure
             shutil.rmtree(d, ignore_errors=True)

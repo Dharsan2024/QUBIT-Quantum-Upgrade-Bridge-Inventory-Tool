@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 from qubit_api.app import create_app
@@ -659,3 +660,93 @@ def test_list_jobs_with_a_real_job_row(tmp_path: Path) -> None:
     single = client.get(f"/api/v1/jobs/{job_id}")
     assert single.status_code == 200, single.text
     assert single.json()["kind"] == "scan"
+
+
+# ---------------------------------------------------------------------------
+# Scanner selection actually reaches the scanner
+# ---------------------------------------------------------------------------
+
+
+def test_scanner_name_enum_matches_the_scanner_dispatch_vocabulary() -> None:
+    """`ScannerName` and `qubit_scanner.SCANNER_NAMES` must not drift: the scanner is what
+    dispatches on these strings, so a name the API accepts but the scanner does not know would raise
+    at scan time, and a scanner the API cannot name is unreachable through the REST surface."""
+    from qubit_api.schemas import ScannerName
+    from qubit_scanner import SCANNER_NAMES
+
+    assert {s.value for s in ScannerName} == set(SCANNER_NAMES)
+
+
+def test_requested_scanners_are_honored_not_just_recorded(tmp_path: Path) -> None:
+    """The defect this covers: the requested scanner list was stored on the scan row and then
+    never passed to `scan_paths`, so selection was recorded and silently ignored. A code-only scan
+    of a tree whose ONLY crypto lives in a config file must therefore find nothing, and a
+    config-only scan of the same tree must find something."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "nginx.conf").write_text(
+        "server {\n    ssl_protocols TLSv1 TLSv1.1;\n}\n", encoding="utf-8"
+    )
+
+    with _make_client(tmp_path) as client:
+        project_id = client.post(
+            "/api/v1/projects", json={"name": "sel", "root_path": str(repo)}
+        ).json()["id"]
+
+        def scan_with(names: list[str]) -> int:
+            resp = client.post(
+                f"/api/v1/projects/{project_id}/scans",
+                json={"targets": [str(repo)], "scanners": names, "run_risk": False},
+            )
+            assert resp.status_code == 202, resp.text
+            scan_id = resp.json()["scan"]["id"]
+            assert _wait_for_scan(client, scan_id)["status"] == "succeeded"
+            return int(client.get(f"/api/v1/scans/{scan_id}/assets").json()["total"])
+
+        assert scan_with(["code"]) == 0, (
+            "a code-only scan returned config findings, so the scanner selection was ignored"
+        )
+        assert scan_with(["config"]) > 0, "config scanner found nothing in a weak nginx.conf"
+
+
+def test_unknown_scanner_name_is_rejected_not_ignored(tmp_path: Path) -> None:
+    """A typo must not present as a clean scan of zero findings (NFR-7: fail loudly)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    with _make_client(tmp_path) as client:
+        project_id = client.post(
+            "/api/v1/projects", json={"name": "bad-sel", "root_path": str(repo)}
+        ).json()["id"]
+        resp = client.post(
+            f"/api/v1/projects/{project_id}/scans",
+            json={"targets": [str(repo)], "scanners": ["cod"], "run_risk": False},
+        )
+        assert resp.status_code == 422, resp.text
+
+
+def test_scan_creation_hands_back_the_job_handle_and_says_to_poll(tmp_path: Path) -> None:
+    """`POST /projects/{id}/scans` is genuinely asynchronous — a JobRunner executes the scan off the
+    request path — so returning `status: "running"` with 0 assets is correct. What was wrong was the
+    response never saying so: `job` was hardcoded to `None`, and the warning claimed "Synchronous
+    scan execution is enabled in M1; JobRunner lands in M2", which is untrue. A client that believed
+    it would read through and conclude the scan found nothing."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_repo(repo)
+    with _make_client(tmp_path) as client:
+        project_id = client.post(
+            "/api/v1/projects", json={"name": "async", "root_path": str(repo)}
+        ).json()["id"]
+        resp = client.post(f"/api/v1/projects/{project_id}/scans", json={"targets": [str(repo)]})
+        assert resp.status_code == 202
+        body = resp.json()
+
+        assert body["job"] is not None, "async scan returned no job handle to poll"
+        assert body["job"]["kind"] == "scan"
+        UUID(body["job"]["id"])  # a real job id, not a placeholder
+
+        assert "poll" in body["warning"].lower()
+        assert "synchronous" not in body["warning"].lower()
+
+        # And the handle is honest: polling really does settle on a finished scan.
+        assert _wait_for_scan(client, body["scan"]["id"])["status"] == "succeeded"

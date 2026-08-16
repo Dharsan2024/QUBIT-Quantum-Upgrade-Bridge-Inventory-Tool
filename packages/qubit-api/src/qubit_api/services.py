@@ -124,7 +124,13 @@ def run_scan(
     label: str | None,
     job_runner: Any = None,
     run_risk: bool = True,
-) -> ScanRow:
+) -> tuple[ScanRow, UUID | None]:
+    """Create a scan row and execute it; return the row and the background job id, if one was used.
+
+    The job id is returned so the route can hand a client the handle to poll. Previously this
+    returned the row alone and the response advertised `job: null` unconditionally, leaving an
+    asynchronous API with no way to tell a caller what was running.
+    """
     scan = ScanRow(
         project_id=project.id,
         seq=next_scan_sequence(session, project.id),
@@ -142,6 +148,7 @@ def run_scan(
     # Synchronous validation so bad targets return early
     resolved_targets = validate_targets(project, targets)
 
+    job_id: UUID | None = None
     if job_runner:
         from qubit_core.db import Job
 
@@ -160,10 +167,14 @@ def run_scan(
         session.add(job)
         session.commit()
         session.refresh(job)
+        job_id = job.id
         job_runner.submit(job.id)
     else:
         try:
-            result = scan_paths(resolved_targets, repo=project.slug)
+            # The requested scanner set was recorded on the scan row and then NOT passed here, so
+            # the API's scanner selection was stored and silently ignored — every API scan ran the
+            # default set regardless of what the caller asked for.
+            result = scan_paths(resolved_targets, repo=project.slug, scanners=set(scanners))
             rows = [
                 asset_to_row(asset, scan_id=scan.id, project_id=project.id)
                 for asset in result.assets
@@ -184,7 +195,7 @@ def run_scan(
         session.add(scan)
         session.commit()
         session.refresh(scan)
-    return scan
+    return scan, job_id
 
 
 def scan_trends(session: Session, project_id: UUID) -> list[TrendPoint]:

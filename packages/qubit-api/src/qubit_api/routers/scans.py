@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..deps import get_session
-from ..schemas import ScanCreate, ScanCreateResponse, ScanOut
+from ..schemas import JobRef, ScanCreate, ScanCreateResponse, ScanOut
 from ..services import (
     export_scan_cbom,
     require_project,
@@ -34,7 +34,7 @@ def create_scan(
     session: Annotated[Session, Depends(get_session)],
 ) -> ScanCreateResponse:
     project = require_project(session, project_id)
-    scan = run_scan(
+    scan, job_id = run_scan(
         session,
         project=project,
         targets=payload.targets,
@@ -58,7 +58,14 @@ def create_scan(
             finished_at=scan.finished_at,
             created_at=scan.created_at,
         ),
-        warning="Synchronous scan execution is enabled in M1; JobRunner lands in M2.",
+        job=JobRef(id=job_id, kind="scan") if job_id else None,
+        warning=(
+            f"Scan dispatched to the job runner as job {job_id}. It runs off the request path, so "
+            f"this response reports status 'running' with no assets yet — poll "
+            f"GET /api/v1/scans/{scan.id} until status leaves queued/running, then read its assets."
+            if job_id
+            else "Scan executed inline; this response is already final."
+        ),
     )
 
 

@@ -225,7 +225,10 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         family="3DES",
         kind="symmetric",
         key_size=112,
-        aliases=("3des", "des-ede3", "tripledes", "des3"),
+        # "ede" is Encrypt-Decrypt-Encrypt, not a cipher mode, so mode-stripping alone cannot reduce
+        # node-forge's "3DES-EDE-CBC" or JCA's "DESede" to a known name — without these aliases real
+        # 3DES usage resolved to UNKNOWN(...) and inherited a NOT-vulnerable verdict.
+        aliases=("3des", "des-ede3", "tripledes", "des3", "desede", "3desede", "desede3"),
     ),
     _grover(canonical="DES", family="DES", kind="symmetric", key_size=56, aliases=("des",)),
     # --- Legacy / classically-broken symmetric (still found in real code, so still inventoried) ---
@@ -521,6 +524,23 @@ _CIPHER_MODES = frozenset(
     }
 )
 
+# Padding schemes that can trail a JCA transformation string. Like modes, a padding scheme carries
+# no quantum-security meaning, so it is stripped when resolving.
+_CIPHER_PADDINGS = frozenset(
+    {
+        "nopadding",
+        "pkcs1padding",
+        "pkcs5padding",
+        "pkcs7padding",
+        "oaeppadding",
+        "iso10126padding",
+        "zeropadding",
+        "ansix923padding",
+        "pkcs1",
+        "oaep",
+    }
+)
+
 
 def _normkey(name: str) -> str:
     return name.strip().lower().replace("-", "").replace("/", "").replace("_", "").replace(" ", "")
@@ -562,7 +582,11 @@ def resolve(name: str, key_size: int | None = None) -> CanonicalAlgorithm | None
     #    meaning, so they are stripped from the right until something resolves; enumerating every
     #    alg x size x mode combination as an alias would be combinatorial and unmaintainable.
     tokens = name.strip().lower().replace("_", "-").replace("/", "-").split("-")
-    while len(tokens) > 1 and tokens[-1] in _CIPHER_MODES:
+    # Also strip trailing PADDING tokens, so a full JCA transformation string
+    # ("DESede/CBC/PKCS5Padding") reduces the same way an OpenSSL cipher name does. Rules normally
+    # pre-split these via `jca-transformation`, but any scanner source that hands resolve() a raw
+    # transformation should not fall through to UNKNOWN and inherit a not-vulnerable verdict.
+    while len(tokens) > 1 and (tokens[-1] in _CIPHER_MODES or tokens[-1] in _CIPHER_PADDINGS):
         tokens.pop()
         stem = _normkey("-".join(tokens))
         # Check the bare-family table too, not just the alias index: WebCrypto's "AES-GCM" and

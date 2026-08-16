@@ -257,6 +257,23 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
             # `GenerateKey768` -> "ML-KEM-768", `GenerateKey1024` -> "ML-KEM-1024".
             text = resolve.node_text(node)
             return "ML-KEM-1024" if "1024" in text else "ML-KEM-768"
+        case "jca-signature":
+            # `"SHA256withRSA"` -> "RSA": report the KEY algorithm, which is the Shor-relevant half.
+            # The digest half is inventoried separately by the MessageDigest rules.
+            value = resolve.string_literal_value(node) or resolve.node_text(node)
+            lowered = value.lower()
+            for sep in ("withencryption", "with"):
+                if sep in lowered:
+                    return value[lowered.rindex(sep) + len(sep) :] or value
+            return value
+        case "jca-transformation":
+            # `"AES/GCM/NoPadding"` -> "AES": the mode and padding are not quantum-relevant.
+            value = resolve.string_literal_value(node) or resolve.node_text(node)
+            return value.split("/", 1)[0]
+        case "cryptojs-name":
+            # crypto-js spells algorithms `TripleDES`, `HmacSHA256`, `RIPEMD160` — names the
+            # registry lacks as aliases. Normalize the library-specific spellings only.
+            return _CRYPTOJS_NAMES.get(resolve.node_text(node), resolve.node_text(node))
         case _:
             return resolve.node_text(node)
 
@@ -310,6 +327,21 @@ _GO_ECDH_CURVES: dict[str, str] = {
     "P384": "ECDH-P384",
     "P521": "ECDH-P521",
     "X25519": "X25519",
+}
+
+# crypto-js's library-specific spellings -> canonical registry names. Only names the registry
+# cannot already resolve are listed (MD5/SHA256/AES resolve directly and are absent on purpose).
+_CRYPTOJS_NAMES: dict[str, str] = {
+    "TripleDES": "3DES",
+    "RIPEMD160": "RIPEMD-160",
+    "HmacMD5": "HMAC",
+    "HmacSHA1": "HMAC",
+    "HmacSHA256": "HMAC",
+    "SHA3": "SHA3-256",
+    # crypto-js's Rabbit stream cipher has no NIST/registry identity; report it verbatim so it
+    # surfaces as UNKNOWN(Rabbit) rather than being silently mapped onto an unrelated algorithm.
+    "Rabbit": "Rabbit",
+    "RabbitLegacy": "Rabbit",
 }
 
 _PYCA_PQC_RE = re.compile(r"^(ML(?:KEM|DSA))(\d+)", re.IGNORECASE)

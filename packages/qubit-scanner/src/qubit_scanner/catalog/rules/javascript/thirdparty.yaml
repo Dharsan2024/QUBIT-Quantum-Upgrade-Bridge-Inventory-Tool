@@ -1,0 +1,229 @@
+schema: qubit-rule/v1
+library:
+  name: crypto-js / node-forge / bcrypt / jose
+  detect_imports: []
+language: javascript
+rules:
+  # Third-party libraries carry a large share of real JavaScript crypto — crypto-js and node-forge
+  # are among the most-downloaded packages on npm — and none of them were detected. The SCA scanner
+  # reports that these packages are *present*; these rules report that they are actually *called*,
+  # which is the higher-confidence signal (cryptodeps' AVAILABLE vs CONFIRMED distinction).
+  - id: JS-CRYPTOJS-ALGO
+    title: crypto-js algorithm call (CryptoJS.MD5 / AES.encrypt / SHA1 ...)
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @alg)) @call
+      where:
+        - { capture: obj, equals: CryptoJS }
+        - capture: alg
+          in: [MD5, SHA1, SHA224, SHA256, SHA384, SHA512, SHA3, RIPEMD160, HmacMD5, HmacSHA1, HmacSHA256]
+    extract:
+      algorithm: { from: alg, resolve: cryptojs-name }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const CryptoJS = require('crypto-js');
+          const h = CryptoJS.MD5('message').toString();
+        - |
+          const CryptoJS = require('crypto-js');
+          const h = CryptoJS.SHA256('message').toString();
+      negative:
+        - |
+          const CryptoJS = require('crypto-js');
+          const w = CryptoJS.enc.Utf8.parse('x');
+
+  - id: JS-CRYPTOJS-CIPHER
+    title: crypto-js cipher (CryptoJS.AES.encrypt / DES / TripleDES / RC4 / Rabbit)
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (member_expression
+              object: (identifier) @obj
+              property: (property_identifier) @alg)
+            property: (property_identifier) @meth)) @call
+      where:
+        - { capture: obj, equals: CryptoJS }
+        - { capture: alg, in: [AES, DES, TripleDES, RC4, Rabbit, RabbitLegacy] }
+        - { capture: meth, in: [encrypt, decrypt] }
+    extract:
+      algorithm: { from: alg, resolve: cryptojs-name }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const CryptoJS = require('crypto-js');
+          const c = CryptoJS.AES.encrypt('msg', 'key').toString();
+        - |
+          const CryptoJS = require('crypto-js');
+          const c = CryptoJS.TripleDES.encrypt('msg', 'key').toString();
+      negative:
+        - |
+          const CryptoJS = require('crypto-js');
+          const h = CryptoJS.SHA256('message').toString();
+
+  - id: JS-CRYPTOJS-PBKDF2
+    title: crypto-js PBKDF2 key derivation
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @alg)) @call
+      where:
+        - { capture: obj, equals: CryptoJS }
+        - { capture: alg, in: [PBKDF2, EvpKDF] }
+    extract:
+      algorithm: { literal: PBKDF2 }
+    asset: { asset_type: algorithm-use, usage_context: password }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const CryptoJS = require('crypto-js');
+          const k = CryptoJS.PBKDF2('pw', salt, { keySize: 8 });
+      negative:
+        - |
+          const CryptoJS = require('crypto-js');
+          const h = CryptoJS.SHA256('message').toString();
+
+  - id: JS-NODEFORGE-CIPHER
+    title: node-forge cipher / keygen (forge.cipher.createCipher / forge.pki.rsa.generateKeyPair)
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (member_expression property: (property_identifier) @ns)
+            property: (property_identifier) @meth)
+          arguments: (arguments (string (string_fragment) @alg))) @call
+      where:
+        - { capture: ns, equals: cipher }
+        - { capture: meth, in: [createCipher, createDecipher] }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const forge = require('node-forge');
+          const c = forge.cipher.createCipher('AES-CBC', key);
+        - |
+          const forge = require('node-forge');
+          const c = forge.cipher.createCipher('3DES-EDE-CBC', key);
+      negative:
+        - |
+          const forge = require('node-forge');
+          const md = forge.md.sha256.create();
+
+  - id: JS-NODEFORGE-MD
+    title: node-forge message digest (forge.md.md5 / sha1 / sha256)
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (member_expression
+              object: (member_expression property: (property_identifier) @ns)
+              property: (property_identifier) @alg)
+            property: (property_identifier) @meth)) @call
+      where:
+        - { capture: ns, equals: md }
+        - { capture: alg, in: [md5, sha1, sha256, sha384, sha512] }
+        - { capture: meth, equals: create }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const forge = require('node-forge');
+          const md = forge.md.md5.create();
+        - |
+          const forge = require('node-forge');
+          const md = forge.md.sha256.create();
+      negative:
+        - |
+          const forge = require('node-forge');
+          const c = forge.cipher.createCipher('AES-CBC', key);
+
+  - id: JS-BCRYPT-HASH
+    title: bcrypt / bcryptjs password hashing (quantum-safe KDF, inventoried)
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @meth)) @call
+      where:
+        - { capture: obj, in: [bcrypt, bcryptjs] }
+        - { capture: meth, in: [hash, hashSync, compare, compareSync, genSalt, genSaltSync] }
+    extract:
+      algorithm: { literal: bcrypt }
+    asset: { asset_type: algorithm-use, usage_context: password }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const bcrypt = require('bcrypt');
+          const h = await bcrypt.hash(password, 12);
+      negative:
+        - |
+          const crypto = require('crypto');
+          const h = crypto.createHash('sha256').update(password).digest();
+
+  - id: JS-ARGON2-HASH
+    title: argon2 password hashing (quantum-safe KDF, inventoried)
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @meth)) @call
+      where:
+        - { capture: obj, equals: argon2 }
+        - { capture: meth, in: [hash, verify] }
+    extract:
+      algorithm: { literal: argon2id }
+    asset: { asset_type: algorithm-use, usage_context: password }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const argon2 = require('argon2');
+          const h = await argon2.hash(password);
+      negative:
+        - |
+          const bcrypt = require('bcrypt');
+          const h = await bcrypt.hash(password, 12);
+
+  - id: JS-JOSE-SIGN
+    title: jose npm SignJWT / jwtVerify with an explicit alg
+    match:
+      query: |
+        (call_expression
+          function: (member_expression property: (property_identifier) @meth)
+          arguments: (arguments
+            (object (pair key: (property_identifier) @key value: (string (string_fragment) @alg))))) @call
+      where:
+        - { capture: meth, in: [setProtectedHeader, sign, verify] }
+        - { capture: key, equals: alg }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import { SignJWT } from 'jose';
+          const jwt = await new SignJWT({}).setProtectedHeader({ alg: 'RS256' }).sign(key);
+      negative:
+        - |
+          import { SignJWT } from 'jose';
+          const jwt = await new SignJWT({}).setIssuedAt().sign(key);

@@ -35,13 +35,25 @@ export async function saveTextFile(
     return true;
   }
 
-  // Browser fallback (dev server outside the desktop shell).
+  // Browser fallback (dev server, or the dashboard served by nginx outside the desktop shell).
+  //
+  // Two details here are load-bearing, and both were wrong: the anchor has to be IN the document
+  // for `click()` to start a download in Firefox, and the object URL must NOT be revoked
+  // synchronously after `click()`. Revoking immediately can invalidate the blob before the browser
+  // has finished reading it, which silently produces no file at all — the failure mode is an export
+  // button that looks like it worked and saved nothing. Revoking on a later task lets the download
+  // latch onto the blob first.
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = suggestedName;
+  a.style.display = "none";
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 0);
   return true;
 }

@@ -15,6 +15,7 @@ import pathspec
 from .catalog import RuleCatalog
 from .certs.scanner import CertScanner
 from .code import CodeScanner, language_for
+from .config.directives import ApacheConfigParser, SshConfigParser
 from .config.parsers import NginxConfigParser
 from .deps.scanner import ManifestParser
 from .models import Detection, ScanError, ScanResult, ScanStats
@@ -45,6 +46,10 @@ _MAX_FILE_BYTES = 2_000_000  # 2 MB per-file cap (NFR-8)
 # Dependency-manifest filenames the SCA scanner dispatches on (matched by exact name, not suffix).
 _MANIFEST_NAMES = {"go.mod", "package.json", "requirements.txt", "pyproject.toml", "pom.xml"}
 
+# Config files whose format is identifiable by name.
+_SSH_CONFIG_NAMES = {"sshd_config", "ssh_config"}
+_APACHE_CONFIG_NAMES = {"httpd.conf", "apache2.conf", "ssl.conf", "vhost.conf", "000-default.conf"}
+
 ProgressFn = Callable[[str, int, int], None]  # (stage, done, total)
 
 
@@ -63,6 +68,8 @@ def scan_paths(
 
     code_scanner = CodeScanner(catalog)
     config_scanner = NginxConfigParser()
+    apache_scanner = ApacheConfigParser()
+    ssh_scanner = SshConfigParser()
     cert_scanner = CertScanner()
     secret_scanner = SecretScanner()
     manifest_scanner = ManifestParser()
@@ -87,10 +94,20 @@ def scan_paths(
                 detections.extend(found)
                 result.stats.files_scanned += 1
 
-            # Config scanner
+            # Config scanner. Format is chosen by name/suffix rather than content-sniffing: nginx
+            # needs crossplane, while Apache and OpenSSH are line-oriented and share a parser style.
             if "config" in scanners and f.suffix in {".conf", ".cnf", ".cfg", ".yaml", ".yml", ""}:
-                # Basic heuristic for nginx config
-                found = config_scanner.parse(f)
+                lowered = f.name.lower()
+                if lowered in _SSH_CONFIG_NAMES:
+                    found = ssh_scanner.parse(f)
+                elif lowered in _APACHE_CONFIG_NAMES or "apache" in lowered or "httpd" in lowered:
+                    found = apache_scanner.parse(f)
+                else:
+                    found = config_scanner.parse(f)
+                    if not found:
+                        # An unrecognised .conf could still be Apache-style; try it before giving up
+                        # rather than losing the file to nginx's stricter grammar.
+                        found = apache_scanner.parse(f)
                 if found:
                     detections.extend(found)
                     result.stats.files_scanned += 1

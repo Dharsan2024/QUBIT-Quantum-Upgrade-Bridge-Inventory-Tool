@@ -104,14 +104,22 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         kind="asymmetric",
         key_size=256,
         classical_security_level=128,
-        aliases=("ecdsa", "prime256v1", "secp256r1", "p-256", "p256", "es256"),
+        aliases=(
+            "ecdsa",
+            "prime256v1",
+            "secp256r1",
+            "p-256",
+            "p256",
+            "es256",
+            "ecdsa-sha2-nistp256",  # OpenSSH HostKeyAlgorithms spelling
+        ),
     ),
     _shor(
         canonical="ECDSA-P384",
         family="ECDSA",
         kind="asymmetric",
         key_size=384,
-        aliases=("secp384r1", "p-384", "p384", "es384"),
+        aliases=("secp384r1", "p-384", "p384", "es384", "ecdsa-sha2-nistp384"),
     ),
     _shor(
         # JOSE ES512 means P-521 (not P-512/P-384) — the curve is named for its ~521-bit prime
@@ -120,7 +128,7 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         family="ECDSA",
         kind="asymmetric",
         key_size=521,
-        aliases=("secp521r1", "p-521", "p521", "es512"),
+        aliases=("secp521r1", "p-521", "p521", "es512", "ecdsa-sha2-nistp521"),
     ),
     _shor(
         canonical="ECDH-P256",
@@ -134,14 +142,15 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         family="ECDH",
         kind="asymmetric",
         key_size=256,
-        aliases=("curve25519", "x25519"),
+        # `curve25519-sha256` / `sntrup761x25519-sha512` are OpenSSH KexAlgorithms names.
+        aliases=("curve25519", "x25519", "curve25519-sha256"),
     ),
     _shor(
         canonical="Ed25519",
         family="EdDSA",
         kind="asymmetric",
         key_size=256,
-        aliases=("ed25519", "eddsa"),
+        aliases=("ed25519", "eddsa", "ssh-ed25519"),
     ),
     _shor(
         canonical="DH-2048",
@@ -281,9 +290,28 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
     _grover(canonical="RC2", family="RC2", kind="symmetric", key_size=128, aliases=("rc2",)),
     _grover(canonical="TEA", family="TEA", kind="symmetric", key_size=128, aliases=("tea", "xtea")),
     # --- JOSE/JWT HMAC algs (RFC 7518) — symmetric-keyed MAC, Grover-only (not Shor-broken). ---
-    _grover(canonical="HS256", family="HMAC", kind="mac", aliases=("hs256", "hmac-sha256")),
-    _grover(canonical="HS384", family="HMAC", kind="mac", aliases=("hs384", "hmac-sha384")),
-    _grover(canonical="HS512", family="HMAC", kind="mac", aliases=("hs512", "hmac-sha512")),
+    # The `hmac-sha*` spellings also cover OpenSSH's MACs directive.
+    _grover(
+        canonical="HS256",
+        family="HMAC",
+        kind="mac",
+        aliases=("hs256", "hmac-sha256", "hmac-sha2-256"),
+    ),
+    _grover(
+        canonical="HS384",
+        family="HMAC",
+        kind="mac",
+        aliases=("hs384", "hmac-sha384", "hmac-sha2-384"),
+    ),
+    _grover(
+        canonical="HS512",
+        family="HMAC",
+        kind="mac",
+        aliases=("hs512", "hmac-sha512", "hmac-sha2-512"),
+    ),
+    # hmac-sha1 / hmac-md5 are OpenSSH MACs built on broken hashes — flagged, not silently allowed.
+    _grover(canonical="HMAC-SHA1", family="HMAC", kind="mac", aliases=("hmac-sha1", "hmacsha1")),
+    _grover(canonical="HMAC-MD5", family="HMAC", kind="mac", aliases=("hmac-md5", "hmacmd5")),
     # --- Hashes ---
     _safe(canonical="SHA-256", family="SHA-2", kind="hash", aliases=("sha256", "sha-256")),
     _safe(canonical="SHA-384", family="SHA-2", kind="hash", aliases=("sha384",)),
@@ -327,6 +355,47 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
     # certificates" is inventoried rather than reported as UNKNOWN(X.509) — the concrete key
     # algorithm inside a certificate is what the cert scanner reports separately.
     _safe(canonical="X.509", family="X.509", kind="protocol", aliases=("x509", "x.509")),
+    # --- OpenSSH algorithm names (sshd_config Ciphers/MACs/KexAlgorithms/HostKeyAlgorithms).
+    # Without these, `ssh-rsa` and `diffie-hellman-group1-sha1` resolved to UNKNOWN(...) and
+    # inherited a NOT-vulnerable verdict — genuinely weak SSH configuration reading as safe.
+    # `@openssh.com`-suffixed names are handled by suffix stripping in resolve(). ---
+    _shor(
+        canonical="ssh-rsa",
+        family="RSA",
+        kind="asymmetric",
+        # ssh-rsa is RSA with a SHA-1 signature, deprecated by OpenSSH 8.8+ for that reason.
+        aliases=("sshrsa", "rsasha2256", "rsasha2512", "rsa-sha2-256", "rsa-sha2-512"),
+    ),
+    _shor(
+        canonical="ssh-dss",
+        family="DSA",
+        kind="asymmetric",
+        key_size=1024,
+        aliases=("sshdss", "ssh-dsa"),
+    ),
+    # Diffie-Hellman group numbers map to fixed modulus sizes (RFC 3526): group1 = 1024-bit, which
+    # is the weakest thing OpenSSH will still negotiate, group14 = 2048, group16 = 4096.
+    _shor(
+        canonical="DH-1024-group1",
+        family="DH",
+        kind="asymmetric",
+        key_size=1024,
+        aliases=("diffiehellmangroup1sha1", "diffiehellmangroupexchangesha1"),
+    ),
+    _shor(
+        canonical="DH-2048-group14",
+        family="DH",
+        kind="asymmetric",
+        key_size=2048,
+        aliases=("diffiehellmangroup14sha1", "diffiehellmangroup14sha256"),
+    ),
+    _shor(
+        canonical="DH-4096-group16",
+        family="DH",
+        kind="asymmetric",
+        key_size=4096,
+        aliases=("diffiehellmangroup16sha512", "diffiehellmangroup18sha512"),
+    ),
     _safe(canonical="ConcatKDF", family="ConcatKDF", kind="kdf", aliases=("concatkdf",)),
     _safe(canonical="X963KDF", family="X963KDF", kind="kdf", aliases=("x963kdf", "ansix963kdf")),
     # PBKDF1 is classically obsolete (single hash iteration family, no salt guarantees) but, like
@@ -546,6 +615,64 @@ def _normkey(name: str) -> str:
     return name.strip().lower().replace("-", "").replace("/", "").replace("_", "").replace(" ", "")
 
 
+# Symmetric ciphers as they appear inside IANA TLS suite names, longest first so AES_256 wins over
+# AES and CHACHA20_POLY1305 over CHACHA20.
+_SUITE_CIPHERS: tuple[tuple[str, str], ...] = (
+    ("chacha20_poly1305", "ChaCha20-Poly1305"),
+    ("aes_256", "AES-256"),
+    ("aes_128", "AES-128"),
+    ("3des_ede", "3DES"),
+    ("camellia_256", "Camellia-256"),
+    ("camellia_128", "Camellia-128"),
+    ("seed", "SEED"),
+    ("rc4_128", "RC4"),
+    ("des_cbc", "DES"),
+    ("null", "NULL"),
+)
+
+# Key-exchange component of an IANA TLS 1.2-and-earlier suite name. This is the component that
+# decides HNDL exposure: harvested traffic is decrypted by breaking the key exchange, so when a
+# suite name has to collapse to ONE algorithm, the KEX is the honest choice.
+_SUITE_KEX: tuple[tuple[str, str], ...] = (
+    ("tls_ecdhe_ecdsa", "ECDH-P256"),
+    ("tls_ecdhe_rsa", "ECDH-P256"),
+    ("tls_ecdh_ecdsa", "ECDH-P256"),
+    ("tls_ecdh_rsa", "ECDH-P256"),
+    ("tls_dhe_rsa", "DH"),
+    ("tls_dhe_dss", "DH"),
+    ("tls_dh_anon", "DH"),
+    ("tls_srp", "DH"),
+    ("tls_psk", "PSK"),
+    ("tls_rsa", "RSA"),
+)
+
+
+def _suite_component(name: str) -> CanonicalAlgorithm | None:
+    """Reduce an IANA TLS cipher-suite name to the one algorithm that governs its quantum risk.
+
+    ``TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`` -> ECDH (the key exchange), because breaking the key
+    exchange is what lets a harvest-now-decrypt-later adversary read recorded traffic.
+    ``TLS_AES_256_GCM_SHA384`` (a TLS 1.3 name) carries no key exchange at all — TLS 1.3 negotiates
+    the group separately, and the network scanner reports that as its own asset — so the bulk
+    cipher is reported instead.
+
+    Returns None for anything that is not a suite name, leaving normal resolution to continue.
+    """
+    lowered = name.strip().lower()
+    if not lowered.startswith("tls_"):
+        return None
+
+    for prefix, kex in _SUITE_KEX:
+        if lowered.startswith(prefix + "_"):
+            return _BY_KEY.get(_normkey(kex)) or _BARE_FAMILY.get(_normkey(kex))
+
+    # No recognized KEX prefix => a TLS 1.3 suite; fall back to the bulk cipher.
+    for token, cipher in _SUITE_CIPHERS:
+        if token in lowered:
+            return _BY_KEY.get(_normkey(cipher))
+    return None
+
+
 def resolve(name: str, key_size: int | None = None) -> CanonicalAlgorithm | None:
     """Resolve a raw algorithm name (+ optional key size) to a canonical entry, or None.
 
@@ -555,7 +682,23 @@ def resolve(name: str, key_size: int | None = None) -> CanonicalAlgorithm | None
     """
     if not name:
         return None
+
+    # OpenSSH qualifies vendor extensions with a domain: `aes256-gcm@openssh.com`,
+    # `chacha20-poly1305@openssh.com`, `hmac-sha2-256-etm@openssh.com`. The suffix carries no
+    # algorithm information, so it is dropped before anything else — otherwise every hardened
+    # OpenSSH cipher resolved to UNKNOWN(...) and inherited a not-vulnerable verdict.
+    name = name.split("@", 1)[0]
+    # `-etm` (encrypt-then-MAC) is likewise a mode marker on OpenSSH MAC names.
+    if name.lower().endswith("-etm"):
+        name = name[: -len("-etm")]
+
     key = _normkey(name)
+
+    # IANA / OpenSSH composite names describe a SUITE, not one algorithm. Reduce them to the single
+    # component that governs harvest-now-decrypt-later risk (see _suite_component).
+    suite = _suite_component(name)
+    if suite is not None:
+        return suite
 
     # 1. size embedded in the name, e.g. "RSA2048"
     m = _RSA_SIZE_RE.match(key)

@@ -79,7 +79,13 @@ class NginxConfigParser:
                         Detection(
                             scanner="config",
                             rule_id="CFG-NGINX-CERT-001",
-                            raw_algorithm=cert_path,  # the normalizer/cert scanner handles this
+                            # A file PATH is not an algorithm. Putting one here made the
+                            # normalizer emit `UNKNOWN(/etc/nginx/certs/server.crt)` - an asset
+                            # named after a filename, with a not-vulnerable verdict. The
+                            # referenced file's real key algorithm is reported by the cert
+                            # scanner; the honest statement here is "this config points at X.509
+                            # material", with the path preserved as evidence.
+                            raw_algorithm="X.509",
                             asset_type="certificate",
                             usage_context="tls",
                             location=loc,

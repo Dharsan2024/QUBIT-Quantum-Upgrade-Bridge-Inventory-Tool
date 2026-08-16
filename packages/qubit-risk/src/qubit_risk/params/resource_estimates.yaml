@@ -48,6 +48,13 @@ algorithms:
   ECDH-P521:        {attack: shor, alias: ECDSA-P384}
   X448:             {attack: shor, alias: ECDSA-P384} # 448-bit curve, between P-384 and P-521
   Ed448:            {attack: shor, alias: ECDSA-P384}
+  # --- OpenSSH host-key and Kex algorithm names. Same Shor cost as the underlying primitive at the
+  # matching modulus size; the DH group numbers are fixed sizes from RFC 3526.
+  ssh-rsa:          {attack: shor, alias: RSA-2048}   # RSA, size not stated in the name
+  ssh-dss:          {attack: shor, alias: RSA-1024}   # DSA-1024 by definition
+  DH-1024-group1:   {attack: shor, alias: RSA-1024}
+  DH-2048-group14:  {attack: shor, alias: RSA-2048}
+  DH-4096-group16:  {attack: shor, alias: RSA-4096}
 # Grover-tier symmetric/hash: no CDF (tier treatment, doc 02 6.1.6)
 grover_tier:
   AES-128: {tier: marginal}

@@ -109,3 +109,39 @@ def test_jose_rsa_aliases_share_the_rsa2048_curve() -> None:
         curve = sim.simulate(alg, n_trials=1500)
         assert curve is not None, f"{alg} must be modellable"
         assert curve.cdf == base.cdf, f"{alg} should share the RSA-2048 curve"  # type: ignore[union-attr]
+
+
+def test_min_distance_matches_the_reference_upward_search() -> None:
+    """`min_distance` was rewritten for speed (it was 72% of the whole risk pipeline), so this pins
+    it against a literal transcription of the original upward search it replaced.
+
+    The rewrite walks candidate distances DOWNWARD, which lets the smallest satisfying distance win
+    by overwriting rather than by NaN bookkeeping. That is only valid because the condition is
+    monotone in d, and this test is what makes that reasoning checkable rather than asserted.
+    """
+    import numpy as np
+    from qubit_risk.timeline.surface_code import _MAX_DISTANCE, logical_error_rate, min_distance
+
+    def reference(q_logical, n_toffoli, p, *, A, p_threshold, eps_fail):  # type: ignore[no-untyped-def]
+        n_arr = np.asarray(n_toffoli, dtype=np.float64)
+        p_arr = np.asarray(p, dtype=np.float64)
+        chosen = np.full(np.broadcast(n_arr, p_arr).shape, np.nan, dtype=np.float64)
+        for d in range(3, _MAX_DISTANCE + 1, 2):
+            p_l = logical_error_rate(d, p_arr, A=A, p_threshold=p_threshold)
+            ok = (q_logical * n_arr * d * p_l) <= eps_fail
+            chosen = np.where(ok & np.isnan(chosen), float(d), chosen)
+        return np.where(np.isnan(chosen), float(_MAX_DISTANCE), chosen)
+
+    rng = np.random.default_rng(20260816)
+    for _ in range(120):
+        n = 10 ** rng.uniform(3, 14, size=int(rng.integers(1, 40)))
+        p = 10 ** rng.uniform(-5, -2.6, size=n.shape)
+        kwargs = {"A": 0.1, "p_threshold": 1e-2, "eps_fail": float(rng.uniform(0.01, 0.5))}
+        q = int(rng.integers(100, 20000))
+        assert np.array_equal(reference(q, n, p, **kwargs), min_distance(q, n, p, **kwargs))
+
+    # Scalars, and the unsatisfiable extreme that must fall back to the maximum distance.
+    hard = {"A": 0.1, "p_threshold": 1e-2, "eps_fail": 0.01}
+    for q, n, p in [(2000, 1e12, 1e-3), (1, 1.0, 1e-9), (10**6, 1e20, 9.9e-3)]:
+        assert np.array_equal(reference(q, n, p, **hard), min_distance(q, n, p, **hard))
+    assert float(min_distance(10**6, 1e20, 9.9e-3, **hard)) == float(_MAX_DISTANCE)

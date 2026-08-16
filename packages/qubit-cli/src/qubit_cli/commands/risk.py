@@ -11,7 +11,6 @@ import typer
 from qubit_core import row_to_asset
 from qubit_core.db.models import AssetRow, ScanRow
 from qubit_core.db.session import default_db_url, get_engine, session_factory
-from qubit_risk import CRQCTimelineSimulator, RiskPipeline, load_config
 from rich.console import Console
 from rich.table import Table
 from sqlalchemy import select
@@ -35,6 +34,13 @@ def risk_timeline(
     as_json: Annotated[bool, typer.Option("--json", help="JSON output")] = False,
 ) -> None:
     """Simulate CRQC timeline for an algorithm."""
+    # Imported here, not at module scope. `qubit_risk` pulls in scipy.stats (~0.46s) via the
+    # Monte-Carlo simulator, and this module is imported to REGISTER the Typer sub-app — so
+    # every `qubit scan`, every `qubit --help`, and every rescan subprocess the migration
+    # validator spawns paid for scipy without using it. Matches the deferred import already
+    # used in commands/run.py.
+    from qubit_risk import CRQCTimelineSimulator, load_config
+
     cfg = load_config()
     # Actually, we can override n_trials in the config.
     cfg.hardware_priors["n_trials"] = trials
@@ -92,6 +98,8 @@ def risk_assess(
 
         rows = session.execute(select(AssetRow).where(AssetRow.scan_id == scan.id)).scalars().all()
         assets = [row_to_asset(r) for r in rows]
+
+    from qubit_risk import RiskPipeline, load_config  # deferred: see `timeline` above
 
     pipe = RiskPipeline(load_config())
 

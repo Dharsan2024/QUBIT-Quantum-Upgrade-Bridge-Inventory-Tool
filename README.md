@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-783%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-787%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 783 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 787 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
 
 ---
 
@@ -163,10 +163,27 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-783 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+787 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
-**Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video ·
-three known non-blocking defects listed in [BUILD_PLAN §Phase 3](docs/BUILD_PLAN.md).
+**Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
+The three defects previously tracked in [BUILD_PLAN §Phase 3](docs/BUILD_PLAN.md) are now closed.
+
+### Performance
+
+Measured with `cProfile` and `-X importtime` on a real repository, not estimated:
+
+| Path | Before | After | What was wrong |
+|---|---|---|---|
+| `qubit` CLI start-up | 1.77 s | **0.75 s** | `scipy.stats`, `alembic` and `libcst` were all imported eagerly — by `qubit scan`, by `qubit --help`, and by every validator subprocess — for code paths none of them touch |
+| Repeat `scan_paths()` | 2.17 s | **1.21 s** | the rule catalog re-parsed 29 YAML files and recompiled ~152 tree-sitter queries on *every* call (0.8 s, 37% of a scan), though the pack is static per install |
+| Full test suite | 90 s | **77 s** | same catalog caching, which most tests pay for too |
+| Patch validation (per patch) | 1.55 s | **1.44 s** | plus it no longer requires `uv` on PATH, and can no longer hang on a nested `uv run` environment lock |
+
+The risk engine turned out to be **already near its floor** — `simulate()` was correctly cached per
+algorithm, so 213 assets cost only 5 real Monte-Carlo runs. Its hottest function (`min_distance`,
+72% of the pipeline) was rewritten for a modest 1.09x and, more usefully, fewer moving parts; two
+faster-looking alternatives were measured, found slower, and are recorded in the code so they are not
+retried. Reporting a 9% win as a 5x one would have been the easy mistake here.
 
 ---
 

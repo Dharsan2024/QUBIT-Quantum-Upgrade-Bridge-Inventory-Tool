@@ -46,7 +46,7 @@ M1, and M2 are complete and the Phase-3 hardening sprint is most of the way thro
 | Python source (non-test) | **~15,360 LOC** across 135 files, 7 packages | `find packages -name '*.py' -not -path '*/tests/*'` |
 | Python tests | **~5,362 LOC** across 48 files | `find packages -name 'test_*.py'` |
 | Dashboard TypeScript/TSX | **~4,588 LOC** across 27 files | `find dashboard/src -name '*.ts*'` |
-| Test result | **783 passed · 0 failed · 0 skipped** | `uv run pytest packages -q` |
+| Test result | **787 passed · 0 failed · 0 skipped** | `uv run pytest packages -q` |
 | Coverage (3 core packages) | **82%** (gate: ≥70%) | `pytest --cov=qubit_core --cov=qubit_scanner --cov=qubit_risk` |
 | Detection rules | **145** across 6 languages (python 39, go 29, java 21, js 23, ts 23, c 10) | `RuleCatalog.load()` |
 | Canonical algorithms | **115** | `len(qubit_core.algorithms.ALGORITHMS)` |
@@ -77,7 +77,7 @@ Status legend: **built** = shipped + tested · **partial** = works but not fully
 
 ## 4. Test-suite honesty + known open defects
 
-`uv run pytest packages -q` at `fa6e4cb`: **783 passed, 0 failed, 0 skipped.**
+`uv run pytest packages -q` at `8ef389d`+: **787 passed, 0 failed, 0 skipped** (77s, down from 90s).
 
 Both blemishes from the previous edition are closed:
 - The **bridge e2e failure** is resolved — the test is now marked `@pytest.mark.integration` (so the

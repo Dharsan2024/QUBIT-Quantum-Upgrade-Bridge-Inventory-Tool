@@ -4,7 +4,8 @@ The DB is the source of truth. SQLite is the default (WAL mode, so a reader API 
 thread coexist); PostgreSQL is an optional swap via the SQLAlchemy URL.
 """
 
-from .migrate import has_alembic_history, stamp_head, upgrade_to_head
+from typing import TYPE_CHECKING, Any
+
 from .models import ApiToken, AssetRow, Base, Job, ProjectRow, RiskRun, ScanRow
 from .session import default_db_url, get_engine, session_factory
 from .tokens import (
@@ -39,3 +40,25 @@ __all__ = [
     "stamp_head",
     "upgrade_to_head",
 ]
+
+# `.migrate` imports Alembic, which costs ~0.28s — and it was imported eagerly here purely to
+# re-export the three schema functions below. Because almost everything in the monorepo imports
+# `qubit_core` (the scanner, the CLI, the API, the migration orchestrator), that cost was paid on
+# EVERY process start, including each rescan subprocess the migration validator spawns per patch.
+# Only `qubit db …`, the API's startup migration, and one test ever call them.
+#
+# Deferred with PEP 562 so the public surface is byte-for-byte unchanged: `from qubit_core.db import
+# upgrade_to_head` still works, `__all__` still advertises it, and Alembic is imported on the first
+# actual attribute access instead of at import time.
+if TYPE_CHECKING:  # let type checkers and IDEs resolve them statically
+    from .migrate import has_alembic_history, stamp_head, upgrade_to_head
+
+_LAZY_MIGRATE_EXPORTS = frozenset({"has_alembic_history", "stamp_head", "upgrade_to_head"})
+
+
+def __getattr__(name: str) -> Any:
+    if name in _LAZY_MIGRATE_EXPORTS:
+        from . import migrate
+
+        return getattr(migrate, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

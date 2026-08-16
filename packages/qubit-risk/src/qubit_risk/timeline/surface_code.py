@@ -42,15 +42,36 @@ def min_distance(
     """
     n_arr = np.asarray(n_toffoli, dtype=np.float64)
     p_arr = np.asarray(p, dtype=np.float64)
-    shape = np.broadcast(n_arr, p_arr).shape
-    chosen = np.full(shape, np.nan, dtype=np.float64)
-    for d in range(3, _MAX_DISTANCE + 1, 2):
-        p_l = logical_error_rate(d, p_arr, A=A, p_threshold=p_threshold)
-        ok = (q_logical * n_arr * d * p_l) <= eps_fail
-        newly = ok & np.isnan(chosen)
-        chosen = np.where(newly, float(d), chosen)
-    # anything still unresolved gets the max distance (best effort)
-    return np.where(np.isnan(chosen), float(_MAX_DISTANCE), chosen)
+
+    # This is the hottest path in the whole risk engine. Profiling `assess()` over 213 real assets
+    # put `logical_error_rate` at 10,125 calls and 0.98s — **72% of the entire pipeline** — because
+    # this loop called it once per candidate distance, re-wrapping its inputs as arrays each time,
+    # and did NaN bookkeeping (`isnan`/`newly`/`where`) on the full array every iteration too.
+    #
+    # Two other shapes were measured and rejected, so they are recorded here rather than retried:
+    #   * early exit once every element resolves — SLOWER (1.35s -> 1.74s). A Monte-Carlo sample
+    #     spans a wide range of gate error rates, so some trials resolve at d=3 while others need
+    #     d=55; the loop almost never exits early and the `.any()` scans are pure added cost.
+    #   * one vectorized pass with a `d` axis — SLOWER still (2.23s). `array ** scalar` is a numpy
+    #     fast path; `array ** array` is not, so broadcasting the exponent loses more than removing
+    #     the Python loop gains.
+    #
+    # What actually works is doing LESS per iteration. `p / p_threshold` and `Q_L * N_tof` are
+    # loop-invariant and are hoisted, and iterating DOWNWARD makes the bookkeeping disappear: the
+    # condition is monotone in d (larger d shrinks p_L exponentially), so walking from the largest
+    # distance down means each satisfying d overwrites the previous one and the final write is the
+    # smallest satisfying d — the same answer the upward search produced, with no NaN sentinel, no
+    # `isnan`, and no `newly` mask. Anything unsatisfiable keeps the initial max distance, matching
+    # the previous fallback. Three array ops per iteration instead of about six.
+    ratio = p_arr / p_threshold
+    scale = q_logical * n_arr
+    chosen = np.broadcast_to(
+        np.asarray(float(_MAX_DISTANCE)), np.broadcast(n_arr, p_arr).shape
+    ).copy()
+    for d in range(_MAX_DISTANCE, 2, -2):
+        ok = (scale * d * (A * ratio ** ((d + 1.0) / 2.0))) <= eps_fail
+        chosen = np.where(ok, float(d), chosen)
+    return chosen
 
 
 def required_physical_qubits(

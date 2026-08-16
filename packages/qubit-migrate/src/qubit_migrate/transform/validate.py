@@ -10,9 +10,11 @@ Stages 3 (compile) and 4 (tests) are M2 (require Docker sandbox).
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -179,6 +181,31 @@ def _stage_parses(patched_source: str, language: str = "python") -> StageResult:
         return StageResult("fail", f"parse error: {exc}", time.monotonic() - t0)
 
 
+def _scan_command(target: Path) -> list[str]:
+    """The command that runs the scanner's public CLI over ``target``.
+
+    Stage 5 deliberately goes through the ``qubit scan`` **CLI** rather than importing
+    qubit-scanner, because doc 03 §2 forbids qubit-migrate from importing scanner internals — the
+    CLI is the public interface. What it should NOT depend on is `uv`:
+
+    * `uv` need not be installed at all in a pip-installed or containerized deployment, in which
+      case every patch failed validation for a reason unrelated to the patch.
+    * `uv run` nested inside an already-running `uv run` contends for the environment lock, which
+      was observed hanging until the 60s timeout rather than returning.
+
+    So the current interpreter runs the CLI module directly — the same public entry point
+    (`qubit_cli.main`) without the resolver in front of it. The installed `qubit` console script
+    and `uv run` remain as fallbacks so this keeps working in every install shape.
+    """
+    args = ["scan", str(target), "--json"]
+    if importlib.util.find_spec("qubit_cli") is not None:
+        return [sys.executable, "-m", "qubit_cli.main", *args]
+    console_script = shutil.which("qubit")
+    if console_script:
+        return [console_script, *args]
+    return ["uv", "run", "qubit", *args]
+
+
 def _stage_rescan(
     patched_source: str,
     rule: Any | None,
@@ -216,7 +243,7 @@ def _stage_rescan(
 
         try:
             result = subprocess.run(
-                ["uv", "run", "qubit", "scan", str(tmp_file), "--json"],
+                _scan_command(tmp_file),
                 capture_output=True,
                 timeout=60,
                 cwd=str(Path(__file__).parents[6]),  # workspace root

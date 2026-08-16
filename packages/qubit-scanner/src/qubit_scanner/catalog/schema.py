@@ -59,6 +59,13 @@ class Rule(BaseModel):
     asset: RuleAsset = Field(default_factory=RuleAsset)
     confidence: str = "high"
     examples: RuleExamples = Field(default_factory=RuleExamples)
+    # "per-occurrence" (default): every match is its own finding — right for call sites, where
+    # each call is a distinct thing to migrate. "per-file": collapse to one finding per
+    # (algorithm, file), for EVIDENCE-style rules that restate the same fact many times. A Go type
+    # reference like `*rsa.PrivateKey` is real proof the file handles RSA keys, but it appeared 18
+    # times in a single file and such rules were 56% of all findings across real repositories —
+    # burying the actual operations under restatements of one fact.
+    dedupe: str = "per-occurrence"
 
 
 class LibrarySpec(BaseModel):

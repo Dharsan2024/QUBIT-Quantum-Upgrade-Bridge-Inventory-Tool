@@ -252,3 +252,74 @@ rules:
         - |
           #include <openssl/evp.h>
           void f(void) { EVP_DigestInit_ex(ctx, EVP_sha256(), NULL); }
+
+  # Key USE, not just generation — see go/crypto_operations.yaml for why this matters more.
+  - id: C-OPENSSL-PKEY-SIGN-VERIFY
+    title: EVP_PKEY_sign / verify / encrypt / decrypt operations
+    match:
+      query: |
+        (call_expression function: (identifier) @fn) @call
+      where:
+        - capture: fn
+          in:
+            [
+              EVP_PKEY_sign,
+              EVP_PKEY_sign_init,
+              EVP_PKEY_verify,
+              EVP_PKEY_verify_init,
+              EVP_PKEY_encrypt,
+              EVP_PKEY_encrypt_init,
+              EVP_PKEY_decrypt,
+              EVP_PKEY_decrypt_init,
+              EVP_PKEY_derive,
+              EVP_PKEY_derive_init,
+              EVP_DigestSign,
+              EVP_DigestSignInit,
+              EVP_DigestVerify,
+              EVP_DigestVerifyInit,
+            ]
+    extract:
+      # The concrete key algorithm lives in the EVP_PKEY object, not the call, so this records that
+      # asymmetric crypto is performed here. Which algorithm it is comes from the keygen/parse rules.
+      algorithm: { literal: UNRESOLVED }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: low
+    examples:
+      positive:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, pkey); }
+      negative:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_PKEY_free(pkey); }
+
+  - id: C-OPENSSL-RSA-DIRECT-OP
+    title: Legacy RSA_public_encrypt / RSA_private_decrypt / RSA_sign / RSA_verify
+    match:
+      query: |
+        (call_expression function: (identifier) @fn) @call
+      where:
+        - capture: fn
+          in:
+            [
+              RSA_public_encrypt,
+              RSA_private_decrypt,
+              RSA_private_encrypt,
+              RSA_public_decrypt,
+              RSA_sign,
+              RSA_verify,
+            ]
+    extract:
+      algorithm: { literal: RSA }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <openssl/rsa.h>
+          void f(void) { RSA_public_encrypt(len, from, to, rsa, RSA_PKCS1_OAEP_PADDING); }
+      negative:
+        - |
+          #include <openssl/rsa.h>
+          void f(void) { RSA_free(rsa); }

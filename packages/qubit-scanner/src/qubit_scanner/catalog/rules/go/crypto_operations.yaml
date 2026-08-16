@@ -1,0 +1,166 @@
+schema: qubit-rule/v1
+language: go
+library:
+  name: Go crypto
+  detect_imports: []
+rules:
+  # Key USE, not key generation. Every rule pack so far detected `GenerateKey` calls, but real code
+  # generates a key once (often in a separate provisioning step) and then signs, verifies, encrypts
+  # and decrypts with it everywhere. Scanning golang-jwt — a library whose entire purpose is RSA/
+  # ECDSA/Ed25519 signing — produced only 3 findings across 46 files for exactly this reason.
+  - id: GO-CRYPTO-RSA-SIGN-VERIFY
+    title: rsa.SignPKCS1v15 / VerifyPKCS1v15 / SignPSS / VerifyPSS
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: rsa }
+        - { capture: fn, in: [SignPKCS1v15, VerifyPKCS1v15, SignPSS, VerifyPSS] }
+    extract:
+      algorithm: { literal: RSA }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/rsa"
+          func f() { rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest) }
+        - |
+          package main
+          import "crypto/rsa"
+          func f() { rsa.VerifyPSS(pub, crypto.SHA256, digest, sig, opts) }
+      negative:
+        - |
+          package main
+          import "crypto/rsa"
+          func f() { rsa.GenerateKey(rand.Reader, 2048) }
+
+  - id: GO-CRYPTO-RSA-ENCRYPT-DECRYPT
+    title: rsa.EncryptOAEP / DecryptOAEP / EncryptPKCS1v15 / DecryptPKCS1v15
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: rsa }
+        - capture: fn
+          in:
+            [
+              EncryptOAEP,
+              DecryptOAEP,
+              EncryptPKCS1v15,
+              DecryptPKCS1v15,
+              DecryptPKCS1v15SessionKey,
+            ]
+    extract:
+      algorithm: { literal: RSA }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/rsa"
+          func f() { rsa.EncryptOAEP(sha256.New(), rand.Reader, pub, msg, nil) }
+      negative:
+        - |
+          package main
+          import "crypto/rsa"
+          func f() { rsa.SignPSS(rand.Reader, key, crypto.SHA256, digest, nil) }
+
+  - id: GO-CRYPTO-ECDSA-SIGN-VERIFY
+    title: ecdsa.Sign / Verify / SignASN1 / VerifyASN1
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: ecdsa }
+        - { capture: fn, in: [Sign, Verify, SignASN1, VerifyASN1] }
+    extract:
+      # The curve is a property of the key value, not of the call, so the bare ECDSA family is the
+      # honest answer here — it carries the same Shor verdict as any specific curve.
+      algorithm: { literal: ECDSA }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f() { ecdsa.VerifyASN1(pub, digest, sig) }
+      negative:
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f() { ecdsa.GenerateKey(elliptic.P256(), rand.Reader) }
+
+  - id: GO-CRYPTO-ED25519-SIGN-VERIFY
+    title: ed25519.Sign / ed25519.Verify
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: ed25519 }
+        - { capture: fn, in: [Sign, Verify, VerifyWithOptions] }
+    extract:
+      algorithm: { literal: Ed25519 }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/ed25519"
+          func f() { ed25519.Verify(pub, msg, sig) }
+      negative:
+        - |
+          package main
+          import "crypto/ed25519"
+          func f() { ed25519.GenerateKey(rand.Reader) }
+
+  # Key MATERIAL held in a type declaration. `func f(key *rsa.PrivateKey)` proves the program
+  # handles an RSA private key even if the signing happens in a helper the scanner sees separately.
+  - id: GO-CRYPTO-KEY-TYPE
+    title: Key-material type reference (rsa.PrivateKey / ecdsa.PublicKey / ed25519.PrivateKey)
+    match:
+      query: |
+        (qualified_type
+          package: (package_identifier) @pkg
+          name: (type_identifier) @kind) @call
+      where:
+        - { capture: pkg, in: [rsa, ecdsa, ed25519, dsa] }
+        - { capture: kind, in: [PrivateKey, PublicKey] }
+    extract:
+      algorithm: { from: pkg, resolve: go-key-package }
+    asset: { asset_type: key, usage_context: unknown }
+    confidence: medium
+    # One finding per (algorithm, file): a file declaring `*rsa.PrivateKey` 18 times is one fact,
+    # not 18 findings. Without this these type references were 56% of all findings on real repos.
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/rsa"
+          func f(key *rsa.PrivateKey) {}
+        - |
+          package main
+          import "crypto/ed25519"
+          func f(pub ed25519.PublicKey) {}
+      negative:
+        - |
+          package main
+          import "crypto/tls"
+          func f(c *tls.Config) {}

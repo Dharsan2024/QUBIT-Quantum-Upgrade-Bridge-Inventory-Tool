@@ -58,13 +58,22 @@ class CodeScanner:
         shortlist = [r for r in rules if _import_gate(r, imports)]
 
         detections: list[Detection] = []
+        # Rules declaring `dedupe: per-file` contribute at most one finding per algorithm per file
+        # (see Rule.dedupe). Tracked per scan_source call, i.e. per file.
+        collapsed: set[tuple[str, str]] = set()
         for cr in shortlist:
             for _, caps in QueryCursor(cr.query).matches(root):
                 det = self._match_to_detection(
                     cr, caps, source, root, language, file_path, repo, imports
                 )
-                if det is not None:
-                    detections.append(det)
+                if det is None:
+                    continue
+                if cr.rule.dedupe == "per-file":
+                    key = (det.rule_id, det.raw_algorithm)
+                    if key in collapsed:
+                        continue
+                    collapsed.add(key)
+                detections.append(det)
         return detections
 
     def _match_to_detection(
@@ -270,6 +279,11 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
             # `"AES/GCM/NoPadding"` -> "AES": the mode and padding are not quantum-relevant.
             value = resolve.string_literal_value(node) or resolve.node_text(node)
             return value.split("/", 1)[0]
+        case "go-key-package":
+            # `rsa.PrivateKey` -> "RSA", `ed25519.PublicKey` -> "Ed25519". The Go package name is
+            # lowercase; the registry is case-insensitive but "ed25519" must not be left to match
+            # a curve alias by accident, so the mapping is explicit.
+            return _GO_KEY_PACKAGES.get(resolve.node_text(node), resolve.node_text(node))
         case "cryptojs-name":
             # crypto-js spells algorithms `TripleDES`, `HmacSHA256`, `RIPEMD160` — names the
             # registry lacks as aliases. Normalize the library-specific spellings only.
@@ -342,6 +356,14 @@ _CRYPTOJS_NAMES: dict[str, str] = {
     # surfaces as UNKNOWN(Rabbit) rather than being silently mapped onto an unrelated algorithm.
     "Rabbit": "Rabbit",
     "RabbitLegacy": "Rabbit",
+}
+
+# Go crypto package name -> canonical algorithm family, for key-material type references.
+_GO_KEY_PACKAGES: dict[str, str] = {
+    "rsa": "RSA",
+    "ecdsa": "ECDSA",
+    "ed25519": "Ed25519",
+    "dsa": "DSA",
 }
 
 _PYCA_PQC_RE = re.compile(r"^(ML(?:KEM|DSA))(\d+)", re.IGNORECASE)

@@ -1,3 +1,4 @@
+import contextlib
 import statistics
 import subprocess
 import tempfile
@@ -44,19 +45,24 @@ def bench_group(
             shell_cmd,
         ]
 
-        import contextlib
-
         with contextlib.suppress(subprocess.TimeoutExpired):
             subprocess.run(cmd, input=b"", capture_output=True, timeout=10.0)
 
         t1 = time.perf_counter()
         samples_ms.append((t1 - t0) * 1000)
 
-    # Get sizes using one capture handshake
+    # Get sizes from one capture. The handshake is triggered INSIDE the capture window via `during`:
+    # capturing first and connecting afterwards recorded no ClientHello at all, so every key_share
+    # size came back 0 while the pcap still looked like a valid capture.
     sizes = {}
     with tempfile.TemporaryDirectory() as tmpdir:
         pcap_path = Path(tmpdir) / "bench.pcap"
-        capture_handshake(host, port, pcap_path, handshakes=1, timeout=5.0)
+
+        def _one_handshake() -> None:
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                subprocess.run(cmd, input=b"", capture_output=True, timeout=10.0)
+
+        capture_handshake(host, port, pcap_path, handshakes=1, timeout=15.0, during=_one_handshake)
         sizes = extract_key_share_sizes(pcap_path)
 
     return HandshakeMeasurement(

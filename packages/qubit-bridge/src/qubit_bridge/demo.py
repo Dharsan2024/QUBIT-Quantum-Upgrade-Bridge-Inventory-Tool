@@ -12,13 +12,50 @@ console = Console()
 _QUBIT = str(Path(sys.executable).parent / "qubit.exe")
 
 
+def _wait_for_tls_port(host: str, port: int, timeout: float = 45.0) -> bool:
+    """Block until ``host:port`` accepts a TCP connection, or ``timeout`` elapses.
+
+    Replaces a fixed `time.sleep(3)`. Three seconds is not enough for nginx to come up behind a
+    `depends_on` (and it silently is not enough when the image has to be rebuilt), so the capture
+    that followed recorded a handful of TCP resets instead of a handshake — the pcap was a valid
+    file with no TLS in it, and every downstream key_share size read 0 while the demo still passed.
+
+    Returns False rather than raising: the phase should report an unusable capture, not abort the
+    whole demo.
+    """
+    import socket
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=2.0):
+                return True
+        except OSError:
+            time.sleep(1.0)
+    console.print(
+        f"[yellow]Warning:[/yellow] {host}:{port} never accepted a connection within "
+        f"{timeout:.0f}s — the capture for this phase will contain no handshake. "
+        "Check `docker compose -f demo-lab/compose.classical.yml logs`."
+    )
+    return False
+
+
 def run_phase_1(out_dir: Path):
     """HARVEST: classical baseline."""
     console.print("[bold]Phase 1 — HARVEST (classical baseline)[/bold]")
     subprocess.run(
-        ["docker", "compose", "-f", "demo-lab/compose.classical.yml", "up", "-d"], check=True
+        [
+            "docker",
+            "compose",
+            "-f",
+            "demo-lab/compose.classical.yml",
+            "up",
+            "-d",
+            "--remove-orphans",
+        ],
+        check=True,
     )
-    time.sleep(3)
+    _wait_for_tls_port("localhost", 8443)
 
     console.print("Capturing classical handshake...")
     out_pcap = out_dir / "harvest_classical.pcap"
@@ -84,7 +121,7 @@ def run_phase_4(out_dir: Path, canned: bool = False):
             "8443",
         ]
     )
-    time.sleep(3)
+    _wait_for_tls_port("localhost", 8443)
 
     out_pcap = out_dir / "harvest_hybrid.pcap"
     subprocess.run(

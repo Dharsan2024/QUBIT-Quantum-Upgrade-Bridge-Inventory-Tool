@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-787%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-817%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 787 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 817 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
 
 ---
 
@@ -67,6 +67,19 @@ A dependency graph plus WSJF prioritization feeds a 12-state FSM. **14 transform
 The division of labour between deterministic codemods and the **local, sandboxed LLM** is explicit rather than incidental. Where the correct output is a *constant* — `ssl_ecdh_curve X25519MLKEM768`, `KexAlgorithms sntrup761x25519-sha512@openssh.com`, a dependency version floor — the codemod is marked `codemod_authoritative` and an LLM never replaces it, even when one is explicitly requested: a 7B model asked to harden an nginx.conf produced a config that *looked* modern (TLS 1.2+1.3, AEAD suites) while silently omitting the hybrid group, which is the one line that actually makes the deployment quantum-safe. The LLM is used where the transform needs judgement about surrounding code (key lengths, nonce handling, call-site changes), behind a repair loop that feeds rejections back for up to 3 attempts and a preservation guard that refuses a rewrite which drops unrelated code or fails to parse.
 
 Because remediation output is also scanner *input*, hardened files are re-scanned and asserted on: the algorithms the codemods write must resolve in the canonical registry and must be rated quantum-safe, so a migration can prove where it landed instead of reporting its own output as `UNKNOWN`. A versioned migration knowledge base (`migration_kb.yaml`) and crypto-agility policy decide each target. Governance gates require sign-off before a patch can be applied.
+
+### 4b. Reports — one format per audience
+
+Chosen from what security teams actually consume, not from what was easiest to emit. `qubit report <path> -f pdf|sarif|json`:
+
+| Format | Audience | Why this one |
+|---|---|---|
+| **SARIF 2.1.0** | AppSec / SOC analysts | An [OASIS standard](https://docs.github.com/en/code-security/concepts/code-scanning/sarif-files). Upload with `github/codeql-action/upload-sarif@v3` and each finding becomes a code-scanning alert **annotated on the offending line**; VS Code and Azure DevOps read the same schema. QUBIT's stable asset fingerprint is passed through as `partialFingerprints`, which is how GitHub keeps an alert identical across commits instead of closing and reopening it whenever code shifts above the finding. `error` is reserved for Shor-breakable public key — the only class whose compromise is retroactive. |
+| **PDF** | Compliance, audit, leadership | [EO 14412](https://www.qusecure.com/pqc-migration-executive-orders/) (June 2026) and OMB M-26-15 make cryptographic inventory a *reporting* obligation with fixed dates, and what gets filed and archived is a paginated document. The report states posture against those deadlines — high-value assets on PQC key establishment by 2030-12-31 — rather than only printing scores. Rendered with `reportlab` (pure Python, no system libraries), so it works fully offline. |
+| **CycloneDX 1.7 CBOM** | Supply-chain tooling, agency inventory | The machine format the regulations actually **name** (ECMA-424). Already available via `qubit cbom export`, byte-reproducible with `--reproducible`. |
+| **JSON** | SIEM / spreadsheets | The raw risk-annotated inventory. |
+
+The dashboard's Report page composes the same data on screen, with a standalone HTML export and a print stylesheet for browser print-to-PDF.
 
 ### 5. Verification & Hybrid TLS Bridge
 No patch is trusted blindly: every patch is validated in a Docker sandbox and proven by re-scan. The bridge stands up a **hybrid PQC TLS terminator** on native **OpenSSL 3.5+** negotiating `X25519MLKEM768`, then swaps classical→hybrid **on the same port** and verifies the negotiated group.
@@ -163,9 +176,16 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-787 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+817 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
+
+> **Optional external tool.** `qubit bridge capture` and the harvest phase of `qubit demo` need
+> **tshark** (ships with Wireshark) to record a pcap. Without it QUBIT says so plainly and writes an
+> empty file rather than pretending; with it, the demo measures the real on-the-wire cost of
+> post-quantum key establishment — a classical server key_share of **32 bytes** against
+> **1120 bytes** for X25519MLKEM768. QUBIT finds tshark on PATH, in the standard Wireshark install
+> directories, or via `QUBIT_TSHARK`.
 The three defects previously tracked in [BUILD_PLAN §Phase 3](docs/BUILD_PLAN.md) are now closed.
 
 ### Performance

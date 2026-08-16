@@ -16,6 +16,10 @@ dependencies = [
 # Optional hosted-Postgres backend (e.g. Neon). Default stays offline SQLite.
 # Enable with: uv sync --extra postgres
 postgres = ["psycopg[binary]>=3.2"]
+# PDF report generation. reportlab is pure Python (BSD) with no system libraries, so it keeps the
+# "fully offline, no telemetry" property that a headless PDF renderer like WeasyPrint would break
+# (it needs Cairo/Pango). Imported lazily inside report/pdf.py so nothing pays for it on start-up.
+pdf = ["reportlab>=4.2"]
 
 [build-system]
 requires = ["hatchling"]

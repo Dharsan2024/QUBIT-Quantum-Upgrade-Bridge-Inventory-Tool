@@ -750,3 +750,71 @@ def test_scan_creation_hands_back_the_job_handle_and_says_to_poll(tmp_path: Path
 
         # And the handle is honest: polling really does settle on a finished scan.
         assert _wait_for_scan(client, body["scan"]["id"])["status"] == "succeeded"
+
+
+def test_asset_batch_ingest_lands_bridge_findings_in_the_inventory(tmp_path: Path) -> None:
+    """`qubit bridge probe --push` and `qubit demo run --all` have always POSTed to
+    /api/v1/assets/batch, but the endpoint did not exist — so the push 404ed on every run and the
+    demo reported "Assets not pushed (API unreachable)", blaming reachability for a missing route.
+
+    The bridge probe is what proves a deployment negotiated X25519MLKEM768, so its findings belong
+    in
+    the same inventory and CBOM as a filesystem scan rather than being printed and discarded."""
+    with _make_client(tmp_path) as client:
+        payload = {
+            "project": "bridge",
+            "label": "bridge probe localhost:8443",
+            "targets": ["localhost:8443"],
+            "assets": [
+                {
+                    "source_scanner": "network",
+                    "asset_type": "protocol",
+                    "algorithm": "X25519MLKEM768",
+                    "usage_context": "kex",
+                    "quantum_vulnerable": {"vulnerable": False, "attack": "none"},
+                    "location": {"host": "localhost", "service": "tcp/8443"},
+                    "evidence": {},
+                },
+                {
+                    "source_scanner": "cert",
+                    "asset_type": "certificate",
+                    "algorithm": "RSA-2048",
+                    "usage_context": "signature",
+                    "quantum_vulnerable": {"vulnerable": True, "attack": "shor"},
+                    "location": {"host": "localhost", "service": "tcp/8443"},
+                    "evidence": {},
+                },
+            ],
+        }
+        resp = client.post("/api/v1/assets/batch", json=payload)
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        assert body["ingested"] == 2
+        scan_id = body["scan_id"]
+
+        # The scan row must describe where the findings came from, not masquerade as a file scan.
+        scan = client.get(f"/api/v1/scans/{scan_id}").json()
+        assert scan["status"] == "succeeded"
+        assert scan["scanners"] == ["network"]
+        assert scan["targets"] == ["localhost:8443"]
+
+        assets = client.get(f"/api/v1/scans/{scan_id}/assets").json()
+        assert {a["algorithm"] for a in assets["items"]} == {"X25519MLKEM768", "RSA-2048"}
+
+        # And they must be exportable through the same CBOM path as everything else — that is the
+        # whole point of ingesting them rather than printing them.
+        cbom = client.get(f"/api/v1/scans/{scan_id}/cbom").json()
+        assert cbom["specVersion"] == "1.7"
+        assert len(cbom["components"]) == 2
+
+
+def test_asset_batch_requires_auth_and_rejects_an_empty_batch(tmp_path: Path) -> None:
+    """The bridge client sent no Authorization header, so this would have been 401 even once the
+    route existed — worth pinning that the route really is protected."""
+    db_path = tmp_path / "qubit-api.db"
+    settings = Settings(db_url=f"sqlite:///{db_path.as_posix()}", create_schema_on_startup=True)
+    with TestClient(create_app(settings)) as anon:
+        assert anon.post("/api/v1/assets/batch", json={"assets": []}).status_code == 401
+
+    with _make_client(tmp_path) as client:
+        assert client.post("/api/v1/assets/batch", json={"assets": []}).status_code == 422

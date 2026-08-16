@@ -85,6 +85,21 @@ class ScanOut(BaseModel):
     created_at: datetime
 
 
+class AssetBatchRequest(BaseModel):
+    """Externally-discovered assets to ingest — currently the hybrid bridge's TLS probe."""
+
+    assets: list[CryptoAsset] = Field(min_length=1)
+    project: str = "bridge"
+    label: str | None = None
+    targets: list[str] = Field(default_factory=list)
+
+
+class AssetBatchResponse(BaseModel):
+    project_id: UUID
+    scan_id: UUID
+    ingested: int
+
+
 class JobRef(BaseModel):
     """Handle for the background job executing a scan, so a client knows what to poll."""
 

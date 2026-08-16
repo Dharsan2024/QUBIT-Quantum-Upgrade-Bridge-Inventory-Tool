@@ -706,3 +706,99 @@ def rules_list() -> None:
 
 if __name__ == "__main__":
     app()
+
+
+# ---------------------------------------------------------------------------
+# qubit report — the human/analyst-facing outputs
+# ---------------------------------------------------------------------------
+# Three formats for three audiences, chosen from what security teams actually consume rather than
+# from what was easiest to emit (see docs/design/01-discovery-inventory.md §4.6):
+#
+# sarif — SARIF 2.1.0, an OASIS standard. Uploaded with github/codeql-action/upload-sarif, it turns
+# each finding into a code-scanning alert annotated on the offending line, and VS Code and Azure
+# DevOps read the same schema. This is the format that reaches a developer where the work happens.
+# pdf   — the paginated artifact a compliance submission or leadership review attaches, with posture
+# stated against the EO 14412 / OMB M-26-15 deadlines. json  — the raw risk-annotated inventory, for
+# a SIEM or a spreadsheet.
+#
+# The CycloneDX 1.7 CBOM those directives actually name already has its own command (`qubit cbom`),
+# so it is deliberately not duplicated here.
+@app.command("report")
+def report(
+    path: Annotated[Path, typer.Argument(help="File or directory to scan and report on.")],
+    output: Annotated[Path, typer.Option("-o", "--output", help="Output file path.")],
+    fmt: Annotated[
+        str, typer.Option("-f", "--format", help="Report format: pdf | sarif | json")
+    ] = "pdf",
+    include_safe: Annotated[
+        bool,
+        typer.Option("--include-safe", help="Include quantum-safe assets (SARIF/JSON only)."),
+    ] = False,
+    no_risk: Annotated[
+        bool, typer.Option("--no-risk", help="Skip risk scoring (faster; omits HNDL scores).")
+    ] = False,
+) -> None:
+    """Generate a report for SOC/AppSec review or a compliance submission."""
+    fmt = fmt.lower()
+    if fmt not in {"pdf", "sarif", "json"}:
+        err_console.print(f"[red]error:[/red] unknown format {fmt!r} (use pdf, sarif or json).")
+        raise typer.Exit(code=2)
+    if not path.exists():
+        err_console.print(f"[red]error:[/red] path not found: {path}")
+        raise typer.Exit(code=2)
+
+    with console.status(f"Scanning {path} …"):
+        assets = scan_paths([path], repo=str(path)).assets
+    if not assets:
+        console.print("[yellow]No cryptographic assets found — nothing to report.[/yellow]")
+        raise typer.Exit(code=0)
+
+    if not no_risk:
+        # Risk scores are what make the report actionable (they are what the PDF ranks by and what
+        # SARIF carries as properties), so they are ON by default and opt-out rather than opt-in.
+        from qubit_risk import RiskPipeline, load_config
+
+        with console.status(f"Risk-scoring {len(assets)} assets …"):
+            assets = RiskPipeline(load_config()).assess(assets)
+
+    vulnerable = sum(1 for a in assets if a.quantum_vulnerable.vulnerable)
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    if fmt == "pdf":
+        from qubit_core.report import build_pdf_report
+
+        try:
+            build_pdf_report(assets, output, target=str(path), tool_version=core_version)
+        except RuntimeError as exc:  # reportlab missing — say how to fix it, do not traceback
+            err_console.print(f"[red]error:[/red] {exc}")
+            raise typer.Exit(code=1) from exc
+    elif fmt == "sarif":
+        from qubit_core.report import export_sarif, validate_sarif_structure
+
+        doc = export_sarif(
+            assets,
+            tool_version=core_version,
+            include_safe=include_safe,
+            repo_root=str(path) if path.is_dir() else None,
+        )
+        problems = validate_sarif_structure(doc)
+        if problems:
+            # Loud, because a malformed SARIF is rejected by the upload action with a far less
+            # helpful message than this one.
+            err_console.print(f"[yellow]SARIF validation issues:[/yellow] {problems[:5]}")
+        output.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    else:
+        selected = [a for a in assets if include_safe or a.quantum_vulnerable.vulnerable]
+        output.write_text(
+            json.dumps([a.model_dump(mode="json") for a in selected], indent=2), encoding="utf-8"
+        )
+
+    console.print(
+        f"[green]Wrote[/green] {fmt.upper()} report → {output}  "
+        f"[dim]({len(assets)} assets, {vulnerable} quantum-vulnerable)[/dim]"
+    )
+    if fmt == "sarif":
+        console.print(
+            "[dim]Upload with: github/codeql-action/upload-sarif@v3 "
+            f"(sarif_file: {output.name})[/dim]"
+        )

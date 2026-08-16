@@ -41,13 +41,26 @@ def probe_cmd(
     result = probe_host(host, port, groups=groups, sni=sni)
 
     if push and result.reachable:
-        from qubit_bridge.assets import probe_to_assets, push_assets_to_api
+        from qubit_bridge.assets import discover_api_url, probe_to_assets, push_assets_to_api
 
         assets = probe_to_assets(result)
-        if push_assets_to_api(assets):
-            console.print(f"[green]Pushed {len(assets)} assets to API.[/green]")
+        api_url = discover_api_url()
+        if api_url is None:
+            # Distinguish "no API running" from "the push itself failed" — the old single message
+            # blamed reachability for what was really a missing endpoint and a missing token.
+            console.print(
+                "[yellow]Assets not pushed: no QUBIT API found on :8000 or :8080. "
+                "Start one with `qubit serve`, or set QUBIT_API_URL.[/yellow]"
+            )
+        elif push_assets_to_api(
+            assets, api_url, label=f"bridge probe {host}:{port}", targets=[f"{host}:{port}"]
+        ):
+            console.print(f"[green]Pushed {len(assets)} assets to {api_url}.[/green]")
         else:
-            console.print("[yellow]Assets not pushed (API unreachable).[/yellow]")
+            console.print(
+                f"[yellow]Assets not pushed: {api_url} rejected the batch "
+                "(check QUBIT_API_TOKEN).[/yellow]"
+            )
 
     if output_json:
         console.print(result.model_dump_json(exclude={"raw_output"} if result.reachable else None))
@@ -117,8 +130,22 @@ def capture_cmd(
     out: Annotated[Path, typer.Option("--out", help="Output .pcap file")],
     iface: Annotated[str, typer.Option("--iface", help="Network interface")] = "any",
     handshakes: Annotated[int, typer.Option("--handshakes", help="Number of handshakes")] = 1,
+    probe: Annotated[
+        bool,
+        typer.Option(
+            "--probe/--no-probe",
+            help="Perform a TLS handshake during the capture (use --no-probe if traffic is "
+            "generated externally).",
+        ),
+    ] = True,
 ):
-    """Capture TLS handshake packets to a pcap file."""
+    """Capture TLS handshake packets to a pcap file.
+
+    The handshake is triggered DURING the capture by default. Capturing first and connecting
+    afterwards — which is what the demo used to do — records no ClientHello at all: the pcap is a
+    valid file containing unrelated traffic, and every key_share size downstream reads 0. Pass
+    `--no-probe` when something else is generating the traffic.
+    """
     if ":" in target:
         host, port_str = target.rsplit(":", 1)
         port = int(port_str)
@@ -128,9 +155,18 @@ def capture_cmd(
 
     from qubit_bridge.capture import capture_handshake
 
+    during = None
+    if probe:
+        from qubit_bridge.probe import probe_host
+
+        def during() -> None:  # type: ignore[misc]
+            for _ in range(max(handshakes, 1)):
+                probe_host(host, port)
+
     console.print(f"Capturing handshake on {target}...")
-    capture_handshake(host, port, out, iface=iface, handshakes=handshakes)
-    console.print(f"[green]Saved capture to {out}[/green]")
+    capture_handshake(host, port, out, iface=iface, handshakes=handshakes, during=during)
+    size = out.stat().st_size if out.exists() else 0
+    console.print(f"[green]Saved capture to {out}[/green] [dim]({size:,} bytes)[/dim]")
 
 
 @bridge_app.command("diff")

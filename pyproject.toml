@@ -37,6 +37,13 @@ dev = [
   # are ~2.5 GB and their tests synthesize rather than train.
   "xgboost>=2.0",
   "scikit-learn>=1.4",
+  # PDF report generation (qubit-core's `pdf` extra). Same reasoning as xgboost above: its tests must
+  # run in the gate rather than skip, and reportlab is pure Python with no system libraries.
+  "reportlab>=4.2",
+  # Reads the generated PDF back so the test asserts on RENDERED TEXT, not just that bytes were
+  # written. A hand-rolled zlib/regex extraction found nothing in a perfectly valid document, which
+  # is exactly the sort of false negative a real parser avoids.
+  "pypdf>=5.1",
 ]
 
 [tool.ruff]

@@ -225,10 +225,21 @@ uv sync --all-packages
 uv run poe check          # format + lint + typecheck + unit tests
 uv run poe unit           # tests that need no Docker/Ollama/network
 uv run poe integ          # Docker-backed integration tests
+
+# Dashboard, including real-browser tests of the Report page (needs a running API):
+cd dashboard && npm run build && npm run test:e2e
 ```
 
 Quality bar: **zero test failures, zero skips**, ruff clean, and ≥70% coverage on `qubit-core`,
 `qubit-scanner`, and `qubit-risk` (currently 82%).
+
+The dashboard's Report page is verified in a real Chromium via Playwright, against a real
+risk-annotated scan seeded through the public API — not mocked. `tsc -b` proves every API field access
+matches the declared contract, but only a browser catches a component that throws at mount, a
+`median(undefined)` printing NaN, or an export button that downloads an empty file. The suite asserts
+the rendered verdict, the CRQC years, the algorithm inventory, and that **Export HTML** produces a
+complete self-contained document; renaming one API field in the page makes it fail, which is how the
+tests were confirmed to be non-vacuous.
 
 Adding a detection rule needs **no Python** — drop a YAML file in
 `packages/qubit-scanner/src/qubit_scanner/catalog/rules/<language>/` with embedded positive/negative

@@ -55,9 +55,44 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+
+      # Real-browser tests of the Report page. `tsc -b` and the bundle check cannot catch a component
+      # that throws at mount, a `median(undefined)` printing NaN, or an export button that downloads
+      # an empty file — only a browser can, so these run against a REAL API with a REAL scan rather
+      # than mocked payloads. The spec skips itself when no API answers, so the API is started here
+      # deliberately: a silently-skipping browser job would give false confidence.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Start the QUBIT API for the browser tests
+        working-directory: .
+        env:
+          QUBIT_API_TOKEN: ci-browser-token-not-a-secret
+        run: |
+          uv sync --all-packages --group dev
+          nohup uv run uvicorn qubit_api.main:app --host 127.0.0.1 --port 8000 >/tmp/qubit-api.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8000/api/v1/health >/dev/null && exit 0
+            sleep 2
+          done
+          echo "API never became healthy:"; cat /tmp/qubit-api.log; exit 1
+      - name: Browser tests (dashboard Report page)
+        env:
+          QUBIT_API_BASE: http://127.0.0.1:8000
+          QUBIT_API_TOKEN: ci-browser-token-not-a-secret
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-artifacts
+          path: dashboard/test-results/
+          retention-days: 7
 
   licenses:
     name: License allowlist

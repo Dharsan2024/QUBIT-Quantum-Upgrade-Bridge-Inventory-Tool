@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Playwright browser-test artifacts (traces/screenshots/reports) — regenerated per run.
+test-results/
+playwright-report/

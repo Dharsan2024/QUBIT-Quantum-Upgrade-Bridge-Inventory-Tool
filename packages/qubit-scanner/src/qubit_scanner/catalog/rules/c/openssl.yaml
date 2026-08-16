@@ -1,0 +1,254 @@
+schema: qubit-rule/v1
+language: c
+library:
+  name: OpenSSL
+  # resolve.py has no C import-extraction query, and OpenSSL symbols are unmistakable on their own
+  # (EVP_*, RSA_*, SSL_CTX_*) — an import gate would only ever disable these rules.
+  detect_imports: []
+rules:
+  # C/C++ had ZERO detection rules despite the language map accepting .c/.h/.cc/.cpp/.hpp, so every
+  # OpenSSL-using codebase — the single largest body of real-world cryptography — scanned clean.
+  # doc 01 planned "C OpenSSL EVP + legacy (18)".
+  #
+  # These read the algorithm from OpenSSL's own getter name via `resolve: openssl-evp`, which strips
+  # the EVP_ prefix and lets the canonical registry normalize the rest. One rule per *call site
+  # shape* therefore covers every cipher/digest OpenSSL exposes, rather than needing a rule each.
+  - id: C-OPENSSL-EVP-DIGEST
+    title: EVP_DigestInit_ex(ctx, EVP_<hash>(), ...)
+    match:
+      query: |
+        (call_expression
+          function: (identifier) @fn
+          arguments: (argument_list
+            (call_expression function: (identifier) @alg))) @call
+      where:
+        - { capture: fn, in: [EVP_DigestInit, EVP_DigestInit_ex, EVP_DigestInit_ex2, EVP_Digest] }
+        - { capture: alg, regex: '^EVP_' }
+    extract:
+      algorithm: { from: alg, resolve: openssl-evp }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_DigestInit_ex(ctx, EVP_sha1(), NULL); }
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_DigestInit_ex(ctx, EVP_md5(), NULL); }
+      negative:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_MD_CTX_free(ctx); }
+
+  - id: C-OPENSSL-EVP-CIPHER
+    title: EVP_EncryptInit_ex / EVP_DecryptInit_ex(ctx, EVP_<cipher>(), ...)
+    match:
+      query: |
+        (call_expression
+          function: (identifier) @fn
+          arguments: (argument_list
+            (call_expression function: (identifier) @alg))) @call
+      where:
+        - capture: fn
+          in:
+            [
+              EVP_EncryptInit,
+              EVP_EncryptInit_ex,
+              EVP_EncryptInit_ex2,
+              EVP_DecryptInit,
+              EVP_DecryptInit_ex,
+              EVP_DecryptInit_ex2,
+              EVP_CipherInit,
+              EVP_CipherInit_ex,
+            ]
+        - { capture: alg, regex: '^EVP_' }
+    extract:
+      algorithm: { from: alg, resolve: openssl-evp }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_EncryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, key, iv); }
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_DecryptInit_ex(ctx, EVP_des_ede3_cbc(), NULL, key, iv); }
+      negative:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_DigestInit_ex(ctx, EVP_sha256(), NULL); }
+
+  - id: C-OPENSSL-RSA-GENERATE
+    title: RSA_generate_key_ex(rsa, bits, e, cb)
+    match:
+      query: |
+        (call_expression
+          function: (identifier) @fn
+          arguments: (argument_list (_) (number_literal) @size)) @call
+      where:
+        - { capture: fn, in: [RSA_generate_key_ex, RSA_generate_key] }
+    extract:
+      algorithm: { literal: RSA }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <openssl/rsa.h>
+          void f(void) { RSA_generate_key_ex(rsa, 1024, e, NULL); }
+      negative:
+        - |
+          #include <openssl/rsa.h>
+          void f(void) { RSA_free(rsa); }
+
+  - id: C-OPENSSL-EVP-PKEY-KEYGEN
+    title: EVP_PKEY_CTX_new_id(EVP_PKEY_<alg>, ...)
+    match:
+      query: |
+        (call_expression
+          function: (identifier) @fn
+          arguments: (argument_list (identifier) @alg)) @call
+      where:
+        - { capture: fn, equals: EVP_PKEY_CTX_new_id }
+        - { capture: alg, regex: '^EVP_PKEY_' }
+    extract:
+      # EVP_PKEY_RSA -> "RSA", EVP_PKEY_ED25519 -> "ED25519", EVP_PKEY_DSA -> "DSA". The registry's
+      # case-insensitive alias table resolves each of these.
+      algorithm: { from: alg, resolve: openssl-pkey }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL); }
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, NULL); }
+      negative:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_PKEY_free(pkey); }
+
+  - id: C-OPENSSL-HMAC
+    title: HMAC(...) / HMAC_Init_ex(...)
+    match:
+      query: |
+        (call_expression function: (identifier) @fn) @call
+      where:
+        - { capture: fn, in: [HMAC, HMAC_Init, HMAC_Init_ex] }
+    extract:
+      algorithm: { literal: HMAC }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <openssl/hmac.h>
+          void f(void) { HMAC_Init_ex(ctx, key, len, EVP_sha256(), NULL); }
+      negative:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_DigestInit_ex(ctx, EVP_sha256(), NULL); }
+
+  - id: C-OPENSSL-LEGACY-TLS-METHOD
+    title: Deprecated SSL/TLS version method (SSLv3_method, TLSv1_method, ...)
+    match:
+      query: |
+        (call_expression function: (identifier) @fn) @call
+      where:
+        - capture: fn
+          in:
+            [
+              SSLv2_method,
+              SSLv2_client_method,
+              SSLv2_server_method,
+              SSLv3_method,
+              SSLv3_client_method,
+              SSLv3_server_method,
+              TLSv1_method,
+              TLSv1_client_method,
+              TLSv1_server_method,
+              TLSv1_1_method,
+              TLSv1_1_client_method,
+              TLSv1_1_server_method,
+            ]
+    extract:
+      algorithm: { from: fn, resolve: openssl-tls-method }
+    asset: { asset_type: protocol, usage_context: tls }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <openssl/ssl.h>
+          void f(void) { SSL_CTX_new(TLSv1_method()); }
+        - |
+          #include <openssl/ssl.h>
+          void f(void) { SSL_CTX_new(SSLv3_method()); }
+      negative:
+        - |
+          #include <openssl/ssl.h>
+          void f(void) { SSL_CTX_new(TLS_method()); }
+
+  - id: C-OPENSSL-PBKDF2
+    title: PKCS5_PBKDF2_HMAC password KDF
+    match:
+      query: |
+        (call_expression function: (identifier) @fn) @call
+      where:
+        - { capture: fn, in: [PKCS5_PBKDF2_HMAC, PKCS5_PBKDF2_HMAC_SHA1] }
+    extract:
+      algorithm: { literal: PBKDF2 }
+    asset: { asset_type: algorithm-use, usage_context: password }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { PKCS5_PBKDF2_HMAC(pw, l, salt, sl, 10000, EVP_sha256(), 32, out); }
+      negative:
+        - |
+          #include <openssl/hmac.h>
+          void f(void) { HMAC_Init_ex(ctx, key, len, EVP_sha256(), NULL); }
+
+  - id: C-OPENSSL-LEGACY-DIRECT-CIPHER
+    title: Direct legacy cipher API (DES_/RC4_/MD5_/SHA1_ one-shot functions)
+    match:
+      query: |
+        (call_expression function: (identifier) @fn) @call
+      where:
+        - capture: fn
+          in:
+            [
+              DES_set_key,
+              DES_set_key_unchecked,
+              DES_ecb_encrypt,
+              DES_ncbc_encrypt,
+              DES_ede3_cbc_encrypt,
+              RC4,
+              RC4_set_key,
+              MD5_Init,
+              MD5_Update,
+              MD4_Init,
+              SHA1_Init,
+              SHA1_Update,
+            ]
+    extract:
+      algorithm: { from: fn, resolve: openssl-legacy-fn }
+    asset: { asset_type: algorithm-use, usage_context: unknown }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <openssl/des.h>
+          void f(void) { DES_set_key(&kb, &ks); }
+        - |
+          #include <openssl/md5.h>
+          void f(void) { MD5_Init(&ctx); }
+      negative:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_DigestInit_ex(ctx, EVP_sha256(), NULL); }

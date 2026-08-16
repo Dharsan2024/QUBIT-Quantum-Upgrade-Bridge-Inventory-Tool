@@ -225,8 +225,107 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
         case "int-literal":
             iv = resolve.int_literal_value(node)
             return str(iv) if iv is not None else None
+        case "openssl-evp":
+            # OpenSSL names its algorithm getters `EVP_<alg>` — EVP_sha1, EVP_aes_128_cbc,
+            # EVP_des_ede3_cbc, EVP_chacha20_poly1305. Stripping the prefix hands the rest to the
+            # canonical registry, whose separator normalization and cipher-mode stripping already
+            # understand `aes_128_cbc` and `des_ede3_cbc`. One data-driven resolver therefore covers
+            # every EVP cipher and digest instead of needing a rule per algorithm.
+            text = resolve.node_text(node)
+            return text[4:] if text.lower().startswith("evp_") else text
+        case "openssl-pkey":
+            # `EVP_PKEY_RSA` -> "RSA", `EVP_PKEY_ED25519` -> "ED25519".
+            text = resolve.node_text(node)
+            return text[9:] if text.upper().startswith("EVP_PKEY_") else text
+        case "openssl-tls-method":
+            # `TLSv1_1_client_method` -> "TLSv1.1"; `SSLv3_method` -> "SSLv3". The version is the
+            # leading token; OpenSSL spells the minor version with an underscore.
+            return _openssl_tls_version(resolve.node_text(node))
+        case "openssl-legacy-fn":
+            # `DES_ede3_cbc_encrypt` -> "des-ede3", `MD5_Init` -> "MD5", `RC4_set_key` -> "RC4".
+            return _openssl_legacy_algorithm(resolve.node_text(node))
+        case "pyca-pqc-class":
+            # `MLKEM768PrivateKey` -> "ML-KEM-768", `MLDSA65PrivateKey` -> "ML-DSA-65".
+            return _pyca_pqc_algorithm(resolve.node_text(node))
+        case "go-tls-version":
+            # `VersionTLS10` -> "TLSv1.0", `VersionSSL30` -> "SSLv3".
+            return _GO_TLS_VERSIONS.get(resolve.node_text(node), resolve.node_text(node))
+        case "go-ecdh-curve":
+            # crypto/ecdh's `P256()` is an ECDH curve, so it must not resolve to ECDSA-P256.
+            return _GO_ECDH_CURVES.get(resolve.node_text(node), resolve.node_text(node))
+        case "go-mlkem-fn":
+            # `GenerateKey768` -> "ML-KEM-768", `GenerateKey1024` -> "ML-KEM-1024".
+            text = resolve.node_text(node)
+            return "ML-KEM-1024" if "1024" in text else "ML-KEM-768"
         case _:
             return resolve.node_text(node)
+
+
+def _openssl_tls_version(fn_name: str) -> str:
+    """Map an OpenSSL version-specific method name to a canonical protocol version."""
+    head = fn_name.split("_method")[0]
+    parts = head.split("_")  # ["TLSv1", "1", "client"] / ["SSLv3"] / ["TLSv1", "client"]
+    version = parts[0]
+    if len(parts) > 1 and parts[1].isdigit():
+        version = f"{version}.{parts[1]}"
+    elif version.lower().startswith("tlsv1"):
+        version = "TLSv1.0"  # bare TLSv1_method is TLS 1.0
+    return version
+
+
+# Legacy one-shot OpenSSL entry points -> the algorithm they implement. `DES_ede3_*` must be checked
+# before the plain `DES_` prefix, otherwise 3DES would be misreported as single DES.
+_OPENSSL_LEGACY_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("des_ede3", "des-ede3"),
+    ("des_", "DES"),
+    ("rc4", "RC4"),
+    ("rc2", "RC2"),
+    ("md5_", "MD5"),
+    ("md4_", "MD4"),
+    ("sha1_", "SHA-1"),
+)
+
+
+def _openssl_legacy_algorithm(fn_name: str) -> str:
+    lowered = fn_name.lower()
+    for prefix, algorithm in _OPENSSL_LEGACY_PREFIXES:
+        if lowered.startswith(prefix):
+            return algorithm
+    return fn_name
+
+
+# Go's crypto/tls version constants -> canonical protocol names.
+_GO_TLS_VERSIONS: dict[str, str] = {
+    "VersionSSL30": "SSLv3",
+    "VersionTLS10": "TLSv1.0",
+    "VersionTLS11": "TLSv1.1",
+    "VersionTLS12": "TLSv1.2",
+    "VersionTLS13": "TLSv1.3",
+}
+
+# crypto/ecdh curve constructors. Distinct from crypto/elliptic's identically-named P256(), which is
+# an ECDSA curve — mapping these to ECDSA-* would mislabel a key agreement as a signature algorithm.
+_GO_ECDH_CURVES: dict[str, str] = {
+    "P256": "ECDH-P256",
+    "P384": "ECDH-P384",
+    "P521": "ECDH-P521",
+    "X25519": "X25519",
+}
+
+_PYCA_PQC_RE = re.compile(r"^(ML(?:KEM|DSA))(\d+)", re.IGNORECASE)
+
+
+def _pyca_pqc_algorithm(class_name: str) -> str:
+    """`MLKEM768PrivateKey` -> "ML-KEM-768"; `MLDSA65PublicKey` -> "ML-DSA-65".
+
+    pyca/cryptography (>=48) spells its PQC classes without separators, which would not match the
+    canonical registry's hyphenated names.
+    """
+    m = _PYCA_PQC_RE.match(class_name)
+    if m is None:
+        return class_name
+    family = "ML-KEM" if m.group(1).upper() == "MLKEM" else "ML-DSA"
+    return f"{family}-{m.group(2)}"
 
 
 def _anchor_node(caps: dict[str, list[Node]]) -> Node | None:

@@ -1,0 +1,265 @@
+schema: qubit-rule/v1
+language: go
+library:
+  name: Go crypto / x/crypto
+  detect_imports: []
+rules:
+  # TLS configuration, x/crypto KDFs and the remaining primitives. `tls.Config` is where a Go
+  # service's actual transport posture is decided, and it was entirely undetected.
+  - id: GO-TLS-MINVERSION-LEGACY
+    title: tls.Config MinVersion set to a deprecated TLS version
+    match:
+      # Go wraps composite-literal keys and values in `literal_element` nodes; matching
+      # (field_identifier) directly is an impossible pattern and fails to compile at load time.
+      query: |
+        (keyed_element
+          (literal_element (identifier) @field)
+          (literal_element
+            (selector_expression operand: (identifier) @pkg field: (field_identifier) @ver))) @call
+      where:
+        - { capture: field, equals: MinVersion }
+        - { capture: pkg, equals: tls }
+        - { capture: ver, in: [VersionSSL30, VersionTLS10, VersionTLS11] }
+    extract:
+      algorithm: { from: ver, resolve: go-tls-version }
+    asset: { asset_type: protocol, usage_context: tls }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/tls"
+          var c = &tls.Config{MinVersion: tls.VersionTLS10}
+      negative:
+        - |
+          package main
+          import "crypto/tls"
+          var c = &tls.Config{MinVersion: tls.VersionTLS13}
+
+  - id: GO-TLS-INSECURESKIPVERIFY
+    title: tls.Config InsecureSkipVerify enabled (certificate validation disabled)
+    match:
+      query: |
+        (keyed_element
+          (literal_element (identifier) @field)
+          (literal_element (true))) @call
+      where:
+        - { capture: field, equals: InsecureSkipVerify }
+    extract:
+      # Not an algorithm: this records that certificate validation is switched off, which voids the
+      # authentication half of TLS regardless of how strong the negotiated crypto is.
+      algorithm: { literal: X.509 }
+    asset: { asset_type: protocol, usage_context: tls }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/tls"
+          var c = &tls.Config{InsecureSkipVerify: true}
+      negative:
+        - |
+          package main
+          import "crypto/tls"
+          var c = &tls.Config{InsecureSkipVerify: false}
+
+  - id: GO-XCRYPTO-KDF
+    title: x/crypto password KDFs (bcrypt / scrypt / argon2 / pbkdf2)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, in: [bcrypt, scrypt, argon2, pbkdf2] }
+        - { capture: fn, in: [GenerateFromPassword, Key, IDKey, CompareHashAndPassword] }
+    extract:
+      algorithm: { from: pkg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: password }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "golang.org/x/crypto/bcrypt"
+          func f() { bcrypt.GenerateFromPassword(pw, 12) }
+        - |
+          package main
+          import "golang.org/x/crypto/argon2"
+          func f() { argon2.IDKey(pw, salt, 1, 64*1024, 4, 32) }
+      negative:
+        - |
+          package main
+          import "crypto/sha256"
+          func f() { sha256.Sum256(pw) }
+
+  - id: GO-XCRYPTO-CHACHA20POLY1305
+    title: x/crypto chacha20poly1305 AEAD (quantum-safe, inventoried)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: chacha20poly1305 }
+        - { capture: fn, in: [New, NewX] }
+    extract:
+      algorithm: { literal: ChaCha20-Poly1305 }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "golang.org/x/crypto/chacha20poly1305"
+          func f() { chacha20poly1305.New(key) }
+      negative:
+        - |
+          package main
+          import "crypto/aes"
+          func f() { aes.NewCipher(key) }
+
+  - id: GO-XCRYPTO-LEGACY-CIPHER
+    title: x/crypto legacy ciphers (blowfish / cast5 / tea / twofish)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, in: [blowfish, cast5, tea, twofish, xtea] }
+        - { capture: fn, in: [NewCipher, NewCipherWithRounds] }
+    extract:
+      algorithm: { from: pkg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "golang.org/x/crypto/blowfish"
+          func f() { blowfish.NewCipher(key) }
+        - |
+          package main
+          import "golang.org/x/crypto/cast5"
+          func f() { cast5.NewCipher(key) }
+      negative:
+        - |
+          package main
+          import "crypto/aes"
+          func f() { aes.NewCipher(key) }
+
+  - id: GO-CRYPTO-DSA-GENERATEKEY
+    title: dsa.GenerateKey / dsa.GenerateParameters
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: dsa }
+        - { capture: fn, in: [GenerateKey, GenerateParameters] }
+    extract:
+      algorithm: { literal: DSA }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/dsa"
+          func f() { dsa.GenerateKey(params, rand.Reader) }
+      negative:
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f() { ecdsa.GenerateKey(elliptic.P256(), rand.Reader) }
+
+  - id: GO-CRYPTO-ECDH-CURVE
+    title: crypto/ecdh curve selection
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: ecdh }
+        - { capture: fn, in: [P256, P384, P521, X25519] }
+    extract:
+      algorithm: { from: fn, resolve: go-ecdh-curve }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/ecdh"
+          func f() { ecdh.P256() }
+        - |
+          package main
+          import "crypto/ecdh"
+          func f() { ecdh.X25519() }
+      negative:
+        - |
+          package main
+          import "crypto/elliptic"
+          func f() { elliptic.P256() }
+
+  - id: GO-CRYPTO-MLKEM
+    title: crypto/mlkem (Go 1.24+ native ML-KEM, quantum-safe)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: mlkem }
+        - { capture: fn, in: [GenerateKey768, GenerateKey1024, NewDecapsulationKey768] }
+    extract:
+      algorithm: { from: fn, resolve: go-mlkem-fn }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/mlkem"
+          func f() { mlkem.GenerateKey768() }
+      negative:
+        - |
+          package main
+          import "crypto/ecdh"
+          func f() { ecdh.X25519() }
+
+  - id: GO-XCRYPTO-SHA3
+    title: x/crypto sha3 (quantum-safe, inventoried)
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: sha3 }
+        - { capture: fn, in: [New256, New384, New512, Sum256, Sum384, Sum512] }
+    extract:
+      algorithm: { literal: SHA3-256 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          package main
+          import "golang.org/x/crypto/sha3"
+          func f() { sha3.New256() }
+      negative:
+        - |
+          package main
+          import "crypto/sha256"
+          func f() { sha256.New() }

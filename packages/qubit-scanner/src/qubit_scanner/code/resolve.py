@@ -105,11 +105,27 @@ def _collect_string_assignments(node: Node, name: str, out: list[str]) -> None:
 
 
 def int_literal_value(node: Node) -> int | None:
-    if node.type in ("integer", "int_literal", "decimal_integer_literal"):
+    # Node type differs per grammar: python "integer", go "int_literal", java
+    # "decimal_integer_literal", C/C++ "number_literal", JS/TS "number". Missing a grammar's name
+    # here fails SILENTLY — the rule still matches but `key_size` comes back None, so e.g. a
+    # 1024-bit RSA key in C reported as bare "RSA" and lost the size that made it urgent.
+    if node.type in (
+        "integer",
+        "int_literal",
+        "decimal_integer_literal",
+        "number_literal",
+        "number",
+    ):
+        text = node_text(node)
         try:
-            return int(node_text(node))
+            return int(text)
         except ValueError:
-            return None
+            # C/C++ allow suffixes and separators (2048u, 0x800, 2_048 in some grammars).
+            cleaned = text.rstrip("uUlL").replace("_", "")
+            try:
+                return int(cleaned, 0)
+            except ValueError:
+                return None
     return None
 
 

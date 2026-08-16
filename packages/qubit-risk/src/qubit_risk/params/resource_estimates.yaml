@@ -30,6 +30,24 @@ algorithms:
   # P-521 is stronger than P-384, so modelling it at P-384's cost makes it break slightly EARLIER
   # than reality — again the conservative direction. Replace with a real estimate if one is published.
   ECDSA-P521: {attack: shor, alias: ECDSA-P384}
+  # --- Remaining Shor-vulnerable families. Finite-field discrete log (DH, DSA) has essentially the
+  # same Shor cost profile as RSA factoring at equal modulus size, so each anchors on the RSA entry
+  # of matching bit-length; elliptic-curve variants anchor on the ECDSA curve of matching size.
+  # Where no same-size anchor exists the SMALLER (earlier-breaking) one is used, keeping the
+  # estimate conservative. Guarded by test_every_shor_vulnerable_algorithm_is_modellable.
+  DH-1024:          {attack: shor, alias: RSA-1024}
+  DH-3072:          {attack: shor, alias: RSA-3072}
+  DH-4096:          {attack: shor, alias: RSA-4096}
+  DSA-1024:         {attack: shor, alias: RSA-1024}
+  DSA-2048:         {attack: shor, alias: RSA-2048}
+  DSA-3072:         {attack: shor, alias: RSA-3072}
+  RSA-512:          {attack: shor, alias: RSA-1024}   # weaker than our smallest anchor
+  RSA-8192:         {attack: shor, alias: RSA-4096}   # stronger; modelled early = conservative
+  ECDSA-secp256k1:  {attack: shor, alias: ECDSA-P256} # same 256-bit curve order
+  ECDH-P384:        {attack: shor, alias: ECDSA-P384}
+  ECDH-P521:        {attack: shor, alias: ECDSA-P384}
+  X448:             {attack: shor, alias: ECDSA-P384} # 448-bit curve, between P-384 and P-521
+  Ed448:            {attack: shor, alias: ECDSA-P384}
 # Grover-tier symmetric/hash: no CDF (tier treatment, doc 02 6.1.6)
 grover_tier:
   AES-128: {tier: marginal}

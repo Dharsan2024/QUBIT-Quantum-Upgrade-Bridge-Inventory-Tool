@@ -1,0 +1,235 @@
+schema: qubit-rule/v1
+language: python
+library:
+  name: cryptography
+  detect_imports: [cryptography, hmac]
+rules:
+  # Remaining pyca/cryptography + stdlib surface. Notably `hmac` (the stdlib module) had NO rule at
+  # all, so Python HMAC usage was invisible while Go/Java/JS/C all detected it.
+  - id: PY-HMAC-NEW
+    title: stdlib hmac.new / hmac.digest
+    match:
+      query: |
+        (call function: (attribute object: (identifier) @mod attribute: (identifier) @fn)) @call
+      where:
+        - { capture: mod, equals: hmac }
+        - { capture: fn, in: [new, digest] }
+    extract:
+      algorithm: { literal: HMAC }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import hmac
+          mac = hmac.new(key, msg, "sha256").hexdigest()
+        - |
+          import hmac
+          mac = hmac.digest(key, msg, "sha256")
+      negative:
+        - |
+          import hmac
+          ok = hmac.compare_digest(a, b)
+
+  # AEAD one-shot classes — the RECOMMENDED modern API in pyca's own docs, so real code uses these
+  # far more than the low-level Cipher() construction the other pack covers.
+  - id: PY-CRYPTOGRAPHY-AESGCM
+    title: AESGCM / AESCCM / AESSIV / AESOCB3 one-shot AEAD
+    match:
+      query: |
+        (call function: [(identifier) @cls (attribute attribute: (identifier) @cls)]) @call
+      where:
+        - { capture: cls, in: [AESGCM, AESCCM, AESSIV, AESOCB3, AESGCMSIV] }
+    extract:
+      algorithm: { literal: AES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          c = AESGCM(key)
+        - |
+          from cryptography.hazmat.primitives.ciphers import aead
+          c = aead.AESCCM(key)
+      negative:
+        - |
+          from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+          c = ChaCha20Poly1305(key)
+
+  - id: PY-CRYPTOGRAPHY-CHACHA20POLY1305
+    title: ChaCha20Poly1305 one-shot AEAD (quantum-safe, inventoried)
+    match:
+      query: |
+        (call function: [(identifier) @cls (attribute attribute: (identifier) @cls)]) @call
+      where:
+        - { capture: cls, equals: ChaCha20Poly1305 }
+    extract:
+      algorithm: { literal: ChaCha20-Poly1305 }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+          c = ChaCha20Poly1305(key)
+      negative:
+        - |
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          c = AESGCM(key)
+
+  - id: PY-CRYPTOGRAPHY-KDF
+    title: PBKDF2HMAC / Scrypt / HKDF / ConcatKDF key derivation
+    match:
+      query: |
+        (call function: [(identifier) @cls (attribute attribute: (identifier) @cls)]) @call
+      where:
+        - capture: cls
+          in:
+            [
+              PBKDF2HMAC,
+              Scrypt,
+              HKDF,
+              HKDFExpand,
+              ConcatKDFHash,
+              ConcatKDFHMAC,
+              X963KDF,
+              KBKDFHMAC,
+            ]
+    extract:
+      algorithm: { from: cls, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: password }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+          kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=480000)
+        - |
+          from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+          kdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"x")
+      negative:
+        - |
+          import hashlib
+          key = hashlib.sha256(pw).digest()
+
+  - id: PY-CRYPTOGRAPHY-FERNET
+    title: Fernet symmetric token (AES-128-CBC + HMAC under the hood)
+    match:
+      query: |
+        (call function: [(identifier) @cls (attribute attribute: (identifier) @cls)]) @call
+      where:
+        - { capture: cls, in: [Fernet, MultiFernet] }
+    extract:
+      # Fernet is a fixed construction: AES-128-CBC with HMAC-SHA256. The AES-128 half is the
+      # Grover-relevant part, so that is what gets inventoried.
+      algorithm: { literal: AES-128 }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.fernet import Fernet
+          f = Fernet(key)
+      negative:
+        - |
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          c = AESGCM(key)
+
+  - id: PY-CRYPTOGRAPHY-DSA-KEYGEN
+    title: DSA private-key generation
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)
+          arguments: (argument_list
+            (keyword_argument name: (identifier) @kw value: (_) @size))) @call
+      where:
+        - { capture: mod, equals: dsa }
+        - { capture: meth, equals: generate_private_key }
+        - { capture: kw, equals: key_size }
+    extract:
+      algorithm: { literal: DSA }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import dsa
+          key = dsa.generate_private_key(key_size=1024)
+      negative:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import rsa
+          key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+  - id: PY-CRYPTOGRAPHY-X509-LOAD
+    title: X.509 certificate parsing (load_pem/der_x509_certificate)
+    match:
+      query: |
+        (call function: [(identifier) @fn (attribute attribute: (identifier) @fn)]) @call
+      where:
+        - capture: fn
+          in:
+            [
+              load_pem_x509_certificate,
+              load_der_x509_certificate,
+              load_pem_x509_certificates,
+              load_pem_x509_csr,
+              load_der_x509_csr,
+            ]
+    extract:
+      # The certificate's actual key algorithm is only knowable at runtime; this records that the
+      # code handles X.509 material, which the cert scanner then inventories concretely.
+      algorithm: { literal: X.509 }
+    asset: { asset_type: certificate, usage_context: tls }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          from cryptography import x509
+          cert = x509.load_pem_x509_certificate(data)
+      negative:
+        - |
+          from cryptography.hazmat.primitives import hashes
+          h = hashes.SHA256()
+
+  - id: PY-CRYPTOGRAPHY-PQC
+    title: pyca/cryptography native ML-KEM / ML-DSA (>=48)
+    match:
+      # These are `.generate()` CLASS-METHOD calls, not constructors, so the class name sits in the
+      # object position — `mlkem.MLKEM768PrivateKey.generate()`. Matching the outer attribute would
+      # capture "generate". The alternation accepts both the module-qualified and direct-import forms.
+      query: |
+        (call
+          function: (attribute
+            object: [(identifier) @cls (attribute attribute: (identifier) @cls)]
+            attribute: (identifier) @meth)) @call
+      where:
+        - { capture: meth, equals: generate }
+        - capture: cls
+          in:
+            [
+              MLKEM512PrivateKey,
+              MLKEM768PrivateKey,
+              MLKEM1024PrivateKey,
+              MLDSA44PrivateKey,
+              MLDSA65PrivateKey,
+              MLDSA87PrivateKey,
+            ]
+    extract:
+      algorithm: { from: cls, resolve: pyca-pqc-class }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import mlkem
+          key = mlkem.MLKEM768PrivateKey.generate()
+        - |
+          from cryptography.hazmat.primitives.asymmetric import mldsa
+          key = mldsa.MLDSA65PrivateKey.generate()
+      negative:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import rsa
+          key = rsa.generate_private_key(public_exponent=65537, key_size=2048)

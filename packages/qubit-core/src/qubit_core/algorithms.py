@@ -58,6 +58,9 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         key_size=2048,
         oid="1.2.840.113549.1.1.1",
         classical_security_level=112,
+        # "rsassa-pkcs1-v1_5" / "rsa-oaep" / "rsa-pss" are WebCrypto's algorithm names; they name
+        # a padding scheme, not a key size, so they land on the bare-RSA verdict via the family
+        # fallback rather than here. Only genuinely 2048-bit spellings belong on this entry.
         aliases=("rsa2048", "rsa-2048", "rsa/2048"),
     ),
     _shor(
@@ -145,7 +148,52 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         family="DH",
         kind="asymmetric",
         key_size=2048,
-        aliases=("diffie-hellman", "dh"),
+        # Deliberately NOT aliased to bare "dh"/"diffie-hellman": a size-less name must not silently
+        # claim 2048 bits. Bare DH resolves via _BARE_FAMILY below, which keeps the Shor verdict
+        # without inventing a key size.
+        aliases=("dh2048",),
+    ),
+    _shor(canonical="DH-1024", family="DH", kind="asymmetric", key_size=1024, aliases=("dh1024",)),
+    _shor(canonical="DH-3072", family="DH", kind="asymmetric", key_size=3072, aliases=("dh3072",)),
+    _shor(canonical="DH-4096", family="DH", kind="asymmetric", key_size=4096, aliases=("dh4096",)),
+    # DSA is Shor-broken at every size. Sizes are listed so a keygen call that DOES name one keeps
+    # the precise identity instead of collapsing to the bare family.
+    _shor(
+        canonical="DSA-1024", family="DSA", kind="asymmetric", key_size=1024, aliases=("dsa1024",)
+    ),
+    _shor(
+        canonical="DSA-2048", family="DSA", kind="asymmetric", key_size=2048, aliases=("dsa2048",)
+    ),
+    _shor(
+        canonical="DSA-3072", family="DSA", kind="asymmetric", key_size=3072, aliases=("dsa3072",)
+    ),
+    _shor(canonical="RSA-512", family="RSA", kind="asymmetric", key_size=512, aliases=("rsa512",)),
+    _shor(
+        canonical="RSA-8192", family="RSA", kind="asymmetric", key_size=8192, aliases=("rsa8192",)
+    ),
+    # secp256k1 (Bitcoin/Ethereum) and the remaining standard curves. Shor breaks all of them.
+    _shor(
+        canonical="ECDSA-secp256k1",
+        family="ECDSA",
+        kind="asymmetric",
+        key_size=256,
+        aliases=("secp256k1", "p256k1"),
+    ),
+    _shor(canonical="X448", family="ECDH", kind="asymmetric", key_size=448, aliases=("x448",)),
+    _shor(canonical="Ed448", family="EdDSA", kind="asymmetric", key_size=448, aliases=("ed448",)),
+    _shor(
+        canonical="ECDH-P384",
+        family="ECDH",
+        kind="asymmetric",
+        key_size=384,
+        aliases=("ecdhp384",),
+    ),
+    _shor(
+        canonical="ECDH-P521",
+        family="ECDH",
+        kind="asymmetric",
+        key_size=521,
+        aliases=("ecdhp521",),
     ),
     # --- Symmetric (Grover / safe) ---
     _grover(
@@ -194,8 +242,41 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         family="ChaCha20",
         kind="symmetric",
         key_size=256,
-        aliases=("chacha20", "chacha20poly1305", "chacha20-poly1305"),
+        aliases=("chacha20poly1305", "chacha20-poly1305", "xchacha20poly1305"),
     ),
+    # Bare ChaCha20 / Salsa20 stream ciphers (256-bit keys, so also quantum-safe on their own).
+    _safe(
+        canonical="ChaCha20", family="ChaCha20", kind="symmetric", key_size=256, aliases=("chacha",)
+    ),
+    _safe(
+        canonical="Salsa20", family="Salsa20", kind="symmetric", key_size=256, aliases=("salsa20",)
+    ),
+    _safe(
+        canonical="Twofish", family="Twofish", kind="symmetric", key_size=256, aliases=("twofish",)
+    ),
+    _safe(
+        canonical="Camellia-256",
+        family="Camellia",
+        kind="symmetric",
+        key_size=256,
+        aliases=("camellia256",),
+    ),
+    # --- Legacy 64-bit-block / short-key ciphers. Grover-relevant, and additionally weak for
+    # classical reasons this registry deliberately does not judge. ---
+    _grover(
+        canonical="Camellia-128",
+        family="Camellia",
+        kind="symmetric",
+        key_size=128,
+        aliases=("camellia", "camellia128"),
+    ),
+    _grover(
+        canonical="CAST5", family="CAST5", kind="symmetric", key_size=128, aliases=("cast5", "cast")
+    ),
+    _grover(canonical="IDEA", family="IDEA", kind="symmetric", key_size=128, aliases=("idea",)),
+    _grover(canonical="SEED", family="SEED", kind="symmetric", key_size=128, aliases=("seed",)),
+    _grover(canonical="RC2", family="RC2", kind="symmetric", key_size=128, aliases=("rc2",)),
+    _grover(canonical="TEA", family="TEA", kind="symmetric", key_size=128, aliases=("tea", "xtea")),
     # --- JOSE/JWT HMAC algs (RFC 7518) — symmetric-keyed MAC, Grover-only (not Shor-broken). ---
     _grover(canonical="HS256", family="HMAC", kind="mac", aliases=("hs256", "hmac-sha256")),
     _grover(canonical="HS384", family="HMAC", kind="mac", aliases=("hs384", "hmac-sha384")),
@@ -206,6 +287,25 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
     _safe(canonical="SHA-512", family="SHA-2", kind="hash", aliases=("sha512",)),
     _grover(canonical="SHA-1", family="SHA-1", kind="hash", aliases=("sha1", "sha-1")),
     _grover(canonical="MD5", family="MD5", kind="hash", aliases=("md5",)),
+    # SHA-224 gives ~112-bit classical / ~56-bit Grover preimage margin: below the 128-bit bar the
+    # SHA-256+ family clears, so it is flagged rather than treated as safe.
+    _grover(canonical="SHA-224", family="SHA-2", kind="hash", aliases=("sha224",)),
+    _grover(canonical="MD4", family="MD4", kind="hash", aliases=("md4",)),
+    _grover(canonical="MD2", family="MD2", kind="hash", aliases=("md2",)),
+    _grover(
+        canonical="RIPEMD-160",
+        family="RIPEMD",
+        kind="hash",
+        aliases=("ripemd160", "ripemd", "rmd160"),
+    ),
+    _safe(canonical="SHA-512/256", family="SHA-2", kind="hash", aliases=("sha512256",)),
+    _safe(canonical="SHA3-224", family="SHA-3", kind="hash", aliases=("sha3224",)),
+    # SHAKE is an XOF: security tracks the capacity, so SHAKE128 sits at the AES-128 tier.
+    _grover(canonical="SHAKE128", family="SHA-3", kind="hash", aliases=("shake128",)),
+    _safe(canonical="SHAKE256", family="SHA-3", kind="hash", aliases=("shake256",)),
+    _safe(canonical="BLAKE2b", family="BLAKE2", kind="hash", aliases=("blake2b", "blake2")),
+    _safe(canonical="BLAKE2s", family="BLAKE2", kind="hash", aliases=("blake2s",)),
+    _safe(canonical="BLAKE3", family="BLAKE3", kind="hash", aliases=("blake3",)),
     # --- SHA-3 (FIPS-202). These are the migration KB's recommended replacement for SHA-1/MD5, so
     # without them a *successfully migrated* asset re-scanned as UNKNOWN(SHA3-256) and the
     # remediation could not be verified as landing on something quantum-safe. ---
@@ -219,6 +319,21 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
     _safe(canonical="scrypt", family="scrypt", kind="kdf", aliases=("scrypt",)),
     _safe(canonical="argon2id", family="Argon2", kind="kdf", aliases=("argon2", "argon2id")),
     _safe(canonical="bcrypt", family="bcrypt", kind="kdf", aliases=("bcrypt",)),
+    _safe(canonical="HKDF", family="HKDF", kind="kdf", aliases=("hkdf", "hkdfexpand", "kbkdfhmac")),
+    # X.509 is a certificate FORMAT, not an algorithm. It is registered so that "this code parses
+    # certificates" is inventoried rather than reported as UNKNOWN(X.509) — the concrete key
+    # algorithm inside a certificate is what the cert scanner reports separately.
+    _safe(canonical="X.509", family="X.509", kind="protocol", aliases=("x509", "x.509")),
+    _safe(canonical="ConcatKDF", family="ConcatKDF", kind="kdf", aliases=("concatkdf",)),
+    _safe(canonical="X963KDF", family="X963KDF", kind="kdf", aliases=("x963kdf", "ansix963kdf")),
+    # PBKDF1 is classically obsolete (single hash iteration family, no salt guarantees) but, like
+    # every KDF here, is not broken by a quantum computer — `safe` is strictly the quantum verdict.
+    _safe(canonical="PBKDF1", family="PBKDF1", kind="kdf", aliases=("pbkdf1",)),
+    # --- MACs. Keyed and symmetric, so Grover-relevant like HMAC, never Shor-broken. ---
+    _grover(canonical="CMAC", family="CMAC", kind="mac", aliases=("cmac", "aescmac")),
+    _grover(canonical="GMAC", family="GMAC", kind="mac", aliases=("gmac",)),
+    _grover(canonical="KMAC", family="KMAC", kind="mac", aliases=("kmac", "kmac128", "kmac256")),
+    _safe(canonical="Poly1305", family="Poly1305", kind="mac", aliases=("poly1305",)),
     # --- PQC targets (quantum-safe) ---
     _safe(
         canonical="ML-KEM-512",
@@ -266,6 +381,29 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         aliases=("dilithium5", "mldsa87"),
     ),
     _safe(canonical="SLH-DSA", family="SLH-DSA", kind="pqc-sig", aliases=("sphincs+", "sphincs")),
+    # Bare PQC family names, for APIs that do not name a parameter set at the call site
+    # (Vault's `ml-dsa` key type, Go's crypto/mlkem, BouncyCastle's "ML-KEM" JCA name).
+    _safe(canonical="ML-KEM", family="ML-KEM", kind="pqc-kem", aliases=("mlkem", "kyber")),
+    _safe(canonical="ML-DSA", family="ML-DSA", kind="pqc-sig", aliases=("mldsa", "dilithium")),
+    # Other PQC families. FN-DSA (Falcon) is FIPS-206 draft; the hash-based schemes are RFC/NIST
+    # SP 800-208. All quantum-safe, so their presence is inventory evidence, never a risk.
+    _safe(
+        canonical="FN-DSA",
+        family="FN-DSA",
+        kind="pqc-sig",
+        aliases=("falcon", "falcon512", "falcon1024", "fndsa"),
+    ),
+    _safe(canonical="XMSS", family="XMSS", kind="pqc-sig", aliases=("xmss", "xmssmt")),
+    _safe(canonical="LMS", family="LMS", kind="pqc-sig", aliases=("lms", "hsslms")),
+    _safe(canonical="HQC", family="HQC", kind="pqc-kem", aliases=("hqc",)),
+    _safe(canonical="BIKE", family="BIKE", kind="pqc-kem", aliases=("bike",)),
+    _safe(canonical="FrodoKEM", family="FrodoKEM", kind="pqc-kem", aliases=("frodokem", "frodo")),
+    _safe(
+        canonical="Classic-McEliece",
+        family="Classic-McEliece",
+        kind="pqc-kem",
+        aliases=("classicmceliece", "mceliece"),
+    ),
     # --- Hybrid TLS groups (safe: at least one PQC component) ---
     _safe(
         canonical="X25519MLKEM768",
@@ -279,6 +417,31 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         kind="protocol",
         aliases=("secp256r1mlkem768",),
     ),
+    _safe(
+        canonical="SecP384r1MLKEM1024",
+        family="hybrid-kem",
+        kind="protocol",
+        aliases=("secp384r1mlkem1024",),
+    ),
+    # --- TLS/SSH protocol versions. `kind="protocol"` follows the hybrid-group precedent above.
+    # These are emitted by the config and network scanners (`ssl_protocols TLSv1.2;`), which
+    # previously produced UNKNOWN(TLSv1) with a not-vulnerable verdict — a deprecated protocol
+    # reading as safe. The verdict here is the QUANTUM one: TLS 1.0/1.1 are additionally broken for
+    # classical reasons (RC4/CBC padding oracles, SHA-1 signatures) and are marked vulnerable on
+    # that basis too, since their mandatory cipher suites cannot be made post-quantum at all.
+    _grover(
+        canonical="TLSv1.0",
+        family="TLS",
+        kind="protocol",
+        aliases=("tlsv1", "tls1", "tls10", "sslv3.1"),
+    ),
+    _grover(canonical="TLSv1.1", family="TLS", kind="protocol", aliases=("tlsv11", "tls11")),
+    _grover(canonical="SSLv3", family="SSL", kind="protocol", aliases=("sslv3", "ssl3")),
+    _grover(canonical="SSLv2", family="SSL", kind="protocol", aliases=("sslv2", "ssl2")),
+    # TLS 1.2/1.3 are not themselves broken; whether a given handshake is quantum-safe depends on
+    # the negotiated group, which the network scanner reports as its own separate asset.
+    _safe(canonical="TLSv1.2", family="TLS", kind="protocol", aliases=("tlsv12", "tls12")),
+    _safe(canonical="TLSv1.3", family="TLS", kind="protocol", aliases=("tlsv13", "tls13")),
 )
 
 
@@ -309,13 +472,31 @@ _BARE_FAMILY: dict[str, CanonicalAlgorithm] = {
     "ec": CanonicalAlgorithm("EC", "EC", "asymmetric", QuantumAttack.shor, vulnerable=True),
     "dsa": CanonicalAlgorithm("DSA", "DSA", "asymmetric", QuantumAttack.shor, vulnerable=True),
     "aes": CanonicalAlgorithm("AES", "AES", "symmetric", QuantumAttack.grover, vulnerable=True),
+    # WebCrypto names an RSA *padding scheme* rather than a key size ("RSASSA-PKCS1-v1_5",
+    # "RSA-PSS", "RSA-OAEP"). The scheme does not change the Shor verdict, so each maps onto the
+    # bare-RSA family entry instead of guessing a modulus size.
+    "rsassapkcs1v15": CanonicalAlgorithm(
+        "RSA", "RSA", "asymmetric", QuantumAttack.shor, vulnerable=True
+    ),
+    "rsapss": CanonicalAlgorithm("RSA", "RSA", "asymmetric", QuantumAttack.shor, vulnerable=True),
+    "rsaoaep": CanonicalAlgorithm("RSA", "RSA", "asymmetric", QuantumAttack.shor, vulnerable=True),
     "hmac": CanonicalAlgorithm("HMAC", "HMAC", "mac", QuantumAttack.grover, vulnerable=True),
-    # No bare "eddsa" entry: it is already an alias of Ed25519 in _BY_KEY, which resolves first.
+    "dh": CanonicalAlgorithm("DH", "DH", "asymmetric", QuantumAttack.shor, vulnerable=True),
+    "diffiehellman": CanonicalAlgorithm(
+        "DH", "DH", "asymmetric", QuantumAttack.shor, vulnerable=True
+    ),
+    # No bare "eddsa"/"ecdh" entries: both are already aliases in _BY_KEY, which resolves first
+    # (to Ed25519 and ECDH-P256). Both targets carry the same Shor verdict a bare family would, so
+    # only the reported curve name differs — precision, not safety.
 }
 for _b in _BARE_FAMILY.values():
     _BY_CANONICAL.setdefault(_b.canonical, _b)
 
-_SIZED_FAMILIES = {"rsa": "RSA", "aes": "AES"}
+# Families whose canonical name is "<FAMILY>-<bits>", so an explicit key_size can parameterize a
+# bare family name. Omitting a family here is NOT harmless: `resolve("DH", 1024)` skipped step 2,
+# fell through to the alias table, and returned DH-2048 — reporting a weak 1024-bit Diffie-Hellman
+# as a 2048-bit one, which is worse than returning nothing.
+_SIZED_FAMILIES = {"rsa": "RSA", "aes": "AES", "dh": "DH", "dsa": "DSA", "camellia": "Camellia"}
 
 # Block/stream cipher mode-of-operation suffixes used by OpenSSL and Node cipher strings. A mode
 # says nothing about quantum security, so it is stripped when resolving (see resolve() step 4).
@@ -334,6 +515,8 @@ _CIPHER_MODES = frozenset(
         "ocb",
         "siv",
         "wrap",
+        "kw",  # AES-KW / AES-KWP key wrapping (WebCrypto, JCA)
+        "kwp",
         "poly1305",
     }
 )
@@ -381,7 +564,10 @@ def resolve(name: str, key_size: int | None = None) -> CanonicalAlgorithm | None
     tokens = name.strip().lower().replace("_", "-").replace("/", "-").split("-")
     while len(tokens) > 1 and tokens[-1] in _CIPHER_MODES:
         tokens.pop()
-        stripped = _BY_KEY.get(_normkey("-".join(tokens)))
+        stem = _normkey("-".join(tokens))
+        # Check the bare-family table too, not just the alias index: WebCrypto's "AES-GCM" and
+        # "AES-CBC" name no key size, so they reduce to bare "aes", which lives in _BARE_FAMILY.
+        stripped = _BY_KEY.get(stem) or _BARE_FAMILY.get(stem)
         if stripped is not None:
             return stripped
 

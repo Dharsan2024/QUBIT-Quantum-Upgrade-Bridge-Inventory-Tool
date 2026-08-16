@@ -15,12 +15,19 @@ rules:
       # normalizer falls back to the bare RSA family entry, which keeps the Shor-vulnerable verdict.
       query: |
         (call
-          function: (attribute attribute: (identifier) @meth)
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)
           arguments: (argument_list
             (keyword_argument
               name: (identifier) @kw
               value: (_) @size))) @call
       where:
+        # The module MUST be checked. Without `@mod == rsa`, this matched ANY
+        # `<x>.generate_private_key(key_size=...)` call — so `dsa.generate_private_key(key_size=1024)`
+        # was reported as RSA-1024, a false positive that also mislabelled the algorithm family.
+        # Requiring the `rsa.` qualifier is how pyca's own documentation writes it; a bare
+        # `generate_private_key(...)` after `from ...rsa import generate_private_key` is not matched,
+        # which is the right trade — that spelling is ambiguous between rsa/dsa/ec anyway.
+        - { capture: mod, equals: rsa }
         - { capture: meth, equals: generate_private_key }
         - { capture: kw, equals: key_size }
     extract:

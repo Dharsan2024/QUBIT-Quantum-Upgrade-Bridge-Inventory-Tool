@@ -488,7 +488,12 @@ def migration_order(g: nx.DiGraph) -> list[MigrationUnit]: ...
 def estimate_effort(asset: CryptoAsset, g: nx.DiGraph, repo_meta: RepoMeta) -> EffortEstimate: ...
 ```
 
-### 5.3 REST (APIRouter exported by `qubit_migrate.router`, mounted by qubit-api at `/api/v1/migration`)
+### 5.3 REST (APIRouter exported by `qubit_migrate.router`, mounted by qubit-api at `/api/v1/migrate`)
+
+> **Mount path corrected 2026-08-16.** This section previously documented the prefix as
+> `/api/v1/migration`; the router is actually mounted at **`/api/v1/migrate`**, so every path below
+> resolves as `/api/v1/migrate/plans`, `/api/v1/migrate/tasks/{id}/generate`, and so on. Verified
+> against the live `openapi.json`.
 
 **Exposed:**
 

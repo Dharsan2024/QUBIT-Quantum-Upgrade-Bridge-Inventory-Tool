@@ -237,6 +237,34 @@ To keep the OpenSSL reducer from hijacking ordinary cipher strings, it runs **la
 
 **Post-quantum and SSH host-key names.** `sntrup761x25519-sha512@openssh.com` (OpenSSH 9.x default hybrid KEX) and `mlkem768x25519-sha256` (OpenSSH 10) are registry entries, not just migration targets — a hardened config must be *recognisable* as hardened on re-scan, see [doc 03 §4.8](03-migration-orchestrator.md). Relatedly, `ssh-rsa` and `rsa-sha2-256/512` are now **separate** canonical entries: `ssh-rsa` specifically means RSA with a SHA-1 signature (deprecated by OpenSSH 8.8+), while `rsa-sha2-*` are the recommended replacements. Aliasing them together meant a hardened `sshd_config` still reported `ssh-rsa` as present, making the remediation look like it had achieved nothing. Both remain Shor-breakable — they are RSA — and that shared verdict is correct; only the key type escapes Shor.
 
+**HMAC is quantum-safe, and was wrongly flagged (corrected 2026-08-16).** `HS256/384/512` (and the
+`hmac-sha2-*` spellings) were rated `grover`/vulnerable. That contradicted this registry's own rule —
+Grover halves symmetric strength and what matters is whether ≥128 bits survive, which is precisely
+why `AES-256` and `SHA-256` are safe here while `AES-128` and `SHA-224` are flagged — and HMAC is
+strictly stronger than the bare hash it wraps. The damage was not cosmetic: because *every* HMAC
+variant was flagged, including HS512, an HMAC finding had no safe algorithm to migrate **to** and was
+therefore un-remediable by construction. `HMAC-SHA1` and `HMAC-MD5` remain flagged, on the broken
+hash rather than on Grover. A short or guessable HMAC key is a real risk but a classical
+key-management one, which an algorithm registry cannot see and must not imply a quantum verdict about.
+
+**PQC APIs are detected in every supported language (2026-08-16).** They were recognised in Go, Java
+and Python only, so a JavaScript or C service that had already migrated showed *zero* post-quantum
+adoption — and the migration validator's stage-5 rescan, which asserts `present: ML-KEM`, could never
+confirm a correct JS/TS/C patch, so it was discarded. Added `@noble/post-quantum` (JS/TS) and
+`liboqs` (C) packs, sharing one identifier normalizer that also accepts the pre-standardization
+`kyber`/`dilithium` spellings those libraries still ship. Relatedly, `GO-CRYPTO-MLKEM` matched only
+the package-level constructors, so a file that *receives* an ML-KEM key and calls `Encapsulate` on it
+was invisible — the same key-use-vs-key-generation gap already fixed for the classical algorithms,
+never applied to the PQC ones (`GO-CRYPTO-MLKEM-TYPE`).
+
+**A signature primitive cannot perform key exchange (2026-08-16).** A rule that captures its
+algorithm *dynamically* cannot know the usage statically: `JS-NODE-GENERATEKEYPAIR-RSA` matches
+`crypto.generateKeyPairSync(<alg>, …)` and hard-codes `usage_context: kex`, but `<alg>` may be
+`ed25519` or `ec`. Reporting those as key exchange invents HNDL exposure that cannot exist — a
+signature is not retroactively forgeable from a recording — and misroutes migration, since transform
+rules match on usage. `normalize()` now reconciles the two (`_reconcile_usage_with_algorithm`), so the
+correction holds for every rule including ones added later, rather than being patched rule by rule.
+
 ### 4.3 Detection (scanner-internal, pre-normalization)
 
 ```python

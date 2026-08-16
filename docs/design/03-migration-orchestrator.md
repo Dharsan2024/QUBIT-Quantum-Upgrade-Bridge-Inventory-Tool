@@ -396,7 +396,7 @@ rescan_expect:                  # validation stage 5 assertions
 
 Shipped **M2 rule pack (6 rules)** — trimmed from 10 to fit the reconciled M2 budget (cut per §10 cut-lines 3 & 4, applied up front): `py-rsa-enc-01`, `py-rsa-sig-01` (RSA-PSS→ML-DSA-65), `py-ecdsa-sig-01` (ECDSA→ML-DSA-65), `py-ecdh-kex-01` (ECDH→ML-KEM-768 hybrid TLS), `py-weakhash-01` (SHA-1/MD5 **password** hash → argon2id via `argon2-cffi`; generic SHA-1 digest → SHA-256; `data_compat: dual_read` with documented rehash-on-next-login guidance — SHA-256 is *not* a valid password-hash target), `conf-nginx-tls-01`. **Deferred to M3/stretch:** `java-rsa-enc-01`, `java-ecdsa-sig-01`, `java-rsa-keygen-01` (Java LLM path, cut-line 3 — Java ships template-only at M2), `conf-apache-tls-01` (cut-line 4). Note there is **no JWT/RS256→PQC-JOSE rule**: no mainstream JOSE library registers an ML-DSA `alg` as of mid-2026, so JWT signing assets get an inventory recommendation, not an automated patch.
 
-### 4.6 Shipped transform rule pack (9 rules) and matcher discipline
+### 4.6 Shipped transform rule pack (14 rules) and matcher discipline
 
 *Updated 2026-08-16.* Detection outgrew migration badly — 145 detection rules against 2 transform rules — so the pack was extended to cover **every asset class the scanner can produce**, not only Python source. The shipped set:
 
@@ -444,6 +444,42 @@ Two adjacent fixes came out of the same work:
 
 - `_stage_parses` in `transform/validate.py` defaulted every unknown language to Python, so a hardened `nginx.conf` was parsed as Python, produced ERROR nodes and had its patch rejected — which made config hardening, the highest-value transform in the system, impossible to apply at all. Non-code languages now **skip** the stage rather than being parsed as something else.
 - The `qubit run` summary counted `sum(before) − sum(after)` as "findings fixed" and so reported **zero** on a run that had just eliminated eight weak algorithms: hardening changes the inventory's granularity (one `ssl_ciphers` line becomes six explicit suites) and the replacements are modern but still Shor-breakable. It now names what was eliminated and what replaced it, and never lets a modern replacement pass as post-quantum.
+
+### 4.9 Coverage is measured, not asserted
+
+*Added 2026-08-16.* "Is the rule pack big enough" cannot be answered by counting rules, so it is
+measured: sweep **every detection rule's own positive examples** through the scanner, normalize the
+findings, and ask whether `match_rule` returns anything for each vulnerable asset. The first run of
+that sweep found only **31% (42/135)**. It is now **100%**, and
+`packages/qubit-cli/tests/test_transform_coverage_guard.py` pins it — the corpus is generated from
+the detection catalog itself, so a detection rule added without a migration path fails the build.
+
+The gaps it exposed were structural, which is exactly why a rule count had never revealed them:
+
+| Gap | Why it was invisible |
+|---|---|
+| kex / signature / cipher rules were **Python-only** | The pack looked balanced; Go, Java, JS, TS and C had only a weak-hash swap for their highest-risk findings |
+| Rules listed only **sized** names (`RSA-2048`) | A keygen whose size comes from a variable normalizes to the bare family (`RSA`), matching nothing |
+| Every HMAC variant rated quantum-vulnerable | There was no safe target to migrate TO, so the finding was **un-remediable by construction** — see [doc 01 §4.2](01-discovery-inventory.md) |
+| `Ed25519`/`ECDSA` keygen reported as `usage_context: kex` | Signature primitives have no key-agreement operation, so this invented HNDL exposure AND misrouted migration |
+
+Five rules closed the language gap, each spanning every non-Python language in one rule rather than
+one rule per language: `code-kex-01`, `code-signature-01`, `code-weakcipher-01`, `code-mac-01`, and
+`code-tls-01` for a TLS version pinned in *source* (which `cfg-tls-01` cannot reach, being
+config-only). Cross-language rules carry one worked example **per language** via `extra_examples`,
+and only the target file's example is injected into the prompt — sending all four made a Go file
+arrive with Java, JavaScript and C demonstrations attached.
+
+**What is deliberately excluded**, because no code patch can fix it, each with the action it does
+need: certificates (reissue with a PQC-capable CA), keys (rotation in the HSM or Vault holding
+them), and live-endpoint findings (harden the server's own config, which the config rules cover).
+The guard test names these explicitly rather than leaving them as an unnoticed hole.
+
+**A caveat worth stating:** the cross-language kex and signature rewrites are LLM-only — there is no
+deterministic codemod behind them, because a KEM+DEM transformation is genuinely semantic. 100%
+coverage means every finding has a rule that *matches* and a validated path to a patch; it does not
+mean a 7B model succeeds on every file. The validation pipeline is what makes that safe: a rewrite
+that does not actually reach ML-KEM is rejected on rescan and reported with the failing stage named.
 
 ---
 

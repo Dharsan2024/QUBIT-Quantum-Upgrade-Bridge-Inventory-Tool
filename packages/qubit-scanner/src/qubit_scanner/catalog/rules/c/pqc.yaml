@@ -1,0 +1,81 @@
+# Post-quantum APIs in C, via liboqs (the Open Quantum Safe library).
+#
+# Quantum-SAFE findings. They are inventoried for the same two reasons as the JS/TS pack: a codebase
+# that has already adopted ML-KEM should be credited for it instead of appearing to have no PQC at
+# all, and the migration validator's stage-5 rescan asserts `present: ML-KEM` / `ML-DSA` on the
+# patched file — with no rule to detect liboqs, a correct C rewrite could never be confirmed and the
+# patch was thrown away.
+#
+# The algorithm is carried by liboqs' `OQS_KEM_alg_*` / `OQS_SIG_alg_*` identifier passed to the
+# constructor, which is what these rules capture.
+schema: qubit-rule/v1
+language: c
+library:
+  name: liboqs
+  # resolve.py has no C import-extraction query, and the OQS_* symbols are unmistakable on
+  # their own, so an import gate would only ever disable these rules.
+  detect_imports: []
+rules:
+  - id: C-LIBOQS-KEM
+    title: "liboqs OQS_KEM_new(...) — post-quantum KEM"
+    match:
+      query: |
+        (call_expression
+          function: (identifier) @fn
+          arguments: (argument_list (identifier) @alg)) @call
+      where:
+        - { capture: fn, equals: OQS_KEM_new }
+    extract:
+      algorithm: { from: alg, resolve: liboqs-alg-const }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <oqs/oqs.h>
+          void f(void) {
+              OQS_KEM *kem = OQS_KEM_new(OQS_KEM_alg_ml_kem_768);
+              OQS_KEM_free(kem);
+          }
+        - |
+          #include <oqs/oqs.h>
+          void g(void) {
+              OQS_KEM *kem = OQS_KEM_new(OQS_KEM_alg_kyber_1024);
+              OQS_KEM_free(kem);
+          }
+      negative:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_MD_CTX *c = EVP_MD_CTX_new(); EVP_MD_CTX_free(c); }
+
+  - id: C-LIBOQS-SIG
+    title: "liboqs OQS_SIG_new(...) — post-quantum signature"
+    match:
+      query: |
+        (call_expression
+          function: (identifier) @fn
+          arguments: (argument_list (identifier) @alg)) @call
+      where:
+        - { capture: fn, equals: OQS_SIG_new }
+    extract:
+      algorithm: { from: alg, resolve: liboqs-alg-const }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <oqs/oqs.h>
+          void f(void) {
+              OQS_SIG *sig = OQS_SIG_new(OQS_SIG_alg_ml_dsa_65);
+              OQS_SIG_free(sig);
+          }
+        - |
+          #include <oqs/oqs.h>
+          void h(void) {
+              OQS_SIG *sig = OQS_SIG_new(OQS_SIG_alg_sphincs_sha2_128f_simple);
+              OQS_SIG_free(sig);
+          }
+      negative:
+        - |
+          #include <openssl/evp.h>
+          void f(void) { EVP_PKEY *k = EVP_RSA_gen(2048); EVP_PKEY_free(k); }

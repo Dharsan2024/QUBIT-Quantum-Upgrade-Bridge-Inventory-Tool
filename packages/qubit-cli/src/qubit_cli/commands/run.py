@@ -287,6 +287,13 @@ def _migrate(path: Path, generator: str, *, in_place: bool = False) -> None:
         try:
             patch = orch.generate_patch(task.id, generator=generator, repo_root=repo)  # type: ignore[arg-type]
             if patch.status != "proposed":
+                # This used to `continue` in silence, which is the worst possible outcome: a patch
+                # rejected by the validation pipeline left NO trace, so a finding that stayed
+                # unfixed in the before/after table had no explanation anywhere. Name the stage that
+                # rejected it — that is the difference between "the tool did nothing" and "the tool
+                # refused an unsafe patch, here is why".
+                reasons = _validation_failure_reasons(patch)
+                console.print(f"  [yellow]rejected[/yellow] patch for {patch.file_path}: {reasons}")
                 continue
             orch.review_patch(patch.id, approve=True, note="qubit run", actor="run")
             orch.apply_patch(patch.id, repo_root=repo, actor="run")
@@ -351,6 +358,25 @@ def _migrate(path: Path, generator: str, *, in_place: bool = False) -> None:
             )
     else:
         console.print(f"[yellow]No findings auto-fixed.[/yellow] {_next_step_hint(generator)}")
+
+
+def _validation_failure_reasons(patch: object) -> str:
+    """Summarize which validation stages rejected a patch, for the operator reading the terminal.
+
+    `validation_json` holds `{stages: {name: {status, detail}}, passed, partial}`. Only the failing
+    stages are reported, with their detail trimmed — a full compiler or pytest dump would bury the
+    one line that matters.
+    """
+    report = getattr(patch, "validation_json", None) or {}
+    stages = report.get("stages", {}) if isinstance(report, dict) else {}
+    failed = [
+        f"{name} ({(info.get('detail') or 'no detail').splitlines()[0][:140]})"
+        for name, info in stages.items()
+        if isinstance(info, dict) and info.get("status") == "fail"  # StageStatus literal is "fail"
+    ]
+    if failed:
+        return "failed " + ", ".join(failed)
+    return f"status={getattr(patch, 'status', 'unknown')} with no failing stage recorded"
 
 
 def _next_step_hint(generator: str) -> str:

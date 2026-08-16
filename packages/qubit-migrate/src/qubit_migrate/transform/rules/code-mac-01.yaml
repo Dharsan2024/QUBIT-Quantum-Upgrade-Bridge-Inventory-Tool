@@ -1,0 +1,120 @@
+id: code-mac-01
+language: multi
+title: "Unspecified or broken-hash MAC → HMAC-SHA-256"
+matches:
+  source_scanner: [code]
+  # Every language including Python: this is a hash/parameter choice, not a library-specific rewrite.
+  file_suffix:
+    [".py", ".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp"]
+  # Bare `HMAC` means the call site did not name a hash, so the scanner cannot tell whether it is
+  # SHA-256 or SHA-1. HMAC-SHA1/MD5 name a broken one outright. HMAC-SHA-256/384/512 are already
+  # quantum-safe and are deliberately NOT matched — there is nothing to migrate.
+  algorithm: ["HMAC", "HMAC-SHA1", "HMAC-MD5", "CMAC", "GMAC"]
+  usage_context: ["token", "signature", "hash", "unknown"]
+  library_name: [null]
+target:
+  algorithm: HS256
+  mode: pure
+  parameter_set: HMAC-SHA-256
+  category: 1
+  fips: FIPS-198-1
+# A MAC is recomputed on every verification, never stored as ciphertext — but tokens already issued
+# under the old MAC will fail verification, so both must be accepted during rollout.
+data_compat: dual_read
+semantic_note: >
+  A MAC is symmetric, so Shor does not apply and this is NOT a post-quantum algorithm swap: HMAC-SHA-256
+  is already quantum-adequate, because Grover only halves the key strength and 128 bits survive.
+  The finding exists because the call site does not pin a strong hash - bare `HMAC` may be running on
+  SHA-1, and HMAC-SHA1/HMAC-MD5 name a classically broken hash explicitly. Pin the construction to
+  SHA-256 (or SHA-384 to satisfy CNSA 2.0) and ensure the key is at least 32 bytes of real entropy.
+  Anything already signed with the old MAC will fail verification, so accept BOTH during rollout and
+  drop the old one only once every outstanding token has expired. Do not "upgrade" a MAC to ML-DSA:
+  that replaces a shared-secret authenticator with a public-key signature, which is a different
+  security model and a far larger change than the finding calls for.
+prompt_constraints:
+  - "Python: use hmac.new(key, msg, hashlib.sha256) and compare with hmac.compare_digest, never ==."
+  - "Go: use hmac.New(sha256.New, key) and hmac.Equal for comparison."
+  - "Java: use Mac.getInstance(\"HmacSHA256\") with a SecretKeySpec(key, \"HmacSHA256\")."
+  - "JavaScript/TypeScript: use crypto.createHmac(\"sha256\", key) and crypto.timingSafeEqual to compare."
+  - "C: use HMAC(EVP_sha256(), ...) or EVP_MAC with the HMAC algorithm and digest=SHA256."
+  - "Require a key of at least 32 bytes; do not derive it from a short password without a KDF."
+  - "Keep verification of the previous MAC alongside the new one until outstanding tokens expire."
+  - "Never compare MACs with a plain equality operator — use the constant-time comparison for the language."
+example:
+  before: |
+    import hashlib
+    import hmac
+
+    def tag(key: bytes, message: bytes) -> str:
+        return hmac.new(key, message, hashlib.sha1).hexdigest()
+
+    def check(key: bytes, message: bytes, expected: str) -> bool:
+        return tag(key, message) == expected
+  after: |
+    import hashlib
+    import hmac
+
+    def tag(key: bytes, message: bytes) -> str:
+        # SHA-256 pinned explicitly; key must be >= 32 bytes of real entropy.
+        return hmac.new(key, message, hashlib.sha256).hexdigest()
+
+    def tag_legacy(key: bytes, message: bytes) -> str:
+        # Retained so tags already issued still verify; remove once they have all expired.
+        return hmac.new(key, message, hashlib.sha1).hexdigest()
+
+    def check(key: bytes, message: bytes, expected: str) -> bool:
+        return hmac.compare_digest(tag(key, message), expected) or hmac.compare_digest(
+            tag_legacy(key, message), expected
+        )
+example_go:
+  before: |
+    import (
+        "crypto/hmac"
+        "crypto/sha1"
+    )
+
+    func tag(key, message []byte) []byte {
+        m := hmac.New(sha1.New, key)
+        m.Write(message)
+        return m.Sum(nil)
+    }
+  after: |
+    import (
+        "crypto/hmac"
+        "crypto/sha256"
+    )
+
+    func tag(key, message []byte) []byte {
+        m := hmac.New(sha256.New, key)
+        m.Write(message)
+        return m.Sum(nil)
+    }
+
+    // Compare with hmac.Equal, never bytes.Equal or ==.
+    func verify(key, message, want []byte) bool {
+        return hmac.Equal(tag(key, message), want)
+    }
+example_java:
+  before: |
+    Mac mac = Mac.getInstance("HmacSHA1");
+    mac.init(new SecretKeySpec(key, "HmacSHA1"));
+    byte[] tag = mac.doFinal(message);
+  after: |
+    Mac mac = Mac.getInstance("HmacSHA256");
+    mac.init(new SecretKeySpec(key32, "HmacSHA256"));
+    byte[] tag = mac.doFinal(message);
+    // Verify with MessageDigest.isEqual(tag, expected) for a constant-time comparison.
+example_javascript:
+  before: |
+    import crypto from "node:crypto";
+
+    const tag = crypto.createHmac("sha1", key).update(message).digest("hex");
+    const ok = tag === expected;
+  after: |
+    import crypto from "node:crypto";
+
+    const tag = crypto.createHmac("sha256", key32).update(message).digest();
+    const ok = crypto.timingSafeEqual(tag, expectedBuffer);
+rescan_expect:
+  gone:
+    algorithm_prefix: ["HMAC-SHA1", "HMAC-MD5"]

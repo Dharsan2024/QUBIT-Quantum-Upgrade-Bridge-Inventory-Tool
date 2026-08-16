@@ -289,21 +289,37 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
     _grover(canonical="SEED", family="SEED", kind="symmetric", key_size=128, aliases=("seed",)),
     _grover(canonical="RC2", family="RC2", kind="symmetric", key_size=128, aliases=("rc2",)),
     _grover(canonical="TEA", family="TEA", kind="symmetric", key_size=128, aliases=("tea", "xtea")),
-    # --- JOSE/JWT HMAC algs (RFC 7518) — symmetric-keyed MAC, Grover-only (not Shor-broken). ---
+    # --- JOSE/JWT HMAC algs (RFC 7518) — symmetric-keyed MAC, so never Shor-broken. ---
     # The `hmac-sha*` spellings also cover OpenSSH's MACs directive.
-    _grover(
+    #
+    # These are QUANTUM-SAFE, and were previously flagged `grover`, which was inconsistent with the
+    # rest of this registry and actively harmful. This file's own rule is that Grover halves
+    # symmetric strength and what matters is whether >=128 bits survive: that is exactly why
+    # AES-256 and SHA-256 are `_safe` here while AES-128 and SHA-224 are flagged. HMAC-SHA-256 with
+    # a 256-bit key leaves 128 bits under Grover, and HMAC is strictly stronger than the bare hash
+    # it is built on — so rating HS256 vulnerable while rating SHA-256 safe contradicted itself.
+    #
+    # The practical damage was worse than a cosmetic mislabel: HMAC was reported as a finding that
+    # no migration could ever clear, because every HMAC variant in the registry — HS512 included —
+    # was vulnerable. There was no safe target to migrate TO, so those assets were permanently
+    # un-remediable. CNSA 2.0 approves HMAC-SHA-384; NIST treats HMAC-SHA-2 as post-quantum
+    # adequate.
+    #
+    # A short or guessable HMAC key is a real problem, but it is a classical key-management one that
+    # an algorithm registry cannot see and must not imply a quantum verdict about.
+    _safe(
         canonical="HS256",
         family="HMAC",
         kind="mac",
         aliases=("hs256", "hmac-sha256", "hmac-sha2-256"),
     ),
-    _grover(
+    _safe(
         canonical="HS384",
         family="HMAC",
         kind="mac",
         aliases=("hs384", "hmac-sha384", "hmac-sha2-384"),
     ),
-    _grover(
+    _safe(
         canonical="HS512",
         family="HMAC",
         kind="mac",

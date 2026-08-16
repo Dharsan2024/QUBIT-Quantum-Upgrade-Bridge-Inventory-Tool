@@ -4,7 +4,10 @@ title: "DES/3DES/RC4/Blowfish/AES-128 → AES-256-GCM"
 matches:
   source_scanner: [code]
   file_suffix: [".py"]
-  algorithm: ["DES", "3DES", "RC4", "Blowfish", "CAST5", "IDEA", "RC2", "AES-128", "AES-192"]
+  # Bare "AES" is here because a Cipher built from a variable-length key normalizes to the bare
+  # family; leaving it out meant the most common real-world spelling went unmigrated.
+  algorithm:
+    ["DES", "3DES", "RC4", "Blowfish", "CAST5", "IDEA", "RC2", "SEED", "AES", "AES-128", "AES-192"]
   usage_context: ["encryption-at-rest", "unknown"]
   library_name: ["cryptography", "pycryptodome", null]
 target:

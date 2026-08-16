@@ -35,15 +35,27 @@ def test_resolve_aliases(raw: str, expected: str) -> None:
 
 
 def test_jose_alg_quantum_verdicts() -> None:
-    # RSA-signature and ECDSA-based JOSE algs are Shor-broken; HMAC is Grover-only.
+    # RSA-signature and ECDSA-based JOSE algs are Shor-broken.
     for name in ("RS256", "PS256", "ES256", "ES512", "EdDSA"):
         entry = algorithms.resolve(name)
         assert entry is not None, name
         assert entry.vulnerable is True and entry.attack is QuantumAttack.shor, name
+
+    # The HMAC algs are quantum-SAFE, and this assertion was inverted until 2026-08-16. Grover only
+    # halves symmetric strength, so an HMAC-SHA-256 key leaves 128 bits — the same reasoning that
+    # makes AES-256 and SHA-256 `_safe` here, and HMAC is strictly stronger than the hash it wraps.
+    # Rating HS256 vulnerable while rating SHA-256 safe contradicted itself, and it had a real
+    # consequence: every HMAC variant was flagged, HS512 included, so an HMAC finding had no safe
+    # target to migrate TO and could never be cleared. CNSA 2.0 approves HMAC-SHA-384.
     for name in ("HS256", "HS384", "HS512"):
         entry = algorithms.resolve(name)
         assert entry is not None, name
-        assert entry.vulnerable is True and entry.attack is QuantumAttack.grover, name
+        assert entry.vulnerable is False and entry.attack is QuantumAttack.none, name
+
+    # Built on a classically broken hash, so still flagged — on the hash, not on Grover.
+    for name in ("hmac-sha1", "hmac-md5"):
+        entry = algorithms.resolve(name)
+        assert entry is not None and entry.vulnerable is True, name
 
 
 def test_resolve_rsa_by_key_size() -> None:

@@ -1,0 +1,160 @@
+id: code-signature-01
+language: multi
+title: "Signatures in Go, Java, JS, TS, C → ML-DSA-65 (FIPS-204)"
+matches:
+  source_scanner: [code]
+  # Non-Python only; py-signature-01 owns .py.
+  file_suffix: [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp"]
+  algorithm:
+    [
+      "RSA",
+      "RSA-1024",
+      "RSA-2048",
+      "RSA-3072",
+      "RSA-4096",
+      "DSA",
+      "DSA-1024",
+      "DSA-2048",
+      "DSA-3072",
+      "EC",
+      "ECDSA-P256",
+      "ECDSA-P384",
+      "ECDSA-P521",
+      "ECDSA-secp256k1",
+      "Ed25519",
+      "Ed448",
+      # JOSE/JWT `alg` identifiers, which is how a signature usually appears in Go/JS/TS services.
+      "RS256",
+      "RS384",
+      "RS512",
+      "PS256",
+      "PS384",
+      "PS512",
+      "ES256",
+      "ES384",
+      "ES512",
+      "EdDSA",
+    ]
+  usage_context: ["signature", "token", "unknown"]
+  library_name: [null]
+target:
+  algorithm: ML-DSA-65
+  mode: pure
+  parameter_set: ML-DSA-65
+  category: 3
+  fips: FIPS-204
+# Verifiers must accept the new signature before signers switch, so both algorithms have to be
+# understood at once — a dual-read (dual-verify) rollout, not a flip.
+data_compat: dual_read
+semantic_note: >
+  ML-DSA-65 replaces the signature primitive but signatures are a TWO-SIDED contract: every verifier
+  must understand the new algorithm BEFORE any signer starts producing it, or verification fails
+  across the fleet. Roll out verify-both first, then switch signing. ML-DSA signatures and public keys
+  are much larger than ECDSA's (~3.3 KB signature, ~1.9 KB public key for ML-DSA-65), so any fixed-size
+  column, buffer, header or protocol field holding a signature must be widened — this is the most
+  common way this migration breaks in production. Do not attempt to migrate a JWT/JOSE `alg` to ML-DSA
+  unless the JOSE library in use registers a PQC `alg`; if it does not, keep the algorithm and record
+  the gap rather than emitting an identifier no verifier accepts.
+prompt_constraints:
+  - "Go: use github.com/cloudflare/circl/sign/mldsa/mldsa65 (ML-DSA is not in the Go standard library)."
+  - "Java: use KeyPairGenerator.getInstance(\"ML-DSA\") and Signature.getInstance(\"ML-DSA\") (JDK 24+, JEP 497), or BouncyCastle 1.79+."
+  - "JavaScript/TypeScript: use ml_dsa65 from @noble/post-quantum/ml-dsa."
+  - "C: use liboqs — OQS_SIG_new(OQS_SIG_alg_ml_dsa_65), OQS_SIG_sign, OQS_SIG_verify."
+  - "Keep the existing verify path alongside the new one so signatures already in circulation still validate."
+  - "Do NOT shrink or truncate a signature to fit an existing field; widen the field instead."
+example:
+  before: |
+    package main
+
+    import (
+        "crypto/ecdsa"
+        "crypto/elliptic"
+        "crypto/rand"
+    )
+
+    func sign(digest []byte) ([]byte, error) {
+        key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+        if err != nil {
+            return nil, err
+        }
+        return ecdsa.SignASN1(rand.Reader, key, digest)
+    }
+  after: |
+    package main
+
+    import (
+        "crypto/rand"
+
+        "github.com/cloudflare/circl/sign/mldsa/mldsa65"
+    )
+
+    // ML-DSA-65 signatures are ~3.3 KB — far larger than ECDSA-P256's ~72 bytes. Any storage or
+    // protocol field that holds this value must be widened before rollout.
+    func sign(message []byte) ([]byte, error) {
+        pub, priv, err := mldsa65.GenerateKey(rand.Reader)
+        if err != nil {
+            return nil, err
+        }
+        _ = pub // publish so verifiers can accept the new algorithm first
+        sig := make([]byte, mldsa65.SignatureSize)
+        mldsa65.SignTo(priv, message, nil, false, sig)
+        return sig, nil
+    }
+example_java:
+  before: |
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC");
+    kpg.initialize(new ECGenParameterSpec("secp256r1"));
+    KeyPair kp = kpg.generateKeyPair();
+    Signature s = Signature.getInstance("SHA256withECDSA");
+    s.initSign(kp.getPrivate());
+    s.update(message);
+    byte[] sig = s.sign();
+  after: |
+    // JDK 24+ (JEP 497). Verifiers must accept ML-DSA before signers emit it.
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("ML-DSA");
+    kpg.initialize(NamedParameterSpec.ML_DSA_65);
+    KeyPair kp = kpg.generateKeyPair();
+    Signature s = Signature.getInstance("ML-DSA");
+    s.initSign(kp.getPrivate());
+    s.update(message);
+    byte[] sig = s.sign();  // ~3.3 KB: widen any fixed-size signature column or buffer.
+example_javascript:
+  before: |
+    import crypto from "node:crypto";
+
+    const { privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    const sig = crypto.sign("sha256", message, privateKey);
+  after: |
+    import { ml_dsa65 } from "@noble/post-quantum/ml-dsa";
+
+    // Keep the classical verify path live until every verifier understands ML-DSA.
+    const keys = ml_dsa65.keygen();
+    const sig = ml_dsa65.sign(keys.secretKey, message);
+    // sig is ~3.3 KB; a fixed-width database column or header field must be widened.
+example_c:
+  before: |
+    EVP_PKEY *pkey = EVP_EC_gen("prime256v1");
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, pkey);
+    EVP_DigestSign(ctx, sig, &siglen, msg, msg_len);
+  after: |
+    /* liboqs ML-DSA-65. Note length_signature is ~3.3 KB — size buffers from the struct, never
+       from a hardcoded constant carried over from ECDSA. */
+    OQS_SIG *sig_alg = OQS_SIG_new(OQS_SIG_alg_ml_dsa_65);
+    if (sig_alg == NULL) { return -1; }
+
+    uint8_t *public_key = malloc(sig_alg->length_public_key);
+    uint8_t *secret_key = malloc(sig_alg->length_secret_key);
+    uint8_t *signature = malloc(sig_alg->length_signature);
+    size_t signature_len = 0;
+
+    OQS_SIG_keypair(sig_alg, public_key, secret_key);
+    OQS_SIG_sign(sig_alg, signature, &signature_len, msg, msg_len, secret_key);
+
+    OQS_MEM_secure_free(secret_key, sig_alg->length_secret_key);
+    free(public_key);
+    free(signature);
+    OQS_SIG_free(sig_alg);
+rescan_expect:
+  present:
+    algorithm_prefix: ["ML-DSA"]

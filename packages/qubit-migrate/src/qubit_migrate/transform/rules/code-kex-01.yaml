@@ -1,0 +1,183 @@
+id: code-kex-01
+language: multi
+title: "Key exchange / key transport in Go, Java, JS, TS, C → ML-KEM-768 hybrid (FIPS-203)"
+matches:
+  source_scanner: [code]
+  # Everything EXCEPT .py, which has py-rsa-kex-01 and py-ecdh-kex-01 with library-specific
+  # constraints for pyca. Without this rule, key exchange — the single highest-HNDL-risk finding
+  # class there is, because recorded traffic becomes readable the moment the group breaks — had NO
+  # migration path in any language other than Python.
+  file_suffix: [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp"]
+  # Bare family names matter as much as sized ones: a keygen call that does not spell out a key size
+  # normalizes to bare `RSA` / `EC` / `DH`, and those were the assets slipping through.
+  algorithm:
+    [
+      "RSA",
+      "RSA-1024",
+      "RSA-2048",
+      "RSA-3072",
+      "RSA-4096",
+      "EC",
+      "ECDH",
+      "ECDH-P256",
+      "ECDH-P384",
+      "ECDH-P521",
+      "X25519",
+      "X448",
+      "DH",
+      "DH-1024",
+      "DH-2048",
+      "DH-3072",
+      "DH-4096",
+    ]
+  usage_context: ["kex", "encryption-at-rest", "unknown"]
+  library_name: [null]
+target:
+  algorithm: ML-KEM-768
+  mode: hybrid
+  hybrid_group: X25519MLKEM768
+  parameter_set: ML-KEM-768
+  category: 3
+  fips: FIPS-203
+# A KEM changes the wire/stored format: the ciphertext is now an encapsulation plus an AEAD blob, so
+# anything already encrypted under the old scheme cannot be read by the new code.
+data_compat: reencrypt_required
+semantic_note: >
+  ML-KEM is a KEM, not public-key encryption. Do NOT translate an encrypt(plaintext) call
+  call-for-call. Transform to KEM+DEM: encapsulate to obtain a shared secret, derive an AES-256-GCM
+  key from it with HKDF-SHA256, and encrypt the payload with AES-256-GCM. The recipient decapsulates
+  with the ML-KEM decapsulation key and derives the same key. Prefer a HYBRID construction
+  (X25519 + ML-KEM-768, concatenating both shared secrets into the KDF) so the result is no weaker
+  than the classical scheme it replaces if either primitive is later broken. The encrypt site and its
+  matching decrypt site must change together or stored data becomes unreadable.
+prompt_constraints:
+  - "Go: use crypto/mlkem (Go 1.24+). mlkem.GenerateKey768() returns a DecapsulationKey; ek.Encapsulate() returns (sharedSecret, ciphertext); dk.Decapsulate(ciphertext) returns the shared secret."
+  - "Java: use KeyPairGenerator.getInstance(\"ML-KEM\") and KEM.getInstance(\"ML-KEM\") (JDK 24+, JEP 496), or BouncyCastle 1.79+ if the project already depends on it."
+  - "JavaScript/TypeScript: use ml_kem768 from @noble/post-quantum/ml-kem."
+  - "C: use liboqs — OQS_KEM_new(OQS_KEM_alg_ml_kem_768), OQS_KEM_encaps, OQS_KEM_decaps — and free every key with OQS_MEM_secure_free."
+  - "Never send or store the shared secret itself; only the encapsulation ciphertext and the AEAD ciphertext."
+  - "Generate a fresh 12-byte nonce per encryption and store it alongside the ciphertext."
+  - "Keep the old decrypt path so already-encrypted data can still be read until it is re-encrypted."
+example:
+  before: |
+    package main
+
+    import (
+        "crypto/rand"
+        "crypto/rsa"
+        "crypto/sha256"
+    )
+
+    func seal(pub *rsa.PublicKey, payload []byte) ([]byte, error) {
+        return rsa.EncryptOAEP(sha256.New(), rand.Reader, pub, payload, nil)
+    }
+  after: |
+    package main
+
+    import (
+        "crypto/aes"
+        "crypto/cipher"
+        "crypto/mlkem"
+        "crypto/rand"
+        "io"
+
+        "golang.org/x/crypto/hkdf"
+        "crypto/sha256"
+    )
+
+    // seal encapsulates to the recipient's ML-KEM-768 key, derives an AES-256-GCM key from the
+    // shared secret, and returns encapsulation || nonce || ciphertext.
+    func seal(ek *mlkem.EncapsulationKey768, payload []byte) ([]byte, error) {
+        sharedSecret, encapsulation := ek.Encapsulate()
+
+        key := make([]byte, 32)
+        if _, err := io.ReadFull(hkdf.New(sha256.New, sharedSecret, nil, []byte("qubit-kem-v1")), key); err != nil {
+            return nil, err
+        }
+        block, err := aes.NewCipher(key)
+        if err != nil {
+            return nil, err
+        }
+        aead, err := cipher.NewGCM(block)
+        if err != nil {
+            return nil, err
+        }
+        nonce := make([]byte, aead.NonceSize())
+        if _, err := rand.Read(nonce); err != nil {
+            return nil, err
+        }
+        out := append(encapsulation, nonce...)
+        return aead.Seal(out, nonce, payload, nil), nil
+    }
+example_java:
+  before: |
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+    kpg.initialize(2048);
+    KeyPair kp = kpg.generateKeyPair();
+    Cipher c = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
+    c.init(Cipher.ENCRYPT_MODE, kp.getPublic());
+    byte[] ct = c.doFinal(payload);
+  after: |
+    // JDK 24+ (JEP 496). ML-KEM gives a shared secret; AES-256-GCM encrypts the payload.
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("ML-KEM");
+    kpg.initialize(NamedParameterSpec.ML_KEM_768);
+    KeyPair kp = kpg.generateKeyPair();
+
+    KEM kem = KEM.getInstance("ML-KEM");
+    KEM.Encapsulated enc = kem.newEncapsulator(kp.getPublic()).encapsulate();
+    SecretKey aesKey = new SecretKeySpec(enc.key().getEncoded(), "AES");
+
+    byte[] nonce = new byte[12];
+    SecureRandom.getInstanceStrong().nextBytes(nonce);
+    Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+    c.init(Cipher.ENCRYPT_MODE, aesKey, new GCMParameterSpec(128, nonce));
+    byte[] ct = c.doFinal(payload);
+    // Transmit enc.encapsulation() and nonce alongside ct.
+example_javascript:
+  before: |
+    import crypto from "node:crypto";
+
+    const { publicKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const ct = crypto.publicEncrypt({ key: publicKey, oaepHash: "sha256" }, payload);
+  after: |
+    import crypto from "node:crypto";
+    import { ml_kem768 } from "@noble/post-quantum/ml-kem";
+
+    // ML-KEM-768 encapsulation, then AES-256-GCM under the derived key.
+    const { cipherText, sharedSecret } = ml_kem768.encapsulate(recipientPublicKey);
+    const key = crypto.hkdfSync("sha256", sharedSecret, new Uint8Array(0), Buffer.from("qubit-kem-v1"), 32);
+    const nonce = crypto.randomBytes(12);
+    const aead = crypto.createCipheriv("aes-256-gcm", Buffer.from(key), nonce);
+    const ct = Buffer.concat([aead.update(payload), aead.final()]);
+    const tag = aead.getAuthTag();
+    // Store cipherText (the encapsulation), nonce, tag and ct together.
+example_c:
+  before: |
+    EVP_PKEY *pkey = EVP_RSA_gen(2048);
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
+    EVP_PKEY_encrypt_init(ctx);
+    EVP_PKEY_encrypt(ctx, out, &outlen, payload, payload_len);
+  after: |
+    /* liboqs: ML-KEM-768 encapsulation. The shared secret keys AES-256-GCM for the payload. */
+    OQS_KEM *kem = OQS_KEM_new(OQS_KEM_alg_ml_kem_768);
+    if (kem == NULL) { return -1; }
+
+    uint8_t *public_key = malloc(kem->length_public_key);
+    uint8_t *secret_key = malloc(kem->length_secret_key);
+    uint8_t *ciphertext = malloc(kem->length_ciphertext);
+    uint8_t *shared_secret = malloc(kem->length_shared_secret);
+
+    OQS_KEM_keypair(kem, public_key, secret_key);
+    OQS_KEM_encaps(kem, ciphertext, shared_secret, public_key);
+    /* derive an AES-256-GCM key from shared_secret with HKDF, then encrypt the payload */
+
+    OQS_MEM_secure_free(secret_key, kem->length_secret_key);
+    OQS_MEM_secure_free(shared_secret, kem->length_shared_secret);
+    free(public_key);
+    free(ciphertext);
+    OQS_KEM_free(kem);
+rescan_expect:
+  gone:
+    algorithm_prefix: ["RSA", "ECDH", "DH"]
+  present:
+    algorithm_prefix: ["ML-KEM"]

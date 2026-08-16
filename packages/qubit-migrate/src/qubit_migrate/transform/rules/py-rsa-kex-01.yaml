@@ -3,7 +3,9 @@ language: python
 title: "RSA key transport/encryption → ML-KEM-768 hybrid (HPKE pattern)"
 matches:
   source_scanner: [code]  # not config/cert/key assets — this codemod edits source
-  algorithm: ["RSA-1024", "RSA-2048", "RSA-3072", "RSA-4096"]
+  # Bare "RSA" included deliberately: a keygen call that takes its size from a variable normalizes
+  # to the bare family, and those assets previously matched no transform rule at all.
+  algorithm: ["RSA", "RSA-1024", "RSA-2048", "RSA-3072", "RSA-4096"]
   # canonical qubit-core UsageContext values
   usage_context: ["kex", "encryption-at-rest", "unknown"]
   library_name: ["cryptography", "pycryptodome", "rsa", null]

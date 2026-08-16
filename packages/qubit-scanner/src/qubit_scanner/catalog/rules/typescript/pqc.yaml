@@ -1,0 +1,72 @@
+# Post-quantum APIs in the JavaScript/TypeScript ecosystem.
+#
+# These are QUANTUM-SAFE findings, and inventorying them matters for two reasons that have nothing
+# to do with flagging risk. First, a service that has already migrated to ML-KEM should be credited
+# for it rather than showing zero post-quantum adoption. Second, the migration validator's stage-5
+# rescan asserts `present: ML-KEM` on a patched file — without these rules a perfectly correct JS
+# rewrite could never be confirmed, and the patch was rejected.
+schema: qubit-rule/v1
+language: typescript
+library:
+  name: "@noble/post-quantum"
+  # Empty for the same reason as every other JS/TS pack here: resolve.py has no JS/TS
+  # import-extraction query, so the extracted import set is always empty and ANY non-empty
+  # detect_imports would gate these rules off unconditionally. The `ml_kem768` / `ml_dsa65`
+  # identifiers are unmistakable on their own, so running the query unqualified is correct.
+  detect_imports: []
+rules:
+  - id: TS-NOBLE-PQC-KEM
+    title: "@noble/post-quantum ML-KEM (quantum-safe KEM)"
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @meth)) @call
+      where:
+        - { capture: obj, in: [ml_kem512, ml_kem768, ml_kem1024] }
+        - { capture: meth, in: [keygen, encapsulate, decapsulate] }
+    extract:
+      algorithm: { from: obj, resolve: noble-pqc-name }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import { ml_kem768 } from "@noble/post-quantum/ml-kem";
+          const keys = ml_kem768.keygen();
+        - |
+          import { ml_kem1024 } from "@noble/post-quantum/ml-kem";
+          const { cipherText, sharedSecret } = ml_kem1024.encapsulate(pk);
+      negative:
+        - |
+          const crypto = require('crypto');
+          const mac = crypto.createHmac('sha256', secret);
+
+  - id: TS-NOBLE-PQC-SIG
+    title: "@noble/post-quantum ML-DSA / SLH-DSA (quantum-safe signature)"
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @meth)) @call
+      where:
+        - { capture: obj, in: [ml_dsa44, ml_dsa65, ml_dsa87, slh_dsa_sha2_128f, slh_dsa_sha2_128s] }
+        - { capture: meth, in: [keygen, sign, verify] }
+    extract:
+      algorithm: { from: obj, resolve: noble-pqc-name }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import { ml_dsa65 } from "@noble/post-quantum/ml-dsa";
+          const sig = ml_dsa65.sign(sk, msg);
+        - |
+          import { slh_dsa_sha2_128f } from "@noble/post-quantum/slh-dsa";
+          const keys = slh_dsa_sha2_128f.keygen();
+      negative:
+        - |
+          const crypto = require('crypto');
+          const sig = crypto.sign('sha256', msg, key);

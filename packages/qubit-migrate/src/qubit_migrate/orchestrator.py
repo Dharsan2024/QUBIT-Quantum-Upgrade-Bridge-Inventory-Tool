@@ -189,6 +189,23 @@ class MigrationOrchestrator:
             use_llm = False
         model_name: str | None = None
 
+        # A rule rewrites the WHOLE file, so once one of its patches has been applied to a file, any
+        # other pending task for the same (rule, file) has nothing left to do. Checking that here
+        # covers LLM-only rules, which have no codemod to probe with: two RSA/kex findings in one
+        # seal.go used to send the second one to the model, which correctly returned the
+        # already-migrated file unchanged — and that was then reported as three failed attempts.
+        already_applied = self.session.scalar(
+            select(PatchProposal.id)
+            .join(MigrationTask, MigrationTask.id == PatchProposal.task_id)
+            .where(PatchProposal.file_path == diff_path)
+            .where(PatchProposal.status == "applied")
+            .where(MigrationTask.rule_id == rule.id)
+            .limit(1)
+        )
+        if already_applied is not None:
+            self._fail_task(task, f"already migrated by an earlier {rule.id} patch to this file")
+            raise ValueError(f"already migrated by an earlier {rule.id} patch to this file")
+
         if use_llm:
             # Several assets routinely share one file — a weak sshd_config yields a finding per
             # algorithm in every list — so whichever task runs first remediates the file for all of

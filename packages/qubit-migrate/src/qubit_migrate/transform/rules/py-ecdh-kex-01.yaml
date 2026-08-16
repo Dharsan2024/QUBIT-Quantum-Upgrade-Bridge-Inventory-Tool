@@ -4,7 +4,9 @@ title: "ECDH/X25519 key agreement → X25519 + ML-KEM-768 hybrid KEM"
 matches:
   source_scanner: [code]
   file_suffix: [".py"]
-  algorithm: ["ECDH-P256", "ECDH-P384", "ECDH-P521", "X25519", "X448", "EC", "ECDH"]
+  algorithm:
+    ["ECDH-P256", "ECDH-P384", "ECDH-P521", "X25519", "X448", "EC", "ECDH",
+     "DH", "DH-1024", "DH-2048", "DH-3072", "DH-4096"]
   usage_context: ["kex", "unknown"]
   library_name: ["cryptography", null]
 target:

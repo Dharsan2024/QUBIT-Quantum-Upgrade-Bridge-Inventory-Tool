@@ -284,12 +284,49 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
             # lowercase; the registry is case-insensitive but "ed25519" must not be left to match
             # a curve alias by accident, so the mapping is explicit.
             return _GO_KEY_PACKAGES.get(resolve.node_text(node), resolve.node_text(node))
+        case "noble-pqc-name":
+            # @noble/post-quantum spells them `ml_kem768`, `ml_dsa65`, `slh_dsa_sha2_128f`.
+            return _pqc_identifier_algorithm(resolve.node_text(node))
+        case "liboqs-alg-const":
+            # liboqs spells them `OQS_KEM_alg_ml_kem_768`, `OQS_SIG_alg_ml_dsa_65`.
+            return _pqc_identifier_algorithm(resolve.node_text(node))
         case "cryptojs-name":
             # crypto-js spells algorithms `TripleDES`, `HmacSHA256`, `RIPEMD160` — names the
             # registry lacks as aliases. Normalize the library-specific spellings only.
             return _CRYPTOJS_NAMES.get(resolve.node_text(node), resolve.node_text(node))
         case _:
             return resolve.node_text(node)
+
+
+def _pqc_identifier_algorithm(name: str) -> str:
+    """Normalize a PQC algorithm identifier from any library's spelling to the canonical name.
+
+    Covers @noble/post-quantum (`ml_kem768`, `ml_dsa65`, `slh_dsa_sha2_128f`) and liboqs
+    (`OQS_KEM_alg_ml_kem_768`, `OQS_SIG_alg_ml_dsa_65`), plus the pre-standardization names those
+    libraries still ship (`kyber768`, `dilithium3`) which the registry already aliases.
+
+    This exists because PQC APIs were detected in Go, Java and Python but NOT in JavaScript,
+    TypeScript or C — so a JS service that had already migrated to ML-KEM showed zero post-quantum
+    adoption, and the migration validator's stage-5 rescan could never confirm a JS/TS/C patch had
+    landed on ML-KEM at all. Its `present: ML-KEM` expectation would fail on a perfectly correct
+    rewrite, exactly the same way an unrecognised `sntrup761x25519-sha512` made a hardened
+    sshd_config look unremediated.
+
+    A recognised family with no parameter digits degrades to the bare family name (`ML-KEM`), which
+    the registry resolves as quantum-safe — honest, since the family alone is enough to say that.
+    """
+    lowered = name.lower()
+    digits = "".join(c for c in lowered if c.isdigit())
+
+    if "ml_kem" in lowered or "mlkem" in lowered or "kyber" in lowered:
+        return f"ML-KEM-{digits}" if digits in {"512", "768", "1024"} else "ML-KEM"
+    if "ml_dsa" in lowered or "mldsa" in lowered or "dilithium" in lowered:
+        return f"ML-DSA-{digits}" if digits in {"44", "65", "87"} else "ML-DSA"
+    if "slh_dsa" in lowered or "slhdsa" in lowered or "sphincs" in lowered:
+        # SLH-DSA parameter sets carry a hash and a size (`sha2_128f`); the registry tracks the
+        # family, so the parameter set stays in the evidence rather than the algorithm identity.
+        return "SLH-DSA"
+    return name
 
 
 def _openssl_tls_version(fn_name: str) -> str:

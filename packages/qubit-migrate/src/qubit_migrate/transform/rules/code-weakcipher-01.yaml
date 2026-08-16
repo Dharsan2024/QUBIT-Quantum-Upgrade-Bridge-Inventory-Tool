@@ -1,0 +1,135 @@
+id: code-weakcipher-01
+language: multi
+title: "Weak/undersized symmetric cipher in Go, Java, JS, TS, C → AES-256-GCM"
+matches:
+  source_scanner: [code]
+  # Non-Python only; py-weakcipher-01 owns .py.
+  file_suffix: [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp"]
+  # Bare `AES` and `DES` are here deliberately: a constructor that takes the key length from a
+  # variable normalizes to the bare family, and those assets had no migration path at all.
+  algorithm:
+    ["DES", "3DES", "RC4", "RC2", "Blowfish", "CAST5", "IDEA", "SEED", "AES", "AES-128", "AES-192"]
+  usage_context: ["encryption-at-rest", "unknown"]
+  library_name: [null]
+target:
+  algorithm: AES-256
+  mode: pure
+  parameter_set: AES-256
+  category: 1
+  fips: FIPS-197
+# Existing ciphertext is unreadable by the new cipher/key length, so stored data must be re-encrypted.
+data_compat: reencrypt_required
+semantic_note: >
+  DES, 3DES, RC4, RC2, Blowfish, CAST5, IDEA and SEED are classically broken or use 64-bit blocks;
+  AES-128/192 fall below the 128-bit post-quantum bar once Grover halves the effective key strength.
+  Migrate to AES-256-GCM. This is not a constructor swap: the key length changes (DES 8 bytes,
+  3DES 24, AES-256 32), GCM requires a 12-byte nonce that must NEVER repeat under a given key, and it
+  produces an authentication tag the old call site has nowhere to put — so the ciphertext layout
+  changes and existing data cannot be read by the new path. If the code is in ECB or CBC mode without
+  a MAC it is also unauthenticated, which GCM fixes; do not preserve ECB.
+prompt_constraints:
+  - "Go: use crypto/aes with crypto/cipher's NewGCM; never cipher.NewCBCEncrypter for new code."
+  - "Java: use Cipher.getInstance(\"AES/GCM/NoPadding\") with a GCMParameterSpec(128, nonce); never \"AES\" alone, which silently means ECB."
+  - "JavaScript/TypeScript: use crypto.createCipheriv(\"aes-256-gcm\", key, nonce) and call getAuthTag()."
+  - "C: use EVP_aes_256_gcm() via EVP_EncryptInit_ex, and retrieve the tag with EVP_CIPHER_CTX_ctrl(EVP_CTRL_GCM_GET_TAG)."
+  - "Derive or accept a 32-byte key; do not reuse the shorter key the old cipher used."
+  - "Generate a fresh random 12-byte nonce per encryption and store it with the ciphertext."
+  - "Store and verify the authentication tag; discarding it silently removes the integrity guarantee."
+  - "Keep the old decrypt path so already-encrypted data can still be read during re-encryption."
+example:
+  before: |
+    package main
+
+    import (
+        "crypto/cipher"
+        "crypto/des"
+    )
+
+    func encrypt(key, iv, plaintext []byte) []byte {
+        block, _ := des.NewTripleDESCipher(key)
+        out := make([]byte, len(plaintext))
+        cipher.NewCBCEncrypter(block, iv).CryptBlocks(out, plaintext)
+        return out
+    }
+  after: |
+    package main
+
+    import (
+        "crypto/aes"
+        "crypto/cipher"
+        "crypto/rand"
+    )
+
+    // key must be 32 bytes. The nonce is fresh per message and returned with the ciphertext;
+    // GCM appends the authentication tag, so the output layout differs from the CBC version.
+    func encrypt(key, plaintext []byte) (nonce, ciphertext []byte, err error) {
+        block, err := aes.NewCipher(key)
+        if err != nil {
+            return nil, nil, err
+        }
+        aead, err := cipher.NewGCM(block)
+        if err != nil {
+            return nil, nil, err
+        }
+        nonce = make([]byte, aead.NonceSize())
+        if _, err = rand.Read(nonce); err != nil {
+            return nil, nil, err
+        }
+        return nonce, aead.Seal(nil, nonce, plaintext, nil), nil
+    }
+example_java:
+  before: |
+    Cipher c = Cipher.getInstance("DESede/CBC/PKCS5Padding");
+    c.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
+    byte[] ct = c.doFinal(plaintext);
+  after: |
+    // AES-256-GCM. The nonce must be unique per key; the tag is appended to the ciphertext.
+    byte[] nonce = new byte[12];
+    SecureRandom.getInstanceStrong().nextBytes(nonce);
+    Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+    c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key32, "AES"), new GCMParameterSpec(128, nonce));
+    byte[] ct = c.doFinal(plaintext);  // store nonce alongside ct
+example_javascript:
+  before: |
+    import crypto from "node:crypto";
+
+    const c = crypto.createCipheriv("des-ede3-cbc", key, iv);
+    const ct = Buffer.concat([c.update(plaintext), c.final()]);
+  after: |
+    import crypto from "node:crypto";
+
+    // 32-byte key, fresh 12-byte nonce, and the auth tag must be stored and verified on decrypt.
+    const nonce = crypto.randomBytes(12);
+    const c = crypto.createCipheriv("aes-256-gcm", key32, nonce);
+    const ct = Buffer.concat([c.update(plaintext), c.final()]);
+    const tag = c.getAuthTag();
+example_c:
+  before: |
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    EVP_EncryptInit_ex(ctx, EVP_des_ede3_cbc(), NULL, key, iv);
+    EVP_EncryptUpdate(ctx, out, &outlen, plaintext, plaintext_len);
+  after: |
+    /* AES-256-GCM. The 12-byte nonce must never repeat for a given key, and the 16-byte tag has to
+       be stored with the ciphertext and checked on decrypt. */
+    unsigned char nonce[12], tag[16];
+    RAND_bytes(nonce, sizeof(nonce));
+
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
+    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, sizeof(nonce), NULL);
+    EVP_EncryptInit_ex(ctx, NULL, NULL, key32, nonce);
+    EVP_EncryptUpdate(ctx, out, &outlen, plaintext, plaintext_len);
+    EVP_EncryptFinal_ex(ctx, out + outlen, &tmplen);
+    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, sizeof(tag), tag);
+    EVP_CIPHER_CTX_free(ctx);
+rescan_expect:
+  gone:
+    algorithm_prefix: ["DES", "3DES", "RC4", "RC2", "Blowfish", "CAST5", "IDEA"]
+  # "AES" and not "AES-256" on purpose. In Go and C the key length is a property of the key
+  # VARIABLE, not of the call — `aes.NewCipher(key)` and `EVP_aes_256_gcm()` differ there — so
+  # the scanner legitimately resolves the Go form to the bare `AES` family. Demanding
+  # "AES-256" made this expectation unsatisfiable in those languages and rejected correct
+  # rewrites. Prefix matching means "AES" still accepts "AES-256" where the size IS visible;
+  # confirming the key is 32 bytes is the reviewer's job, and prompt_constraints requires it.
+  present:
+    algorithm_prefix: ["AES"]

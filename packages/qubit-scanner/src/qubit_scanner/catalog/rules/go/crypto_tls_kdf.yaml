@@ -263,3 +263,47 @@ rules:
           package main
           import "crypto/sha256"
           func f() { sha256.New() }
+
+  - id: GO-CRYPTO-MLKEM-TYPE
+    title: crypto/mlkem key-material type reference (ML-KEM key USE, not just generation)
+    # GO-CRYPTO-MLKEM only matches the package-level constructors (`mlkem.GenerateKey768()`), so a
+    # file that RECEIVES an ML-KEM key and calls Encapsulate/Decapsulate on it was invisible — the
+    # same "key use vs key generation" gap already fixed for the classical algorithms, never applied
+    # to the PQC ones. That had a concrete cost beyond under-counting: the migration validator's
+    # stage-5 rescan asserts `present: ML-KEM`, so a CORRECT ML-KEM rewrite whose signature took an
+    # `*mlkem.EncapsulationKey768` reported no PQC at all and the patch was rejected.
+    match:
+      query: |
+        (qualified_type
+          package: (package_identifier) @pkg
+          name: (type_identifier) @kind) @call
+      where:
+        - { capture: pkg, equals: mlkem }
+        - {
+            capture: kind,
+            in: [
+              EncapsulationKey768, DecapsulationKey768,
+              EncapsulationKey1024, DecapsulationKey1024,
+            ],
+          }
+    extract:
+      algorithm: { from: kind, resolve: go-mlkem-fn }
+    asset: { asset_type: key, usage_context: kex }
+    confidence: high
+    # A file naming the type a dozen times states one fact, matching GO-CRYPTO-KEY-TYPE's reasoning.
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/mlkem"
+          func seal(ek *mlkem.EncapsulationKey768) { ek.Encapsulate() }
+        - |
+          package main
+          import "crypto/mlkem"
+          func open(dk *mlkem.DecapsulationKey1024, ct []byte) { dk.Decapsulate(ct) }
+      negative:
+        - |
+          package main
+          import "crypto/rsa"
+          func f(key *rsa.PrivateKey) {}

@@ -21,6 +21,47 @@ from typing import Any, Literal
 
 StageStatus = Literal["pass", "fail", "skipped"]
 
+# File suffix -> concrete language, for rules that legitimately span several languages.
+_SUFFIX_TO_LANGUAGE = {
+    ".py": "python",
+    ".go": "go",
+    ".java": "java",
+    ".js": "javascript",
+    ".mjs": "javascript",
+    ".cjs": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".c": "c",
+    ".h": "c",
+    ".cc": "cpp",
+    ".cpp": "cpp",
+    ".hpp": "cpp",
+}
+
+
+def _effective_language(rule_language: str, target_rel_path: str | None) -> str:
+    """Resolve the language of the file actually being patched.
+
+    A rule's `language` is not always the language of the file: cross-language rules declare
+    `multi`, because one rule covers Go, Java, JS, TS and C. Deriving the language from the rule
+    therefore mislabels every patch those rules produce, and both validation stages that need a
+    language got it wrong in the same way — silently, and in opposite directions:
+
+    * `_stage_parses` treated `multi` as "not source code" and skipped syntax checking entirely, so
+      a Go patch was never parsed at all.
+    * `_stage_rescan` fell back to `.py`, wrote the Go patch to `patched.py` and scanned it as
+      Python. Nothing was detected, the `present:` expectation could not be met, and the patch was
+      rejected with "Algorithms: set()" — a correct rewrite thrown away because the validator was
+      looking at it through the wrong parser.
+
+    The file extension is the authority, so it wins whenever it is known.
+    """
+    if target_rel_path:
+        derived = _SUFFIX_TO_LANGUAGE.get(Path(target_rel_path).suffix.lower())
+        if derived is not None:
+            return derived
+    return rule_language
+
 
 @dataclass
 class StageResult:
@@ -77,8 +118,11 @@ def _stage_applies(
 
 # Rule languages that are NOT source code and therefore have no tree-sitter grammar: config files
 # and dependency manifests. They must SKIP the parse stage, not be parsed as something else.
+# `multi` is deliberately NOT here. It means "several SOURCE languages", not "not source code":
+# _effective_language resolves it to a concrete language from the file extension before this is
+# consulted. Listing it made every cross-language patch skip syntax validation entirely.
 _NON_CODE_LANGUAGES = frozenset(
-    {"nginx", "apache", "httpd", "sshd_config", "ssh_config", "config", "manifest", "multi", ""}
+    {"nginx", "apache", "httpd", "sshd_config", "ssh_config", "config", "manifest", ""}
 )
 
 # Rule language -> tree-sitter grammar name, for the languages that do have one.
@@ -145,8 +189,26 @@ def _stage_rescan(
     if rule is None or rule.rescan_expect is None:
         return StageResult("skipped", "no rescan_expect in rule", time.monotonic() - t0)
 
-    ext_map = {"python": ".py", "java": ".java", "go": ".go"}
-    ext = ext_map.get(language, ".py")
+    # Defaulting an unknown language to `.py` meant a Go, JS or C patch was written to `patched.py`
+    # and scanned as Python: zero detections, so any `present:` expectation failed and a correct
+    # rewrite was rejected. Every language the scanner supports now maps to its real extension, and
+    # an unknown one skips rather than being scanned as the wrong language.
+    ext_map = {
+        "python": ".py",
+        "go": ".go",
+        "java": ".java",
+        "javascript": ".js",
+        "typescript": ".ts",
+        "c": ".c",
+        "cpp": ".cpp",
+    }
+    ext = ext_map.get(language)
+    if ext is None:
+        return StageResult(
+            "skipped",
+            f"no scanner file extension known for language {language!r} — cannot rescan safely",
+            time.monotonic() - t0,
+        )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_file = Path(tmpdir) / f"patched{ext}"
@@ -170,12 +232,25 @@ def _stage_rescan(
             algos = {a.get("algorithm", "") for a in assets}
 
             expect = rule.rescan_expect
-            gone_spec = expect.get("gone", {}).get("algorithm_prefix", "")
-            present_prefix = expect.get("present", {}).get("algorithm_prefix", "")
-            # algorithm_prefix accepts a single prefix or a list of prefixes
-            gone_prefixes = [gone_spec] if isinstance(gone_spec, str) and gone_spec else gone_spec
 
-            for gone_prefix in gone_prefixes or []:
+            def _prefixes(spec: object) -> list[str]:
+                """`algorithm_prefix` may be a single prefix or a list of them.
+
+                Only the `gone` branch normalized this; `present` passed the raw value straight to
+                `str.startswith`, which raises `TypeError: startswith first arg must be str or a
+                tuple of str, not list` for a list-valued expectation. The crash surfaced as an
+                unexplained skipped asset, so a valid patch was discarded over a spec-shape detail.
+                """
+                if isinstance(spec, str):
+                    return [spec] if spec else []
+                if isinstance(spec, list):
+                    return [p for p in spec if isinstance(p, str) and p]
+                return []
+
+            gone_prefixes = _prefixes(expect.get("gone", {}).get("algorithm_prefix", ""))
+            present_prefixes = _prefixes(expect.get("present", {}).get("algorithm_prefix", ""))
+
+            for gone_prefix in gone_prefixes:
                 still_present = [a for a in algos if a.startswith(gone_prefix)]
                 if still_present:
                     return StageResult(
@@ -183,14 +258,16 @@ def _stage_rescan(
                         f"Expected {gone_prefix!r} gone, but still found: {still_present}",
                         time.monotonic() - t0,
                     )
-            if present_prefix:
-                found = [a for a in algos if a.startswith(present_prefix)]
-                if not found:
-                    return StageResult(
-                        "fail",
-                        f"Expected {present_prefix!r} present, but not found. Algorithms: {algos}",
-                        time.monotonic() - t0,
-                    )
+            # Any ONE of the listed prefixes satisfies the expectation: a rule may offer several
+            # acceptable targets (ML-KEM or a hybrid group), and requiring all of them at once would
+            # reject a correct migration that picked one.
+            if present_prefixes and not any(a.startswith(tuple(present_prefixes)) for a in algos):
+                return StageResult(
+                    "fail",
+                    f"Expected one of {present_prefixes!r} present, but not found. "
+                    f"Algorithms: {algos}",
+                    time.monotonic() - t0,
+                )
             return StageResult("pass", f"rescan ok. algorithms: {algos}", time.monotonic() - t0)
 
         except subprocess.TimeoutExpired:
@@ -347,6 +424,10 @@ def validate_patch(
     Any hard `fail` fails the patch; `skipped` stages mark the report partial.
     """
     stages: dict[str, StageResult] = {}
+
+    # A cross-language rule declares `language: multi`, so the rule cannot say what the patched file
+    # is; the file extension can. See _effective_language for the two bugs this closes.
+    language = _effective_language(language, target_rel_path)
 
     stages["applies"] = _stage_applies(diff_text, repo_root)
     stages["parses"] = _stage_parses(patched_source, language)

@@ -11,7 +11,9 @@ matches:
   # OpenSSL legacy-method rule all normalize to these protocol identities.
   algorithm:
     ["TLSv1.0", "TLSv1.1", "SSLv3", "SSLv2", "RSA", "DH", "ECDH-P256", "AES-128", "3DES", "RC4"]
-  usage_context: ["tls"]
+  # `kex` covers the ssl_ecdh_curve / SSLECDHCurve group findings, which are the very directives this
+  # rule rewrites to X25519MLKEM768 — without it the most important asset it fixes did not match it.
+  usage_context: ["tls", "kex"]
   library_name: [null]
 target:
   algorithm: X25519MLKEM768

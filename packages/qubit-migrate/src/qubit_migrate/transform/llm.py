@@ -13,6 +13,7 @@ import json
 import re
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -64,6 +65,7 @@ def _build_prompt(
     source: str, rule: MigrationRule, asset: CryptoAsset, feedback: str | None = None
 ) -> str:
     constraints = "\n".join(f"- {c}" for c in (rule.prompt_constraints or []))
+    language = _prompt_language(rule, asset)
     return (
         "You are a cryptographic migration codemod engine. Rewrite the file below to "
         "migrate the flagged weak cryptography. Output ONLY the complete rewritten file "
@@ -87,24 +89,82 @@ def _build_prompt(
         "credentials.\n"
         "Do NOT add an import for a library you do not actually call in the rewritten file.\n\n"
         "Preserve all unrelated code, imports, comments, and formatting exactly.\n\n"
-        f"{_worked_examples(rule)}"
+        f"{_worked_examples(rule, language)}"
         f"{_repair_feedback(feedback)}"
-        f"```{rule.language or ''}\n{source}\n```\n"
+        f"```{language}\n{source}\n```\n"
     )
 
 
-def _worked_examples(rule: MigrationRule) -> str:
+# Suffixes of `example_*` keys that name a LANGUAGE rather than a replacement branch.
+_EXAMPLE_LANGUAGES = frozenset({"python", "go", "java", "javascript", "typescript", "c", "cpp"})
+
+_SUFFIX_TO_LANGUAGE = {
+    ".py": "python",
+    ".go": "go",
+    ".java": "java",
+    ".js": "javascript",
+    ".mjs": "javascript",
+    ".cjs": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".c": "c",
+    ".h": "c",
+    ".cc": "cpp",
+    ".cpp": "cpp",
+    ".hpp": "cpp",
+}
+
+
+def _prompt_language(rule: MigrationRule, asset: CryptoAsset) -> str:
+    """The language to label code fences with, and to pick worked examples for.
+
+    A cross-language rule declares `language: multi`, so labelling the prompt's fences with
+    `rule.language` told the model the file was written in "multi". The file's extension is the real
+    answer.
+    """
+    path = asset.location.file_path if asset.location else None
+    if path:
+        derived = _SUFFIX_TO_LANGUAGE.get(Path(path).suffix.lower())
+        if derived is not None:
+            return derived
+    return rule.language or ""
+
+
+def _worked_examples(rule: MigrationRule, language: str = "") -> str:
     """Render the rule's before/after pairs as few-shot demonstrations.
 
     Every rule file already carries `example: {before, after}` (and some an `example_<path>` for a
     second branch), but none of it ever reached the model — it was documentation only. For a local
     7B-class model a concrete before/after pair is the single strongest signal available, far more
     reliable than prose constraints, so the examples are now part of the prompt.
+
+    Cross-language rules carry one example PER LANGUAGE (`example_java`, `example_c`, …). Rendering
+    all of them meant a Go file arrived with Java, JavaScript and C demonstrations attached — three
+    quarters of the prompt's strongest signal pointing at the wrong language, which invites a 7B
+    model to mix idioms. Only the matching language's example is included.
+
+    An `example_*` key whose suffix is NOT a language names a replacement BRANCH instead
+    (`example_generic_digest` on py-weakhash-01) and is always kept: those demonstrate a choice the
+    rule offers rather than a language.
     """
+    lang = (language or rule.language or "").lower()
+    language_specific = {
+        name.replace("example_", "").lower(): (name, value)
+        for name, value in rule.extra_examples.items()
+        if name.replace("example_", "").lower() in _EXAMPLE_LANGUAGES
+    }
+
     pairs: list[tuple[str, dict[str, str]]] = []
-    if rule.example:
+    match = language_specific.get(lang)
+    if match is not None:
+        # This language has its own example, so the primary belongs to a different one — drop it.
+        pairs.append(match)
+    elif rule.example:
         pairs.append(("example", rule.example))
+
     for name, value in sorted(rule.extra_examples.items()):
+        if name.replace("example_", "").lower() in _EXAMPLE_LANGUAGES:
+            continue  # handled above; other languages are noise
         pairs.append((name, value))
 
     rendered: list[str] = []
@@ -113,7 +173,6 @@ def _worked_examples(rule: MigrationRule) -> str:
         if not before or not after:
             continue
         label = name.replace("example_", "").replace("_", " ") or "example"
-        lang = rule.language or ""
         rendered.append(
             f"Worked {label} — BEFORE:\n```{lang}\n{before.rstrip()}\n```\n"
             f"Worked {label} — AFTER:\n```{lang}\n{after.rstrip()}\n```\n"

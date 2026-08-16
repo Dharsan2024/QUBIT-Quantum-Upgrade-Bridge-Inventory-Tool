@@ -33,6 +33,39 @@ from .models import Detection
 _VALID_USAGE = {u.value for u in UsageContext}
 _VALID_ASSET_TYPE = {a.value for a in AssetType}
 
+# Asymmetric families that can ONLY sign, and families that can ONLY agree a key. These are
+# capabilities of the mathematics, not conventions: Ed25519 and ECDSA have no key-agreement
+# operation, and ECDH has no signing operation. RSA is absent from both because it genuinely does
+# both, and DH is agreement-only but shares its family name with nothing ambiguous.
+_SIGNATURE_ONLY_FAMILIES = frozenset({"EdDSA", "ECDSA", "DSA"})
+_AGREEMENT_ONLY_FAMILIES = frozenset({"ECDH", "DH"})
+
+
+def _reconcile_usage_with_algorithm(usage: str, canon: object) -> str:
+    """Correct a rule's declared usage when the resolved algorithm makes it impossible.
+
+    A detection rule that captures its algorithm DYNAMICALLY cannot know the usage statically. The
+    concrete case: `JS-NODE-GENERATEKEYPAIR-RSA` matches `crypto.generateKeyPairSync(<alg>, …)` and
+    hard-codes `usage_context: kex`, but `<alg>` may be `ed25519` or `ec` — signature primitives
+    with no key-agreement operation at all. Every such asset was reported as key exchange.
+
+    That is not cosmetic. `usage_context` drives HNDL scoring, and key exchange is the whole
+    harvest-now-decrypt-later story: recorded traffic becomes readable once the key exchange breaks,
+    whereas a signature cannot be retroactively forged from a recording. Mislabelling a signature as
+    kex therefore invents HNDL exposure that does not exist — and it misroutes migration, since
+    transform rules match on usage.
+
+    Fixed here rather than per-rule so it holds for every rule, including ones added later.
+    """
+    family = getattr(canon, "family", None)
+    if family is None:
+        return usage
+    if usage == "kex" and family in _SIGNATURE_ONLY_FAMILIES:
+        return "signature"
+    if usage == "signature" and family in _AGREEMENT_ONLY_FAMILIES:
+        return "kex"
+    return usage
+
 
 def normalize(det: Detection, *, occurrence: int = 1) -> CryptoAsset:
     # HNDL exposure-surface findings (secrets, sensitive data) aren't crypto algorithms — skip the
@@ -67,6 +100,7 @@ def normalize(det: Detection, *, occurrence: int = 1) -> CryptoAsset:
     )
 
     usage = det.usage_context if det.usage_context in _VALID_USAGE else "unknown"
+    usage = _reconcile_usage_with_algorithm(usage, canon)
     asset_type = det.asset_type if det.asset_type in _VALID_ASSET_TYPE else "algorithm-use"
     # Crypto findings drop to "low" when unresolved; HNDL findings keep the detector's confidence.
     is_hndl = det.asset_type in {"secret", "sensitive-data"}

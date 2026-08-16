@@ -248,7 +248,15 @@ export function Report() {
     : '';
 
   return (
-    <AnimatedPage className="flex flex-col gap-6 py-5 print:py-0">
+    // `data-testid` + an accessible region name so the report CONTENT is addressable on its own.
+    // Several of this page's headings are also sidebar nav labels ("CRQC Timeline", "Migrations"), so
+    // anything matching on page text alone — a browser test, a screen-reader rotor, Ctrl-F — can land
+    // on the navigation instead of the report and appear to succeed before any data has loaded.
+    <AnimatedPage
+      className="flex flex-col gap-6 py-5 print:py-0"
+      data-testid="report-root"
+      aria-label="Detailed report"
+    >
       <header className="flex flex-wrap items-end justify-between gap-4 print:hidden">
         <div>
           <h1 className="flex items-center gap-3">

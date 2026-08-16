@@ -55,14 +55,22 @@ class MigrationOrchestrator:
         """Build graph+queue from risk-annotated assets -> saves plan."""
         # Domain assets live as flattened AssetRow rows; hydrate back to the schema the
         # graph/queue components expect.
-        rows = self.session.scalars(select(AssetRow)).all()
-        assets = [row_to_asset(r) for r in rows]
-
-        in_scope = [
-            a
-            for a in assets
-            if a.risk and a.risk.score >= min_risk and a.quantum_vulnerable.vulnerable
-        ]
+        #
+        # The scope filter runs in SQL. This used to `select(AssetRow)` with NO predicate at all —
+        # every asset in the entire database, across every project and every historical scan —
+        # convert each one through `row_to_asset` (pydantic validation per asset), and only then
+        # discard the ones that are safe or unscored. A plan only ever concerns vulnerable,
+        # risk-scored assets, so the rest was work done purely to be thrown away, and it grew with
+        # total scan history rather than with the size of the plan. `qv_vulnerable` and `risk_score`
+        # are both indexed.
+        rows = self.session.scalars(
+            select(AssetRow).where(
+                AssetRow.qv_vulnerable.is_(True),
+                AssetRow.risk_score.is_not(None),
+                AssetRow.risk_score >= min_risk,
+            )
+        ).all()
+        in_scope = [row_to_asset(r) for r in rows]
         if not in_scope:
             plan = MigrationPlan(
                 status="completed", stats_json={"message": "No vulnerable assets in scope"}

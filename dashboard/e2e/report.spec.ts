@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+
+import { expectNoBrokenPlaceholders } from './assertions';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -100,16 +102,17 @@ test.beforeEach(async ({ page }) => {
   // The dashboard reads its token and API base from localStorage (set by the Login page), so seeding
   // them skips the login UI without mocking the auth path itself.
   //
-  // `qubit_api_base` must INCLUDE the `/api/v1` prefix — the client's default is
-  // `http://127.0.0.1:8787/api/v1` and it appends bare paths like `/health` and `/scans/{id}`. Setting
-  // just the origin leaves BootGate polling `:8000/health`, which 404s, so the app never reveals
-  // itself and every assertion fails against a "Starting the engine…" splash.
+  // Deliberately stores a BARE ORIGIN with no `/api/v1` suffix. That used to break everything: the
+  // client appends bare paths, so BootGate polled `:8000/health`, got a 404, and the app never left
+  // its "Starting the engine…" splash — a failure that looks like the API being down rather than a URL
+  // one segment short. `normalizeApiBase` in the client now appends the prefix, and this test is what
+  // keeps that true.
   await page.addInitScript(
     ([base, token]) => {
       localStorage.setItem('qubit_api_base', base as string);
       localStorage.setItem('qubit_token', token as string);
     },
-    [`${API_BASE}/api/v1`, API_TOKEN],
+    [API_BASE, API_TOKEN],
   );
   // Any uncaught exception or failed request is a rendering failure even if the DOM looks fine.
   page.on('pageerror', (err) => {
@@ -117,14 +120,14 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-/** The report content, scoped to the `<main>` landmark.
+/** The report content, addressed by its own test id.
  *
- * Asserting against `body` matched the SIDEBAR: "CRQC Timeline" is also a nav link, so a
- * `toContainText(/crqc timeline/i)` passed the instant the shell rendered and the following
- * assertions then ran against a page whose report had not loaded. Scoping to `main` is what makes
- * these assertions about the report rather than about the chrome around it.
+ * Asserting against `body` matched the SIDEBAR: "CRQC Timeline" is also a nav link, so
+ * `toContainText(/crqc timeline/i)` passed the instant the shell rendered, and everything after it
+ * ran against a page whose report had not loaded. The page now carries `data-testid="report-root"`
+ * (and an aria-label), so the content is addressable without matching page text at all.
  */
-const reportMain = (page: import('@playwright/test').Page) => page.getByRole('main');
+const reportMain = (page: import('@playwright/test').Page) => page.getByTestId('report-root');
 
 test('report page renders the executive verdict from real scan data', async ({ page }) => {
   await page.goto(`/report/${scanId}`);
@@ -135,13 +138,9 @@ test('report page renders the executive verdict from real scan data', async ({ p
   const text = (await main.innerText()).toLowerCase();
 
   // The failure modes type-checking cannot see: a missing field rendering as NaN or undefined.
-  //
-  // Word-bounded, because a bare substring check for "nan" matches "financial" — one of the
-  // sensitivity classes the report legitimately prints. The first version of this test failed on
-  // exactly that, which is a good reminder that a too-broad negative assertion is its own bug.
-  expect(text).not.toMatch(/\bnan\b/);
-  expect(text).not.toMatch(/\bundefined\b/);
-  expect(text).not.toContain('[object object]');
+  // Uses the shared, unit-tested helper — see e2e/assertions.ts for why the hand-written version of
+  // this check was wrong in both directions (false positive on "financial", then vacuously passing).
+  expectNoBrokenPlaceholders(text, 'report main');
   // A real asset count, not an empty tile.
   expect(text, `no numeric metrics rendered in: ${text.slice(0, 300)}`).toMatch(/\d/);
 });
@@ -217,8 +216,7 @@ test('export HTML actually downloads a complete, self-contained document', async
   // The CRQC section must carry real four-digit years, not blanks.
   expect(plain).toMatch(/\b20\d{2}\b\s*\(p05\)/);
   expect(plain).toMatch(/\b20\d{2}\b\s*\(p95\)/);
-  expect(lower).not.toMatch(/\bundefined\b/);
-  expect(lower).not.toMatch(/\bnan\b/);
+  expectNoBrokenPlaceholders(plain, 'exported HTML report');
 });
 
 test('report page for an unknown scan does not crash', async ({ page }) => {

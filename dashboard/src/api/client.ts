@@ -17,16 +17,23 @@ import type {
 /** Absolute base by default. IMPORTANT: in the Tauri desktop app the dashboard is bundled and loads
  *  from `tauri.localhost`, so a RELATIVE base (e.g. "/api/v1") resolves to tauri.localhost and every
  *  request fails with "Failed to fetch". Always keep this absolute for the desktop build. */
+import { API_PREFIX, DEFAULT_API_BASE, normalizeApiBase } from "./apiBase";
+
+// Re-exported so existing importers of the client keep working.
+export { API_PREFIX, normalizeApiBase };
+
 export function getApiBase(): string {
   if (typeof window !== "undefined") {
     const override = localStorage.getItem("qubit_api_base");
-    if (override) return override;
+    if (override) return normalizeApiBase(override);
   }
-  return (import.meta.env.VITE_API_BASE as string | undefined) ?? "http://127.0.0.1:8787/api/v1";
+  return normalizeApiBase((import.meta.env.VITE_API_BASE as string | undefined) ?? DEFAULT_API_BASE);
 }
 
 export function setApiBase(base: string) {
-  localStorage.setItem("qubit_api_base", base);
+  // Stored already-normalized, so anything reading localStorage directly (the desktop shell, a
+  // browser test) sees a usable value rather than whatever was typed.
+  localStorage.setItem("qubit_api_base", normalizeApiBase(base));
 }
 const DEFAULT_TOKEN =
   (import.meta.env.VITE_API_TOKEN as string | undefined) ?? "qubit-dev-token-do-not-use-in-prod";

@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-817%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-829%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 817 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 829 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
 
 ---
 
@@ -176,7 +176,7 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-817 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+829 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
 
@@ -198,6 +198,18 @@ Measured with `cProfile` and `-X importtime` on a real repository, not estimated
 | Repeat `scan_paths()` | 2.17 s | **1.21 s** | the rule catalog re-parsed 29 YAML files and recompiled ~152 tree-sitter queries on *every* call (0.8 s, 37% of a scan), though the pack is static per install |
 | Full test suite | 90 s | **77 s** | same catalog caching, which most tests pay for too |
 | Patch validation (per patch) | 1.55 s | **1.44 s** | plus it no longer requires `uv` on PATH, and can no longer hang on a nested `uv run` environment lock |
+
+Read-endpoint latency, measured against a **20,000-asset** database (10 scans × 2,000):
+
+| Endpoint | Before | After | What was wrong |
+|---|---|---|---|
+| `GET /projects/{id}/trends` | 470 ms | **47 ms** | hydrated every asset in the project — 20,000 ORM objects, ~40,000 JSON columns parsed — to produce 10 numbers. Now a `GROUP BY` plus a window-function median, so the database returns one row per scan |
+| `GET /scans/{id}/diff` | 57 ms | **7 ms** | built two full ORM objects per asset to compare two strings and two floats; now selects only `fingerprint` and `risk_score` |
+| `GET /scans/{id}/summary` | 30 ms | **6 ms** | two histograms, a sorted score list and a top-10, all of which SQL does directly |
+
+`GET /scans/{id}/cbom` stays at ~110 ms and is left alone: a CBOM is an export of *every* asset, so it is inherently O(n), and the cost is pydantic validation that is worth keeping on a compliance artifact. `MigrationOrchestrator.build_plan` also moved its scope filter into SQL — it used to load every asset in the entire database, across every project and every historical scan, and discard the safe ones in Python.
+
+None of these changed a single output value: `test_aggregation_perf.py` holds each new implementation against a literal transcription of the one it replaced, including seven median cases, because an optimization that changes the numbers is a bug rather than an optimization.
 
 The risk engine turned out to be **already near its floor** — `simulate()` was correctly cached per
 algorithm, so 213 assets cost only 5 real Monte-Carlo runs. Its hottest function (`min_distance`,

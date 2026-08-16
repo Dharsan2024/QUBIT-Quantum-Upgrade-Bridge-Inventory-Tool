@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from qubit_core import CryptoAsset
 
 RULES_DIR = Path(__file__).parent / "rules"
@@ -26,7 +26,26 @@ class MigrationRule(BaseModel):
     codemod: str | None = None
     prompt_constraints: list[str] = []
     example: dict[str, str] | None = None
+    # Additional worked examples for rules with more than one replacement path, keyed by the YAML
+    # field name (`example_generic_digest`, ...). Collected so the LLM prompt can few-shot ALL the
+    # branches a rule offers — demonstrating only one of them biases the model toward it, which is
+    # exactly how py-weakhash-01 ended up emitting argon2 for generic digests.
+    extra_examples: dict[str, dict[str, str]] = {}
     rescan_expect: dict[str, Any] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _collect_extra_examples(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            extras = {
+                key: value
+                for key, value in data.items()
+                if key.startswith("example_") and isinstance(value, dict)
+            }
+            if extras:
+                data = {k: v for k, v in data.items() if k not in extras}
+                data["extra_examples"] = extras
+        return data
 
     @field_validator("data_compat")
     @classmethod

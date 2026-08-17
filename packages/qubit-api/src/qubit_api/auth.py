@@ -8,6 +8,11 @@ Every request carries `Authorization: Bearer <raw>`. The raw token is resolved a
 `settings.api_token` is honored as an implicit `rw` token so a fresh install (and the existing test
 suite) works before any token is minted — this mirrors the design's "first start" behavior. Once any
 token exists in the DB, the dev fallback is disabled and only real DB tokens authenticate.
+
+The bundled defaults in `_DEV_DEFAULT_TOKENS` are additionally accepted during bootstrap, but *only*
+while `settings.api_token` is itself still a bundled default — i.e. while nothing has been
+configured. Setting `QUBIT_API_TOKEN` makes it the only bootstrap credential, so a deployment that
+configures a real secret is never also reachable with a token published in this repository.
 """
 
 from __future__ import annotations
@@ -27,6 +32,16 @@ from .settings import Settings
 security = HTTPBearer()
 
 router = APIRouter(tags=["auth"])
+
+# The tokens that ship in this repo's own defaults (settings.py, docker-compose.yml, the dashboard
+# bundle). They are public knowledge, so they are only ever accepted while the deployment has not
+# been configured with a token of its own — see the bootstrap block in `authenticate`.
+_DEV_DEFAULT_TOKENS = frozenset(
+    {
+        "dev_token",  # docker-compose + desktop default
+        "qubit-dev-token-do-not-use-in-prod",  # settings.py default + legacy dashboard bundle
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -54,17 +69,20 @@ def authenticate(
             raise _unauthorized()
         return Principal(name=row.name, scopes=row.scopes)
 
-    # Bootstrap (no DB tokens yet = fresh/local/desktop install): honor the configured dev token
-    # OR either well-known dev default. This makes the desktop app resilient to a dashboard bundle
-    # that was built with a different default token — a token mismatch there previously surfaced as
-    # "Failed to fetch" (401) even though the API was up. Once a real token is minted
-    # (`qubit serve token create`), this bootstrap path is disabled and only DB tokens authenticate.
-    known_dev_tokens = {
-        settings.api_token,
-        "dev_token",  # docker-compose + desktop default
-        "qubit-dev-token-do-not-use-in-prod",  # legacy bundle default
-    }
-    if any(secrets.compare_digest(raw, t) for t in known_dev_tokens):
+    # Bootstrap (no DB tokens yet = fresh/local/desktop install): honor the configured token.
+    #
+    # The extra well-known defaults exist to make the desktop app resilient to a dashboard bundle
+    # built with a *different* default token — a mismatch there surfaced as "Failed to fetch" (401)
+    # even though the API was up. But they are only honored while the deployment is still
+    # UNCONFIGURED. Accepting them unconditionally meant an operator who set a strong
+    # QUBIT_API_TOKEN and had not yet minted a DB token still had `dev_token` working as `rw`:
+    # setting a real secret did not disable the published ones, which is an authentication bypass in
+    # the documented production configuration. Probing a live app confirmed it, so the rule is now
+    # explicit — configure a token and it becomes the *only* bootstrap credential.
+    accepted = {settings.api_token}
+    if settings.api_token in _DEV_DEFAULT_TOKENS:
+        accepted |= _DEV_DEFAULT_TOKENS
+    if any(secrets.compare_digest(raw, t) for t in accepted):
         return Principal(name="bootstrap-dev-token", scopes="rw")
     raise _unauthorized()
 

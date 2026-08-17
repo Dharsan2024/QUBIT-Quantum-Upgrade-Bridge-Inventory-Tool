@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-829%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-842%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 829 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 842 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
 
 ---
 
@@ -176,9 +176,29 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-829 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+842 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
+
+### Security review of the deployed surface
+
+A pass over the request-handling surface — probing a running server rather than reading the code —
+found and closed two real defects. Both were reachable in a *documented* configuration, which is why
+they are called out here rather than quietly patched:
+
+| Defect | Why it mattered | Fix |
+|---|---|---|
+| The SPA catch-all served files from outside `dashboard_dist` | `full_path` arrives URL-**decoded**, and while the HTTP layer normalizes a literal `/../` it does not normalize a percent-encoded one, so `GET /%2e%2e%2fSECRET.txt` returned any file the process could read. The route is deliberately unauthenticated (it serves the login shell) and the mount is on by default in `qubit serve` / desktop mode — so this was the shipping posture, not an edge case. | The resolved candidate must stay under `dist`; anything else falls through to the SPA shell. Verified against a live uvicorn for plain, encoded, uppercase-encoded and double-encoded forms. |
+| Setting `QUBIT_API_TOKEN` did not disable the bundled dev tokens | The bootstrap path accepted `settings.api_token` **and** both tokens published in this repo whenever the `api_tokens` table was empty. An operator who configured a strong secret but had not yet minted a DB token still had `dev_token` working as **rw** — an authentication bypass in the documented production configuration, confirmed at HTTP 200. | The bundled defaults are honored only while `api_token` is *itself* still a default, i.e. while nothing has been configured. Configure a token and it becomes the only bootstrap credential. |
+
+Both fixes ship with regression tests that were each confirmed to fail when the fix is reverted, and
+`test_spa_hosting.py` gives the SPA-hosting route its first coverage of any kind.
+
+**Known hardening gaps** (real deployments should plan for these): the API container runs as root;
+there is no rate limiting or request-size cap in front of the scan endpoints; PostgreSQL is
+URL-supported through SQLAlchemy but only SQLite is exercised by the suite; and a scan target is any
+path the server process can read, so the API is designed to be bound to localhost or a trusted
+network rather than exposed publicly.
 
 > **Optional external tool.** `qubit bridge capture` and the harvest phase of `qubit demo` need
 > **tshark** (ships with Wireshark) to record a pcap. Without it QUBIT says so plainly and writes an

@@ -118,10 +118,23 @@ def _mount_dashboard(app: FastAPI, settings: Settings) -> None:
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=str(assets)), name="assets")
 
+    dist_root = dist.resolve()
+
     @app.get("/{full_path:path}", include_in_schema=False)
     def _spa(full_path: str) -> FileResponse:
         # Serve a real static file if it exists (favicon, etc.); otherwise the SPA shell.
-        candidate = dist / full_path
-        if full_path and candidate.is_file():
-            return FileResponse(str(candidate))
+        #
+        # SECURITY: `full_path` is attacker-controlled and arrives URL-DECODED. The HTTP layer
+        # normalizes a literal `/../`, but it does NOT normalize a percent-encoded one, so
+        # `GET /%2e%2e%2fSECRET.txt` used to reach `dist / "../SECRET.txt"` and this route — which
+        # is deliberately unauthenticated, because it serves the login shell — happily returned any
+        # file the process could read. That was confirmed by probing a running app, and it is the
+        # `qubit serve` desktop mode's default posture, so it was reachable in the shipping config.
+        # Resolving the candidate and requiring it to stay under `dist` is the fix; anything outside
+        # falls through to the SPA shell rather than erroring, which is also what a genuine
+        # client-side route needs.
+        if full_path:
+            candidate = (dist_root / full_path).resolve()
+            if candidate.is_file() and candidate.is_relative_to(dist_root):
+                return FileResponse(str(candidate))
         return FileResponse(str(index))

@@ -70,6 +70,42 @@ class ScanCreate(BaseModel):
     run_risk: bool = True
 
 
+class NetworkScanCreate(BaseModel):
+    """Live TLS/SSH enumeration + hybrid-PQC group probe.
+
+    `authorized` maps to the scanner's own authorization contract, not to an API permission:
+    loopback and RFC1918 targets are always allowed, and this flag is the operator asserting they
+    are entitled to probe a PUBLIC host, which additionally has to appear in the scan allowlist.
+    It defaults to False so the dangerous direction requires an explicit act.
+    """
+
+    targets: list[str] = Field(min_length=1, description="Hosts or IPs to probe.")
+    ports: list[int] = Field(default_factory=lambda: [443])
+    probe_pqc: bool = Field(
+        default=True, description="Also probe the 3 standardized hybrid PQC groups."
+    )
+    authorized: bool = Field(
+        default=False, description="Assert authorization to scan a non-RFC1918 target."
+    )
+    label: str | None = None
+    run_risk: bool = True
+
+
+class VaultScanCreate(BaseModel):
+    """HashiCorp Vault transit/PKI enumeration.
+
+    The token is used for this scan and then dropped: it is never written to the job payload, the
+    scan row, or any response. See `qubit_api.jobs.secrets`.
+    """
+
+    addr: str = Field(description="Vault address, e.g. http://127.0.0.1:8200")
+    token: str = Field(description="Token with read access to the transit/pki mounts.")
+    mount_transit: str = "transit"
+    mount_pki: str = "pki"
+    label: str | None = None
+    run_risk: bool = True
+
+
 class ScanOut(BaseModel):
     id: UUID
     project_id: UUID

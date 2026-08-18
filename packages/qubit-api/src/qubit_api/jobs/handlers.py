@@ -46,6 +46,20 @@ def _scan_progress_callback(reporter: ProgressReporter) -> Callable[[str, int, i
 
 
 def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[str, Any]:
+    """Filesystem, network or Vault scan — dispatched on `mode`.
+
+    All three share the `scan` job kind deliberately. They produce the same thing (CryptoAssets
+    against a ScanRow) and need the same machinery: progress events, cancellation, concurrency
+    slots, and the crash recovery that marks an interrupted scan failed instead of leaving it
+    "running" forever. Adding new job kinds would have meant duplicating all of that, and
+    forgetting one entry in the runner's semaphore map is a silent hang.
+    """
+    mode = payload.get("mode", "paths")
+    if mode == "network":
+        return _network_scan_impl(payload, reporter)
+    if mode == "vault":
+        return _vault_scan_impl(payload, reporter)
+
     project_id = UUID(payload["project_id"])
     scan_id = UUID(payload["scan_id"])
     targets = payload.get("targets", [])
@@ -141,6 +155,164 @@ def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[st
 
     reporter.update(1.0, "done", f"Completed. Found {len(result.assets)} assets.")
     return {"scan_id": str(scan_id), "assets": len(result.assets)}
+
+
+def _persist_scan_result(
+    result: Any,
+    *,
+    scan_id: UUID,
+    project_id: UUID,
+    reporter: ProgressReporter,
+    run_risk: bool,
+) -> int:
+    """Write a ScanResult's assets + stats, optionally chain risk, and flip the scan to succeeded.
+
+    Factored out of `scan_handler` so the network and Vault paths persist through exactly the same
+    code. Duplicating it was the alternative, and a second copy that forgot to flip `status` would
+    leave a finished scan looking like it was still running.
+    """
+    with reporter.sf() as session:
+        scan = session.get(ScanRow, scan_id)
+        if not scan:
+            raise ValueError("Scan deleted during run")
+        chunk: list[AssetRow] = []
+        for asset in result.assets:
+            chunk.append(asset_to_row(asset, scan_id=scan_id, project_id=project_id))
+            if len(chunk) >= 500:
+                session.add_all(chunk)
+                session.commit()
+                reporter.checkpoint()
+                chunk.clear()
+        if chunk:
+            session.add_all(chunk)
+            session.commit()
+        scan.stats = result.stats.model_dump(mode="json")
+        session.commit()
+
+    if run_risk:
+        reporter.update(0.9, "risk", "Chaining risk assessment")
+        try:
+            _run_risk_impl(scan_id, {}, reporter)
+        except Exception:
+            logger.exception("Chained risk run failed for scan %s", scan_id)
+
+    with reporter.sf() as session:
+        scan = session.get(ScanRow, scan_id)
+        if scan:
+            scan.status = "succeeded"
+            session.commit()
+    return len(result.assets)
+
+
+def _network_scan_impl(payload: dict[str, Any], reporter: ProgressReporter) -> dict[str, Any]:
+    """Live TLS/SSH enumeration plus the raw-ClientHello PQC-group probe.
+
+    `scan_network` is async and this handler is sync — which is correct, not a workaround: the job
+    runner executes handlers via `anyio.to_thread.run_sync`, so this body owns a fresh worker thread
+    with no running event loop, and `asyncio.run` is the right way to drive the coroutine.
+
+    Authorization is enforced inside `scan_network` (`verify_scan_authorization`), not here:
+    loopback and RFC1918 targets are always permitted, anything public additionally requires an
+    allowlist entry AND the explicit authorized flag. Re-implementing that check at this layer would
+    risk the two disagreeing, so this passes the caller's intent through and lets the one
+    implementation decide.
+    """
+    import asyncio
+
+    from qubit_scanner import scan_network
+    from qubit_scanner.network.auth import ScanAuthorizationError
+
+    project_id = UUID(payload["project_id"])
+    scan_id = UUID(payload["scan_id"])
+    targets = [str(t) for t in payload.get("targets", [])]
+    ports = [int(p) for p in (payload.get("ports") or [443])]
+    probe_pqc = bool(payload.get("probe_pqc", True))
+    authorized = bool(payload.get("authorized", False))
+
+    if not targets:
+        raise ValueError("a network scan needs at least one host")
+
+    reporter.update(
+        0.1,
+        "network",
+        f"Probing {len(targets)} host(s) on {len(ports)} port(s)"
+        + (" including hybrid PQC groups" if probe_pqc else ""),
+    )
+    try:
+        result = asyncio.run(
+            scan_network(targets, ports=ports, probe_pqc=probe_pqc, authorized=authorized)
+        )
+    except ScanAuthorizationError as exc:
+        # Surface the refusal verbatim. It already explains which of the two conditions failed, and
+        # a scan that quietly returned zero findings for an unauthorized target would be far worse.
+        raise ValueError(str(exc)) from exc
+
+    reporter.checkpoint()
+    count = _persist_scan_result(
+        result,
+        scan_id=scan_id,
+        project_id=project_id,
+        reporter=reporter,
+        run_risk=bool(payload.get("run_risk", True)),
+    )
+    reporter.update(1.0, "done", f"Completed. Found {count} assets across {len(targets)} host(s).")
+    return {"scan_id": str(scan_id), "assets": count}
+
+
+def _vault_scan_impl(payload: dict[str, Any], reporter: ProgressReporter) -> dict[str, Any]:
+    """HashiCorp Vault transit-key and PKI-certificate enumeration.
+
+    The token is NOT in the job payload. `Job.payload` is a persisted JSON column, so a token there
+    would be written to the database, returned by `GET /jobs/{id}`, and kept in every backup — an
+    indefensible outcome for a tool that exists to find stray credentials. It travels through the
+    process-local single-use store in `jobs/secrets.py` instead; that module documents what the
+    choice costs (no resume across restarts, single-process only).
+    """
+    import asyncio
+
+    from qubit_scanner import scan_vault
+
+    from . import secrets as job_secrets
+
+    project_id = UUID(payload["project_id"])
+    scan_id = UUID(payload["scan_id"])
+    addr = str(payload.get("addr") or "").strip()
+    # Popped from the process-local store, never read from the payload — see jobs/secrets.py.
+    token = job_secrets.take(reporter.job_id) or ""
+    if not addr:
+        raise ValueError("a Vault scan needs the server address (e.g. http://127.0.0.1:8200)")
+    if not token:
+        raise ValueError("a Vault scan needs a token with read access to the transit/pki mounts")
+
+    from qubit_scanner.vault.connector import VaultUnreachable, verify_vault_reachable
+
+    async def _run() -> Any:
+        # Preflight first. `scan_vault` resolves an unreachable server to an empty result, which is
+        # right for a background sweep but wrong here: a user typed this address and is waiting, and
+        # "succeeded, 0 assets" for a typo or an expired token reads as "Vault is clean".
+        await verify_vault_reachable(addr, token)
+        return await scan_vault(
+            addr,
+            token,
+            mount_transit=str(payload.get("mount_transit") or "transit"),
+            mount_pki=str(payload.get("mount_pki") or "pki"),
+        )
+
+    reporter.update(0.1, "vault", f"Contacting {addr}")
+    try:
+        result = asyncio.run(_run())
+    except VaultUnreachable as exc:
+        raise ValueError(str(exc)) from exc
+    reporter.checkpoint()
+    count = _persist_scan_result(
+        result,
+        scan_id=scan_id,
+        project_id=project_id,
+        reporter=reporter,
+        run_risk=bool(payload.get("run_risk", True)),
+    )
+    reporter.update(1.0, "done", f"Completed. Found {count} Vault-managed assets.")
+    return {"scan_id": str(scan_id), "assets": count}
 
 
 def risk_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[str, Any]:

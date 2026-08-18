@@ -163,3 +163,85 @@ def test_iana_psk_and_null_suites_no_longer_fall_through() -> None:
     """`PSK` and `NULL` were named by the IANA suite-reduction tables but never existed as registry
     entries, so `TLS_PSK_WITH_*` reduced to a name nothing could resolve."""
     assert algorithms.resolve("TLS_PSK_WITH_AES_128_CBC_SHA") is not None
+
+
+# ── X.509 signature-algorithm names ──────────────────────────────────────────────────────────────
+# These reached the registry from two real sources — the certificate scanner and Vault's PKI mount —
+# and none of them resolved. `normalize()` rates an unresolved name as UNKNOWN *and not vulnerable*,
+# so the signature algorithm of every RSA-signed certificate was reported quantum-safe. Found by
+# scanning a real seeded Vault and reading the asset list: `UNKNOWN(sha256WithRSAEncryption)`.
+
+
+@pytest.mark.parametrize(
+    ("name", "expected_family"),
+    [
+        # RFC 3279 / 4055 — the spellings OpenSSL and Vault actually emit.
+        ("sha256WithRSAEncryption", "RSA"),
+        ("sha384WithRSAEncryption", "RSA"),
+        ("sha512WithRSAEncryption", "RSA"),
+        # Classically broken as well as Shor-broken; being rated "safe" was the worst case.
+        ("sha1WithRSAEncryption", "RSA"),
+        ("md5WithRSAEncryption", "RSA"),
+        ("rsassa-pss", "RSA"),
+        # RFC 5758 ECDSA spellings.
+        ("ecdsa-with-SHA256", "ECDSA"),
+        ("ecdsa-with-SHA384", "ECDSA"),
+        ("ecdsa-with-SHA512", "ECDSA"),
+        ("dsa-with-sha256", "DSA"),
+    ],
+)
+def test_x509_signature_algorithms_resolve_and_stay_vulnerable(
+    name: str, expected_family: str
+) -> None:
+    resolved = algorithms.resolve(name)
+    assert resolved is not None, f"{name} must resolve; UNKNOWN would be rated not-vulnerable"
+    assert resolved.family == expected_family
+    # The whole point: every one of these is signed with a Shor-broken key algorithm.
+    assert resolved.vulnerable is True
+    assert resolved.attack is QuantumAttack.shor
+
+
+def test_ecdsa_signature_name_does_not_invent_a_curve() -> None:
+    """`ecdsa-with-SHA384` names no curve, so reporting ECDSA-P256 would be a fabricated detail.
+
+    It also must not be reported as RSA. Before the fix it was: the name is hyphenated and ends in a
+    hash token, so `_openssl_suite_component` mistook it for a prefix-less OpenSSL cipher suite and
+    applied the "static RSA key transport" fallback — an ECDSA certificate confidently relabelled as
+    RSA, which is worse than an UNKNOWN because nothing looks wrong.
+    """
+    resolved = algorithms.resolve("ecdsa-with-SHA384")
+    assert resolved is not None
+    assert resolved.canonical == "ECDSA"
+    assert resolved.key_size is None
+    assert resolved.family != "RSA"
+
+
+def test_bare_ecdsa_still_resolves_to_p256() -> None:
+    """The curve-less ECDSA entry added for the X.509 path must not change existing resolution.
+
+    `resolve("ecdsa")` hits the alias table (step 3) long before the bare-family step, so it still
+    returns ECDSA-P256 exactly as it did — this pins that the new entry is additive.
+    """
+    assert algorithms.resolve("ecdsa").canonical == "ECDSA-P256"
+    assert algorithms.resolve("secp384r1").canonical == "ECDSA-P384"
+
+
+@pytest.mark.parametrize(
+    ("suite", "expected"),
+    [
+        ("ECDHE-RSA-AES128-SHA", "ECDH-P256"),
+        ("AES128-SHA", "RSA"),  # no kex prefix => static RSA key transport
+        ("DES-CBC3-SHA", "RSA"),
+        ("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "ECDH-P256"),
+        ("aes-256-gcm", "AES-256"),
+    ],
+)
+def test_cipher_suite_resolution_is_unaffected_by_the_x509_path(suite: str, expected: str) -> None:
+    """The `with` guard added to the OpenSSL-suite fallback must not break real suite names.
+
+    `TLS_ECDHE_RSA_WITH_...` is included deliberately: it contains "with", and is handled by the
+    IANA path well before the OpenSSL fallback the guard applies to.
+    """
+    resolved = algorithms.resolve(suite)
+    assert resolved is not None
+    assert resolved.canonical == expected

@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-849%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-878%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 849 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 878 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
 
 ---
 
@@ -193,9 +193,49 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-849 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+878 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
+
+### Every discovery source is reachable from the app
+
+The architecture claims six discovery inputs. Two of them — **live TLS/SSH** and **Vault/KMS** —
+were real, tested Python that the app had no way to reach: `scan_network`'s own docstring said "not
+yet wired into qubit-api's job runner either; both are CLI-only for now". Backend capability that no
+interface exposes is not a shipped feature, and a suite that only exercises the Python keeps
+reporting success regardless.
+
+Both now run from the **Scans** page via a source selector, as `POST /projects/{id}/scans/network`
+and `POST /projects/{id}/scans/vault`. They reuse the existing `scan` job kind, so they inherit
+progress events, cancellation, concurrency limits and crash recovery rather than duplicating them.
+
+- **Live TLS/SSH** performs the handshake enumeration *and* the raw-ClientHello hybrid-PQC group
+  probe. Authorization stays in the scanner (`verify_scan_authorization`): loopback and RFC1918 are
+  always permitted, a public host additionally needs an allowlist entry **and** an explicit
+  authorization flag, and every attempt is written to the scan audit log whether allowed or refused.
+- **Vault** reads the `transit` key list and `pki` certificates. The token is **never persisted** —
+  not in `Job.payload` (a JSON column that would put a live credential in the database and in
+  `GET /jobs/{id}`), not on the scan row, not in any response. It travels through a process-local
+  single-use store (`qubit_api/jobs/secrets.py`), which documents what that costs: no resume across
+  a restart, single-process only. A test asserts the absence against the raw DB rows, not just the
+  API responses, because a response filter would be the easy way to look correct while still storing
+  it.
+
+Verified end-to-end against real infrastructure — the hybrid-PQC nginx container and a seeded Vault
+dev server — with `X25519MLKEM768` read off an actual handshake.
+
+### Bugs this work surfaced, and what they were
+
+Each of these was found by exercising the running app rather than by reading code, and each is fixed
+with a regression test that was confirmed to fail when the fix is reverted.
+
+| Bug | Why it mattered | Root cause |
+|---|---|---|
+| **Buttons stopped responding after the first click** | App-wide. Every page is wrapped in `AnimatedPage`, and after any interaction that changed the page's height a real mouse click landed on nothing. Sidebar navigation included. | `:active { transform: scale(0.98) }` promoted the control to its own compositor layer, so `mousedown` hit the button while `mouseup` hit an ancestor and no `click` was ever generated. Captured with document-level listeners: `mousedown@BUTTON … mouseup@DIV[null]`. Press feedback is now non-geometric. |
+| **Certificate signature algorithms were rated quantum-safe** | `sha256WithRSAEncryption`, `sha1WithRSAEncryption` and `md5WithRSAEncryption` all resolved to nothing, and an unresolved name is rated **not vulnerable** — so every RSA-signed certificate's signature was reported safe. Reachable from the cert scanner and Vault's PKI mount. | The registry had no X.509 signature-algorithm spellings. Worse, `ecdsa-with-SHA256` was mistaken for a prefix-less OpenSSL cipher suite and reported as **RSA** — confidently wrong rather than merely unknown. |
+| **A failed scan job left its scan "running" forever** | The job recorded the failure; the scan row did not, so the UI showed a spinner that never resolved and only the next restart cleaned it up. Affected every scan mode, including the filesystem one this predates. | `JobRunner._finish` updated only the `Job` row. |
+| **An unreachable Vault reported "succeeded, 0 assets"** | Indistinguishable from a Vault that genuinely holds nothing, so a typo'd address or expired token read as "Vault is clean" — the worst way to be wrong about a credential store. | `scan_vault` resolves connection errors to an empty result (correct for a background sweep). User-initiated scans now preflight with `verify_vault_reachable`. |
+| **The desktop launcher could not start at all** | `qubit-desktop.bat` hardcoded port 8787. Windows reserves port blocks for Hyper-V/WSL and on the development machine 8695-8794 was reserved, so binding failed with WinError 10013 even though nothing was listening. | Fixed two ways: `scripts/pick_port.py` probes for a genuinely bindable port, and the API now injects its own base URL into the HTML it serves so the front-end follows whatever port wins instead of relying on a build-time constant. |
 
 ### Security review of the deployed surface
 
@@ -282,7 +322,7 @@ cd dashboard && npm run build && npm run test:e2e
 Quality bar: **zero test failures, zero skips**, ruff clean, and ≥70% coverage on `qubit-core`,
 `qubit-scanner`, and `qubit-risk` (currently 82%).
 
-The dashboard is verified in a real Chromium via Playwright — **18 browser tests, zero skips** —
+The dashboard is verified in a real Chromium via Playwright — **23 browser tests, zero skips** —
 against a real risk-annotated scan seeded through the public API, not mocked. `tsc -b` proves every API field access
 matches the declared contract, but only a browser catches a component that throws at mount, a
 `median(undefined)` printing NaN, or an export button that downloads an empty file. The suite asserts

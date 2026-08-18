@@ -22,10 +22,25 @@ import { API_PREFIX, DEFAULT_API_BASE, normalizeApiBase } from "./apiBase";
 // Re-exported so existing importers of the client keep working.
 export { API_PREFIX, normalizeApiBase };
 
+/** Set by the API itself on the HTML it serves (native desktop mode) — see `_mount_dashboard`.
+ *  Present ONLY when this page came from the API, so it is a reliable signal that the API shares
+ *  this origin, whatever port it ended up on. */
+declare global {
+  interface Window {
+    __QUBIT_API_BASE__?: string;
+  }
+}
+
 export function getApiBase(): string {
   if (typeof window !== "undefined") {
+    // 1. An explicit choice by the user (Login page) always wins.
     const override = localStorage.getItem("qubit_api_base");
     if (override) return normalizeApiBase(override);
+    // 2. The base the serving API injected. This beats the build-time default because that default
+    //    hardcodes a PORT (127.0.0.1:8787) which the desktop launcher cannot always bind — 8787 is
+    //    inside the range Windows reserves for Hyper-V/WSL on some machines, so the launcher has to
+    //    move and a build-time base would then point at nothing. Same-origin is port-agnostic.
+    if (window.__QUBIT_API_BASE__) return normalizeApiBase(window.__QUBIT_API_BASE__);
   }
   return normalizeApiBase((import.meta.env.VITE_API_BASE as string | undefined) ?? DEFAULT_API_BASE);
 }
@@ -126,6 +141,50 @@ export async function createScan(targets: string[]): Promise<ScanSummary> {
   const projectId = await ensureDashboardProject();
   const resp = await send<{ scan: ScanSummary }>(`/projects/${projectId}/scans`, "POST", {
     targets,
+    run_risk: true,
+  });
+  return resp.scan;
+}
+
+/** Live TLS/SSH enumeration + hybrid-PQC group probe against hosts.
+ *
+ *  `authorized` is the scanner's own authorization assertion, not an API permission: loopback and
+ *  RFC1918 targets are always allowed, and this flag is required for a PUBLIC host, which must also
+ *  appear in the server-side scan allowlist. Left false unless the operator ticks the box. */
+export async function createNetworkScan(
+  targets: string[],
+  opts: { ports?: number[]; probePqc?: boolean; authorized?: boolean } = {},
+): Promise<ScanSummary> {
+  const projectId = await ensureDashboardProject();
+  const resp = await send<{ scan: ScanSummary }>(
+    `/projects/${projectId}/scans/network`,
+    "POST",
+    {
+      targets,
+      ports: opts.ports ?? [443],
+      probe_pqc: opts.probePqc ?? true,
+      authorized: opts.authorized ?? false,
+      run_risk: true,
+    },
+  );
+  return resp.scan;
+}
+
+/** HashiCorp Vault transit-key + PKI-certificate enumeration.
+ *
+ *  The token is sent for this one request and is never persisted by the server — not in the job
+ *  payload, the scan row, or any response. It is also deliberately NOT written to localStorage here. */
+export async function createVaultScan(
+  addr: string,
+  token: string,
+  opts: { mountTransit?: string; mountPki?: string } = {},
+): Promise<ScanSummary> {
+  const projectId = await ensureDashboardProject();
+  const resp = await send<{ scan: ScanSummary }>(`/projects/${projectId}/scans/vault`, "POST", {
+    addr,
+    token,
+    mount_transit: opts.mountTransit ?? "transit",
+    mount_pki: opts.mountPki ?? "pki",
     run_risk: true,
   });
   return resp.scan;

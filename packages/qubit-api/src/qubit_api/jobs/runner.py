@@ -7,7 +7,8 @@ from typing import Any
 from uuid import UUID
 
 import anyio
-from qubit_core.db import Job
+from qubit_core.db import Job, RiskRun, ScanRow
+from qubit_core.schemas import utcnow
 from sqlalchemy.orm import Session, sessionmaker
 
 from .bus import EventBus
@@ -88,8 +89,6 @@ class JobRunner:
         startup we mark every such record failed with a clear message, so state is consistent and
         the work can simply be re-run — nothing is left silently 'running'. Returns per-kind counts.
         """
-        from qubit_core.db import RiskRun, ScanRow
-
         interrupted = {"status": "failed", "error": "interrupted by server restart"}
         active = ["queued", "running"]
         with self.sf() as session:
@@ -130,6 +129,29 @@ class JobRunner:
                 job.result = result
             if error is not None:
                 job.error = error
+
+            # Propagate a terminal failure to the record the job was working on.
+            #
+            # Without this, a job that fails or is cancelled updates only the Job row and leaves its
+            # ScanRow at status "running" forever: the scan appears to be in progress, `GET /scans`
+            # keeps listing it as active, and `recover_orphaned` only cleans it up on the NEXT
+            # restart. Surfaced by a network scan refused by the authorization gate — the job
+            # correctly failed with the refusal reason while the scan still read "running" with no
+            # error, which is precisely the state a user cannot act on. Applies to every scan mode,
+            # including the filesystem one this predates.
+            if status in ("failed", "cancelled") and job.ref_id is not None:
+                if job.kind == "scan":
+                    scan = session.get(ScanRow, job.ref_id)
+                    # Never overwrite a scan that already reached a terminal state of its own.
+                    if scan and scan.status in ("queued", "running"):
+                        scan.status = "failed" if status == "failed" else "cancelled"
+                        scan.error = error or f"job {status}"
+                        scan.finished_at = utcnow()
+                elif job.kind == "risk":
+                    risk_run = session.get(RiskRun, job.ref_id)
+                    if risk_run and risk_run.status in ("queued", "running"):
+                        risk_run.status = "failed"  # RiskRun has no error column
+                        risk_run.finished_at = utcnow()
             session.commit()
 
             # Emit finished event (threadsafe schedule; coro is owned, never GC'd un-awaited)

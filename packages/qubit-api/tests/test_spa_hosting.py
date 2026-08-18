@@ -32,7 +32,7 @@ def served(tmp_path: Path) -> tuple[TestClient, Path]:
     """
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
-    (dist / "index.html").write_text("<html>QUBIT SPA</html>")
+    (dist / "index.html").write_text("<html><head></head><body>QUBIT SPA</body></html>")
     (dist / "favicon.ico").write_text("icon-bytes")
     (dist / "assets" / "app-abc123.js").write_text("console.log('bundle')")
     (tmp_path / "SECRET.txt").write_text(SECRET)
@@ -74,7 +74,7 @@ def test_traversal_never_serves_a_file_outside_dist(
         assert response.status_code == 404
     else:
         assert response.status_code == 200
-        assert response.text == "<html>QUBIT SPA</html>"
+        assert "QUBIT SPA" in response.text
 
 
 def test_absolute_path_is_not_served(served: tuple[TestClient, Path]) -> None:
@@ -105,7 +105,7 @@ def test_client_side_routes_fall_back_to_the_shell(served: tuple[TestClient, Pat
     for route in ("/", "/inventory", "/migration/queue"):
         response = client.get(route)
         assert response.status_code == 200
-        assert response.text == "<html>QUBIT SPA</html>"
+        assert "QUBIT SPA" in response.text
 
 
 def test_the_api_is_not_shadowed_by_the_catch_all(served: tuple[TestClient, Path]) -> None:
@@ -125,3 +125,43 @@ def test_no_spa_mount_when_dist_is_absent(tmp_path: Path) -> None:
         create_schema_on_startup=True,
     )
     assert TestClient(create_app(settings)).get("/inventory").status_code == 404
+
+
+# --- the runtime API base ------------------------------------------------------------------------
+
+
+def test_served_shell_carries_a_runtime_api_base(served: tuple[TestClient, Path]) -> None:
+    """The page the API serves must tell the front-end where the API is.
+
+    Otherwise the base is fixed at BUILD time and hardcodes a port. `qubit-desktop.bat` passes
+    `VITE_API_BASE=/api/v1`, but only when it actually has to build, so a `dist/` produced by any
+    other command keeps its compiled-in `http://127.0.0.1:8787` — and 8787 is not always bindable:
+    Windows reserves port blocks for Hyper-V/WSL, and on the development machine
+    `netsh int ipv4 show excludedportrange protocol=tcp` listed 8695-8794, so uvicorn failed with
+    WinError 10013 and the launcher had to move to another port. A build-time base then points at
+    nothing. The injected value is relative, which makes it port-agnostic.
+    """
+    client, _ = served
+    body = client.get("/").text
+    assert 'window.__QUBIT_API_BASE__="/api/v1"' in body
+    # Injected inside <head>, ahead of the bundle, so the client reads it during module init.
+    assert body.index("__QUBIT_API_BASE__") < body.index("QUBIT SPA")
+
+
+def test_runtime_api_base_is_injected_on_client_side_routes_too(
+    served: tuple[TestClient, Path],
+) -> None:
+    """A deep link is the same shell and needs the same base — a refresh on /inventory must work."""
+    client, _ = served
+    assert 'window.__QUBIT_API_BASE__="/api/v1"' in client.get("/inventory").text
+
+
+def test_static_assets_are_not_rewritten(served: tuple[TestClient, Path]) -> None:
+    """Only the HTML shell is touched; the JS bundle must be served byte-for-byte.
+
+    Worth pinning because injecting into anything other than the shell would corrupt the bundle,
+    and a corrupted bundle fails at parse time with a message that points nowhere near this code.
+    """
+    client, _ = served
+    assert client.get("/assets/app-abc123.js").text == "console.log('bundle')"
+    assert client.get("/favicon.ico").text == "icon-bytes"

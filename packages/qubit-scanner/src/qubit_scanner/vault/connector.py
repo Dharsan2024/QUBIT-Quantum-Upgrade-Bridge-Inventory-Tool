@@ -172,4 +172,72 @@ async def scan_vault(
         return []
 
 
-__all__ = ["scan_vault"]
+class VaultUnreachable(RuntimeError):
+    """Vault could not be contacted, or rejected the supplied token."""
+
+
+async def verify_vault_reachable(
+    addr: str,
+    token: str,
+    *,
+    timeout: float = _DEFAULT_TIMEOUT,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> None:
+    """Raise ``VaultUnreachable`` unless ``addr`` answers and ``token`` is accepted.
+
+    ``scan_vault`` deliberately resolves an unreachable server to an empty result — correct for an
+    opt-in source that may simply not be deployed. But a *user-initiated* scan is a different
+    situation: someone typed an address and a token and is waiting for an answer, and reporting
+    "succeeded, 0 assets" for a typo'd address or an expired token reads as "Vault is clean" —
+    the worst possible way to be wrong about a credential store.
+
+    So callers that have an interactive user preflight with this, and callers that are sweeping
+    optional infrastructure keep using ``scan_vault`` alone. The distinction that matters is
+    unreachable-versus-empty, and only this function can tell them apart.
+    """
+    try:
+        async with httpx.AsyncClient(
+            base_url=addr,
+            headers={"X-Vault-Token": token},
+            timeout=timeout,
+            verify=False,  # noqa: S501 — same dev-mode/self-signed rationale as scan_vault
+            transport=transport,
+        ) as client:
+            # `sys/health` needs no token, so it separates "server is not there" from
+            # "token is bad".
+            try:
+                health = await client.get("/v1/sys/health")
+            except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPError, OSError) as exc:
+                raise VaultUnreachable(
+                    f"could not reach a Vault server at {addr} ({type(exc).__name__}). "
+                    "Check the address and that the server is running."
+                ) from exc
+            # Vault answers sys/health with 200 (unsealed+active), 429 (standby), 472/473
+            # (DR/perf standby) or 501/503 (uninitialized/sealed) — all of these prove a Vault
+            # is there. Anything else means the address points at something that is not Vault.
+            if health.status_code not in (200, 429, 472, 473, 501, 503):
+                raise VaultUnreachable(
+                    f"{addr} answered HTTP {health.status_code} for /v1/sys/health — "
+                    "this does not look like a Vault server."
+                )
+            if health.status_code in (501, 503):
+                raise VaultUnreachable(
+                    f"Vault at {addr} is not ready (HTTP {health.status_code}: sealed or "
+                    "uninitialized). Unseal it before scanning."
+                )
+
+            lookup = await client.get("/v1/auth/token/lookup-self")
+            if lookup.status_code in (401, 403):
+                raise VaultUnreachable(
+                    f"Vault at {addr} rejected the supplied token (HTTP {lookup.status_code}). "
+                    "It may be expired, revoked, or lack read access."
+                )
+    except VaultUnreachable:
+        raise
+    except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPError, OSError) as exc:
+        raise VaultUnreachable(
+            f"could not reach a Vault server at {addr} ({type(exc).__name__})."
+        ) from exc
+
+
+__all__ = ["VaultUnreachable", "scan_vault", "verify_vault_reachable"]

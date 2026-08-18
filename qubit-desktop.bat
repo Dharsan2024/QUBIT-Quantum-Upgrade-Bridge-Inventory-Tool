@@ -18,7 +18,17 @@ setlocal
 cd /d "%~dp0"
 title QUBIT desktop
 
-set "PORT=8787"
+REM --- Port selection -----------------------------------------------------------
+REM  8787 is the preferred port but it is NOT always bindable. Windows reserves blocks of ports for
+REM  Hyper-V / WSL / Docker, and on a machine where Hyper-V has claimed 8695-8794 (check with
+REM  `netsh int ipv4 show excludedportrange protocol=tcp`) binding 8787 fails outright with
+REM  WinError 10013 -- "an attempt was made to access a socket in a way forbidden by its access
+REM  permissions" -- even though nothing is listening on it. Hardcoding the port meant the launcher
+REM  simply died on those machines. So ask the OS for a port we can actually bind, trying the
+REM  familiar one first. The dashboard does not care which port wins: the API injects its own base
+REM  URL into the page it serves, so the front-end follows automatically.
+for /f "usebackq delims=" %%p in (`uv run python scripts\pick_port.py`) do set "PORT=%%p"
+if not defined PORT set "PORT=8787"
 set "URL=http://127.0.0.1:%PORT%"
 set "DIST=%CD%\dashboard\dist"
 REM The dashboard bundle's default token; keep in sync with QUBIT_API_TOKEN below.

@@ -620,6 +620,15 @@ _BARE_FAMILY: dict[str, CanonicalAlgorithm] = {
     # No bare "eddsa"/"ecdh" entries: both are already aliases in _BY_KEY, which resolves first
     # (to Ed25519 and ECDH-P256). Both targets carry the same Shor verdict a bare family would, so
     # only the reported curve name differs — precision, not safety.
+    #
+    # "ecdsa" IS listed, unlike those two, because `_x509_signature_component` needs a curve-less
+    # target: `ecdsa-with-SHA384` names the signature algorithm without naming a curve, and
+    # resolving it through _BY_KEY would report ECDSA-P256 — a specific curve the certificate never
+    # claimed. This entry does not change `resolve("ecdsa")`, which still hits the _BY_KEY alias
+    # (step 3) and returns ECDSA-P256 before the bare-family step is reached.
+    "ecdsa": CanonicalAlgorithm(
+        "ECDSA", "ECDSA", "asymmetric", QuantumAttack.shor, vulnerable=True
+    ),
 }
 for _b in _BARE_FAMILY.values():
     _BY_CANONICAL.setdefault(_b.canonical, _b)
@@ -729,6 +738,58 @@ _OPENSSL_SUITE_KEX: tuple[tuple[str, str], ...] = (
 _OPENSSL_SUITE_MACS = frozenset({"sha", "sha1", "sha256", "sha384", "md5", "poly1305"})
 
 
+# X.509 signature-algorithm names (RFC 3279 / 4055 / 5758) as they appear in a certificate's
+# `signatureAlgorithm` field and in Vault's PKI responses. The KEY algorithm is what Shor breaks —
+# the hash half only bounds collision resistance — so each reduces to its key algorithm.
+# "ecdsa" precedes "dsa" because "ecdsa" contains "dsa" and would otherwise match it.
+_X509_SIG_KEY_ALGS: tuple[tuple[str, str], ...] = (
+    ("ecdsa", "ECDSA"),
+    ("rsassapss", "RSA"),
+    ("rsaencryption", "RSA"),
+    ("rsa", "RSA"),
+    ("ed25519", "Ed25519"),
+    ("ed448", "Ed448"),
+    ("dsa", "DSA"),
+)
+
+
+def _x509_signature_component(name: str) -> CanonicalAlgorithm | None:
+    """Reduce an X.509 signature-algorithm name to the key algorithm that governs its quantum risk.
+
+    `sha256WithRSAEncryption` -> RSA, `ecdsa-with-SHA384` -> ECDSA, `rsassa-pss` -> RSA.
+
+    Every one of these previously resolved to nothing, and `normalize()` rates an unresolved name as
+    UNKNOWN **and not vulnerable** — so the signature algorithm of every RSA-signed certificate,
+    including `sha1WithRSAEncryption` and `md5WithRSAEncryption`, was reported as quantum-safe. That
+    is the exact silent-risk failure this registry exists to prevent, and it was reachable from two
+    real sources: the certificate scanner and Vault's PKI mount.
+
+    Worse, `ecdsa-with-SHA256` did not merely fall through — it ended in a hash token, so
+    `_openssl_suite_component` mistook it for an OpenSSL cipher suite with no KEX prefix and
+    returned **RSA**, confidently reporting an ECDSA certificate as RSA. This runs before that.
+
+    Parsed structurally rather than by enumerating aliases: the name space is
+    `<hash>With<KeyAlg>` or `<KeyAlg>-with-<hash>` across several RFCs, and a fixed alias list
+    would keep missing members.
+    """
+    key = _normkey(name)
+    if key == "rsassapss":  # RFC 4055 spells this one without a "with"
+        return _BY_KEY.get("rsa") or _BARE_FAMILY.get("rsa")
+    if "with" not in key:
+        return None
+    left, _, right = key.partition("with")
+    # The key algorithm sits on whichever side is not the hash; check the right first, since
+    # `<hash>With<KeyAlg>` is the more common spelling.
+    for side in (right, left):
+        for token, canonical in _X509_SIG_KEY_ALGS:
+            if token in side:
+                probe = _normkey(canonical)
+                # Bare family FIRST here (the reverse of everywhere else): these names carry no key
+                # size or curve, so the alias table's sized entry would invent one.
+                return _BARE_FAMILY.get(probe) or _BY_KEY.get(probe)
+    return None
+
+
 def _openssl_suite_component(name: str) -> CanonicalAlgorithm | None:
     """Reduce an OpenSSL-spelled TLS cipher-suite name to the algorithm governing its quantum risk.
 
@@ -752,6 +813,13 @@ def _openssl_suite_component(name: str) -> CanonicalAlgorithm | None:
     tokens = lowered.split("-")
     # Require a terminating MAC/PRF token: that is what makes this a suite rather than a cipher.
     if tokens[-1] not in _OPENSSL_SUITE_MACS:
+        return None
+    # "with" never appears in an OpenSSL suite name — that is the IANA spelling (`TLS_..._WITH_...`)
+    # and, more importantly here, the X.509 signature-algorithm spelling. Without this guard the
+    # static-RSA fallback below claimed `ecdsa-with-SHA256` was RSA, because it is hyphenated and
+    # ends in a hash token. `_x509_signature_component` now resolves those names properly; this
+    # keeps an unrecognized `*-with-*` name landing on a loud UNKNOWN rather than a wrong answer.
+    if "with" in tokens:
         return None
 
     for prefix, kex in _OPENSSL_SUITE_KEX:
@@ -862,7 +930,14 @@ def resolve(name: str, key_size: int | None = None) -> CanonicalAlgorithm | None
     if bare is not None:
         return bare
 
-    # 6. OpenSSL-spelled cipher SUITE (`ECDHE-RSA-AES128-GCM-SHA256`). Deliberately last: it must
+    # 6. X.509 signature-algorithm name (`sha256WithRSAEncryption`, `ecdsa-with-SHA384`). Must run
+    #    BEFORE the suite fallback, which would otherwise mistake `ecdsa-with-SHA256` for a
+    #    prefix-less OpenSSL suite and report it as static RSA.
+    x509_sig = _x509_signature_component(name)
+    if x509_sig is not None:
+        return x509_sig
+
+    # 7. OpenSSL-spelled cipher SUITE (`ECDHE-RSA-AES128-GCM-SHA256`). Deliberately last: it must
     #    never pre-empt a plain cipher string, only rescue a name that would otherwise be UNKNOWN.
     return _openssl_suite_component(name)
 

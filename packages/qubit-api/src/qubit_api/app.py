@@ -110,6 +110,7 @@ def _mount_dashboard(app: FastAPI, settings: Settings) -> None:
     if not index.is_file():
         return
 
+    from fastapi import Response
     from fastapi.responses import FileResponse
     from fastapi.staticfiles import StaticFiles
 
@@ -120,8 +121,33 @@ def _mount_dashboard(app: FastAPI, settings: Settings) -> None:
 
     dist_root = dist.resolve()
 
+    # The page the API serves is told where its API is, at request time.
+    #
+    # Otherwise the base is baked in at BUILD time: `qubit-desktop.bat` sets VITE_API_BASE=/api/v1,
+    # but only when it has to build, so a `dist/` produced by any other command keeps whatever
+    # default it was compiled with — `http://127.0.0.1:8787`. That is a hard failure the moment the
+    # port differs, and it does: 8787 sits inside the range Windows reserves for Hyper-V/WSL
+    # (`netsh int ipv4 show excludedportrange protocol=tcp` reported 8695-8794 on the dev machine),
+    # so binding it fails outright with WinError 10013 and the launcher has to move.
+    #
+    # Injecting it here is exact rather than heuristic: only the page actually served BY the API
+    # gets the marker, so the Vite dev server and `vite preview` — where the API is on another
+    # origin — are untouched and keep their own configuration. A RELATIVE base is used because
+    # page and API share an origin by construction here, which makes it port-agnostic.
+    _MARKER = b'<script>window.__QUBIT_API_BASE__="/api/v1";</script>'
+
+    def _index_with_api_base() -> Response:
+        html = index.read_bytes()
+        if _MARKER not in html:
+            # Before any other script runs, so the client reads it during module initialization.
+            if b"<head>" in html:
+                html = html.replace(b"<head>", b"<head>" + _MARKER, 1)
+            else:
+                html = _MARKER + html
+        return Response(content=html, media_type="text/html")
+
     @app.get("/{full_path:path}", include_in_schema=False)
-    def _spa(full_path: str) -> FileResponse:
+    def _spa(full_path: str) -> Response:
         # Serve a real static file if it exists (favicon, etc.); otherwise the SPA shell.
         #
         # SECURITY: `full_path` is attacker-controlled and arrives URL-DECODED. The HTTP layer
@@ -137,4 +163,4 @@ def _mount_dashboard(app: FastAPI, settings: Settings) -> None:
             candidate = (dist_root / full_path).resolve()
             if candidate.is_file() and candidate.is_relative_to(dist_root):
                 return FileResponse(str(candidate))
-        return FileResponse(str(index))
+        return _index_with_api_base()

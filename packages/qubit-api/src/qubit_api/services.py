@@ -534,3 +534,202 @@ def scan_pdf(session: Session, scan_id: UUID) -> bytes:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
             ) from exc
         return out.read_bytes()
+
+
+# ── Network + Vault scans ────────────────────────────────────────────────────────────────────────
+# Both scanners existed and were tested, but were reachable only from the CLI — `scan_network` said
+# so in its own docstring ("not yet wired into qubit-api's job runner either; both are CLI-only for
+# now"). They are two of the six input sources the architecture claims, so the app was showing four.
+# Both reuse the `scan` job kind, so they inherit progress events, cancellation and crash recovery.
+
+
+def _new_scan_row(
+    session: Session,
+    project: ProjectRow,
+    *,
+    targets: list[str],
+    scanners: list[str],
+    label: str | None,
+) -> ScanRow:
+    scan = ScanRow(
+        project_id=project.id,
+        seq=next_scan_sequence(session, project.id),
+        label=label,
+        status="running",
+        targets=targets,
+        scanners=scanners,
+        stats={},
+        started_at=utcnow(),
+    )
+    session.add(scan)
+    session.commit()
+    session.refresh(scan)
+    return scan
+
+
+def run_network_scan(
+    session: Session,
+    project: ProjectRow,
+    *,
+    targets: list[str],
+    ports: list[int] | None = None,
+    probe_pqc: bool = True,
+    authorized: bool = False,
+    label: str | None = None,
+    job_runner: Any = None,
+    run_risk: bool = True,
+) -> tuple[ScanRow, UUID | None]:
+    """Queue a live TLS/SSH enumeration + hybrid-PQC group probe against `targets`.
+
+    Authorization is deliberately NOT pre-checked here. `scan_network` calls
+    `verify_scan_authorization` per target/port, which permits loopback and RFC1918 unconditionally
+    and requires an allowlist entry plus `authorized` for anything public — and it writes an audit
+    log entry for every attempt, allowed or refused. A second check at this layer could drift out of
+    step with that one, and the audit trail would miss the refusals it never saw.
+    """
+    ports = ports or [443]
+    if not targets:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="a network scan needs at least one host",
+        )
+    scan = _new_scan_row(
+        session, project, targets=targets, scanners=["network"], label=label or "network scan"
+    )
+    if job_runner is None:
+        # No runner (test client without lifespan, or a sync caller): run it inline so the endpoint
+        # is still honest about the outcome rather than reporting a scan that never happened.
+        import asyncio
+
+        from qubit_scanner import scan_network as _scan_network
+
+        try:
+            result = asyncio.run(
+                _scan_network(targets, ports=ports, probe_pqc=probe_pqc, authorized=authorized)
+            )
+        except Exception as exc:
+            _fail_scan(session, scan, str(exc))
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        _store_assets_inline(session, scan, project, result)
+        return scan, None
+
+    from qubit_core.db import Job
+
+    job = Job(
+        kind="scan",
+        project_id=project.id,
+        ref_id=scan.id,
+        payload={
+            "mode": "network",
+            "project_id": str(project.id),
+            "scan_id": str(scan.id),
+            "targets": targets,
+            "ports": ports,
+            "probe_pqc": probe_pqc,
+            "authorized": authorized,
+            "run_risk": run_risk,
+        },
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    job_runner.submit(job.id)
+    return scan, job.id
+
+
+def run_vault_scan(
+    session: Session,
+    project: ProjectRow,
+    *,
+    addr: str,
+    token: str,
+    mount_transit: str = "transit",
+    mount_pki: str = "pki",
+    label: str | None = None,
+    job_runner: Any = None,
+    run_risk: bool = True,
+) -> tuple[ScanRow, UUID | None]:
+    """Queue a HashiCorp Vault transit/PKI enumeration.
+
+    The token is handed to the job through the process-local single-use store in `jobs/secrets.py`
+    and never written to `Job.payload`, because that column is persisted and would put a live
+    credential in the database and in `GET /jobs/{id}`.
+    """
+    addr = (addr or "").strip()
+    if not addr:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="a Vault scan needs the server address (e.g. http://127.0.0.1:8200)",
+        )
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="a Vault scan needs a token with read access to the transit/pki mounts",
+        )
+    # The address is recorded as the scan target; the token is not, and must never become one.
+    scan = _new_scan_row(
+        session, project, targets=[addr], scanners=["key"], label=label or "vault scan"
+    )
+
+    if job_runner is None:
+        import asyncio
+
+        from qubit_scanner import scan_vault as _scan_vault
+
+        try:
+            result = asyncio.run(
+                _scan_vault(addr, token, mount_transit=mount_transit, mount_pki=mount_pki)
+            )
+        except Exception as exc:
+            _fail_scan(session, scan, str(exc))
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        _store_assets_inline(session, scan, project, result)
+        return scan, None
+
+    from qubit_core.db import Job
+
+    from .jobs import secrets as job_secrets
+
+    job = Job(
+        kind="scan",
+        project_id=project.id,
+        ref_id=scan.id,
+        payload={
+            "mode": "vault",
+            "project_id": str(project.id),
+            "scan_id": str(scan.id),
+            "addr": addr,
+            "mount_transit": mount_transit,
+            "mount_pki": mount_pki,
+            "run_risk": run_risk,
+            # No "token" key, by design.
+        },
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    job_secrets.put(job.id, token)
+    try:
+        job_runner.submit(job.id)
+    except Exception:
+        job_secrets.discard(job.id)  # never leave a secret behind for a job that will not run
+        raise
+    return scan, job.id
+
+
+def _fail_scan(session: Session, scan: ScanRow, error: str) -> None:
+    scan.status = "failed"
+    scan.error = error
+    scan.finished_at = utcnow()
+    session.commit()
+
+
+def _store_assets_inline(session: Session, scan: ScanRow, project: ProjectRow, result: Any) -> None:
+    """Persist a synchronously-produced ScanResult and mark the scan succeeded."""
+    for asset in result.assets:
+        session.add(asset_to_row(asset, scan_id=scan.id, project_id=project.id))
+    scan.stats = result.stats.model_dump(mode="json")
+    scan.status = "succeeded"
+    scan.finished_at = utcnow()
+    session.commit()
+    session.refresh(scan)

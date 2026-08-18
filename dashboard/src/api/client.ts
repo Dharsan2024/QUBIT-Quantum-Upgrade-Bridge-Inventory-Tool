@@ -234,3 +234,40 @@ export async function fetchTaskGovernance(taskId: string): Promise<import("./typ
 export async function fetchCbom(scanId: string): Promise<Record<string, unknown>> {
   return send<Record<string, unknown>>(`/scans/${scanId}/cbom`);
 }
+
+// ── Compliance + reports ─────────────────────────────────────────────────────
+/** CNSA 2.0 migration-milestone posture for a scan (NSA deadlines 2025 → 2035). */
+export async function fetchCnsa2(scanId: string): Promise<import("./types").Cnsa2Report> {
+  return send<import("./types").Cnsa2Report>(`/scans/${scanId}/cnsa2`);
+}
+
+/** SARIF 2.1.0 log for a scan — uploadable to GitHub code scanning. */
+export async function fetchSarif(
+  scanId: string,
+  includeSafe = false,
+): Promise<Record<string, unknown>> {
+  const q = includeSafe ? "?include_safe=true" : "";
+  return send<Record<string, unknown>>(`/scans/${scanId}/sarif${q}`);
+}
+
+/**
+ * The real paginated PDF report, as bytes.
+ *
+ * Deliberately NOT routed through `send()`: that helper ends in `res.json()`, which would throw on
+ * a PDF body. It also cannot be a plain `<a href>` link, because every API route requires an
+ * `Authorization` header and a link cannot carry one — the download has to be a fetch.
+ */
+export async function fetchReportPdf(scanId: string): Promise<Uint8Array> {
+  const res = await fetch(`${getApiBase()}/scans/${scanId}/report.pdf`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) {
+    const detail = await res
+      .clone()
+      .json()
+      .then((b) => (b as { detail?: string }).detail)
+      .catch(() => null);
+    throw new ApiError(res.status, detail ?? `${res.status} ${res.statusText}`);
+  }
+  return new Uint8Array(await res.arrayBuffer());
+}

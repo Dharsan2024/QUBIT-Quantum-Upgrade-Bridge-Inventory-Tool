@@ -57,3 +57,48 @@ export async function saveTextFile(
   }, 0);
   return true;
 }
+
+/**
+ * Save BINARY content to disk — the PDF report path.
+ *
+ * `saveTextFile` cannot carry a PDF: it writes through Tauri's `writeTextFile`, which encodes as
+ * UTF-8, and passing raw PDF bytes through a JS string corrupts every byte above 0x7F. The document
+ * still opens in some readers and fails in others, which is the worst kind of bug to ship on a
+ * compliance artifact. So this takes bytes end to end.
+ *
+ * Returns true if the file was written, false if the user cancelled the dialog.
+ */
+export async function saveBinaryFile(
+  suggestedName: string,
+  bytes: Uint8Array,
+  mime = "application/octet-stream",
+): Promise<boolean> {
+  if (isTauri()) {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeFile } = await import("@tauri-apps/plugin-fs");
+    const ext = suggestedName.includes(".") ? suggestedName.split(".").pop() : undefined;
+    const path = await save({
+      defaultPath: suggestedName,
+      filters: ext ? [{ name: ext.toUpperCase(), extensions: [ext] }] : undefined,
+    });
+    if (!path) return false; // user cancelled
+    await writeFile(path, bytes);
+    return true;
+  }
+
+  // Browser fallback — same two load-bearing details as saveTextFile: the anchor must be in the
+  // document, and the object URL must not be revoked synchronously after click().
+  const blob = new Blob([bytes as unknown as BlobPart], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = suggestedName;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 0);
+  return true;
+}

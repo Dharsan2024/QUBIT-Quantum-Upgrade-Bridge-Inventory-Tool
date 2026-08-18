@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-842%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-849%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 842 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 849 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
 
 ---
 
@@ -79,7 +79,24 @@ Chosen from what security teams actually consume, not from what was easiest to e
 | **CycloneDX 1.7 CBOM** | Supply-chain tooling, agency inventory | The machine format the regulations actually **name** (ECMA-424). Already available via `qubit cbom export`, byte-reproducible with `--reproducible`. |
 | **JSON** | SIEM / spreadsheets | The raw risk-annotated inventory. |
 
-The dashboard's Report page composes the same data on screen, with a standalone HTML export and a print stylesheet for browser print-to-PDF.
+All three are reachable from the app, not just the CLI. The Report page composes the same data on
+screen and offers **Download PDF report** and **SARIF** buttons that fetch the real server-generated
+artifacts (`GET /scans/{id}/report.pdf`, `GET /scans/{id}/sarif`) — distinct from its **Print page**
+button, which is a browser rendering of the page rather than the composed document. A dedicated
+**CNSA 2.0** page (`GET /scans/{id}/cnsa2`) shows milestone posture.
+
+> **Why this is called out.** The PDF and SARIF writers, and the CNSA 2.0 evaluator, were all real,
+> tested code that the app could not reach: the reports were CLI-only, and the CNSA 2.0 evaluator had
+> no caller outside its own unit tests. The dashboard's PDF button was `window.print()`. Backend
+> capability that no interface exposes is not a shipped feature, and a test suite that only exercises
+> the Python will keep reporting success anyway — so these now have API routes, UI, API tests and
+> real-browser tests.
+>
+> The CNSA 2.0 page deliberately shows **two** numbers. `overall_score` is *schedule adherence* — a
+> milestone that is not yet due scores full marks, so it can read 100% while most milestones are
+> unmet. Beside it the page shows **PQC readiness** (milestones actually satisfied, e.g. 1/5).
+> Reporting the score alone under a "compliance" heading would tell a user they were done when they
+> were not, which is the same conflation the upstream reference implementation had to fix.
 
 ### 5. Verification & Hybrid TLS Bridge
 No patch is trusted blindly: every patch is validated in a Docker sandbox and proven by re-scan. The bridge stands up a **hybrid PQC TLS terminator** on native **OpenSSL 3.5+** negotiating `X25519MLKEM768`, then swaps classical→hybrid **on the same port** and verifies the negotiated group.
@@ -176,7 +193,7 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-842 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+849 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
 
@@ -258,19 +275,21 @@ uv run poe check          # format + lint + typecheck + unit tests
 uv run poe unit           # tests that need no Docker/Ollama/network
 uv run poe integ          # Docker-backed integration tests
 
-# Dashboard, including real-browser tests of the Report page (needs a running API):
+# Dashboard, including real-browser tests of the Report + CNSA 2.0 pages (needs a running API):
 cd dashboard && npm run build && npm run test:e2e
 ```
 
 Quality bar: **zero test failures, zero skips**, ruff clean, and ≥70% coverage on `qubit-core`,
 `qubit-scanner`, and `qubit-risk` (currently 82%).
 
-The dashboard's Report page is verified in a real Chromium via Playwright, against a real
-risk-annotated scan seeded through the public API — not mocked. `tsc -b` proves every API field access
+The dashboard is verified in a real Chromium via Playwright — **18 browser tests, zero skips** —
+against a real risk-annotated scan seeded through the public API, not mocked. `tsc -b` proves every API field access
 matches the declared contract, but only a browser catches a component that throws at mount, a
 `median(undefined)` printing NaN, or an export button that downloads an empty file. The suite asserts
-the rendered verdict, the CRQC years, the algorithm inventory, and that **Export HTML** produces a
-complete self-contained document; renaming one API field in the page makes it fail, which is how the
+the rendered verdict, the CRQC years, the algorithm inventory, all five CNSA 2.0 milestones, and
+that the export buttons produce real artifacts — the PDF is checked by its `%PDF-` magic number and
+`%%EOF` trailer rather than by size, because an HTML error page is also "some bytes" and a truncated
+PDF opens in some readers and fails in others. Renaming one API field in the page makes it fail, which is how the
 tests were confirmed to be non-vacuous.
 
 Adding a detection rule needs **no Python** — drop a YAML file in

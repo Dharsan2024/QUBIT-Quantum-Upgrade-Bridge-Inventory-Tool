@@ -272,3 +272,27 @@ export interface AssetRecommendation {
   confidence: number;
 }
 
+
+/** One CNSA 2.0 milestone verdict. `status` answers "is the required algorithm class present at
+ *  all", never the stricter "is everything compliant" — conflating those produced contradictory
+ *  verdicts in the reference implementation, so the two are kept apart here too. */
+export interface Cnsa2Milestone {
+  name: string;
+  deadline: string;
+  is_due: boolean;
+  status: 'compliant' | 'partial' | 'in-progress' | 'non-compliant';
+  weight: number;
+  score_contribution: number;
+  evidence: string;
+}
+
+export interface Cnsa2Report {
+  as_of: string;
+  overall_score: number;
+  current_phase: string;
+  next_deadline: string | null;
+  days_to_next_deadline: number | null;
+  next_action: string;
+  assets_evaluated: number;
+  milestones: Cnsa2Milestone[];
+}

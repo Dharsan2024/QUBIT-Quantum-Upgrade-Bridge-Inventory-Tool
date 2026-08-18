@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -10,6 +10,8 @@ import {
   KeyRound,
   Boxes,
   RefreshCw,
+  FileDown,
+  Bug,
 } from 'lucide-react';
 import { AnimatedPage } from '../components/AnimatedPage';
 import {
@@ -19,8 +21,10 @@ import {
   fetchTimeline,
   fetchPlans,
   fetchPlanQueue,
+  fetchReportPdf,
+  fetchSarif,
 } from '../api/client';
-import { saveTextFile } from '../lib/tauri';
+import { saveBinaryFile, saveTextFile } from '../lib/tauri';
 import { displayAlgorithm } from '../lib/assetLabels';
 import type { CryptoAsset } from '../api/types';
 
@@ -220,6 +224,49 @@ export function Report() {
 
   const printReport = () => window.print();
 
+  // The real reports, generated server-side. `window.print()` above is a browser rendering of THIS
+  // page; these two are the artifacts qubit_core.report composes — the paginated PDF a compliance
+  // submission attaches, and the SARIF an analyst uploads to code scanning. Until now both existed
+  // only behind `qubit report` on the CLI and were unreachable from the app.
+  const [busy, setBusy] = useState<null | 'pdf' | 'sarif'>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const downloadPdf = async () => {
+    if (!scanId) return;
+    setDownloadError(null);
+    setBusy('pdf');
+    try {
+      const bytes = await fetchReportPdf(scanId);
+      await saveBinaryFile(
+        `qubit-report-scan-${scan?.seq ?? scanId}.pdf`,
+        bytes,
+        'application/pdf',
+      );
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : 'Could not generate the PDF report');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const downloadSarif = async () => {
+    if (!scanId) return;
+    setDownloadError(null);
+    setBusy('sarif');
+    try {
+      const doc = await fetchSarif(scanId);
+      await saveTextFile(
+        `qubit-scan-${scan?.seq ?? scanId}.sarif`,
+        JSON.stringify(doc, null, 2),
+        'application/json',
+      );
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : 'Could not generate the SARIF log');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   // The on-screen HUD view below is print:hidden — dark glass panels with glow effects don't
   // print legibly. This is the actual printable content: the same light, plain document used
   // for the HTML export, shown only when printing (hidden on screen, print:block on paper).
@@ -272,14 +319,41 @@ export function Report() {
         <div className="flex items-center gap-3">
           <button onClick={printReport} disabled={!scan} className="hud-btn hud-btn-ghost">
             <Printer className="h-3.5 w-3.5" />
-            Print / Save as PDF
+            Print page
           </button>
-          <button onClick={exportHtml} disabled={!scan} className="hud-btn">
+          <button onClick={exportHtml} disabled={!scan} className="hud-btn hud-btn-ghost">
             <Download className="h-3.5 w-3.5" />
             Export HTML
           </button>
+          <button
+            onClick={downloadSarif}
+            disabled={!scan || busy !== null}
+            className="hud-btn hud-btn-ghost"
+            title="SARIF 2.1.0 — upload to GitHub code scanning"
+          >
+            {busy === 'sarif' ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Bug className="h-3.5 w-3.5" />
+            )}
+            SARIF
+          </button>
+          <button onClick={downloadPdf} disabled={!scan || busy !== null} className="hud-btn">
+            {busy === 'pdf' ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileDown className="h-3.5 w-3.5" />
+            )}
+            {busy === 'pdf' ? 'Generating…' : 'Download PDF report'}
+          </button>
         </div>
       </header>
+
+      {downloadError && (
+        <div className="glass-card border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger)]/8 p-4 text-sm text-[color:var(--color-danger)] print:hidden">
+          {downloadError}
+        </div>
+      )}
 
       {!scanId && (
         <div className="glass-card p-10 text-center text-sm text-[color:var(--color-ink-dim)] print:hidden">

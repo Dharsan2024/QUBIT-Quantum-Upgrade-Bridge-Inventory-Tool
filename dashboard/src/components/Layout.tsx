@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Rocket,
   Radar,
+  Landmark,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { path: '/inventory', label: 'Inventory', icon: FileCode2 },
   { path: '/risk', label: 'Risk Posture', icon: ShieldAlert },
   { path: '/timeline', label: 'CRQC Timeline', icon: Clock },
+  { path: '/compliance', label: 'CNSA 2.0', icon: Landmark },
   { path: '/migrations', label: 'Migrations', icon: GitPullRequestDraft },
   { path: '/scans', label: 'Scans & Jobs', icon: Activity },
   { path: '/settings', label: 'Settings', icon: Settings },

@@ -439,3 +439,98 @@ def apply_asset_filters(stmt: Select, **filters: object) -> Select:
             | func.cast(AssetRow.evidence, String).ilike(query)
         )
     return stmt
+
+
+# ── Reporting + compliance exports ───────────────────────────────────────────────────────────────
+# These three capabilities existed only behind the CLI (`qubit report`) or, for CNSA 2.0, only as a
+# Python function with no caller at all. The dashboard's "Save as PDF" was `window.print()` — a
+# browser screenshot of the page, not the paginated report `qubit_core.report.pdf` builds. Wiring
+# them here is what makes them reachable from the app.
+
+
+def _scan_assets(session: Session, scan_id: UUID) -> list[Any]:
+    """Every asset of a scan, as domain objects. Shared by the CBOM and the report exporters."""
+    rows = session.scalars(select(AssetRow).where(AssetRow.scan_id == scan_id)).all()
+    return [row_to_asset(row) for row in rows]
+
+
+def scan_cnsa2(session: Session, scan_id: UUID, *, as_of: object = None) -> dict[str, Any]:
+    """Evaluate a scan's inventory against the NSA CNSA 2.0 migration milestones (2025 → 2035).
+
+    Returns a JSON-ready dict rather than the dataclass so the router needs no response model
+    duplication. `evaluate_cnsa2` answers only the milestone question — "is the required algorithm
+    class present at all" — never the stricter "is everything compliant"; conflating the two is the
+    documented bug in the reference implementation this was ported from, so the distinction is kept.
+    """
+    from datetime import date
+
+    from qubit_risk import load_config
+    from qubit_risk.cnsa2 import evaluate_cnsa2
+
+    assets = _scan_assets(session, scan_id)
+    report = evaluate_cnsa2(assets, load_config(), as_of=as_of if isinstance(as_of, date) else None)
+    return {
+        "as_of": report.as_of.isoformat(),
+        "overall_score": report.overall_score,
+        "current_phase": report.current_phase,
+        "next_deadline": report.next_deadline.isoformat() if report.next_deadline else None,
+        "days_to_next_deadline": report.days_to_next_deadline,
+        "next_action": report.next_action,
+        "assets_evaluated": len(assets),
+        "milestones": [
+            {
+                "name": m.name,
+                "deadline": m.deadline.isoformat(),
+                "is_due": m.is_due,
+                "status": m.status,
+                "weight": m.weight,
+                "score_contribution": m.score_contribution,
+                "evidence": m.evidence,
+            }
+            for m in report.milestones
+        ],
+    }
+
+
+def scan_sarif(session: Session, scan_id: UUID, *, include_safe: bool = False) -> dict[str, Any]:
+    """SARIF 2.1.0 log for a scan, for upload to code-scanning tooling."""
+    from qubit_core import __version__ as core_version
+    from qubit_core.report import export_sarif
+
+    return export_sarif(
+        _scan_assets(session, scan_id),
+        tool_version=core_version,
+        include_safe=include_safe,
+    )
+
+
+def scan_pdf(session: Session, scan_id: UUID) -> bytes:
+    """Render the paginated PDF report for a scan and return its bytes.
+
+    `build_pdf_report` writes to a path (reportlab's document model is file-oriented), so this goes
+    through a temporary file rather than changing that signature for one caller. A report is not a
+    hot path, and keeping qubit-core's API stable is worth more than avoiding one temp file.
+    """
+    import tempfile
+
+    from qubit_core import __version__ as core_version
+    from qubit_core.report import build_pdf_report
+
+    scan = require_scan(session, scan_id)
+    assets = _scan_assets(session, scan_id)
+    if not assets:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="this scan found no cryptographic assets, so there is nothing to report",
+        )
+    target = ", ".join(scan.targets or []) or "(unknown target)"
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "qubit-report.pdf"
+        try:
+            build_pdf_report(assets, out, target=target, tool_version=core_version)
+        except RuntimeError as exc:
+            # reportlab is an optional extra. Say how to fix it instead of returning a 500.
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+            ) from exc
+        return out.read_bytes()

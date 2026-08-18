@@ -6,6 +6,7 @@ import { Inventory } from './pages/Inventory';
 import { Migrations } from './pages/Migrations';
 import { Scans } from './pages/Scans';
 import { Cbom } from './pages/Cbom';
+import { Compliance } from './pages/Compliance';
 import { Report } from './pages/Report';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
@@ -84,6 +85,14 @@ export const router = createBrowserRouter([
       {
         path: 'p/:pid/scans',
         element: <Scans />,
+      },
+      {
+        path: 'compliance',
+        element: <Compliance />,
+      },
+      {
+        path: 'p/:pid/compliance',
+        element: <Compliance />,
       },
       {
         path: 'cbom',

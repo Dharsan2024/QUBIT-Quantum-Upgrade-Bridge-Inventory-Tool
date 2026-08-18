@@ -1,11 +1,34 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
 from qubit_core import CryptoAsset
+
+
+def _ensure_utc(value: datetime | None) -> datetime | None:
+    """Attach UTC to a naive datetime on the way out of the API.
+
+    Every QUBIT timestamp is UTC (`utcnow()` returns tz-aware UTC), but SQLite has no timezone
+    type: SQLAlchemy writes the value and reads it back NAIVE, and Pydantic then serializes it
+    with no offset — `2026-08-18T19:14:21.430354`. JavaScript parses a datetime with no offset as
+    LOCAL time, so on a UTC+5:30 machine the dashboard showed a scan created one minute ago as
+    "6 h ago", and every relative time in the app was wrong by the viewer's UTC offset.
+
+    Fixed here rather than in the front-end because an API that emits ambiguous timestamps is the
+    actual defect — any other consumer (a SIEM, a spreadsheet) would misread them the same way.
+    Fixed here rather than in the database because SQLite cannot store the offset at all, so a
+    column migration would not change anything.
+    """
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+UtcDateTime = Annotated[datetime, AfterValidator(_ensure_utc)]
 
 
 class Page[T](BaseModel):
@@ -34,8 +57,8 @@ class ProjectOut(BaseModel):
     root_path: str | None = None
     description: str | None = None
     settings: dict[str, object] = Field(default_factory=dict)
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
 
 class ScannerName(StrEnum):
@@ -116,9 +139,9 @@ class ScanOut(BaseModel):
     scanners: list[str]
     stats: dict[str, object]
     error: str | None = None
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
-    created_at: datetime
+    started_at: UtcDateTime | None = None
+    finished_at: UtcDateTime | None = None
+    created_at: UtcDateTime
 
 
 class AssetBatchRequest(BaseModel):
@@ -165,7 +188,7 @@ class CryptoAssetOut(CryptoAsset):
 class TrendPoint(BaseModel):
     scan_id: UUID
     seq: int
-    finished_at: datetime | None = None
+    finished_at: UtcDateTime | None = None
     total: int
     vulnerable: int
     median_risk: float | None = None

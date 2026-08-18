@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-878%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-879%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 878 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 879 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
 
 ---
 
@@ -193,7 +193,7 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-878 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+879 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
 
@@ -235,6 +235,7 @@ with a regression test that was confirmed to fail when the fix is reverted.
 | **Certificate signature algorithms were rated quantum-safe** | `sha256WithRSAEncryption`, `sha1WithRSAEncryption` and `md5WithRSAEncryption` all resolved to nothing, and an unresolved name is rated **not vulnerable** — so every RSA-signed certificate's signature was reported safe. Reachable from the cert scanner and Vault's PKI mount. | The registry had no X.509 signature-algorithm spellings. Worse, `ecdsa-with-SHA256` was mistaken for a prefix-less OpenSSL cipher suite and reported as **RSA** — confidently wrong rather than merely unknown. |
 | **A failed scan job left its scan "running" forever** | The job recorded the failure; the scan row did not, so the UI showed a spinner that never resolved and only the next restart cleaned it up. Affected every scan mode, including the filesystem one this predates. | `JobRunner._finish` updated only the `Job` row. |
 | **An unreachable Vault reported "succeeded, 0 assets"** | Indistinguishable from a Vault that genuinely holds nothing, so a typo'd address or expired token read as "Vault is clean" — the worst way to be wrong about a credential store. | `scan_vault` resolves connection errors to an empty result (correct for a background sweep). User-initiated scans now preflight with `verify_vault_reachable`. |
+| **Every relative timestamp was wrong by the viewer's UTC offset** | The Scan history read "6 h ago" for a scan created seconds earlier on a UTC+5:30 machine. Noticed immediately after a cold start, where nothing could be 6 hours old. | QUBIT stores UTC, but SQLite has no timezone type, so values came back naive and serialized with no offset — and JavaScript parses an offset-less datetime as *local* time. Fixed at the API boundary, since an API emitting ambiguous timestamps is the actual defect and any consumer would misread them. |
 | **The desktop launcher could not start at all** | `qubit-desktop.bat` hardcoded port 8787. Windows reserves port blocks for Hyper-V/WSL and on the development machine 8695-8794 was reserved, so binding failed with WinError 10013 even though nothing was listening. | Fixed two ways: `scripts/pick_port.py` probes for a genuinely bindable port, and the API now injects its own base URL into the HTML it serves so the front-end follows whatever port wins instead of relying on a build-time constant. |
 
 ### Security review of the deployed surface

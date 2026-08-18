@@ -818,3 +818,36 @@ def test_asset_batch_requires_auth_and_rejects_an_empty_batch(tmp_path: Path) ->
 
     with _make_client(tmp_path) as client:
         assert client.post("/api/v1/assets/batch", json={"assets": []}).status_code == 422
+
+
+def test_timestamps_are_serialized_with_an_explicit_utc_offset(tmp_path: Path) -> None:
+    """Every datetime the API returns must carry an offset, or clients silently misread it.
+
+    QUBIT stores UTC, but SQLite has no timezone type: the value comes back NAIVE and Pydantic
+    serialized it as `2026-08-18T19:14:21.430354`. JavaScript parses an offset-less datetime as
+    LOCAL time, so on a UTC+5:30 machine the dashboard showed a scan created one minute ago as
+    "6 h ago" — every relative time was wrong by the viewer's UTC offset. Caught by noticing the
+    Scan history said "6 h ago" immediately after a cold start.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_repo(repo)
+    with _make_client(tmp_path) as client:
+        project = client.post("/api/v1/projects", json={"name": "tz"}).json()
+        # Projects carry created_at/updated_at...
+        for field in ("created_at", "updated_at"):
+            assert project[field].endswith("Z") or "+00:00" in project[field], (
+                f"project.{field} has no UTC offset: {project[field]!r}"
+            )
+
+        scan_id = client.post(
+            f"/api/v1/projects/{project['id']}/scans", json={"targets": [str(repo)]}
+        ).json()["scan"]["id"]
+        scan = _wait_for_scan(client, scan_id)
+        for field in ("created_at", "started_at", "finished_at"):
+            value = scan.get(field)
+            if value is None:
+                continue
+            assert value.endswith("Z") or "+00:00" in value, (
+                f"scan.{field} has no UTC offset: {value!r}"
+            )

@@ -210,3 +210,63 @@ rules:
           package main
           import "crypto/aes"
           func f() { aes.NewCipher(key) }
+
+  # ── One-shot digest helpers ────────────────────────────────────────────────────────────────────
+  # `md5.Sum(b)` and `sha1.Sum(b)` are the idiomatic Go way to take a single digest — more common in
+  # real code than the streaming `New()` form, because they need no intermediate writer. Only `New()`
+  # was matched, so a package that hashed with `md5.Sum` was reported as using no MD5 at all. Found
+  # by scanning a demo payment gateway that derives an approval reference with `md5.Sum` and getting
+  # zero MD5 findings back.
+  - id: GO-CRYPTO-MD5-SUM
+    title: md5.Sum()
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: md5 }
+        - { capture: fn, equals: Sum }
+    extract:
+      algorithm: { literal: MD5 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/md5"
+          func f() { md5.Sum([]byte("x")) }
+      negative:
+        - |
+          package main
+          import "crypto/sha256"
+          func f() { sha256.Sum256([]byte("x")) }
+
+  - id: GO-CRYPTO-SHA1-SUM
+    title: sha1.Sum()
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: sha1 }
+        - { capture: fn, equals: Sum }
+    extract:
+      algorithm: { literal: SHA-1 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/sha1"
+          func f() { sha1.Sum([]byte("x")) }
+      negative:
+        - |
+          package main
+          import "crypto/sha256"
+          func f() { sha256.Sum256([]byte("x")) }

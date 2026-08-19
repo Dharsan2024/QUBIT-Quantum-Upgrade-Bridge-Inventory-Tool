@@ -76,3 +76,19 @@ datasets/
 # Third-party repos cloned for design research (see docs/design/07-ecosystem-factcheck.md).
 # Each contains its own nested .git — never stage this.
 git help/
+
+# ── Local demo-lab scanning targets (not pushed) ──────────────────────────────
+# Ten deliberately-vulnerable sample applications used to exercise QUBIT during the review demo.
+# Kept local at the author's request. The tracked demo-lab content (vulnapp-python, the compose
+# files, vault-seed.sh) is NOT ignored — dashboard e2e tests scan `demo-lab/vulnapp-python`.
+demo-lab/medivault-emr/
+demo-lab/paytrail-gateway/
+demo-lab/campus-erp/
+demo-lab/fleettrack-ingest/
+demo-lab/notaria-esign/
+demo-lab/gridsentry-scada/
+demo-lab/skyline-edge/
+demo-lab/harbor-iot-bridge/
+demo-lab/ledgerlite-books/
+demo-lab/atlas-hr-portal/
+demo-lab/DEMO_TARGETS.md

@@ -135,7 +135,9 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         family="ECDH",
         kind="asymmetric",
         key_size=256,
-        aliases=("ecdh", "ecdhe"),
+        # `ecdh-sha2-nistp256` is the SSH KEX spelling (RFC 5656). Without it a hardened
+        # sshd_config resolved to UNKNOWN(...) and inherited a not-vulnerable verdict.
+        aliases=("ecdh", "ecdhe", "ecdh-sha2-nistp256", "ecdhsha2nistp256"),
     ),
     _shor(
         canonical="X25519",
@@ -195,14 +197,14 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         family="ECDH",
         kind="asymmetric",
         key_size=384,
-        aliases=("ecdhp384",),
+        aliases=("ecdhp384", "ecdh-sha2-nistp384", "ecdhsha2nistp384"),
     ),
     _shor(
         canonical="ECDH-P521",
         family="ECDH",
         kind="asymmetric",
         key_size=521,
-        aliases=("ecdhp521",),
+        aliases=("ecdhp521", "ecdh-sha2-nistp521", "ecdhsha2nistp521"),
     ),
     # --- Symmetric (Grover / safe) ---
     _grover(

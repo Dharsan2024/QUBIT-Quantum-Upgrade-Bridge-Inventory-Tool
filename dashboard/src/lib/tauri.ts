@@ -102,3 +102,37 @@ export async function saveBinaryFile(
   }, 0);
   return true;
 }
+
+/**
+ * Ask the desktop shell which port it actually started the API on, and store it as the API base.
+ *
+ * Necessary because the Tauri window loads the BUNDLED dashboard from `tauri.localhost`, not from
+ * the API — so it cannot pick up the base URL the API injects into pages it serves itself, and a
+ * relative `/api/v1` would resolve against `tauri.localhost` and never reach the engine.
+ *
+ * The port is not a constant. It used to be 8787 in three places (this bundle's default, the Rust
+ * launcher, and `qubit-desktop.bat`), and 8787 is not always bindable: Windows reserves port blocks
+ * for Hyper-V/WSL/Docker, and where 8695-8794 is reserved, binding it fails with WinError 10013
+ * while nothing is listening. The API never came up and the window sat on "Starting the engine…"
+ * until it gave up — with the misleading implication that the engine was broken rather than that
+ * nobody could agree on a port.
+ *
+ * Safe outside Tauri and safe on failure: returns false and leaves whatever base is configured, so
+ * the browser and `qubit serve` paths are untouched.
+ */
+export async function adoptDesktopApiBase(): Promise<boolean> {
+  if (!isTauri()) return false;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const base = await invoke<string>("api_base");
+    if (typeof base === "string" && base.startsWith("http")) {
+      const { setApiBase } = await import("../api/client");
+      setApiBase(base);
+      return true;
+    }
+  } catch {
+    // An older shell without the command, or the bridge not ready — fall through to the configured
+    // default rather than blocking boot on it.
+  }
+  return false;
+}

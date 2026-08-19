@@ -1,10 +1,18 @@
 // QUBIT desktop (Tauri).
 //
 // The window loads the bundled dashboard (frontendDist). On startup we spawn the QUBIT API
-// NATIVELY as a child process (`uv run uvicorn qubit_api.main:app` on 127.0.0.1:8787) so the
-// scanner runs on this machine — able to read local paths (X:\...) and clone git repos, which the
-// Docker build could not. The dashboard talks to that API at 127.0.0.1:8787/api/v1. The child is
-// killed when the app exits.
+// NATIVELY as a child process so the scanner runs on this machine — able to read local paths
+// (X:\...) and clone git repos, which the Docker build could not. The child is killed on exit.
+//
+// The port is CHOSEN AT RUNTIME, not hardcoded. 8787 used to be baked in here and in the dashboard
+// bundle, and it is not always bindable: Windows reserves port blocks for Hyper-V/WSL/Docker, and on
+// a machine where 8695-8794 is reserved (`netsh int ipv4 show excludedportrange protocol=tcp`)
+// binding 8787 fails with WinError 10013 even though nothing is listening. The API then never came
+// up and the window sat on "Starting the engine…" forever.
+//
+// Because the window loads the BUNDLED frontend from tauri.localhost — not from the API — the
+// front-end cannot learn the port from the page it was served (that mechanism only exists for
+// `qubit serve`). So it asks, via the `api_base` command below.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::process::{Child, Command};
@@ -12,6 +20,57 @@ use std::sync::Mutex;
 use tauri::Manager;
 
 struct ApiProcess(Mutex<Option<Child>>);
+
+/// The port the API child was actually started on, for the `api_base` command to report.
+struct ApiPort(u16);
+
+/// 8787 first (the documented default), then memorable alternatives, then whatever the OS gives.
+const PORT_CANDIDATES: [u16; 5] = [8787, 8080, 8099, 9797, 17870];
+
+/// True if something already accepts connections on this port.
+///
+/// Defence in depth, not a fix for an observed failure — worth being precise about. A bind test alone
+/// can be insufficient on Windows, where a second socket may join a port another process is already
+/// listening on depending on the options that first socket set (SO_REUSEADDR / SO_EXCLUSIVEADDRUSE).
+/// A connect probe answers the question the bind cannot: is anything actually serving here.
+///
+/// The concrete failure that prompted this check turned out to be a misreading on my part: an
+/// apparently orphaned uvicorn holding the port was in fact the venv's `uvicorn.exe` stub's own
+/// python child, i.e. this app's API working correctly. Kept regardless, because it is cheap and it
+/// makes port selection agree with reality rather than with one syscall's opinion of it.
+fn port_in_use(port: u16) -> bool {
+    use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
+    let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
+    TcpStream::connect_timeout(&addr.into(), std::time::Duration::from_millis(350)).is_ok()
+}
+
+/// First port on 127.0.0.1 this machine will actually let us bind.
+///
+/// Two checks, deliberately: nothing may answer a connect, AND a bind must succeed. A free port is
+/// not the same as a bindable port on Windows (see the note at the top of this file), and a bindable
+/// port is not necessarily an unused one (see `port_in_use`). The listener is dropped immediately,
+/// which leaves a small race before the child binds it; that is unavoidable in any pre-flight
+/// selection and is why the connect check matters more than the bind.
+fn pick_port() -> u16 {
+    for candidate in PORT_CANDIDATES {
+        if port_in_use(candidate) {
+            continue;
+        }
+        if std::net::TcpListener::bind(("127.0.0.1", candidate)).is_ok() {
+            return candidate;
+        }
+    }
+    std::net::TcpListener::bind(("127.0.0.1", 0))
+        .and_then(|listener| listener.local_addr())
+        .map(|addr| addr.port())
+        .unwrap_or(PORT_CANDIDATES[0])
+}
+
+/// Where the dashboard should send its API requests. Invoked by the front-end at boot.
+#[tauri::command]
+fn api_base(port: tauri::State<ApiPort>) -> String {
+    format!("http://127.0.0.1:{}/api/v1", port.0)
+}
 
 /// True if `dir` is the QUBIT monorepo root.
 fn is_repo_root(dir: &std::path::Path) -> bool {
@@ -94,14 +153,15 @@ fn repo_root() -> Option<std::path::PathBuf> {
     None
 }
 
-fn spawn_api(root: &std::path::Path) -> std::io::Result<Child> {
+fn spawn_api(root: &std::path::Path, port: u16) -> std::io::Result<Child> {
     let dist = root.join("dashboard").join("dist");
+    let port_str = port.to_string();
     let args = [
         "qubit_api.main:app",
         "--host",
         "127.0.0.1",
         "--port",
-        "8787",
+        port_str.as_str(),
     ];
 
     // Prefer the venv's uvicorn directly: it removes the `uv run` resolution layer and two extra
@@ -136,15 +196,18 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(ApiProcess(Mutex::new(None)))
+        .manage(ApiPort(pick_port()))
+        .invoke_handler(tauri::generate_handler![api_base])
         .setup(|app| {
+            let port = app.state::<ApiPort>().0;
             match repo_root() {
-                Some(root) => match spawn_api(&root) {
+                Some(root) => match spawn_api(&root, port) {
                     Ok(child) => {
                         *app.state::<ApiProcess>().0.lock().unwrap() = Some(child);
                     }
                     Err(e) => {
                         eprintln!(
-                            "QUBIT: failed to start the API from {}: {e}. Is `uv` on PATH?",
+                            "QUBIT: failed to start the API from {} on port {port}: {e}.                              Is `uv` on PATH?",
                             root.display()
                         );
                     }

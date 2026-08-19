@@ -197,6 +197,32 @@ governance gates) · real token auth with scopes · `docker compose up` from a c
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
 
+### Rebuilding the Windows desktop app after a change
+
+**The dashboard is compiled into `qubit-desktop.exe`** (`frontendDist: "../dist"` in
+`tauri.conf.json`). An installed copy therefore keeps showing the UI it was built with, no matter how
+many times the repo changes — this is exactly how several sessions of front-end work stayed invisible
+in the installed app while every automated test passed, because the tests drove the API + browser
+path and never the installed binary.
+
+After any dashboard change, rebuild and reinstall:
+
+```bash
+cd dashboard
+npx tauri build          # runs `npm run build` first, then bundles
+# then install the produced setup over the existing copy:
+#   dashboard/src-tauri/target/release/bundle/nsis/QUBIT_0.1.0_x64-setup.exe   (/S for silent)
+```
+
+An installed copy lives in `%LOCALAPPDATA%\QUBIT` with a Start Menu shortcut; the Start Menu entry is
+what most people actually launch, so verifying against `qubit serve` or `npm run dev` alone proves
+nothing about it. Check `LastWriteTime` on `%LOCALAPPDATA%\QUBIT\qubit-desktop.exe` if the app looks
+stale.
+
+Note that a force-kill of the app skips the window-destroyed handler that reaps its API child, and
+that child is `uvicorn.exe` → `python.exe`, so `Stop-Process -Name uvicorn` does not catch all of it.
+Match on the command line (`*qubit_api.main:app*`) when cleaning up.
+
 ### Every discovery source is reachable from the app
 
 The architecture claims six discovery inputs. Two of them — **live TLS/SSH** and **Vault/KMS** —

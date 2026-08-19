@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ShieldCheck, Loader2, Container, Cpu, RefreshCw, Undo2 } from 'lucide-react';
 import { getApiBase, setApiBase, fetchHealthDeps } from '../api/client';
+import { adoptDesktopApiBase } from '../lib/tauri';
 
 /**
  * Boot gate: the app's API is a child process that takes a few seconds to bind. Rendering the
@@ -40,6 +41,10 @@ export function BootGate({ children }: { children: React.ReactNode }) {
     setFailed(false);
 
     async function loop() {
+      // In the desktop shell, learn the API's real port BEFORE the first ping. The shell picks a
+      // bindable port at startup (8787 is not always available — Windows reserves port ranges), and
+      // the bundled front-end has no other way to discover it.
+      await adoptDesktopApiBase();
       while (!cancelled) {
         if (await ping()) {
           if (!cancelled) setReady(true);

@@ -71,6 +71,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Rate limiting on mutating verbs only (reads are never throttled — the dashboard polls them).
+    # Added before the auth guard so an unauthenticated flood is rejected without touching the DB.
+    from .ratelimit import RateLimitMiddleware
+
+    app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.rate_limit_per_minute)
+
     from fastapi import Depends
 
     from .auth import enforce_scope_by_method

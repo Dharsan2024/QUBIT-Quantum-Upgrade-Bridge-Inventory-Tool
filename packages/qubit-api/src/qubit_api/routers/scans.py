@@ -54,6 +54,7 @@ def create_scan(
         label=payload.label,
         job_runner=getattr(request.app.state, "job_runner", None),
         run_risk=payload.run_risk,
+        scan_roots=request.app.state.settings.scan_root_paths(),
     )
     return ScanCreateResponse(
         scan=ScanOut(

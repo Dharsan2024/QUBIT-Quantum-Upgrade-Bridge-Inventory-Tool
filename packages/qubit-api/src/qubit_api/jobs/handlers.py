@@ -81,6 +81,10 @@ def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[st
 
         resolved_targets: list[Path] = []
         clone_dirs: list[Path] = []  # temp git clones to remove after the scan
+        # Re-enforce the operator's scan-root allowlist here rather than trusting that the route
+        # already did. The job runs off the request path and its payload is persisted, so a handler
+        # that assumed the check had happened would be one edited row away from scanning anything.
+        allowed_roots = [Path(r).resolve() for r in (payload.get("scan_roots") or [])]
         for raw in targets:
             if is_git_url(raw):
                 reporter.update(0.05, "cloning", f"Cloning {raw}")
@@ -91,6 +95,8 @@ def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[st
             path = Path(raw).expanduser().resolve()
             if not path.exists():
                 raise ValueError(f"Scan target does not exist: {raw}")
+            if allowed_roots and not any(path.is_relative_to(root) for root in allowed_roots):
+                raise ValueError(f"Scan target is outside the paths this server may scan: {raw}")
             if roots and not any(path.is_relative_to(root) for root in roots):
                 raise ValueError(f"Scan target outside project root: {raw}")
             resolved_targets.append(path)

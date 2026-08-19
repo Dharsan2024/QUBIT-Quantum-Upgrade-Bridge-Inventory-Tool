@@ -19,8 +19,29 @@ RUN uv sync --frozen --all-packages
 ENV QUBIT_DB_URL=sqlite:////data/qubit.db
 RUN mkdir -p /data
 
+# Run as an unprivileged user.
+#
+# The container previously ran as root. Nothing in QUBIT needs root: it reads source trees, writes a
+# SQLite file, and serves HTTP. Root only widens what a container escape or a path-handling bug can
+# reach — and this project has already had one path-traversal bug in the SPA route, which is exactly
+# the class of defect whose blast radius the process UID decides.
+#
+# /data must be writable by that user, and /app must NOT be: the code the container executes should
+# not be modifiable by the process executing it.
+RUN groupadd --system --gid 10001 qubit     && useradd --system --uid 10001 --gid qubit --no-create-home qubit     && chown -R qubit:qubit /data     && chmod -R a-w /app
+
+USER qubit:qubit
+
 EXPOSE 8000
 
-# Run the ASGI app object directly (qubit_api.main:app). Binding 0.0.0.0 inside the container is
-# intentional — the container network is the isolation boundary; only the published port is exposed.
-CMD ["uv", "run", "uvicorn", "qubit_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Invoke the venv's uvicorn directly rather than through `uv run`.
+#
+# Two reasons, one of them load-bearing. `uv run` wants a writable cache directory, and this image now
+# runs as an unprivileged user with no home — so `uv run` fails at startup with "Failed to initialize
+# cache at /home/qubit/.cache/uv: Permission denied" and the container exits 2. Giving the user a
+# writable home would fix the symptom; removing the runtime dependency on uv fixes the cause, and also
+# drops two process hops from start-up. uv is still what installs the packages at build time.
+#
+# Binding 0.0.0.0 inside the container is intentional — the container network is the isolation
+# boundary; only the published port is exposed.
+CMD ["/app/.venv/bin/uvicorn", "qubit_api.main:app", "--host", "0.0.0.0", "--port", "8000"]

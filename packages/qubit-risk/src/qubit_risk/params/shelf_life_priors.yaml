@@ -1,12 +1,122 @@
-# Required data secrecy shelf-life L ~ LogNormal(mu_ln, sigma_ln) years, per sensitivity class (Mosca X).
-# shelf_life_years on the asset = E[L] = exp(mu+sigma^2/2); Mosca uses the P90.
-version: 1
+# Required data-secrecy shelf-life L ~ LogNormal(mu_ln, sigma_ln) years, per sensitivity class.
+# This is Mosca's X. `shelf_life_years` on an asset = E[L] = exp(mu + sigma^2/2); Mosca uses the P90.
+#
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+# THESE ARE EXPERT-ELICITED VALUES ANCHORED TO CITED REGULATION. THEY ARE NOT MEASURED.
+#
+# Say so in the paper and in the viva. There is no dataset of "how long did this record actually need
+# to stay secret", because that is a counterfactual — you would need to know when each record stopped
+# mattering. So each class below is a judgement, and what the citations do is constrain that judgement
+# to a defensible range rather than leave it to taste. Anyone is free to substitute their own priors;
+# that is why this is a params file and not code.
+#
+# THE CENTRAL DISTINCTION: a retention period is NOT a secrecy shelf-life.
+#
+# Retention says how long an organisation must KEEP a record. Shelf-life says how long that record
+# must stay CONFIDENTIAL. They come apart in both directions and conflating them is the most common
+# way to get Mosca's X wrong:
+#
+#   * PHI: statutory retention is ~6-10 years, but a diagnosis recorded today is still sensitive
+#     decades later. Shelf-life EXCEEDS retention.
+#   * Card data: financial ledgers are retained 6 years, but a card number's usefulness to a fraudster
+#     ends when the card is reissued. Shelf-life is SHORTER than retention.
+#
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+# CITED ANCHORS
+#
+# HIPAA — 45 CFR 164.316(b)(2)(i): six years, and note what it actually covers. It applies to
+#   COMPLIANCE DOCUMENTATION (policies, risk analyses, training records), *not* to clinical records.
+#   HIPAA sets no medical-record retention period at all; that is state law, commonly 7 years after
+#   the last encounter for adults and longer for minors. An earlier version of this file cited "HIPAA"
+#   as the basis for a ~30-year PHI figure, which was wrong on the law even where the number was
+#   defensible on other grounds.
+#   https://www.law.cornell.edu/cfr/text/45/164.316
+#   https://www.hipaajournal.com/hipaa-retention-requirements/
+#
+# SEC Rule 17a-4 — 17 CFR 240.17a-4: three years for communications, confirmations and order
+#   tickets; six years for financial records such as general and securities-transaction ledgers.
+#   Records must be held in non-rewriteable, non-erasable (WORM) form.
+#   https://www.law.cornell.edu/cfr/text/17/240.17a-4
+#
+# PCI DSS v4.x — Requirement 3.2.1 sets NO maximum storage period; it requires a retention and
+#   disposal policy limiting storage to what is legally or operationally necessary. Requirement 3.3.1
+#   prohibits retaining sensitive authentication data (full track, CVV, PIN block) after
+#   authorisation. So PCI constrains the policy, not a number — which is why the financial class is
+#   anchored on SEC's six years and adjusted for fraud decay, not on PCI.
+#   https://www.pcisecuritystandards.org/faq/articles/Frequently_Asked_Question/what-is-the-maximum-period-of-time-that-cardholder-data-can-be-stored/
+#
+# GDPR — Article 5(1)(e) storage limitation states a principle, not a period, so it cannot supply a
+#   number for the `pii` class. The value there rests on a different argument, given inline below.
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+version: 2
 classes:
-  phi:         {mu_ln: 3.40, sigma_ln: 0.30, note: "~30y; HIPAA + patient lifetime"}
-  pii:         {mu_ln: 3.00, sigma_ln: 0.40, note: "~20y; identity outlives breach cycles"}
-  ip:          {mu_ln: 2.71, sigma_ln: 0.50, note: "~15y; trade-secret horizon"}
-  financial:   {mu_ln: 2.30, sigma_ln: 0.40, note: "~10y; PCI/regulatory + fraud decay"}
-  credentials: {mu_ln: 0.00, sigma_ln: 0.50, note: "~1y; rotation assumed"}
-  ephemeral:   {mu_ln: -2.30, sigma_ln: 0.50, note: "~0.1y; session tokens"}
-  public:      {fixed: 0.0}
-  unknown:     {mu_ln: 1.61, sigma_ln: 0.80, note: "~5y median, broad; deliberately uncertain"}
+  # Elicited well above statutory retention, deliberately. The governing question is not how long the
+  # record is kept but how long disclosure would still harm the patient — which is the rest of their
+  # life. ~30y is a median remaining-lifetime figure for a working-age patient, not a retention rule.
+  phi:
+    mu_ln: 3.40
+    sigma_ln: 0.30
+    basis: elicited
+    note: >-
+      ~30y. Exceeds the 7-10y state clinical-retention norm on purpose: a diagnosis stays sensitive
+      for the patient's lifetime. HIPAA's own six-year rule (45 CFR 164.316(b)(2)(i)) governs
+      compliance documentation, not clinical records, and is not the basis for this figure.
+
+  # No statute gives PII a secrecy period. The argument is non-reissuability: a name, date of birth or
+  # national identifier cannot be rotated after disclosure, so its exposure window is open-ended and
+  # bounded only by the person's life. GDPR Art. 5(1)(e) states a principle, not a number.
+  pii:
+    mu_ln: 3.00
+    sigma_ln: 0.40
+    basis: elicited
+    note: >-
+      ~20y. Grounded in non-reissuability rather than a retention schedule: unlike a password or a
+      card number, an identifier cannot be rotated once disclosed.
+
+  ip:
+    mu_ln: 2.71
+    sigma_ln: 0.50
+    basis: elicited
+    note: >-
+      ~15y. Trade-secret protection has no expiry while secrecy holds (unlike a patent's 20y term),
+      so this is a commercial-usefulness judgement, not a legal period.
+
+  # Anchored on SEC 17a-4's six years for financial ledgers, then widened for tax/audit horizons and
+  # narrowed by fraud decay — a card number stops being useful once reissued. PCI DSS deliberately
+  # sets no maximum, so it cannot anchor a number.
+  financial:
+    mu_ln: 2.30
+    sigma_ln: 0.40
+    basis: cited-and-adjusted
+    note: >-
+      ~10y. SEC Rule 17a-4 requires six years for financial ledgers (three for communications);
+      raised for tax/audit horizons, and the spread covers instruments whose fraud value decays in
+      months.
+
+  credentials:
+    mu_ln: 0.00
+    sigma_ln: 0.50
+    basis: elicited
+    note: >-
+      ~1y, assuming rotation. This is the one class whose shelf-life is a policy choice rather than a
+      property of the data: an organisation that never rotates should raise it sharply.
+
+  ephemeral:
+    mu_ln: -2.30
+    sigma_ln: 0.50
+    basis: elicited
+    note: "~0.1y. Session tokens and similar, whose value ends with the session."
+
+  public:
+    fixed: 0.0
+    basis: definitional
+    note: "Already public; nothing to protect, so X = 0 and the Mosca margin is unaffected."
+
+  unknown:
+    mu_ln: 1.61
+    sigma_ln: 0.80
+    basis: elicited
+    note: >-
+      ~5y median with a deliberately wide sigma. Unclassified data must not be quietly treated as
+      low-risk, and the wide spread is what pushes its P90 up so an unclassified asset is not ranked
+      last by default.

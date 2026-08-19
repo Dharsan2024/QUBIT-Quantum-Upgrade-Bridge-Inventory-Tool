@@ -30,6 +30,18 @@ algorithms:
   # P-521 is stronger than P-384, so modelling it at P-384's cost makes it break slightly EARLIER
   # than reality — again the conservative direction. Replace with a real estimate if one is published.
   ECDSA-P521: {attack: shor, alias: ECDSA-P384}
+
+  # JWE key-management identifiers (RFC 7518 §4). A JWE header names the wrapping algorithm without a
+  # key size, so both RSA forms anchor on RSA-2048 — the weakest common size, therefore the earliest
+  # break and the most conservative risk. ECDH-ES is ephemeral-static ECDH; unqualified it means P-256
+  # in practice, so it anchors there.
+  RSA1_5:        {attack: shor, alias: RSA-2048}
+  RSA-OAEP-256:  {attack: shor, alias: RSA-2048}
+  ECDH-ES:       {attack: shor, alias: ECDSA-P256}
+  # SM2 is an elliptic-curve scheme over a 256-bit prime curve (GM/T 0003), so Shor costs it the same
+  # as any other 256-bit curve. Anchored on ECDSA-P256 rather than given its own estimate, because no
+  # SM2-specific published resource estimate exists to cite.
+  SM2:           {attack: shor, alias: ECDSA-P256}
   # --- Remaining Shor-vulnerable families. Finite-field discrete log (DH, DSA) has essentially the
   # same Shor cost profile as RSA factoring at equal modulus size, so each anchors on the RSA entry
   # of matching bit-length; elliptic-curve variants anchor on the ECDSA curve of matching size.

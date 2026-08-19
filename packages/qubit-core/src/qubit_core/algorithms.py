@@ -206,13 +206,66 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         key_size=521,
         aliases=("ecdhp521", "ecdh-sha2-nistp521", "ecdhsha2nistp521"),
     ),
+    # --- JWE key management (RFC 7518 §4) ---
+    # These name the algorithm that protects the content-encryption key, so breaking one exposes the
+    # payload regardless of how strong the `enc` algorithm is. All are Shor-broken.
+    _shor(
+        canonical="RSA1_5",
+        family="RSA",
+        kind="asymmetric",
+        # RSAES-PKCS1-v1_5 key wrapping: Shor-broken AND padding-oracle-prone (Bleichenbacher),
+        # which is why RFC 8725 tells implementers to stop using it.
+        aliases=("rsa1_5", "rsa1-5"),
+    ),
+    _shor(
+        canonical="RSA-OAEP-256",
+        family="RSA",
+        kind="asymmetric",
+        aliases=("rsa-oaep-256", "rsaoaep256"),
+    ),
+    _shor(
+        canonical="ECDH-ES",
+        family="ECDH",
+        kind="asymmetric",
+        # Ephemeral-Static ECDH key agreement. The composite forms (`ECDH-ES+A256KW`) reduce to this
+        # in `_jose_composite`, because the agreement is what a harvest-now adversary breaks.
+        aliases=("ecdh-es", "ecdhes"),
+    ),
+    # --- SM (Chinese national standards, GM/T) ---
+    # Present in real dependency data; commonly encountered in code targeting Chinese markets.
+    _shor(
+        canonical="SM2",
+        family="SM2",
+        kind="asymmetric",
+        key_size=256,
+        # Elliptic-curve signature/key-exchange over a 256-bit prime curve, so Shor applies exactly
+        # as it does to ECDSA-P256.
+        aliases=("sm2",),
+    ),
+    _grover(
+        canonical="SM4",
+        family="SM4",
+        kind="symmetric",
+        key_size=128,
+        # 128-bit block cipher; Grover halves it to ~64-bit, the same tier as AES-128.
+        aliases=("sm4",),
+    ),
+    _safe(
+        canonical="SM3",
+        family="SM3",
+        kind="hash",
+        # 256-bit output, so Grover leaves ~128-bit preimage resistance. Rated the same as SHA-256,
+        # which this registry treats as safe — an equal-strength hash must get an equal verdict.
+        aliases=("sm3",),
+    ),
     # --- Symmetric (Grover / safe) ---
     _grover(
         canonical="AES-128",
         family="AES",
         kind="symmetric",
         key_size=128,
-        aliases=("aes128", "aes-128", "aes/128"),
+        # A128GCM / A128CBC-HS256 are the JWE `enc` identifiers (RFC 7518 §5).
+        aliases=("aes128", "aes-128", "aes/128", "a128gcm", "a128cbc-hs256", "a128kw"),
     ),
     # AES-192 gives ~96-bit post-quantum security under Grover — below the 128-bit bar AES-256
     # clears, and CNSA 2.0 approves only AES-256, so it is flagged like AES-128 rather than treated
@@ -222,14 +275,14 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         family="AES",
         kind="symmetric",
         key_size=192,
-        aliases=("aes192", "aes-192"),
+        aliases=("aes192", "aes-192", "a192gcm", "a192cbc-hs384", "a192kw"),
     ),
     _safe(
         canonical="AES-256",
         family="AES",
         kind="symmetric",
         key_size=256,
-        aliases=("aes256", "aes-256"),
+        aliases=("aes256", "aes-256", "a256gcm", "a256cbc-hs512", "a256kw"),
     ),
     _grover(
         canonical="3DES",
@@ -263,7 +316,12 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         canonical="ChaCha20", family="ChaCha20", kind="symmetric", key_size=256, aliases=("chacha",)
     ),
     _safe(
-        canonical="Salsa20", family="Salsa20", kind="symmetric", key_size=256, aliases=("salsa20",)
+        canonical="Salsa20",
+        family="Salsa20",
+        kind="symmetric",
+        key_size=256,
+        # XSalsa20 is Salsa20 with a 192-bit nonce (NaCl/libsodium); same key size, same verdict.
+        aliases=("salsa20", "xsalsa20"),
     ),
     _safe(
         canonical="Twofish", family="Twofish", kind="symmetric", key_size=256, aliases=("twofish",)
@@ -755,6 +813,34 @@ _X509_SIG_KEY_ALGS: tuple[tuple[str, str], ...] = (
 )
 
 
+def _jose_composite(name: str) -> CanonicalAlgorithm | None:
+    """Reduce a composite JWE key-management identifier to the algorithm that governs its risk.
+
+    RFC 7518 composes some `alg` values from a key-agreement or key-derivation step and a
+    symmetric key-wrap step, joined with `+`: `ECDH-ES+A128KW`, `PBES2-HS256+A128KW`. The same
+    reasoning as for a TLS cipher suite applies — a harvest-now-decrypt-later adversary attacks
+    the key establishment, not the wrap — so the left-hand component decides the verdict.
+
+    Without this, every composite JWE header value resolved to nothing and inherited a
+    not-vulnerable rating, which for `ECDH-ES+A256KW` means an ECDH key agreement reported as safe.
+    """
+    if "+" not in name:
+        return None
+    left, _, right = name.partition("+")
+    for part in (left.strip(), right.strip()):
+        if not part:
+            continue
+        hit = _BY_KEY.get(_normkey(part))
+        if hit is not None:
+            return hit
+        # PBES2-HS256 and friends: the KDF is the left half, named with its PRF appended.
+        if _normkey(part).startswith("pbes2"):
+            pbkdf2 = _BY_KEY.get(_normkey("PBKDF2"))
+            if pbkdf2 is not None:
+                return pbkdf2
+    return None
+
+
 def _x509_signature_component(name: str) -> CanonicalAlgorithm | None:
     """Reduce an X.509 signature-algorithm name to the key algorithm that governs its quantum risk.
 
@@ -932,14 +1018,19 @@ def resolve(name: str, key_size: int | None = None) -> CanonicalAlgorithm | None
     if bare is not None:
         return bare
 
-    # 6. X.509 signature-algorithm name (`sha256WithRSAEncryption`, `ecdsa-with-SHA384`). Must run
+    # 6. Composite JWE key-management identifier (`ECDH-ES+A256KW`, `PBES2-HS256+A128KW`).
+    jose = _jose_composite(name)
+    if jose is not None:
+        return jose
+
+    # 7. X.509 signature-algorithm name (`sha256WithRSAEncryption`, `ecdsa-with-SHA384`). Must run
     #    BEFORE the suite fallback, which would otherwise mistake `ecdsa-with-SHA256` for a
     #    prefix-less OpenSSL suite and report it as static RSA.
     x509_sig = _x509_signature_component(name)
     if x509_sig is not None:
         return x509_sig
 
-    # 7. OpenSSL-spelled cipher SUITE (`ECDHE-RSA-AES128-GCM-SHA256`). Deliberately last: it must
+    # 8. OpenSSL-spelled cipher SUITE (`ECDHE-RSA-AES128-GCM-SHA256`). Deliberately last: it must
     #    never pre-empt a plain cipher string, only rescue a name that would otherwise be UNKNOWN.
     return _openssl_suite_component(name)
 

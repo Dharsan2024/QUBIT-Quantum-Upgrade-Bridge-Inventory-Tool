@@ -88,12 +88,23 @@ def is_git_url(s: str) -> bool:
     return s.startswith(("http://", "https://", "git@", "ssh://", "git://")) or s.endswith(".git")
 
 
-def validate_targets(project: ProjectRow, targets: list[str]) -> list[Path]:
-    """Router pre-check. Git URLs pass through (cloned later in the scan handler); local paths
-    must exist and stay inside the project root when one is set."""
+def validate_targets(
+    project: ProjectRow, targets: list[str], scan_roots: list[Path] | None = None
+) -> list[Path]:
+    """Router pre-check. Git URLs pass through (cloned later in the scan handler); local paths must
+    exist, stay inside the project root when one is set, AND stay inside the server's configured
+    scan roots when those are set.
+
+    The two confinements are independent and both apply. A project's `root_path` is a per-project
+    narrowing chosen by whoever created the project; `scan_roots` is an operator-level boundary from
+    `QUBIT_SCAN_ROOTS` that a project cannot widen. Without the latter, a scan target was any path
+    the server process could read — fine for the desktop app, wrong for anything shared.
+    """
     roots: list[Path] = []
     if project.root_path:
         roots.append(Path(project.root_path).resolve())
+
+    allowlist = scan_roots or []
 
     resolved_targets: list[Path] = []
     for raw in targets:
@@ -105,6 +116,16 @@ def validate_targets(project: ProjectRow, targets: list[str]) -> list[Path]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"scan target does not exist: {raw}",
+            )
+        if allowlist and not any(path.is_relative_to(root) for root in allowlist):
+            # Deliberately does not echo the configured roots: a refusal should not double as a
+            # directory-disclosure oracle for an unauthenticated-adjacent caller.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"scan target is outside the paths this server is permitted to scan: {raw}. "
+                    "Ask the operator to add it to QUBIT_SCAN_ROOTS."
+                ),
             )
         if roots and not any(path.is_relative_to(root) for root in roots):
             raise HTTPException(
@@ -123,6 +144,7 @@ def run_scan(
     label: str | None,
     job_runner: Any = None,
     run_risk: bool = True,
+    scan_roots: list[Path] | None = None,
 ) -> tuple[ScanRow, UUID | None]:
     """Create a scan row and execute it; return the row and the background job id, if one was used.
 
@@ -144,8 +166,13 @@ def run_scan(
     session.commit()
     session.refresh(scan)
 
-    # Synchronous validation so bad targets return early
-    resolved_targets = validate_targets(project, targets)
+    # Synchronous validation so bad targets return early, before a ScanRow exists.
+    #
+    # `scan_roots` is passed IN rather than read from a fresh `Settings()`. Constructing one here
+    # reads the process environment and silently ignores the instance `create_app(settings)` was
+    # given, so a configured allowlist had no effect — the same trap deps.get_settings() documents
+    # for the auth token. The route supplies it from app.state.settings.
+    resolved_targets = validate_targets(project, targets, scan_roots)
 
     job_id: UUID | None = None
     if job_runner:
@@ -161,6 +188,8 @@ def run_scan(
                 "targets": targets,
                 "scanners": scanners,
                 "run_risk": run_risk,
+                # Carried into the job so the handler re-checks rather than trusting the route.
+                "scan_roots": [str(r) for r in (scan_roots or [])],
             },
         )
         session.add(job)

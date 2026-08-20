@@ -45,7 +45,7 @@ rules:
           const h = crypto.randomBytes(32);
 
   - id: TS-NODE-CREATECIPHERIV
-    title: crypto.createCipheriv(<cipher>, key, iv)
+    title: crypto.createCipheriv / createDecipheriv(<cipher>, key, iv)
     match:
       query: |
         (call_expression
@@ -55,7 +55,11 @@ rules:
           arguments: (arguments (string (string_fragment) @alg) (_) (_))) @call
       where:
         - { capture: obj, equals: crypto }
-        - { capture: meth, equals: createCipheriv }
+        # createDecipheriv too: decryption is as much a crypto usage as encryption, and a
+        # service that only ever DECRYPTS — an ingest or consumer tier, a very common
+        # architecture — otherwise reported no cipher usage at all. Found by scanning a
+        # telemetry ingest target that decrypts RC4 payloads and got zero cipher findings.
+        - { capture: meth, in: [createCipheriv, createDecipheriv] }
     extract:
       algorithm: { from: alg, resolve: capture-text }
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
@@ -68,6 +72,9 @@ rules:
         - |
           import * as crypto from 'crypto';
           const c = crypto.createCipheriv('des-ede3-cbc', key, iv);
+        - |
+          import * as crypto from 'crypto';
+          const d = crypto.createDecipheriv('rc4', key, iv);
       negative:
         - |
           import * as crypto from 'crypto';

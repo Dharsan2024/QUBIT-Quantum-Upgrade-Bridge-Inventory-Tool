@@ -36,9 +36,11 @@ rules:
     title: SHA2(x, 256) — the digest length is the second argument
     match:
       query: |
+        ; `parameter:` is a repeated field, so without positional anchors every literal
+        ; argument matches — including the KEY in `encrypt(data, key, 'des')`.
         (invocation
-          (object_reference name: (identifier) @fn)
-          parameter: (term value: (literal) @bits)) @call
+          . (object_reference name: (identifier) @fn)
+          . (term) . (term value: (literal) @bits)) @call
       where:
         - { capture: fn, regex: "(?i)^sha2$" }
     extract:
@@ -114,9 +116,11 @@ rules:
     title: digest(data, 'md5') — pgcrypto
     match:
       query: |
+        ; `parameter:` is a repeated field, so without positional anchors every literal
+        ; argument matches — including the KEY in `encrypt(data, key, 'des')`.
         (invocation
-          (object_reference name: (identifier) @fn)
-          parameter: (term value: (literal) @algo)) @call
+          . (object_reference name: (identifier) @fn)
+          . (term) . (term value: (literal) @algo)) @call
       where:
         - { capture: fn, regex: "(?i)^digest$" }
     extract:
@@ -134,9 +138,18 @@ rules:
     title: hmac(data, key, 'sha1') — pgcrypto
     match:
       query: |
+        ; `parameter:` is a repeated field, so without positional anchors every literal
+        ; argument matches — including the KEY in `encrypt(data, key, 'des')`.
         (invocation
-          (object_reference name: (identifier) @fn)
-          parameter: (term value: (literal) @algo)) @call
+          . (object_reference name: (identifier) @fn)
+          . (term) . (term) . (term value: (literal) @algo)) @call
+        ; A `:name` bind parameter is not valid in this grammar and parses to an ERROR node,
+        ; which shifts every argument after it by one position. `encrypt(ssn, :key, 'des')`
+        ; is exactly how an ORM-generated migration writes this, so the ERROR form is matched
+        ; explicitly rather than lost. Positional binds (`?`, `$1`) parse normally.
+        (invocation
+          . (object_reference name: (identifier) @fn)
+          . (term) . (ERROR) . (term value: (literal) @algo)) @call
       where:
         - { capture: fn, regex: "(?i)^hmac$" }
     extract:
@@ -154,9 +167,18 @@ rules:
     title: encrypt(data, key, 'des') / decrypt — pgcrypto raw cipher
     match:
       query: |
+        ; `parameter:` is a repeated field, so without positional anchors every literal
+        ; argument matches — including the KEY in `encrypt(data, key, 'des')`.
         (invocation
-          (object_reference name: (identifier) @fn)
-          parameter: (term value: (literal) @algo)) @call
+          . (object_reference name: (identifier) @fn)
+          . (term) . (term) . (term value: (literal) @algo)) @call
+        ; A `:name` bind parameter is not valid in this grammar and parses to an ERROR node,
+        ; which shifts every argument after it by one position. `encrypt(ssn, :key, 'des')`
+        ; is exactly how an ORM-generated migration writes this, so the ERROR form is matched
+        ; explicitly rather than lost. Positional binds (`?`, `$1`) parse normally.
+        (invocation
+          . (object_reference name: (identifier) @fn)
+          . (term) . (ERROR) . (term value: (literal) @algo)) @call
       where:
         - { capture: fn, regex: "(?i)^(encrypt|decrypt|encrypt_iv|decrypt_iv)$" }
     extract:
@@ -174,9 +196,11 @@ rules:
     title: crypt(pw, gen_salt('md5')) — the salt prefix picks the algorithm
     match:
       query: |
+        ; `parameter:` is a repeated field, so without positional anchors every literal
+        ; argument matches — including the KEY in `encrypt(data, key, 'des')`.
         (invocation
-          (object_reference name: (identifier) @fn)
-          parameter: (term value: (literal) @algo)) @call
+          . (object_reference name: (identifier) @fn)
+          . (term value: (literal) @algo)) @call
       where:
         - { capture: fn, regex: "(?i)^gen_salt$" }
     extract:
@@ -215,9 +239,11 @@ rules:
     title: HASHBYTES('MD5', x) — SQL Server
     match:
       query: |
+        ; `parameter:` is a repeated field, so without positional anchors every literal
+        ; argument matches — including the KEY in `encrypt(data, key, 'des')`.
         (invocation
-          (object_reference name: (identifier) @fn)
-          parameter: (term value: (literal) @algo)) @call
+          . (object_reference name: (identifier) @fn)
+          . (term value: (literal) @algo)) @call
       where:
         - { capture: fn, regex: "(?i)^hashbytes$" }
     extract:

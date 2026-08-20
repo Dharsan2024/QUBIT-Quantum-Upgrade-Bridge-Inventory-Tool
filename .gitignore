@@ -91,4 +91,15 @@ demo-lab/skyline-edge/
 demo-lab/harbor-iot-bridge/
 demo-lab/ledgerlite-books/
 demo-lab/atlas-hr-portal/
+# Added with the 19-language expansion — one target per newly supported language.
+demo-lab/northwind-billing/
+demo-lab/borealis-relay/
+demo-lab/civicdesk-crm/
+demo-lab/quillbox-cms/
+demo-lab/quantis-ledger/
+demo-lab/aurora-wallet/
+demo-lab/transit-tap/
+demo-lab/meridian-driver/
+demo-lab/sonar-array/
+demo-lab/helm-ops/
 demo-lab/DEMO_TARGETS.md

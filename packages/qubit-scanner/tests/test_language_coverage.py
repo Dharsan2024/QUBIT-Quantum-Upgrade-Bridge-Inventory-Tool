@@ -318,6 +318,64 @@ def test_wildcard_argument_captures_are_anchored() -> None:
     )
 
 
+# Grammar fields that a node carries MORE THAN ONCE. A typed capture is normally self-anchoring —
+# `(string_literal) @algo` cannot match a column reference — but that protection evaporates when
+# several arguments share the type, and a repeated field is exactly where that happens.
+# Each entry is a (node type or empty, field) pair that must BOTH appear for the query to be
+# suspect. `value:` alone is not a signal — it is an ordinary single-occurrence field in Python's
+# `keyword_argument`, JS's `pair` and most others. It is only repeated on Swift's
+# `dictionary_literal`, which carries one `key:`/`value:` pair per entry with no wrapper node.
+_REPEATED_FIELD_PATTERNS = (
+    ("", "parameter:"),  # sql `invocation` — one field per argument
+    ("dictionary_literal", "value:"),  # swift
+)
+
+
+def test_repeated_field_captures_are_anchored() -> None:
+    """A repeated field pairs every occurrence with every other unless positions are anchored.
+
+    Found in production, not in review: `(invocation ... parameter: (term value: (literal) @algo))`
+    read all three arguments of `encrypt('', 'helm-ops-key', 'des')`, emitting `UNKNOWN()` and
+    `UNKNOWN(helm-ops-key)` beside the correct DES — the first two rated NOT vulnerable, and one of
+    them printing a KEY into the inventory as if it were an algorithm name.
+
+    The rule examples did not catch it because they all used a column reference for the data
+    argument, which is the one shape where the type constraint happens to do the anchoring.
+    """
+    import yaml
+
+    offenders: list[str] = []
+    for path in sorted(BUILTIN_RULES_DIR.rglob("*.yaml")):
+        rule_file = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for rule in rule_file["rules"]:
+            query = rule["match"]["query"]
+            # Comment lines inside a query start with `;` and may name the field they warn about.
+            code = "\n".join(
+                line for line in query.splitlines() if not line.strip().startswith(";")
+            )
+            # Naming a repeated field is the defect itself, in ANY pattern of the query: the
+            # correct form addresses those children positionally and never uses the field name.
+            # Checking whether the rule contains an anchor somewhere was not enough — one
+            # anchored pattern elsewhere in the same rule hid an unanchored one, and the lint
+            # passed on a rule I had deliberately broken to test it.
+            for node, field in _REPEATED_FIELD_PATTERNS:
+                if node:
+                    # Field is only repeated on this node type, so require an adjacency anchor.
+                    suspect = node in code and field in code and f". {field}" not in code
+                else:
+                    # Field is repeated wherever it appears; naming it at all is the bug.
+                    suspect = field in code
+                if suspect:
+                    offenders.append(f"{path.parent.name}/{path.name}:{rule['id']}")
+                    break
+
+    assert not offenders, (
+        "These rules match on a repeated grammar field with no `.` anchor, so any occurrence can "
+        "pair with any other — a key argument can be read as the algorithm:\n  "
+        + "\n  ".join(sorted(set(offenders)))
+    )
+
+
 def test_rule_ids_are_unique_within_a_language() -> None:
     """Two rules sharing an id make `dedupe: per-file` collapse unrelated findings together."""
     seen: dict[tuple[str, str], int] = {}

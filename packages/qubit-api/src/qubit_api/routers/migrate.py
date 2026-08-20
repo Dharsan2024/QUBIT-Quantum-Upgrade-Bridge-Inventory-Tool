@@ -7,6 +7,7 @@ Importing the state models here also registers the migration tables on the share
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 from qubit_core.db import AssetRow, ProjectRow
 from qubit_migrate.orchestrator import MigrationOrchestrator
 from qubit_migrate.state import MigrationPlan, MigrationTask, PatchProposal
+from qubit_migrate.state.machine import InvalidTransition
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -60,6 +62,9 @@ class TaskOut(BaseModel):
     asset_id: UUID
     state: str
     rule_id: str | None
+    #: True when `rule_id` names a rule with a deterministic codemod. Without it the app cannot
+    #: know that picking the "template" generator will 422, so it offered the option anyway.
+    has_codemod: bool = False
     priority: float
     rank: int
     effort_points: int
@@ -127,6 +132,18 @@ def _plan_out(plan: MigrationPlan) -> PlanOut:
     )
 
 
+@lru_cache(maxsize=1)
+def _codemod_rule_ids() -> frozenset[str]:
+    """Ids of the rules that carry a deterministic codemod.
+
+    Cached because the rule pack is read-only at runtime and this is consulted once per task in a
+    queue that can be several hundred rows long.
+    """
+    from qubit_migrate.transform import load_rules
+
+    return frozenset(r.id for r in load_rules() if r.codemod)
+
+
 def _task_out(task: MigrationTask, row: AssetRow | None) -> TaskOut:
     loc = (row.location or {}) if row else {}
     effort = task.effort_json or {}
@@ -138,6 +155,7 @@ def _task_out(task: MigrationTask, row: AssetRow | None) -> TaskOut:
         asset_id=task.asset_id,
         state=task.state,
         rule_id=task.rule_id,
+        has_codemod=task.rule_id in _codemod_rule_ids(),
         priority=task.priority,
         rank=task.rank,
         effort_points=task.effort_points,
@@ -238,6 +256,19 @@ def generate_patch(
             generator=payload.generator,
             repo_root=Path(payload.repo_root) if payload.repo_root else None,
         )
+    except InvalidTransition as e:
+        # Generating twice for the same task. The task FSM only allows `generate` from `ready`, and
+        # a second call arrives with the task already in `proposed` — which is reachable from the
+        # app by double-clicking Generate before the queue refetches, and was an uncaught 500 with
+        # a stack trace. 409 is the accurate answer: the request conflicts with the task's current
+        # state, and the existing patch is the thing to look at.
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{e} — this task already has a generated patch. Review or reject it before "
+                "generating another."
+            ),
+        ) from e
     except (ValueError, NotImplementedError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return _patch_out(patch)

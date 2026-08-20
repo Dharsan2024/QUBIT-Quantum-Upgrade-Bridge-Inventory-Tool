@@ -7,7 +7,10 @@ matches:
   # constraints for pyca. Without this rule, key exchange — the single highest-HNDL-risk finding
   # class there is, because recorded traffic becomes readable the moment the group breaks — had NO
   # migration path in any language other than Python.
-  file_suffix: [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp"]
+  file_suffix:
+    [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp",
+    ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart", ".sh", ".bash",
+    ".ps1", ".psm1", ".sql"]
   # Bare family names matter as much as sized ones: a keygen call that does not spell out a key size
   # normalizes to bare `RSA` / `EC` / `DH`, and those were the assets slipping through.
   algorithm:

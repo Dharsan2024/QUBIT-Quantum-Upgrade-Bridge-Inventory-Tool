@@ -109,6 +109,9 @@ export interface ProjectPlanRef {
   status: string;
   tasks: number;
   units: number;
+  with_codemod: number;
+  with_llm_rule: number;
+  manual: number;
   automatable: number;
   created_at: string;
   scan_id: string | null;
@@ -166,6 +169,13 @@ export interface MigrationPlan {
     tasks?: number;
     units?: number;
     message?: string;
+    /** Deterministic, offline codemod available. */
+    with_codemod?: number;
+    /** A rule exists, but the patch comes from a local LLM. */
+    with_llm_rule?: number;
+    /** No rule matches — changed by hand. */
+    manual?: number;
+    /** Has a rule of any kind (with_codemod + with_llm_rule). */
     automatable?: number;
     effort_points?: number;
     effort_hours_low?: number;
@@ -186,6 +196,9 @@ export interface MigrationTask {
   asset_id: string;
   state: string;
   rule_id: string | null;
+  /** True when `rule_id` names a rule with a deterministic codemod, so the "template" generator
+   *  will work. Without it, picking template returns 422 after the click. */
+  has_codemod: boolean;
   priority: number;
   rank: number;
   effort_points: number;

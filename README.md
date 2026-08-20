@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-1407%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-1434%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 1407 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 1434 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
 
 ---
 
@@ -63,6 +63,8 @@ A **Monte-Carlo simulation** of CRQC arrival blended with an expert-survey prior
 
 ### 4. Automated Migration
 A dependency graph plus WSJF prioritization feeds a 12-state FSM. **14 transform rules** cover every asset class QUBIT discovers — web-server and OpenSSH configuration, dependency manifests, and code across Python/Go/C/JS/TS/Java — each declaring its target, its `data_compat` hazard (`in_place` / `dual_read` / `reencrypt_required`), and a worked example that doubles as few-shot prompt content. Coverage is measured rather than asserted: a guard test sweeps **every detection rule's own positive examples** and requires that every vulnerable asset the scanner can produce has a transform rule that matches it — currently **100%** (it was 31% before this was measured). The classes deliberately excluded are the ones no code patch can fix, each with the operational action it needs instead: certificate reissue, HSM/Vault key rotation, and live-endpoint findings that are remediated by hardening the server's own config.
+
+Weak-hash remediation is deterministic in **all 19 scanned languages** — Ruby, PHP, C#, Rust, Kotlin, Scala, Swift, Dart, Bash, PowerShell, SQL and the rest — with each swap table written against that ecosystem's own reference documentation (cited in `codemods.py`) rather than from memory. Two of them need more than a rename and would otherwise produce code that compiles and then misbehaves: C# is statically typed, so the declared type moves with the factory call (`using (MD5 h = MD5.Create())` → `using (SHA256 h = SHA256.Create())`), and Swift's CommonCrypto path needs the digest **length constant** to move with the function or a 32-byte digest lands in a 20-byte buffer. Correctness is measured, not reviewed: every swap is run over a real fixture and the **output is rescanned by QUBIT's own scanner**, which must report the weak algorithm gone, SHA-256 present, and zero parse errors.
 
 The division of labour between deterministic codemods and the **local, sandboxed LLM** is explicit rather than incidental. Where the correct output is a *constant* — `ssl_ecdh_curve X25519MLKEM768`, `KexAlgorithms sntrup761x25519-sha512@openssh.com`, a dependency version floor — the codemod is marked `codemod_authoritative` and an LLM never replaces it, even when one is explicitly requested: a 7B model asked to harden an nginx.conf produced a config that *looked* modern (TLS 1.2+1.3, AEAD suites) while silently omitting the hybrid group, which is the one line that actually makes the deployment quantum-safe. The LLM is used where the transform needs judgement about surrounding code (key lengths, nonce handling, call-site changes), behind a repair loop that feeds rejections back for up to 3 attempts and a preservation guard that refuses a rewrite which drops unrelated code or fails to parse.
 
@@ -193,7 +195,7 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-1407 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+1434 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
 

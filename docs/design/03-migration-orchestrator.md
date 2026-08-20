@@ -252,16 +252,20 @@ hub), with that caveat stated on the control.
 `stats_json` carries the rollups the hub leads with, so they are not recomputed per render:
 
 ```python
-{"tasks": 16, "units": 3, "automatable": 0,           # how many tasks have a codemod rule at all
- "effort_points": 128, "effort_hours_low": 64.0, "effort_hours_high": 192.0,
- "by_algorithm": {"SHA-1": 4, "MD5": 3, "3DES": 2, ...}}
+{"tasks": 17, "units": 5,
+ "with_codemod": 3,      # deterministic, offline, same diff every time
+ "with_llm_rule": 4,     # a rule with a target + constraints, patch written by the local model
+ "manual": 10,           # no rule matches; someone edits the code
+ "automatable": 7,       # retained: with_codemod + with_llm_rule, which is what it always counted
+ "effort_points": 139, "effort_hours_low": 69.5, "effort_hours_high": 208.5,
+ "by_algorithm": {"MD5": 4, "AES": 3, "SHA-1": 3, ...}}
 ```
 
-`automatable` is the one that changes how the work is planned rather than merely describing it: a
-task with no matching rule has to be changed by hand whatever the app offers. Measured on the
-demo lab, an all-Swift project reports `0 / 16` and an all-PHP project `0 / 17` — QUBIT has no
-codemod for either language. Reporting a higher number would require matching them to a rule
-written for a different language, which is exactly the defect §6.2a records.
+The three-way split matters because the states need different things from the user, and the single
+`automatable` count hid that. Only 4 of the 14 rules carry a deterministic codemod; the rest route
+to a local Ollama model, which needs Ollama running and produces a patch a human must read. The hub
+tile said "Codemod available" over the combined number, overstating what the app can do offline by
+more than 2x on a real project (110 claimed against 46 actual).
 
 #### 4.2b Auto-building on scan completion
 
@@ -686,10 +690,83 @@ nothing).
 Pinned by `test_llm_generation.py::test_python_rules_do_not_claim_other_languages`, which asserts
 the resolved rule id for 20 paths; removing either guard fails 11 of them.
 
-**Not fixed here, and stated rather than implied:** the thirteen added languages still have no
-migration rules of their own. Every finding in them is a manual change. Adding a weak-hash swap
-table per language is real work — each needs the correct library idiom for that ecosystem, verified
-rather than guessed — and is tracked as follow-up, not quietly bundled into a matching fix.
+#### 6.2b Weak-hash codemods for all nineteen languages
+
+Adding the `.py` guard above left the thirteen newer languages matching **no** rule, which is honest
+but useless: every finding in them became a manual change. They now have real deterministic swap
+tables (`codemods._HASH_SWAPS`), one per language, each written against that ecosystem's own
+reference documentation rather than from memory. The citations are inline in the source; the ones
+with API subtleties were checked directly:
+
+| Language | Form | Source |
+|---|---|---|
+| Rust | `use sha2::{Sha256, Digest}`, `Sha256::new()` | docs.rs/sha2, docs.rs/md-5 |
+| Dart | `sha256.convert(bytes)` | pub.dev/packages/crypto |
+| C# | `SHA256.Create()`, `SHA256.HashData()` | learn.microsoft.com — `System.Security.Cryptography.SHA256` |
+| PHP | `hash('sha256', $data)` | php.net — `hash()` signature preserves the optional `$binary` arg |
+| PHP (sig) | `OPENSSL_ALGO_SHA256` | php.net — openssl signature algorithm constants |
+| Java/Kotlin/Scala | `"SHA-256"`, `"SHA256withRSA"` | Oracle Java SE 21 Standard Algorithm Names |
+| Swift | `SHA256.hash(data:)`, `CC_SHA256` | developer.apple.com — CryptoKit `Insecure` |
+
+Two of them needed more than a name swap, and getting either wrong would produce code that compiles
+and then misbehaves:
+
+* **C#** is statically typed, so the *declared type* has to move with the factory call —
+  `using (MD5 h = MD5.Create())` becomes `using (SHA256 h = SHA256.Create())`. Swapping only the
+  call site yields a type error.
+* **Swift/CommonCrypto** requires the digest **length constant** to move with the function, or a
+  32-byte digest is written into a 20-byte buffer. That is a stack overwrite, not a wrong answer.
+
+Correctness is measured rather than reviewed. `test_transform_coverage.py::
+test_weak_hash_swap_clears_the_finding` runs each swap over a real fixture in that language and then
+**rescans the output with QUBIT's own scanner**, asserting the weak algorithm is gone, SHA-256 is
+present, and the result parses with zero tree-sitter ERROR nodes. A swap producing plausible but
+wrong code fails there, because the scanner reads all nineteen of these languages.
+
+**Deliberately still not covered**, because a token swap cannot do it correctly:
+
+* MySQL's `MD5(x)` → `SHA2(x, 256)` changes the call's arity. PostgreSQL `digest(…, 'md5')` and
+  T-SQL `HASHBYTES('MD5', …)` are unambiguous and are swapped; the MySQL form is not.
+* A digest selected through a **variable** — `var algo = "MD5"; HashAlgorithm.Create(algo)` —
+  because rewriting the initialiser is unsafe from one call site. The patch is then genuinely
+  incomplete, and the rescan stage says so rather than the app claiming the file is clean.
+* Cipher and KEM rewrites, for the reason stated at the top of `codemods.py`: key and IV lengths
+  change with them.
+
+#### 6.2c Four bugs the codemod work exposed
+
+Each was found by running the pipeline and measuring, not by reading it.
+
+1. **The effort model had never run.** `build_plan` called `rank_ready_frontier(in_scope)` with no
+   `effort_kwargs_map`, so `estimate_effort` received `rule_kind=None` and `language="python"` for
+   every asset ever planned. Every task scored 8 points / 4–12 h with the single driver
+   "no rule matched (+8)" — including tasks whose matched rule id was written to the same row — and
+   since WSJF is `risk / effort.points`, the priority ranking was a **rescaled risk score**. The
+   additive table in §6.2 contributed nothing. Rules are now matched before ranking and their kind,
+   the file's real language and the data-compat class are passed in. Measured on the polyglot
+   corpus: effort spread from one value to four (1/5/8/13 points), and distinct WSJF values from 1
+   to 19 across 127 tasks. The cheapest high-value work — hardening `sshd_config`, 1 point — now
+   sorts to the top instead of being tied with everything else.
+
+2. **Validation was skipped for every cross-language patch.** `validate_patch` was called with
+   `target_rel_path=diff_path if repo_root else None`, but that argument exists only so
+   `_effective_language` can read the file's **suffix** — which needs no repository. Generating from
+   the app supplies no `repo_root`, so every `language: multi` rule fell back to `"multi"`, found no
+   grammar, and skipped both the syntax check and the rescan. Measured across 20 generated patches:
+   1 was validated, 19 were accepted with every stage `skipped`. After the fix, 16 of 19 run both
+   stages (the remainder are config files, which have no grammar by design).
+
+3. **A third copy of the language map.** `codemods.py` and `validate.py` each kept a private
+   suffix→language table and `validate.py` kept a third for rescan extensions; all listed 6–7
+   languages. Divergence was silent in the worst way — `.tsx` was in one and not another, so a React
+   component matched a rule, produced no edit, skipped the parse stage and reported success. All
+   three now come from `transform/languages.py`, and five tests assert the joins (see §8).
+
+4. **The `gone` rescan check was evaluated against the whole file.** A rule migrates one kind of
+   usage; `legacy.php` in the polyglot corpus has an MD5 digest, an HMAC-SHA1 and an
+   `OPENSSL_ALGO_SHA1` signature, owned by three different rules. Requiring every weak-hash name to
+   vanish from the file made a correct, complete weak-hash patch fail. The check is now scoped to
+   the algorithm of the asset being migrated.
 
 ### 6.3 LLM patch generation (with repair loop)
 

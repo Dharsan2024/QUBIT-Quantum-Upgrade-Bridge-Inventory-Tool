@@ -279,7 +279,11 @@ def _migrate(path: Path, generator: str, *, in_place: bool = False) -> None:
     session.commit()
 
     orch = MigrationOrchestrator(session)
-    plan = orch.build_plan()
+    # Scoped, even though this scratch database holds exactly one project and one scan:
+    # an unscoped plan records `project_id=None`, which the app reads as "built across
+    # everything before plans had a scope". Saying what it was really built from costs
+    # nothing and keeps one meaning for that null.
+    plan = orch.build_plan(project_id=project.id, scan_id=scan.id)
     applied = 0
     for task in orch.get_queue(plan.id):
         if not task.rule_id:

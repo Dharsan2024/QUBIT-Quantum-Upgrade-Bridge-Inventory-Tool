@@ -107,7 +107,11 @@ def demo_run(
 
     # 4. Plan
     orch = MigrationOrchestrator(session)
-    plan = orch.build_plan()
+    # Scoped, even though this scratch database holds exactly one project and one scan:
+    # an unscoped plan records `project_id=None`, which the app reads as "built across
+    # everything before plans had a scope". Saying what it was really built from costs
+    # nothing and keeps one meaning for that null.
+    plan = orch.build_plan(project_id=project.id, scan_id=scan.id)
     queue = orch.get_queue(plan.id)
     console.print(f"[bold]4. plan[/bold]          {len(queue)} tasks queued (WSJF-ranked)")
 

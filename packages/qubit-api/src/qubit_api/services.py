@@ -59,6 +59,67 @@ def next_scan_sequence(session: Session, project_id: UUID) -> int:
     return 1 if max_seq is None else int(max_seq) + 1
 
 
+def reconcile_project_plans(session: Session, project_id: UUID) -> int:
+    """Recompute every plan's stats for `project_id` from the tasks that still exist.
+
+    Deleting a scan cascades its assets, and a task cascades from its asset — so a plan can lose
+    some or all of its tasks without anything updating `stats_json`. The project overview reads
+    those stats, so a project with no assets left went on advertising "2 migration tasks", and the
+    queue behind that number was empty.
+
+    A plan with no tasks left is marked ``abandoned`` rather than deleted: it is still an accurate
+    record that work was planned, and the status is the vocabulary the model already has for it.
+
+    Returns the number of plans whose stored stats were wrong.
+    """
+    from qubit_migrate.state import MigrationPlan, MigrationTask
+
+    plans = session.scalars(
+        select(MigrationPlan).where(MigrationPlan.project_id == project_id)
+    ).all()
+    corrected = 0
+    for plan in plans:
+        remaining = session.scalar(
+            select(func.count()).select_from(MigrationTask).where(MigrationTask.plan_id == plan.id)
+        )
+        remaining = int(remaining or 0)
+        stats = dict(plan.stats_json or {})
+        if int(stats.get("tasks", 0)) == remaining and (remaining > 0 or plan.status != "active"):
+            continue
+
+        corrected += 1
+        if remaining == 0:
+            plan.status = "abandoned"
+            plan.stats_json = {
+                **stats,
+                "tasks": 0,
+                "units": 0,
+                "with_codemod": 0,
+                "with_llm_rule": 0,
+                "manual": 0,
+                "automatable": 0,
+                "message": "The scan this plan was built from has been deleted.",
+            }
+        else:
+            # Some tasks survive (a project-wide plan spanning several scans). Recount the ones
+            # that are actually still there rather than leaving the original totals.
+            rows = session.scalars(
+                select(MigrationTask).where(MigrationTask.plan_id == plan.id)
+            ).all()
+            with_rule = sum(1 for t in rows if t.rule_id)
+            stats.update(
+                tasks=remaining,
+                automatable=with_rule,
+                manual=remaining - with_rule,
+                effort_points=sum(t.effort_points for t in rows),
+            )
+            plan.stats_json = stats
+        session.add(plan)
+    if corrected:
+        session.commit()
+    return corrected
+
+
 def autobuild_migration_plan(session: Session, scan_id: UUID) -> UUID | None:
     """Build the migration plan for a scan that has just finished, and return its id.
 

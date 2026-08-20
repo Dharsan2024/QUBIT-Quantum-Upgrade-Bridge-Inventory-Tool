@@ -197,13 +197,19 @@ export function ProjectGrid({
                 <span className="metric-label">
                   {scanned ? relative(scanned.created_at) : 'never scanned'}
                 </span>
-                {p.plan ? (
+                {p.plan?.status === 'abandoned' ? (
+                  // The scan the plan was built from was deleted, so its tasks are gone. Showing
+                  // "0 tasks" would read as "nothing to migrate", which is a different claim.
+                  <span className="chip chip-warn" title="The scan this plan was built from was deleted. Rescan to plan again.">
+                    plan superseded
+                  </span>
+                ) : p.plan ? (
                   <span
                     className={p.plan.stale ? 'chip chip-warn' : 'chip chip-safe'}
                     title={
                       p.plan.stale
                         ? 'A scan finished after this plan was built — rebuild it to match'
-                        : `${p.plan.tasks} tasks, ${p.plan.automatable} with a codemod`
+                        : `${p.plan.tasks} tasks · ${p.plan.with_codemod} automatic, ${p.plan.with_llm_rule} LLM-assisted, ${p.plan.manual} manual`
                     }
                   >
                     {p.plan.stale ? (

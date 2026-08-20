@@ -131,9 +131,21 @@ function TaskRow({ task }: { task: MigrationTask }) {
         </td>
         <td className="px-4 py-3 text-xs">
           {task.rule_id ? (
-            <span className="font-mono text-[color:var(--color-ink-dim)]">{task.rule_id}</span>
+            <span className="flex flex-col gap-1">
+              <span className="font-mono text-[color:var(--color-ink-dim)]">{task.rule_id}</span>
+              <span
+                className={task.has_codemod ? 'chip chip-safe' : 'chip chip-info'}
+                title={
+                  task.has_codemod
+                    ? 'Deterministic codemod — runs offline and produces the same diff every time.'
+                    : 'No codemod for this rule; the patch is written by the local Ollama model and must be reviewed.'
+                }
+              >
+                {task.has_codemod ? 'automatic' : 'LLM-assisted'}
+              </span>
+            </span>
           ) : (
-            <span className="text-[color:var(--color-ink-faint)]">no codemod rule</span>
+            <span className="text-[color:var(--color-ink-faint)]">no migration rule</span>
           )}
         </td>
         <td className="px-4 py-3 text-xs tabular-nums text-[color:var(--color-accent)]">
@@ -150,14 +162,21 @@ function TaskRow({ task }: { task: MigrationTask }) {
         <td className="px-4 py-3 text-right">
           {task.rule_id && task.state === 'ready' && (
             <span className="inline-flex items-center gap-2">
+              {/* `template` is only offered when the rule actually has a codemod. Offering it
+                  unconditionally meant choosing it on any of the ten LLM-only rules returned
+                  422 "has no codemod fallback" — after the click. */}
               <select
                 value={generator}
                 onChange={(e) => setGenerator(e.target.value as 'auto' | 'llm' | 'template')}
                 className="glass-input px-2 py-1.5 text-xs"
-                title="auto = codemod when available; llm = local Ollama model"
+                title={
+                  task.has_codemod
+                    ? 'auto = the deterministic codemod; llm = local Ollama model'
+                    : 'This rule has no codemod, so generation goes to the local Ollama model.'
+                }
               >
                 <option value="auto">auto</option>
-                <option value="template">template</option>
+                {task.has_codemod && <option value="template">template</option>}
                 <option value="llm">llm</option>
               </select>
               <button
@@ -390,8 +409,8 @@ function ByFileView({ tasks }: { tasks: MigrationTask[] }) {
                 {shortPath(g.file, 3)}
               </div>
               <div className="metric-label mt-1">
-                {g.tasks.length} finding{g.tasks.length === 1 ? '' : 's'} · {g.automatable} with a
-                codemod · up to {g.hours} h
+                {g.tasks.length} finding{g.tasks.length === 1 ? '' : 's'} · {g.automatable} with
+                a migration rule · up to {g.hours} h
               </div>
             </div>
             <FileCode2 className="h-4 w-4 flex-none text-[color:var(--color-ink-faint)]" />
@@ -545,19 +564,38 @@ function DependencyGraphView({ planId }: { planId: string }) {
 }
 
 /** The plan's headline numbers — what it covers, how big it is, and how much of it QUBIT can do
- *  for you. `automatable` is the one that changes how the work is planned: a task with no codemod
- *  rule has to be changed by hand whatever the app says. */
+ *  for you. The three-way split is the part that changes how the work is planned: a task with
+ *  no codemod has to go through the local model, and one with no rule at all has to be changed
+ *  by hand whatever the app says. */
 function PlanSummary({ plan }: { plan: MigrationPlan }) {
   const s = plan.stats;
   const tasks = s.tasks ?? 0;
-  const automatable = s.automatable ?? 0;
+  // Three states, not one. The tile here used to read "Codemod available" over a count of tasks
+  // that matched ANY rule — but only 4 of the 14 rules carry a deterministic codemod, the rest
+  // route to a local LLM. On a real polyglot project that overstated what the app can do offline
+  // by more than 2x (110 claimed against 46 actual).
+  const withCodemod = s.with_codemod ?? 0;
+  const withLlm = s.with_llm_rule ?? 0;
+  const manual = s.manual ?? Math.max(0, tasks - (s.automatable ?? 0));
   const tiles = [
     { label: 'Tasks', value: String(tasks), color: 'var(--color-accent)' },
-    { label: 'Execution units', value: String(s.units ?? 0), color: 'var(--color-accent-2)' },
     {
-      label: 'Codemod available',
-      value: tasks ? `${automatable} / ${tasks}` : '—',
+      label: 'Automatic patch',
+      value: tasks ? `${withCodemod} / ${tasks}` : '—',
       color: 'var(--color-safe)',
+      hint: 'Deterministic codemod — runs offline, same diff every time.',
+    },
+    {
+      label: 'LLM-assisted',
+      value: String(withLlm),
+      color: 'var(--color-accent-2)',
+      hint: 'A rule with a target and constraints, but the patch is written by the local Ollama model and must be reviewed.',
+    },
+    {
+      label: 'Manual',
+      value: String(manual),
+      color: 'var(--color-warn)',
+      hint: 'No migration rule matches this asset — change it by hand, then rescan to confirm it is gone.',
     },
     {
       label: 'Estimated effort',
@@ -565,16 +603,17 @@ function PlanSummary({ plan }: { plan: MigrationPlan }) {
         s.effort_hours_low != null && s.effort_hours_high != null
           ? `${s.effort_hours_low}–${s.effort_hours_high} h`
           : '—',
-      color: 'var(--color-warn)',
+      color: 'var(--color-ink-dim)',
+      hint: 'Sum of the per-task additive estimate (doc 03 §6.2): rule kind, language, data-compatibility class and cross-service edges.',
     },
   ];
   const byAlgorithm = Object.entries(s.by_algorithm ?? {});
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="glass-card grid grid-cols-2 gap-5 p-5 lg:grid-cols-4">
+      <div className="glass-card grid grid-cols-2 gap-5 p-5 lg:grid-cols-5">
         {tiles.map((t) => (
-          <div key={t.label}>
+          <div key={t.label} title={t.hint}>
             <div className="metric text-[1.7rem] leading-none" style={{ color: t.color }}>
               {t.value}
             </div>

@@ -6,7 +6,7 @@ import contextlib
 import logging
 from datetime import UTC
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 from uuid import UUID
 
 from qubit_core import CryptoAsset
@@ -38,9 +38,20 @@ from .transform import (
     run_codemod,
     validate_patch,
 )
+from .transform.languages import language_for_suffix
 from .transform.llm import OllamaError, generate_llm_source
 
 logger = logging.getLogger(__name__)
+
+
+def _language_of(asset: CryptoAsset) -> str:
+    """The language of the file an asset was found in, for the effort model's language modifier.
+
+    `estimate_effort` defaults this to "python", and nothing ever overrode it — so the "Java
+    toolchain (+2)" modifier was unreachable even for Java.
+    """
+    path = asset.location.file_path if asset.location else None
+    return language_for_suffix(path) or "unknown"
 
 
 class MigrationOrchestrator:
@@ -50,6 +61,47 @@ class MigrationOrchestrator:
         self.session = session
         self.config = config or MigrateConfig()
         self._rules = load_rules()
+
+    # Effort inputs derived from the asset and its matched rule. Kept as a method rather than
+    # inlined so `test_effort.py` can exercise the mapping directly — the bug it guards against is
+    # not that the numbers are wrong but that they were never computed at all.
+    _RULE_KIND_BY_PREFIX: ClassVar[dict[str, str]] = {
+        "cfg-": "config",
+        "dep-": "config",
+    }
+
+    def _effort_inputs(self, asset: CryptoAsset, rule: Any | None) -> dict[str, Any]:
+        """Build the ``estimate_effort`` kwargs for one asset."""
+        if rule is None:
+            # Genuinely unmatched: no codemod, no LLM constraints, someone reads the code. That is
+            # what the +8 base is for, and now it means it.
+            return {
+                "language": _language_of(asset),
+                "cross_service": asset.usage_context.value in ("tls", "kex"),
+            }
+
+        rule_id = rule.id or ""
+        kind = next(
+            (k for prefix, k in self._RULE_KIND_BY_PREFIX.items() if rule_id.startswith(prefix)),
+            None,
+        )
+        if kind is None:
+            # Derive from what the rule is about, which is encoded in its id: `-signature-`,
+            # `-kex-`, `-weakhash-`, `-mac-`, `-tls-`, `-weakcipher-`.
+            if "signature" in rule_id or "sign" in rule_id:
+                kind = "signature"
+            elif "tls" in rule_id:
+                kind = "config"
+            else:
+                kind = "kex"
+
+        return {
+            "rule_kind": kind,
+            "language": _language_of(asset),
+            "data_compat": getattr(rule, "data_compat", None),
+            "library_pinned": asset.library is not None and bool(asset.library.version),
+            "cross_service": asset.usage_context.value in ("tls", "kex"),
+        }
 
     def build_plan(
         self,
@@ -119,8 +171,20 @@ class MigrationOrchestrator:
         id_to_asset = {a.id: a for a in in_scope}
         units = migration_order(g, id_to_asset=id_to_asset)
 
+        # Match rules FIRST, so the effort estimator can see them.
+        #
+        # This used to happen further down, once per unit member, which meant `rank_ready_frontier`
+        # was called with no `effort_kwargs_map` at all: `estimate_effort` then ran with
+        # `rule_kind=None` and `language="python"` for every asset, scored every task 8 points /
+        # 4-12 h with the driver "no rule matched (+8)" — even on tasks whose matched rule id was
+        # written to the very same row — and, because WSJF is `risk / effort.points`, reduced the
+        # priority ranking to a rescaled risk score. The additive table in doc 03 §6.2 had never
+        # run against real inputs.
+        rules_by_asset = {a.id: match_rule(a, self._rules) for a in in_scope}
+        effort_kwargs = {a.id: self._effort_inputs(a, rules_by_asset[a.id]) for a in in_scope}
+
         # Ranked tasks (ignoring prerequisites for the initial rank snapshot)
-        ranked = rank_ready_frontier(in_scope)
+        ranked = rank_ready_frontier(in_scope, effort_kwargs_map=effort_kwargs)
         rank_map = {rt.asset.id: rt for rt in ranked}
 
         for info in units:
@@ -135,7 +199,7 @@ class MigrationOrchestrator:
 
             for asset_id in info.member_ids:
                 rt = rank_map[asset_id]
-                rule = match_rule(rt.asset, self._rules)
+                rule = rules_by_asset[asset_id]
                 task = MigrationTask(
                     plan_id=plan.id,
                     unit_id=unit_db.id,
@@ -171,11 +235,23 @@ class MigrationOrchestrator:
         by_algorithm: dict[str, int] = {}
         for rt in ranked:
             by_algorithm[rt.asset.algorithm] = by_algorithm.get(rt.asset.algorithm, 0) + 1
-        tasks_built = [t for t in plan.tasks]
+        tasks_built = list(plan.tasks)
+        # Three states, not one "automatable" count. Only 4 of the 14 rules carry a deterministic
+        # codemod; the rest route to a local LLM, which needs Ollama running and produces a patch a
+        # human has to read. Reporting both as "codemod available" overstated what the app can do
+        # offline by more than 2x on a real polyglot project (110 claimed vs 46 actual).
+        codemod_rules = {r.id for r in self._rules if r.codemod}
+        with_codemod = sum(1 for t in tasks_built if t.rule_id in codemod_rules)
+        with_rule = sum(1 for t in tasks_built if t.rule_id)
         plan.stats_json = {
             "tasks": len(in_scope),
             "units": len(units),
-            "automatable": sum(1 for t in tasks_built if t.rule_id),
+            "with_codemod": with_codemod,
+            "with_llm_rule": with_rule - with_codemod,
+            "manual": len(tasks_built) - with_rule,
+            # Retained under its old name for anything reading the previous shape; it means "has a
+            # rule of any kind", which is what it always actually counted.
+            "automatable": with_rule,
             "effort_points": sum(t.effort_points for t in tasks_built),
             "effort_hours_low": round(
                 sum(float(t.effort_json.get("hours_low", 0.0)) for t in tasks_built), 1
@@ -295,8 +371,18 @@ class MigrationOrchestrator:
             try:
                 result = run_codemod(rule.codemod, asset, file_path)
                 if not result:
-                    self._fail_task(task, f"Codemod {rule.codemod} produced no change")
-                    raise ValueError("Codemod produced no change")
+                    # "Produced no change" is true but unhelpful, and for a dependency bump it is
+                    # actively misleading: the usual cause is that the pin is ALREADY at or above
+                    # the PQC-capable floor, which is a success condition, not a failure. The other
+                    # cause is that an earlier task in the same plan already remediated this file —
+                    # several assets routinely share one.
+                    detail = (
+                        f"nothing left for {rule.codemod} to change in "
+                        f"{Path(diff_path).name} — either this file was already remediated by an "
+                        "earlier task in this plan, or it already meets the target."
+                    )
+                    self._fail_task(task, detail)
+                    raise ValueError(detail)
                 orig, new = result
             except Exception as e:
                 self._fail_task(task, f"Codemod error: {e}")
@@ -309,8 +395,17 @@ class MigrationOrchestrator:
             rule=rule,
             repo_root=repo_root,
             language=rule.language,
-            target_rel_path=diff_path if repo_root else None,
+            # ALWAYS pass the path, not only when a repo root was supplied. `target_rel_path` is
+            # used by `_effective_language` purely to read the file's SUFFIX, which needs no repo —
+            # but it was gated on `repo_root`, and generating from the app supplies none. So for
+            # every cross-language rule (`language: multi`) the validator fell back to "multi",
+            # found no grammar for it, and skipped BOTH the syntax check and the rescan. Measured
+            # across 20 generated patches: only the one Python patch was validated at all; the
+            # other 18 were accepted with every stage `skipped`. `repo_root` still gates the
+            # `applies` stage on its own, which is the stage that genuinely needs a git repo.
+            target_rel_path=diff_path,
             no_docker=self.config.no_docker,
+            asset_algorithm=asset.algorithm,
         )
 
         patch = PatchProposal(

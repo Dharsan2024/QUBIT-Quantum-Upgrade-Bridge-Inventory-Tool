@@ -3,10 +3,21 @@ language: manifest
 title: "Crypto dependency pinned below its PQC-capable version → bump the floor"
 matches:
   source_scanner: [config]
-  file_suffix: [".txt", ".toml", ".xml"]
+  # Matched by NAME, not by suffix. `bump_crypto_dependency` understands exactly three manifest
+  # formats, and matching `.toml` claimed Cargo.toml / pubspec-adjacent files it cannot parse: the
+  # rule matched, the codemod returned "no change", and the app's Generate button answered
+  # `422 Codemod produced no change` after the click. `.xml` was equally broad — most XML in a repo
+  # is not a POM. The three names below are precisely what the codemod handles; adding a fourth
+  # means teaching the codemod that format and its PQC-capable version floors first.
+  file_name: ["requirements.txt", "pyproject.toml", "pom.xml"]
   # SCA findings for libraries whose newer releases provide PQC primitives.
   algorithm: ["RSA", "ECDSA-P256", "AES-256", "RS256", "ES256", "HS256"]
   usage_context: ["kex", "signature", "token", "encryption-at-rest"]
+  # Only the packages `codemods._MIN_PQC_VERSIONS` has a VERIFIED floor for. Without this the rule
+  # claimed every SCA finding in a requirements.txt — including PyJWT, for which no PQC-capable
+  # version has been established — and the Generate button answered "Codemod produced no change".
+  # Adding a package here means establishing its real minimum version first, not guessing one.
+  library_name: ["cryptography", "bcprov-jdk18on"]
 target:
   algorithm: ML-KEM-768
   mode: hybrid
@@ -22,6 +33,10 @@ semantic_note: >
   relaxed to `>=` deliberately - re-freezing the dependency would defeat the purpose - and a project
   already ahead of the minimum is left untouched. No code or data changes, so nothing to re-encrypt.
 codemod: bump_crypto_dependency
+# Ecosystems the dependency scanner reads but this rule does NOT cover: npm (package.json),
+# Composer, Cargo, Gemfile, NuGet (.csproj), Gradle, sbt, pub and SwiftPM. Each needs its own
+# pin syntax AND a verified minimum PQC-capable version per library; inventing either would be
+# worse than leaving those findings as manual work, which is what the app now shows.
 # The correct output here is a constant (the hybrid group / the version floor), so the codemod is
 # authoritative and an LLM must not replace it even under --generator llm.
 codemod_authoritative: true

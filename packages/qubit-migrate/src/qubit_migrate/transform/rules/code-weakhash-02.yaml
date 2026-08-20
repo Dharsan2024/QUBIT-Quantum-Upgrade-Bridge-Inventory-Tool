@@ -6,7 +6,9 @@ matches:
   # Everything EXCEPT .py — Python has its own rule using a precise libcst codemod that can also
   # take the argon2id password path, which a token swap cannot do.
   file_suffix:
-    [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp"]
+    [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp",
+    ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart", ".sh", ".bash",
+    ".ps1", ".psm1", ".sql"]
   algorithm: ["MD5", "SHA-1", "MD4", "RIPEMD-160", "SHA-224"]
   usage_context: ["hash", "unknown", "signature", "token"]
   library_name: [null]

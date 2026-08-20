@@ -4,7 +4,10 @@ title: "Weak/undersized symmetric cipher in Go, Java, JS, TS, C → AES-256-GCM"
 matches:
   source_scanner: [code]
   # Non-Python only; py-weakcipher-01 owns .py.
-  file_suffix: [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp"]
+  file_suffix:
+    [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp",
+    ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart", ".sh", ".bash",
+    ".ps1", ".psm1", ".sql"]
   # Bare `AES` and `DES` are here deliberately: a constructor that takes the key length from a
   # variable normalizes to the bare family, and those assets had no migration path at all.
   algorithm:

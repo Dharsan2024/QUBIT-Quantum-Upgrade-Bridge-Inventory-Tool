@@ -7,7 +7,9 @@ matches:
   # SSLContext, a tls.Config, an SSL_CTX_new(TLSv1_method()) — which no rule reached, so a service
   # hard-pinned to TLS 1.0 in code had no migration path at all.
   file_suffix:
-    [".py", ".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp"]
+    [".py", ".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp",
+    ".hpp", ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart", ".sh",
+    ".bash", ".ps1", ".psm1", ".sql"]
   algorithm: ["SSLv2", "SSLv3", "TLSv1.0", "TLSv1.1"]
   usage_context: ["tls", "unknown"]
   library_name: [null]

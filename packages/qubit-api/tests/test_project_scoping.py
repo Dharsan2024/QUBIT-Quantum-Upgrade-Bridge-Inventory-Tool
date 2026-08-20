@@ -379,3 +379,80 @@ def test_plan_timestamps_carry_a_timezone(client: TestClient, two_projects: dict
         "the plan looks older than the scan it was built from, which is what makes the hub call "
         "every fresh plan outdated"
     )
+
+
+def test_deleting_a_scan_does_not_leave_a_plan_advertising_tasks_it_no_longer_has(
+    client: TestClient, two_projects: dict[str, Any]
+) -> None:
+    """Deleting a scan cascades its assets; a migration task cascades from its asset.
+
+    `stats_json` is denormalised and cascades from nothing, so the plan row survived advertising its
+    original task count over an empty queue. Measured before the fix: a project reporting 0 assets
+    and 0 scans still showed an active plan of "2 migration tasks" on the Migration Hub grid.
+
+    `scan_id` is ON DELETE SET NULL by design — the plan remains a real record that work was planned
+    — so the counts have to be recomputed rather than the row removed.
+    """
+    project_id = two_projects["a_project"]
+    before = next(
+        r for r in client.get("/api/v1/projects/overview").json() if r["id"] == project_id
+    )
+    assert before["plan"]["tasks"] > 0
+    plan_id = before["plan"]["id"]
+    assert client.get(f"/api/v1/migrate/plans/{plan_id}/queue").json()
+
+    assert client.delete(f"/api/v1/scans/{two_projects['a_scan']}").status_code == 204
+
+    after = next(r for r in client.get("/api/v1/projects/overview").json() if r["id"] == project_id)
+    assert after["assets"] == 0
+    queue = client.get(f"/api/v1/migrate/plans/{plan_id}/queue").json()
+    assert queue == [], "the tasks should have cascaded away with their assets"
+    assert after["plan"]["tasks"] == len(queue) == 0, (
+        f"plan still advertises {after['plan']['tasks']} tasks over an empty queue"
+    )
+    assert after["plan"]["status"] == "abandoned"
+    assert after["plan"]["units"] == 0
+
+    # The other project is untouched.
+    other = next(
+        r
+        for r in client.get("/api/v1/projects/overview").json()
+        if r["id"] == two_projects["b_project"]
+    )
+    assert other["plan"]["tasks"] > 0
+    assert other["plan"]["status"] == "active"
+
+
+def test_generating_a_patch_twice_is_a_conflict_not_a_crash(
+    client: TestClient, two_projects: dict[str, Any]
+) -> None:
+    """Double-clicking Generate must not 500.
+
+    The task FSM only allows the `generate` event from state `ready`, and the second call arrives
+    with the task already in `proposed`. `InvalidTransition` was not among the exceptions the route
+    caught, so it escaped as a 500 with a stack trace — reachable from the app by clicking Generate
+    twice before the queue refetches.
+    """
+    plans = client.get(
+        "/api/v1/migrate/plans", params={"project_id": two_projects["a_project"]}
+    ).json()
+    queue = client.get(f"/api/v1/migrate/plans/{plans[0]['id']}/queue").json()
+    task = next((t for t in queue if t["has_codemod"]), None)
+    assert task is not None, "no task with a deterministic codemod to generate from"
+
+    first = client.post(
+        f"/api/v1/migrate/tasks/{task['id']}/generate", json={"generator": "template"}
+    )
+    assert first.status_code == 200, first.text
+
+    second = client.post(
+        f"/api/v1/migrate/tasks/{task['id']}/generate", json={"generator": "template"}
+    )
+    assert second.status_code == 409, (
+        f"expected a conflict, got {second.status_code}: {second.text[:200]}"
+    )
+    assert "already has a generated patch" in second.json()["detail"]
+
+    # And exactly one patch was stored — a second would leave two conflicting diffs for one task.
+    patches = client.get(f"/api/v1/migrate/tasks/{task['id']}/patches").json()
+    assert len(patches) == 1

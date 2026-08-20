@@ -21,24 +21,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-StageStatus = Literal["pass", "fail", "skipped"]
+from .languages import LANGUAGE_TO_EXT, TS_GRAMMAR
+from .languages import SUFFIX_TO_LANGUAGE as _SUFFIX_TO_LANGUAGE
 
-# File suffix -> concrete language, for rules that legitimately span several languages.
-_SUFFIX_TO_LANGUAGE = {
-    ".py": "python",
-    ".go": "go",
-    ".java": "java",
-    ".js": "javascript",
-    ".mjs": "javascript",
-    ".cjs": "javascript",
-    ".ts": "typescript",
-    ".tsx": "typescript",
-    ".c": "c",
-    ".h": "c",
-    ".cc": "cpp",
-    ".cpp": "cpp",
-    ".hpp": "cpp",
-}
+StageStatus = Literal["pass", "fail", "skipped"]
 
 
 def _effective_language(rule_language: str, target_rel_path: str | None) -> str:
@@ -127,16 +113,12 @@ _NON_CODE_LANGUAGES = frozenset(
     {"nginx", "apache", "httpd", "sshd_config", "ssh_config", "config", "manifest", ""}
 )
 
-# Rule language -> tree-sitter grammar name, for the languages that do have one.
-_TS_LANGUAGES = {
-    "python": "python",
-    "java": "java",
-    "go": "go",
-    "javascript": "javascript",
-    "typescript": "typescript",
-    "c": "c",
-    "cpp": "cpp",
-}
+# Rule language -> tree-sitter grammar name. Imported rather than restated: this used to be a
+# 7-entry copy alongside a second copy of the suffix map in this same file, and the two drifted —
+# `.tsx` was in one and not the other, so a React component matched a rule, produced no edit, and
+# skipped the parse stage, reporting a patch that changed nothing as valid. See
+# `transform/languages.py`.
+_TS_LANGUAGES = TS_GRAMMAR
 
 
 def _stage_parses(patched_source: str, language: str = "python") -> StageResult:
@@ -210,8 +192,16 @@ def _stage_rescan(
     patched_source: str,
     rule: Any | None,
     language: str = "python",
+    asset_algorithm: str | None = None,
 ) -> StageResult:
-    """Run qubit scan --json on the patched source and check rescan_expect."""
+    """Run qubit scan --json on the patched source and check rescan_expect.
+
+    ``asset_algorithm`` scopes the ``gone`` check to the algorithm this patch was migrating. Without
+    it the check asserted that no listed weak algorithm appears anywhere in the file, which fails
+    whenever a file mixes usages that different rules own — an MD5 digest beside an HMAC-SHA1 and a
+    SHA-1 signature is ordinary code, and `code-weakhash-02` is responsible for exactly one of the
+    three.
+    """
     t0 = time.monotonic()
     if rule is None or rule.rescan_expect is None:
         return StageResult("skipped", "no rescan_expect in rule", time.monotonic() - t0)
@@ -220,16 +210,10 @@ def _stage_rescan(
     # and scanned as Python: zero detections, so any `present:` expectation failed and a correct
     # rewrite was rejected. Every language the scanner supports now maps to its real extension, and
     # an unknown one skips rather than being scanned as the wrong language.
-    ext_map = {
-        "python": ".py",
-        "go": ".go",
-        "java": ".java",
-        "javascript": ".js",
-        "typescript": ".ts",
-        "c": ".c",
-        "cpp": ".cpp",
-    }
-    ext = ext_map.get(language)
+    # Shared with the codemod dispatcher and the suffix map — see transform/languages.py. This was
+    # a third private copy listing 7 languages, so the rescan (the only stage that checks the patch
+    # actually removed the weak algorithm) silently skipped for the other 12.
+    ext = LANGUAGE_TO_EXT.get(language)
     if ext is None:
         return StageResult(
             "skipped",
@@ -276,6 +260,14 @@ def _stage_rescan(
 
             gone_prefixes = _prefixes(expect.get("gone", {}).get("algorithm_prefix", ""))
             present_prefixes = _prefixes(expect.get("present", {}).get("algorithm_prefix", ""))
+
+            # Narrow `gone` to the prefixes that actually describe THIS patch's algorithm. A rule
+            # lists every algorithm it can migrate; one patch migrates one of them, and the others
+            # may legitimately still be in the file under a usage this rule does not own.
+            if asset_algorithm:
+                matching = [p for p in gone_prefixes if asset_algorithm.startswith(p)]
+                if matching:
+                    gone_prefixes = matching
 
             for gone_prefix in gone_prefixes:
                 still_present = [a for a in algos if a.startswith(gone_prefix)]
@@ -445,6 +437,7 @@ def validate_patch(
     language: str = "python",
     target_rel_path: str | None = None,
     no_docker: bool = False,
+    asset_algorithm: str | None = None,
 ) -> ValidationReport:
     """Run validation stages 1 applies, 2 parses, 3 compiles, 4 tests, 5 rescan.
 
@@ -464,7 +457,7 @@ def validate_patch(
     else:
         stages["compiles"] = _stage_compiles(patched_source, language)
         stages["tests"] = _stage_tests(patched_source, repo_root, target_rel_path, language)
-    stages["rescan"] = _stage_rescan(patched_source, rule, language)
+    stages["rescan"] = _stage_rescan(patched_source, rule, language, asset_algorithm)
 
     passed = all(v.status in ("pass", "skipped") for v in stages.values())
     partial = any(v.status == "skipped" for v in stages.values())

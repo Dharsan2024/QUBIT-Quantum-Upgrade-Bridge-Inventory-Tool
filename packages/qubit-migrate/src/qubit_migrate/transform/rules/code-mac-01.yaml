@@ -5,7 +5,9 @@ matches:
   source_scanner: [code]
   # Every language including Python: this is a hash/parameter choice, not a library-specific rewrite.
   file_suffix:
-    [".py", ".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp"]
+    [".py", ".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp",
+    ".hpp", ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart", ".sh",
+    ".bash", ".ps1", ".psm1", ".sql"]
   # Bare `HMAC` means the call site did not name a hash, so the scanner cannot tell whether it is
   # SHA-256 or SHA-1. HMAC-SHA1/MD5 name a broken one outright. HMAC-SHA-256/384/512 are already
   # quantum-safe and are deliberately NOT matched — there is nothing to migrate.

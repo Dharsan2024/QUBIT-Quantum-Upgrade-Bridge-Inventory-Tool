@@ -79,6 +79,12 @@ class ProjectPlanRef(BaseModel):
     status: str
     tasks: int = 0
     units: int = 0
+    #: Deterministic, offline codemod available — press Generate and read a one-line diff.
+    with_codemod: int = 0
+    #: A rule with a target and constraints, but the patch comes from a local LLM.
+    with_llm_rule: int = 0
+    #: No rule matches; the change is made by hand.
+    manual: int = 0
     automatable: int = 0
     created_at: UtcDateTime
     scan_id: UUID | None = None

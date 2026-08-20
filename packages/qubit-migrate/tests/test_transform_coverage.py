@@ -19,6 +19,7 @@ from qubit_core import CryptoAsset
 from qubit_core.schemas import (
     AssetType,
     Evidence,
+    LibraryRef,
     Location,
     QuantumAttack,
     QuantumVulnerability,
@@ -36,14 +37,23 @@ def _asset(
     source: SourceScanner = SourceScanner.code,
     usage: UsageContext = UsageContext.hash,
     path: str = "a.py",
+    library: str | None = None,
 ) -> CryptoAsset:
+    """A synthetic asset.
+
+    `library` matters for manifest findings: every asset the dependency scanner emits carries a
+    package name (verified — 31 of 31 library assets in the polyglot corpus have one), and
+    `dep-pqc-01` matches on it so it only claims packages with a verified PQC-capable floor. An
+    SCA fixture without a library name is therefore not a realistic one.
+    """
     return CryptoAsset(
         source_scanner=source,
-        asset_type=AssetType.algorithm_use,
+        asset_type=AssetType.library if library else AssetType.algorithm_use,
         algorithm=algorithm,
         usage_context=usage,
         quantum_vulnerable=QuantumVulnerability(vulnerable=True, attack=QuantumAttack.shor),
         location=Location(file_path=path, line=1),
+        library=LibraryRef(name=library) if library else None,
         evidence=Evidence(),
     )
 
@@ -104,7 +114,6 @@ def test_data_compat_reflects_real_migration_hazard() -> None:
         ("3DES", SourceScanner.code, UsageContext.encryption_at_rest, "a.py", "py-weakcipher-01"),
         ("TLSv1.0", SourceScanner.config, UsageContext.tls, "nginx.conf", "cfg-tls-01"),
         ("ssh-rsa", SourceScanner.config, UsageContext.signature, "sshd_config", "cfg-ssh-01"),
-        ("RSA", SourceScanner.config, UsageContext.kex, "requirements.txt", "dep-pqc-01"),
     ],
 )
 def test_asset_routes_to_expected_rule(
@@ -114,6 +123,46 @@ def test_asset_routes_to_expected_rule(
     rule = match_rule(_asset(algorithm, source=source, usage=usage, path=path))
     assert rule is not None, f"{algorithm} ({path}) matched no rule"
     assert rule.id == expected
+
+
+@pytest.mark.parametrize(
+    ("library", "path", "expected"),
+    [
+        # Packages with a verified PQC-capable floor in codemods._MIN_PQC_VERSIONS.
+        ("cryptography", "requirements.txt", "dep-pqc-01"),
+        ("cryptography", "pyproject.toml", "dep-pqc-01"),
+        ("bcprov-jdk18on", "pom.xml", "dep-pqc-01"),
+        # A package with no established floor must NOT be claimed: the rule would match, the
+        # codemod would find nothing to bump, and the app's Generate button would answer 422.
+        ("pyjwt", "requirements.txt", None),
+        # A manifest format the codemod cannot parse at all. Matching `.toml` by suffix claimed
+        # Cargo.toml and produced exactly that 422.
+        ("md-5", "Cargo.toml", None),
+        ("jsonwebtoken", "package.json", None),
+    ],
+)
+def test_dependency_rule_only_claims_packages_it_can_actually_bump(
+    library: str, path: str, expected: str | None
+) -> None:
+    """A rule that matches but produces no patch is worse than one that does not match.
+
+    `dep-pqc-01` matched on `file_suffix: [".txt", ".toml", ".xml"]` and any of six algorithm names,
+    so it claimed every SCA finding in any of those files — Cargo.toml, package.json, an arbitrary
+    XML — while `bump_crypto_dependency` knows three manifest formats and two packages. The
+    Migration Hub offered Generate on all of them and answered `422 Codemod produced no change`
+    after the click.
+    """
+    load_rules.cache_clear()
+    rule = match_rule(
+        _asset(
+            "RSA",
+            source=SourceScanner.config,
+            usage=UsageContext.kex,
+            path=path,
+            library=library,
+        )
+    )
+    assert (rule.id if rule else None) == expected
 
 
 def test_config_rules_do_not_claim_source_code_assets() -> None:
@@ -244,12 +293,24 @@ def test_authoritative_rules_actually_have_a_codemod_to_be_authoritative_with() 
     assert not broken, f"rules claiming codemod authority but declaring no codemod: {broken}"
 
 
-@pytest.mark.parametrize("filename", ["requirements.txt", "pyproject.toml", "pom.xml"])
-def test_dependency_manifests_do_not_route_to_config_hardening(filename: str) -> None:
+@pytest.mark.parametrize(
+    ("filename", "library"),
+    [
+        ("requirements.txt", "cryptography"),
+        ("pyproject.toml", "cryptography"),
+        ("pom.xml", "bcprov-jdk18on"),
+    ],
+)
+def test_dependency_manifests_do_not_route_to_config_hardening(filename: str, library: str) -> None:
     """The dependency scanner reports manifests with `source_scanner=config` too, so provenance
     alone cannot separate them from an sshd_config. Without filename matching, an ECDSA-P256 pin in
     requirements.txt was claimed by cfg-ssh-01 and the sshd hardening codemod was pointed at a
-    pip manifest."""
+    pip manifest.
+
+    The fixtures carry a package name because every asset the dependency scanner emits does (31 of
+    31 in the polyglot corpus), and `dep-pqc-01` now matches on it — a nameless SCA asset is not a
+    shape this scanner can produce.
+    """
     load_rules.cache_clear()
     rule = match_rule(
         _asset(
@@ -257,6 +318,7 @@ def test_dependency_manifests_do_not_route_to_config_hardening(filename: str) ->
             source=SourceScanner.config,
             usage=UsageContext.signature,
             path=filename,
+            library=library,
         )
     )
     assert rule is not None, f"{filename} matched no rule at all"
@@ -297,3 +359,434 @@ def test_apache_hardening_is_idempotent() -> None:
     assert changed
     _, changed_again = harden_apache(hardened)
     assert changed_again is False
+
+
+# ── Weak-hash swaps, one language at a time ──────────────────────────────────
+#
+# `code-weakhash-02` covers every language the scanner reads except Python (which has its own
+# libcst rule). Each fixture below is real code in that ecosystem's idiom, and each case is checked
+# three ways rather than by reading the diff:
+#
+#   1. the swap changed something at all;
+#   2. QUBIT's own scanner, rescanning the OUTPUT, no longer reports a weak algorithm and now
+#      reports SHA-256 — this is what catches a swap that produces plausible but wrong code;
+#   3. the output parses with zero tree-sitter ERROR nodes, because a file can still yield findings
+#      while being syntactically broken.
+#
+# Without (2) a "passing" test only proves that text was replaced with other text.
+
+_WEAK_HASHES = frozenset({"MD5", "SHA-1", "MD4", "RIPEMD-160"})
+
+_HASH_FIXTURES: dict[str, tuple[str, str]] = {
+    "ruby": (
+        "billing.rb",
+        """require 'digest'
+require 'openssl'
+
+def fingerprint(payload)
+  Digest::MD5.hexdigest(payload)
+end
+
+def marker(payload)
+  Digest::SHA1.hexdigest(payload)
+end
+
+def legacy(payload)
+  OpenSSL::Digest::MD5.new.digest(payload)
+end
+""",
+    ),
+    "php": (
+        "legacy.php",
+        """<?php
+function fingerprint(string $payload): string {
+    return md5($payload);
+}
+function marker(string $payload): string {
+    return sha1($payload);
+}
+function named(string $payload): string {
+    return hash('md5', $payload);
+}
+""",
+    ),
+    # The declared type has to move with the factory call or this does not compile:
+    # `using (MD5 hasher = SHA256.Create())` is a type error, not a working patch.
+    "csharp": (
+        "Vault.cs",
+        """using System.Security.Cryptography;
+
+public static class Vault
+{
+    public static byte[] Fingerprint(byte[] payload)
+    {
+        using (MD5 hasher = MD5.Create())
+        {
+            return hasher.ComputeHash(payload);
+        }
+    }
+
+    public static byte[] Marker(byte[] payload)
+    {
+        using var sha = SHA1.Create();
+        return sha.ComputeHash(payload);
+    }
+
+    public static byte[] OneShot(byte[] payload) => MD5.HashData(payload);
+}
+""",
+    ),
+    "rust": (
+        "seal.rs",
+        """use md5::{Md5, Digest};
+
+pub fn fingerprint(payload: &[u8]) -> Vec<u8> {
+    let mut hasher = Md5::new();
+    hasher.update(payload);
+    hasher.finalize().to_vec()
+}
+
+pub fn one_shot(payload: &[u8]) -> Vec<u8> {
+    Md5::digest(payload).to_vec()
+}
+""",
+    ),
+    "kotlin": (
+        "Crypto.kt",
+        """import java.security.MessageDigest
+
+fun fingerprint(payload: ByteArray): ByteArray {
+    val digest = MessageDigest.getInstance("MD5")
+    return digest.digest(payload)
+}
+
+fun marker(payload: ByteArray): ByteArray =
+    MessageDigest.getInstance("SHA-1").digest(payload)
+""",
+    ),
+    "scala": (
+        "Ledger.scala",
+        """import java.security.MessageDigest
+
+object Ledger {
+  def fingerprint(payload: Array[Byte]): Array[Byte] =
+    MessageDigest.getInstance("MD5").digest(payload)
+
+  def marker(payload: Array[Byte]): Array[Byte] =
+    MessageDigest.getInstance("SHA-1").digest(payload)
+}
+""",
+    ),
+    # CommonCrypto's DIGEST_LENGTH constant must move with the function, or a 32-byte digest is
+    # written into a 20-byte buffer — a stack overwrite rather than a wrong answer.
+    "swift": (
+        "Wallet.swift",
+        """import CryptoKit
+import CommonCrypto
+import Foundation
+
+func fingerprint(_ payload: Data) -> String {
+    let digest = Insecure.MD5.hash(data: payload)
+    return digest.map { String(format: "%02x", $0) }.joined()
+}
+
+func marker(_ payload: Data) -> String {
+    let digest = Insecure.SHA1.hash(data: payload)
+    return digest.map { String(format: "%02x", $0) }.joined()
+}
+
+func legacy(_ payload: Data) -> Data {
+    var out = [UInt8](repeating: 0, count: Int(CC_SHA1_DIGEST_LENGTH))
+    _ = payload.withUnsafeBytes { CC_SHA1($0.baseAddress, CC_LONG(payload.count), &out) }
+    return Data(out)
+}
+""",
+    ),
+    "dart": (
+        "fleet.dart",
+        """import 'package:crypto/crypto.dart';
+import 'dart:convert';
+
+String fingerprint(String payload) {
+  return md5.convert(utf8.encode(payload)).toString();
+}
+
+String marker(String payload) {
+  return sha1.convert(utf8.encode(payload)).toString();
+}
+""",
+    ),
+    "bash": (
+        "provision.sh",
+        """#!/usr/bin/env bash
+set -euo pipefail
+
+fingerprint() {
+  md5sum "$1" | cut -d' ' -f1
+}
+
+marker() {
+  sha1sum "$1" | cut -d' ' -f1
+}
+
+legacy() {
+  openssl dgst -md5 "$1"
+}
+""",
+    ),
+    "powershell": (
+        "Provision.ps1",
+        """param([string]$Path)
+
+function Get-Fingerprint {
+    Get-FileHash -Algorithm MD5 -Path $Path
+}
+
+function Get-Marker {
+    Get-FileHash -Algorithm SHA1 -Path $Path
+}
+""",
+    ),
+    # Only the dialect-unambiguous forms are swapped. MySQL's `MD5(x)` is deliberately excluded —
+    # its replacement `SHA2(x, 256)` changes the call's arity.
+    "sql": (
+        "V3__hash.sql",
+        """CREATE TABLE estate_credentials (
+    id SERIAL PRIMARY KEY,
+    secret TEXT NOT NULL,
+    fingerprint BYTEA NOT NULL DEFAULT digest('', 'md5'),
+    marker BYTEA NOT NULL DEFAULT digest('', 'sha1')
+);
+""",
+    ),
+    "cpp": (
+        "gateway.cpp",
+        """#include <QCryptographicHash>
+#include <openssl/evp.h>
+
+QByteArray fingerprint(const QByteArray &payload) {
+    return QCryptographicHash::hash(payload, QCryptographicHash::Md5);
+}
+
+const EVP_MD *legacy() { return EVP_sha1(); }
+""",
+    ),
+    "tsx": (
+        "Component.tsx",
+        """import crypto from 'node:crypto';
+
+export function Fingerprint({ payload }: { payload: string }) {
+  const digest = crypto.createHash('md5').update(payload).digest('hex');
+  return <span>{digest}</span>;
+}
+""",
+    ),
+}
+
+
+@pytest.mark.parametrize("language", sorted(_HASH_FIXTURES))
+def test_weak_hash_swap_clears_the_finding(language: str, tmp_path: Path) -> None:
+    """Swapping a weak hash must actually remove it, in every language the scanner reads.
+
+    This is the test that makes the swap tables trustworthy. `_apply_hash_swap` returning
+    `changed=True` only proves text was replaced; rescanning the output with QUBIT's own scanner
+    proves the replacement means what it is supposed to mean.
+    """
+    from qubit_migrate.transform.codemods import _apply_hash_swap
+    from qubit_migrate.transform.validate import _stage_parses
+    from qubit_scanner import scan_paths
+
+    filename, source = _HASH_FIXTURES[language]
+
+    before_path = tmp_path / f"before_{filename}"
+    before_path.write_text(source, encoding="utf-8")
+    before = {a.algorithm for a in scan_paths([before_path]).assets}
+    assert before & _WEAK_HASHES, (
+        f"the {language} fixture does not contain a weak hash the scanner can see "
+        f"({sorted(before)}), so this test would pass without testing anything"
+    )
+
+    patched, changed = _apply_hash_swap(source, language)
+    assert changed, f"no swap fired for {language}"
+
+    after_path = tmp_path / f"after_{filename}"
+    after_path.write_text(patched, encoding="utf-8")
+    after = {a.algorithm for a in scan_paths([after_path]).assets}
+
+    assert not (after & _WEAK_HASHES), (
+        f"{language}: still weak after the swap — {sorted(after & _WEAK_HASHES)}"
+    )
+    assert "SHA-256" in after, (
+        f"{language}: the weak hash is gone but SHA-256 is not there — the swap produced code the "
+        f"scanner cannot read as a digest at all. Got {sorted(after)}"
+    )
+
+    parsed = _stage_parses(patched, language)
+    assert parsed.status == "pass", f"{language}: patched output does not parse — {parsed.detail}"
+
+
+def test_every_language_with_a_swap_table_is_reachable_from_a_rule() -> None:
+    """A swap table nothing routes to is dead code, and a suffix that routes nowhere is worse.
+
+    The second half is the one that bit: `.tsx` and `.cjs` appeared in some rules' `file_suffix`
+    lists but in neither the codemod's suffix map nor the validator's, so a React component matched
+    the rule, produced no edit, skipped the parse stage, and reported success.
+    """
+    from qubit_migrate.transform.codemods import _HASH_SWAPS
+    from qubit_migrate.transform.languages import SUFFIX_TO_LANGUAGE
+
+    weakhash = next(r for r in load_rules() if r.id == "code-weakhash-02")
+    suffixes = weakhash.matches["file_suffix"]
+
+    unmapped = [s for s in suffixes if s not in SUFFIX_TO_LANGUAGE]
+    assert not unmapped, (
+        f"code-weakhash-02 lists suffixes with no language mapping: {unmapped}. The rule would "
+        "match those files and then produce no edit."
+    )
+
+    languages = {SUFFIX_TO_LANGUAGE[s] for s in suffixes}
+    without_table = sorted(lang for lang in languages if lang not in _HASH_SWAPS)
+    assert not without_table, (
+        f"code-weakhash-02 claims these languages but has no swap table for them: {without_table}"
+    )
+
+
+def test_every_rule_suffix_has_a_language_and_a_grammar() -> None:
+    """Across every rule pack, not just the weak-hash one.
+
+    A source-code rule listing a suffix with no language mapping makes the validator fall back to
+    the rule's own `language`, and for a `multi` rule that means the parse stage is skipped — so a
+    patch that changed nothing, or broke the file, passes validation.
+
+    Manifest and config rules are exempt by design, not by omission: `requirements.txt`,
+    `pyproject.toml` and `pom.xml` are not source code and have no grammar to check against. The
+    test asserts they resolve to a language `_stage_parses` deliberately skips, rather than just
+    letting any unmapped suffix through.
+    """
+    from qubit_migrate.transform.languages import SUFFIX_TO_LANGUAGE, TS_GRAMMAR
+    from qubit_migrate.transform.validate import _NON_CODE_LANGUAGES
+
+    problems: list[str] = []
+    for rule in load_rules():
+        rule_is_code = rule.language not in _NON_CODE_LANGUAGES
+        for suffix in rule.matches.get("file_suffix") or []:
+            language = SUFFIX_TO_LANGUAGE.get(suffix)
+            if language is None:
+                if rule_is_code:
+                    problems.append(
+                        f"{rule.id} (language={rule.language}) lists {suffix}, which maps to no "
+                        "language — the validator cannot parse-check its patches"
+                    )
+                elif rule.language not in _NON_CODE_LANGUAGES:
+                    problems.append(
+                        f"{rule.id}: {suffix} is unmapped and {rule.language!r} is not a "
+                        "recognised non-code language, so the parse stage neither runs nor skips "
+                        "deliberately"
+                    )
+            elif language not in TS_GRAMMAR:
+                problems.append(f"{rule.id}: {suffix} -> {language} has no tree-sitter grammar")
+    assert not problems, "\n".join(problems)
+
+
+# ── Parity between what the scanner reads and what migration can act on ──────
+#
+# The recurring failure in this repo is not a wrong transform, it is a subsystem growing while a
+# neighbouring one does not follow. Code scanning went from 6 grammars to 19; the codemod tables,
+# the validator's grammar map, the validator's rescan-extension map and the rule packs' suffix lists
+# each stayed at 6-7 and each failed *silently* — a rule matched, nothing was edited, validation
+# skipped, and the patch reported success.
+#
+# These assert the joins rather than the pieces.
+
+
+def test_every_scanner_language_is_known_to_migrate() -> None:
+    """A language the scanner reads but migration does not know produces findings nothing can act
+    on, and — worse — a patch the validator cannot parse-check."""
+    from qubit_migrate.transform.languages import SUFFIX_TO_LANGUAGE
+    from qubit_scanner.code.languages import EXT_TO_LANGUAGE
+
+    scanner = set(EXT_TO_LANGUAGE.values())
+    migrate = set(SUFFIX_TO_LANGUAGE.values())
+    missing = sorted(scanner - migrate)
+    assert not missing, (
+        f"the scanner reads {sorted(scanner)} but qubit-migrate has no mapping for {missing}"
+    )
+
+
+def test_every_migrate_language_has_a_grammar_and_a_rescan_extension() -> None:
+    """Both maps gate a validation stage, and a missing entry *skips* that stage rather than
+    failing it — so the gap is invisible in a passing report."""
+    from qubit_migrate.transform.languages import (
+        LANGUAGE_TO_EXT,
+        SUFFIX_TO_LANGUAGE,
+        TS_GRAMMAR,
+    )
+
+    languages = set(SUFFIX_TO_LANGUAGE.values())
+    assert not sorted(languages - set(TS_GRAMMAR)), "languages with no tree-sitter grammar"
+    assert not sorted(languages - set(LANGUAGE_TO_EXT)), "languages with no rescan extension"
+
+
+def test_rescan_extension_round_trips_through_the_scanner() -> None:
+    """The rescan stage writes the patched source to `patched<ext>` and scans it. If that extension
+    dispatches to a different language, the file is parsed by the wrong grammar — which is exactly
+    how a correct Go rewrite was once rejected with "Algorithms: set()"."""
+    from qubit_migrate.transform.languages import LANGUAGE_TO_EXT
+    from qubit_scanner.code.languages import EXT_TO_LANGUAGE
+
+    mismatched = {
+        language: (ext, EXT_TO_LANGUAGE.get(ext))
+        for language, ext in LANGUAGE_TO_EXT.items()
+        if EXT_TO_LANGUAGE.get(ext) != language
+    }
+    assert not mismatched, f"rescan extension does not round-trip: {mismatched}"
+
+
+def test_every_rule_algorithm_and_target_is_in_the_canonical_registry() -> None:
+    """A rule matching on an algorithm name the registry does not know can never fire; a rule whose
+    TARGET is unknown aims at something the inventory cannot represent, so no rescan can ever
+    confirm the migration worked."""
+    from qubit_core.algorithms import resolve
+
+    load_rules.cache_clear()
+    unknown_matches = sorted(
+        {
+            f"{r.id}:{a}"
+            for r in load_rules()
+            for a in (r.matches.get("algorithm") or [])
+            if resolve(a) is None
+        }
+    )
+    assert not unknown_matches, f"rules match on unresolvable algorithms: {unknown_matches}"
+
+    unknown_targets = sorted(
+        {
+            f"{r.id}:{r.target.get('algorithm')}"
+            for r in load_rules()
+            if r.target.get("algorithm") and resolve(str(r.target["algorithm"])) is None
+        }
+    )
+    assert not unknown_targets, f"rules target unresolvable algorithms: {unknown_targets}"
+
+
+def test_every_language_specific_rule_constrains_the_file_suffix() -> None:
+    """The exact shape of the `py-rsa-kex-01` / `py-weakhash-01` bug, generalised.
+
+    A rule that names a language without constraining the suffix claims `source_scanner=code`
+    assets in EVERY language, and the app then offers that language's codemod for a file it cannot
+    transform.
+    """
+    from qubit_migrate.transform.validate import _NON_CODE_LANGUAGES
+
+    load_rules.cache_clear()
+    unguarded = [
+        r.id
+        for r in load_rules()
+        if r.language not in _NON_CODE_LANGUAGES
+        and r.language != "multi"
+        and not r.matches.get("file_suffix")
+    ]
+    assert not unguarded, (
+        f"these rules name a language but match any file type: {unguarded}. They will claim assets "
+        "in other languages and offer a transform that cannot work on them."
+    )

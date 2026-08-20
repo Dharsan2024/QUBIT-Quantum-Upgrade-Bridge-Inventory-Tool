@@ -70,45 +70,51 @@ def test_rsa_kex_rule_matches_and_routes_to_llm() -> None:
 @pytest.mark.parametrize(
     ("path", "expected"),
     [
-        # Languages with a real token-swap table get the multi-language rule.
+        # Python keeps its own precise libcst rules — a token swap cannot take the argon2id
+        # password path, which py-weakhash-01 can.
+        ("app/hash.py", "py-weakhash-01"),
+        # The six original languages.
         ("svc/hash.go", "code-weakhash-02"),
         ("src/Main.java", "code-weakhash-02"),
         ("web/util.js", "code-weakhash-02"),
         ("web/util.ts", "code-weakhash-02"),
+        ("lib/digest.c", "code-weakhash-02"),
+        ("lib/digest.cpp", "code-weakhash-02"),
         # .tsx and .cjs were in every other code-* rule's suffix list but not this one, so a React
         # component fell through to the Python rule despite the JS/TS swap covering it.
         ("web/Component.tsx", "code-weakhash-02"),
         ("web/legacy.cjs", "code-weakhash-02"),
-        ("lib/digest.c", "code-weakhash-02"),
-        ("lib/digest.cpp", "code-weakhash-02"),
-        # Python keeps its own precise libcst codemod.
-        ("app/hash.py", "py-weakhash-01"),
-        # Everything the scanner learned to read in the language expansion has NO weak-hash
-        # codemod. The honest answer is None: the app then says "manual change" instead of
-        # offering a libcst Python transform for a Ruby or SQL file.
-        ("app/billing.rb", None),
-        ("app/legacy.php", None),
-        ("src/Vault.cs", None),
-        ("src/seal.rs", None),
-        ("src/Crypto.kt", None),
-        ("src/Wallet.swift", None),
-        ("src/Ledger.scala", None),
-        ("lib/fleet.dart", None),
-        ("bin/provision.sh", None),
-        ("bin/Provision.ps1", None),
-        ("migrations/V3__hash.sql", None),
+        # The thirteen languages added when code scanning grew from 6 grammars to 19. Each now has
+        # a real swap table (codemods._HASH_SWAPS), so each resolves to the cross-language rule.
+        ("app/billing.rb", "code-weakhash-02"),
+        ("app/legacy.php", "code-weakhash-02"),
+        ("src/Vault.cs", "code-weakhash-02"),
+        ("src/seal.rs", "code-weakhash-02"),
+        ("src/Crypto.kt", "code-weakhash-02"),
+        ("src/Wallet.swift", "code-weakhash-02"),
+        ("src/Ledger.scala", "code-weakhash-02"),
+        ("lib/fleet.dart", "code-weakhash-02"),
+        ("bin/provision.sh", "code-weakhash-02"),
+        ("bin/Provision.ps1", "code-weakhash-02"),
+        ("migrations/V3__hash.sql", "code-weakhash-02"),
     ],
 )
-def test_python_rules_do_not_claim_other_languages(path: str, expected: str | None) -> None:
-    """A ``language: python`` rule must not claim a file in another language.
+def test_weak_hash_resolves_to_a_language_appropriate_rule(path: str, expected: str) -> None:
+    """Every language the scanner reads must resolve to a rule, and never to another language's.
+
+    Two things are pinned here at once, because they failed in opposite directions.
 
     ``py-rsa-kex-01`` and ``py-weakhash-01`` were the only rules naming a language without also
-    constraining the file suffix, so they matched ``source_scanner=code`` assets in every language
-    the scanner can read. Once code scanning grew from 6 languages to 19 that meant 34 of the 127
-    tasks in the polyglot demo project were offered a libcst **Python** codemod for a .rb, .php,
-    .cs, .rs, .kt, .swift, .scala, .dart, .sh, .ps1 or .sql file. The template generator refused
-    with a 422 after the click; the LLM generator would have used Python-specific prompt
-    constraints and produced a plausible, wrong patch.
+    constraining the file suffix, so they matched ``source_scanner=code`` assets in every language.
+    Once code scanning grew from 6 grammars to 19 that meant 34 of the 127 tasks in the polyglot
+    demo project were offered a libcst **Python** codemod for a .rb, .php, .cs, .rs, .kt, .swift,
+    .scala, .dart, .sh, .ps1 or .sql file. The template generator refused with a 422 after the
+    click; the LLM generator would have used Python-specific prompt constraints and produced a
+    plausible, wrong patch.
+
+    The opposite failure is a language resolving to **nothing**, which is what adding the ``.py``
+    guard produced until the cross-language rule and its swap tables were extended to cover the
+    thirteen new languages. A finding with no rule cannot be migrated from the app at all.
     """
     from qubit_migrate.transform import match_rule
 
@@ -122,11 +128,14 @@ def test_python_rules_do_not_claim_other_languages(path: str, expected: str | No
         discovered_at=utcnow(),
     )
     rule = match_rule(asset)
-    assert (rule.id if rule else None) == expected
+    assert rule is not None, f"{path} resolves to no rule, so it cannot be migrated from the app"
+    assert rule.id == expected
+    if not path.endswith(".py"):
+        assert not rule.id.startswith("py-"), f"a Python rule claimed {path}"
 
 
-def test_rsa_rule_does_not_claim_other_languages() -> None:
-    """Same guard, on the other unguarded rule — RSA key transport outside Python."""
+def test_rsa_kex_resolves_per_language() -> None:
+    """The same guard on the other rule that was missing it — RSA key transport outside Python."""
     from qubit_migrate.transform import match_rule
 
     def rsa_at(path: str) -> str | None:
@@ -143,11 +152,15 @@ def test_rsa_rule_does_not_claim_other_languages() -> None:
         return rule.id if rule else None
 
     assert rsa_at("app/keys.py") == "py-rsa-kex-01"
-    # .go/.java/.js/.c have their own multi-language kex rule.
-    assert rsa_at("svc/keys.go") == "code-kex-01"
-    # These have neither, and must resolve to nothing rather than to the Python rule.
-    for path in ("app/billing.rb", "src/seal.rs", "src/Wallet.swift", "bin/provision.sh"):
-        assert rsa_at(path) is None, path
+    for path in (
+        "svc/keys.go",
+        "app/billing.rb",
+        "src/seal.rs",
+        "src/Wallet.swift",
+        "bin/provision.sh",
+        "src/Vault.cs",
+    ):
+        assert rsa_at(path) == "code-kex-01", path
 
 
 def _seeded_orchestrator(tmp_path) -> tuple[MigrationOrchestrator, object]:

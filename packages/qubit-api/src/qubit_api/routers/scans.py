@@ -19,6 +19,7 @@ from ..schemas import (
 )
 from ..services import (
     export_scan_cbom,
+    reconcile_project_plans,
     require_project,
     require_scan,
     run_network_scan,
@@ -110,8 +111,14 @@ def delete_scan(
     session: Annotated[Session, Depends(get_session)],
 ) -> None:
     scan = require_scan(session, scan_id)
+    project_id = scan.project_id
     session.delete(scan)
     session.commit()
+    # Deleting a scan cascades its assets, and a migration task cascades from its asset — so a plan
+    # silently loses its tasks while `stats_json` keeps advertising the original count. Without
+    # this, a project with zero assets left still showed "2 migration tasks" on the Migration Hub
+    # and an empty queue behind it.
+    reconcile_project_plans(session, project_id)
 
 
 @router.get("/scans/{scan_id}/summary")

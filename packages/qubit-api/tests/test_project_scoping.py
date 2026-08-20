@@ -22,6 +22,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -456,3 +457,49 @@ def test_generating_a_patch_twice_is_a_conflict_not_a_crash(
     # And exactly one patch was stored — a second would leave two conflicting diffs for one task.
     patches = client.get(f"/api/v1/migrate/tasks/{task['id']}/patches").json()
     assert len(patches) == 1
+
+
+def test_a_plan_built_before_the_split_still_reports_it(
+    client: TestClient, two_projects: dict[str, Any]
+) -> None:
+    """Plans predating the automatic/LLM/manual split carry only `automatable`.
+
+    Rendering those as "0 automatic, 0 LLM-assisted" is wrong wherever `automatable` is non-zero —
+    measured on the live installation, 2 of 7 plans were in that state. The counts are derived from
+    the plan's own tasks when the stored stats lack them, so an old plan reads correctly without a
+    rebuild.
+    """
+    from qubit_migrate.state import MigrationPlan
+    from sqlalchemy import select as sa_select
+
+    project_id = two_projects["a_project"]
+    plans = client.get("/api/v1/migrate/plans", params={"project_id": project_id}).json()
+    plan_id = plans[0]["id"]
+    expected = {k: plans[0]["stats"][k] for k in ("with_codemod", "with_llm_rule", "manual")}
+    assert sum(expected.values()) == plans[0]["stats"]["tasks"]
+
+    # Rewrite the stored stats into the shape a pre-split plan has. A direct session against the
+    # same database, rather than the request-scoped dependency, which needs a Request.
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    engine = create_engine(client.app.state.settings.db_url)  # type: ignore[attr-defined]
+    with Session(engine) as session:
+        row = session.scalars(
+            sa_select(MigrationPlan).where(MigrationPlan.id == UUID(plan_id))
+        ).one()
+        row.stats_json = {k: v for k, v in (row.stats_json or {}).items() if k not in expected}
+        session.add(row)
+        session.commit()
+    engine.dispose()
+
+    again = client.get("/api/v1/migrate/plans", params={"project_id": project_id}).json()[0]
+    assert {k: again["stats"][k] for k in expected} == expected, (
+        "a plan with no stored split should have it derived from its tasks"
+    )
+
+    row_out = next(
+        r for r in client.get("/api/v1/projects/overview").json() if r["id"] == project_id
+    )
+    assert row_out["plan"]["with_codemod"] == expected["with_codemod"]
+    assert row_out["plan"]["manual"] == expected["manual"]

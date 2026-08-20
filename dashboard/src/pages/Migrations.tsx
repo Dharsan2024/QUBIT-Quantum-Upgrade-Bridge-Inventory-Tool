@@ -571,7 +571,7 @@ function PlanSummary({ plan }: { plan: MigrationPlan }) {
   const s = plan.stats;
   const tasks = s.tasks ?? 0;
   // Three states, not one. The tile here used to read "Codemod available" over a count of tasks
-  // that matched ANY rule — but only 4 of the 14 rules carry a deterministic codemod, the rest
+  // that matched ANY rule — but only 5 of the 14 rules carry a deterministic codemod, the rest
   // route to a local LLM. On a real polyglot project that overstated what the app can do offline
   // by more than 2x (110 claimed against 46 actual).
   const withCodemod = s.with_codemod ?? 0;

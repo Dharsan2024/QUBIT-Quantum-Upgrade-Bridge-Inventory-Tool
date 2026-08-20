@@ -106,7 +106,11 @@ def projects_overview(
         plan: MigrationPlan | None = latest_plan.get(project.id)
         plan_ref = None
         if plan is not None:
-            plan_stats = plan.stats_json or {}
+            # Same derivation as the migrate router: a plan built before the three-way split has
+            # only `automatable`, and showing it as "0 automatic" on the grid is wrong.
+            from ..routers.migrate import _plan_split
+
+            plan_stats = {**(plan.stats_json or {}), **_plan_split(plan)}
             plan_ref = ProjectPlanRef(
                 id=plan.id,
                 status=plan.status,

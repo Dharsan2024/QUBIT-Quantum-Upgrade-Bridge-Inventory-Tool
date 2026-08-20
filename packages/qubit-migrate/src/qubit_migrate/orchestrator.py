@@ -236,7 +236,7 @@ class MigrationOrchestrator:
         for rt in ranked:
             by_algorithm[rt.asset.algorithm] = by_algorithm.get(rt.asset.algorithm, 0) + 1
         tasks_built = list(plan.tasks)
-        # Three states, not one "automatable" count. Only 4 of the 14 rules carry a deterministic
+        # Three states, not one "automatable" count. Only 5 of the 14 rules carry a deterministic
         # codemod; the rest route to a local LLM, which needs Ollama running and produces a patch a
         # human has to read. Reporting both as "codemod available" overstated what the app can do
         # offline by more than 2x on a real polyglot project (110 claimed vs 46 actual).

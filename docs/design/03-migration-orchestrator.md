@@ -262,7 +262,7 @@ hub), with that caveat stated on the control.
 ```
 
 The three-way split matters because the states need different things from the user, and the single
-`automatable` count hid that. Only 4 of the 14 rules carry a deterministic codemod; the rest route
+`automatable` count hid that. Only 5 of the 14 rules carry a deterministic codemod; the rest route
 to a local Ollama model, which needs Ollama running and produces a patch a human must read. The hub
 tile said "Codemod available" over the combined number, overstating what the app can do offline by
 more than 2x on a real project (110 claimed against 46 actual).

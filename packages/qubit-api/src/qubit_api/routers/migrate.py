@@ -120,11 +120,37 @@ class ApplyRequest(BaseModel):
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
+def _plan_split(plan: MigrationPlan) -> dict[str, int]:
+    """The automatic / LLM-assisted / manual counts for a plan.
+
+    Stored on the plan when it was built. Plans built before the split existed carry only
+    `automatable` (a count of tasks with a rule of ANY kind), and rendering those as
+    "0 automatic, 0 LLM-assisted" is wrong — measured on the live installation, 2 of 7 plans. The
+    counts are derived from the plan's own tasks in that case, so an old plan reads correctly
+    without having to be rebuilt.
+    """
+    stats = plan.stats_json or {}
+    if "with_codemod" in stats:
+        return {
+            "with_codemod": int(stats.get("with_codemod", 0)),
+            "with_llm_rule": int(stats.get("with_llm_rule", 0)),
+            "manual": int(stats.get("manual", 0)),
+        }
+    codemod_rules = _codemod_rule_ids()
+    with_codemod = sum(1 for t in plan.tasks if t.rule_id in codemod_rules)
+    with_rule = sum(1 for t in plan.tasks if t.rule_id)
+    return {
+        "with_codemod": with_codemod,
+        "with_llm_rule": with_rule - with_codemod,
+        "manual": len(plan.tasks) - with_rule,
+    }
+
+
 def _plan_out(plan: MigrationPlan) -> PlanOut:
     return PlanOut(
         id=plan.id,
         status=plan.status,
-        stats=plan.stats_json or {},
+        stats={**(plan.stats_json or {}), **_plan_split(plan)},
         created_at=plan.created_at,
         project_id=plan.project_id,
         scan_id=plan.scan_id,

@@ -1,0 +1,142 @@
+schema: qubit-rule/v1
+language: cpp
+library:
+  name: Crypto++ / Botan / Qt
+  detect_imports: []
+# C++ is the ninth most-used language in the Stack Overflow 2025 survey (23.5%) and `.cpp` was
+# already mapped to a grammar here — with no rules behind it. That is the worse of the two failure
+# modes: the file parsed cleanly, matched nothing, and reported as a scanned file with no crypto,
+# which is indistinguishable from a C++ service that genuinely has none.
+#
+# OpenSSL in C++ is covered by the `c` pack, which declares `additional_languages: [cpp]` — the
+# same queries match a C++ translation unit verbatim. This pack adds what is C++-only: the
+# libraries with C++ class APIs.
+rules:
+  # ── Crypto++ ────────────────────────────────────────────────────────────────────────────────
+  - id: CPP-CRYPTOPP-ALGORITHM
+    title: CryptoPP::MD5 / CryptoPP::Weak::MD5 / CryptoPP::DES_EDE3
+    match:
+      query: |
+        (qualified_identifier
+          scope: (namespace_identifier) @ns
+          name: (type_identifier) @alg) @call
+        (qualified_identifier
+          scope: (namespace_identifier) @ns
+          name: (identifier) @alg) @call
+        ; `CryptoPP::DES_EDE3::Encryption` nests one level deeper: the ALGORITHM is the inner
+        ; scope, not the name, because Crypto++ puts the operation (Encryption/Decryption) last.
+        (qualified_identifier
+          scope: (namespace_identifier) @ns
+          name: (qualified_identifier scope: (namespace_identifier) @alg)) @call
+      where:
+        - { capture: ns, in: [CryptoPP, Weak, Weak1] }
+        - capture: alg
+          regex: "^(MD2|MD4|MD5|SHA1|SHA224|SHA256|SHA384|SHA512|RIPEMD160|DES|DES_EDE2|DES_EDE3|IDEA|RC2|RC4|ARC4|Blowfish|CAST128|SEED|AES|Rijndael|Camellia|ChaCha20|Salsa20|RSA|DSA|ECDSA|ECDH|ElGamal)$"
+    extract:
+      algorithm: { from: alg, resolve: cryptopp-name }
+    asset: { asset_type: algorithm-use, usage_context: unknown }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          #include <cryptopp/md5.h>
+          void f() { CryptoPP::Weak::MD5 hash; }
+        - |
+          void f() { CryptoPP::DES_EDE3::Encryption enc(key, sizeof(key)); }
+        - |
+          void f() { CryptoPP::SHA256 hash; }
+      negative:
+        - |
+          void f() { CryptoPP::HexEncoder encoder; }
+
+  # ── Botan ───────────────────────────────────────────────────────────────────────────────────
+  - id: CPP-BOTAN-CREATE
+    title: Botan::HashFunction::create("MD5") / Botan::BlockCipher::create("DES")
+    match:
+      query: |
+        (call_expression
+          function: (qualified_identifier)
+          arguments: (argument_list . (string_literal) @algo)) @call
+      where:
+        - { capture: call, regex: "Botan::(HashFunction|BlockCipher|StreamCipher|Cipher_Mode|MessageAuthenticationCode|PBKDF|KDF)::create" }
+    extract:
+      algorithm: { from: algo, resolve: string-literal }
+    asset: { asset_type: algorithm-use, usage_context: unknown }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <botan/hash.h>
+          void f() { auto h = Botan::HashFunction::create("MD5"); }
+        - |
+          void f() { auto c = Botan::BlockCipher::create("DES"); }
+        - |
+          void f() { auto m = Botan::Cipher_Mode::create("AES-256/GCM"); }
+      negative:
+        - |
+          void f() { auto x = Botan::RandomNumberGenerator::create("system"); }
+
+  # ── Qt ──────────────────────────────────────────────────────────────────────────────────────
+  - id: CPP-QT-CRYPTOGRAPHICHASH
+    title: QCryptographicHash::Md5 / ::Sha1
+    match:
+      query: |
+        (qualified_identifier
+          scope: (namespace_identifier) @cls
+          name: (identifier) @alg) @call
+        ; In a declaration context (`QCryptographicHash h(QCryptographicHash::Md5)`) the enum
+        ; member parses as a type_identifier rather than an identifier.
+        (qualified_identifier
+          scope: (namespace_identifier) @cls
+          name: (type_identifier) @alg) @call
+      where:
+        - { capture: cls, equals: QCryptographicHash }
+        - capture: alg
+          regex: "^(Md4|Md5|Sha1|Sha224|Sha256|Sha384|Sha512|Sha3_256|Sha3_512|Keccak_256|Blake2b_256)$"
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          void f() { QCryptographicHash h(QCryptographicHash::Md5); }
+        - |
+          void f() { auto d = QCryptographicHash::hash(data, QCryptographicHash::Sha1); }
+        - |
+          void f() { QCryptographicHash h(QCryptographicHash::Sha256); }
+      negative:
+        - |
+          void f() { QCryptographicHash h(QCryptographicHash::Algorithm(x)); }
+
+  - id: CPP-QT-SSL-PROTOCOL
+    title: QSsl::TlsV1_0 / QSsl::SslV3
+    match:
+      query: |
+        (qualified_identifier
+          scope: (namespace_identifier) @cls
+          name: (identifier) @proto) @call
+        (qualified_identifier
+          scope: (namespace_identifier) @cls
+          name: (type_identifier) @proto) @call
+      where:
+        - { capture: cls, equals: QSsl }
+        - capture: proto
+          regex: "^(SslV2|SslV3|TlsV1_0|TlsV1_1|TlsV1_2|TlsV1_3)"
+    extract:
+      algorithm: { from: proto, resolve: qt-ssl-protocol }
+    asset: { asset_type: protocol-config, usage_context: tls }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          void f() { cfg.setProtocol(QSsl::TlsV1_0); }
+        - |
+          void f() { cfg.setProtocol(QSsl::SslV3); }
+        - |
+          void f() { cfg.setProtocol(QSsl::TlsV1_2); }
+      negative:
+        - |
+          void f() { cfg.setProtocol(QSsl::SecureProtocols); }

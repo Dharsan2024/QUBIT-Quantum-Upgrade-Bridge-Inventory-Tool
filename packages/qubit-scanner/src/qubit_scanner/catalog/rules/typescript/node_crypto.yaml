@@ -1,5 +1,9 @@
 schema: qubit-rule/v1
 language: typescript
+# Same queries also compiled against the tsx grammar:
+# tree-sitter treats TSX as its own language, and React components are
+  # where browser-side crypto usually lives.
+additional_languages: [tsx]
 library:
   name: node:crypto
   # No import gate: resolve.py has no JS import-extraction query yet (see javascript/jwt.yaml), and

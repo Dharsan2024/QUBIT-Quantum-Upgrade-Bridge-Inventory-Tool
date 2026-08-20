@@ -37,6 +37,10 @@ def _primitive(family: str | None, kind: str | None, usage: str) -> str:
     """Map to a CycloneDX ``algorithmProperties.primitive`` enum value."""
     if kind == "hash":
         return "hash"
+    if kind == "checksum":
+        # CycloneDX's "hash" primitive asserts a cryptographic hash function. A CRC is not one,
+        # so it takes "other" — the CBOM must not claim a checksum provides preimage resistance.
+        return "other"
     if kind == "pqc-kem":
         return "kem"
     if kind == "pqc-sig":

@@ -1,0 +1,379 @@
+schema: qubit-rule/v1
+language: csharp
+library:
+  name: .NET System.Security.Cryptography
+  # Deliberately empty rather than ["System"]. Almost every C# file has `using System`, so gating
+  # on it buys no shortlisting, and the pattern it WOULD exclude is the dangerous one: code that
+  # calls `System.Security.Cryptography.MD5.Create()` fully qualified with no using directive at
+  # all. Each rule below matches the qualified and unqualified spellings alike.
+  detect_imports: []
+rules:
+  # ── Hash algorithms ─────────────────────────────────────────────────────────────────────────
+  - id: CS-DOTNET-HASH-CREATE
+    title: MD5.Create() / SHA1.Create() / SHA256.Create()
+    match:
+      query: |
+        (invocation_expression
+          function: (member_access_expression
+            expression: (identifier) @cls
+            name: (identifier) @meth)) @call
+        (invocation_expression
+          function: (member_access_expression
+            expression: (member_access_expression name: (identifier) @cls)
+            name: (identifier) @meth)) @call
+      where:
+        - { capture: meth, equals: Create }
+        - { capture: cls, in: [MD5, SHA1, SHA256, SHA384, SHA512, MD4] }
+    extract:
+      algorithm: { from: cls, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var h = MD5.Create(); } }
+        - |
+          class C { void F() { var h = System.Security.Cryptography.SHA1.Create(); } }
+      negative:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var h = Aes.Create(); } }
+
+  - id: CS-DOTNET-HASH-CTOR
+    title: new MD5CryptoServiceProvider() / new SHA1Managed()
+    match:
+      query: |
+        (object_creation_expression type: (identifier) @cls) @call
+        (object_creation_expression type: (qualified_name name: (identifier) @cls)) @call
+      where:
+        - capture: cls
+          regex: "^(MD5|MD4|SHA1|SHA256|SHA384|SHA512)(CryptoServiceProvider|Managed|Cng)$"
+    extract:
+      algorithm: { from: cls, resolve: dotnet-crypto-class }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var h = new MD5CryptoServiceProvider(); } }
+        - |
+          class C { void F() { var h = new SHA1Managed(); } }
+        # Strong digests are inventoried too, not just broken ones: a CBOM has to list what the
+        # code actually uses, and the migration validator confirms a patch by seeing SHA-256
+        # appear where SHA-1 was.
+        - |
+          class C { void F() { var h = new SHA256Managed(); } }
+      negative:
+        - |
+          class C { void F() { var s = new MemoryStream(); } }
+
+  - id: CS-DOTNET-HASH-CREATE-BY-NAME
+    title: HashAlgorithm.Create("MD5") / CryptoConfig.CreateFromName("SHA1")
+    match:
+      query: |
+        (invocation_expression
+          function: (member_access_expression
+            expression: (identifier) @cls
+            name: (identifier) @meth)
+          arguments: (argument_list . (argument (_) @algo))) @call
+      where:
+        - { capture: cls, in: [HashAlgorithm, CryptoConfig, HMAC, SymmetricAlgorithm] }
+        - { capture: meth, in: [Create, CreateFromName] }
+    extract:
+      # `string-constant` rather than `string-literal` so the name can come from a local
+      # `var algo = "MD5";` as well as an inline literal. Factoring the algorithm name into a
+      # constant is the ordinary way this is written in real code, and it used to hide the
+      # algorithm completely outside Python.
+      algorithm: { from: algo, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var h = HashAlgorithm.Create("MD5"); } }
+        - |
+          class C { void F() { var h = CryptoConfig.CreateFromName("SHA1"); } }
+        - |
+          class C { void F() { var algo = "MD5"; var h = HashAlgorithm.Create(algo); } }
+      negative:
+        - |
+          class C { void F() { var h = Something.Create("MD5"); } }
+
+  - id: CS-DOTNET-HMAC-CTOR
+    title: new HMACMD5() / new HMACSHA1() / new HMACSHA256()
+    match:
+      query: |
+        (object_creation_expression type: (identifier) @cls) @call
+        (object_creation_expression type: (qualified_name name: (identifier) @cls)) @call
+      where:
+        - { capture: cls, regex: "^HMAC(MD5|SHA1|SHA256|SHA384|SHA512)$" }
+    extract:
+      algorithm: { from: cls, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: mac }
+    confidence: high
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var m = new HMACMD5(key); } }
+        - |
+          class C { void F() { var m = new HMACSHA256(key); } }
+      negative:
+        - |
+          class C { void F() { var m = new HMACWhatever(key); } }
+
+  # ── Symmetric ciphers ───────────────────────────────────────────────────────────────────────
+  - id: CS-DOTNET-CIPHER-CTOR
+    title: new TripleDESCryptoServiceProvider() / new DESCryptoServiceProvider() / RijndaelManaged
+    match:
+      query: |
+        (object_creation_expression type: (identifier) @cls) @call
+        (object_creation_expression type: (qualified_name name: (identifier) @cls)) @call
+      where:
+        - capture: cls
+          regex: "^(TripleDES|DES|RC2|Rijndael|Aes)(CryptoServiceProvider|Managed|Cng)$"
+    extract:
+      algorithm: { from: cls, resolve: dotnet-crypto-class }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var c = new TripleDESCryptoServiceProvider(); } }
+        - |
+          class C { void F() { var c = new RijndaelManaged(); } }
+        - |
+          class C { void F() { var c = new DESCryptoServiceProvider(); } }
+      negative:
+        - |
+          class C { void F() { var c = new MemoryStream(); } }
+
+  - id: CS-DOTNET-CIPHER-CREATE
+    title: Aes.Create() / TripleDES.Create() / DES.Create()
+    match:
+      query: |
+        (invocation_expression
+          function: (member_access_expression
+            expression: (identifier) @cls
+            name: (identifier) @meth)) @call
+        (invocation_expression
+          function: (member_access_expression
+            expression: (member_access_expression name: (identifier) @cls)
+            name: (identifier) @meth)) @call
+      where:
+        - { capture: meth, equals: Create }
+        - { capture: cls, in: [Aes, TripleDES, DES, RC2, Rijndael] }
+    extract:
+      algorithm: { from: cls, resolve: dotnet-crypto-class }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var c = Aes.Create(); } }
+        - |
+          class C { void F() { var c = TripleDES.Create(); } }
+      negative:
+        - |
+          class C { void F() { var c = MD5.Create(); } }
+
+  # ── Asymmetric keys ─────────────────────────────────────────────────────────────────────────
+  - id: CS-DOTNET-ASYM-CTOR-SIZE
+    title: new RSACryptoServiceProvider(1024)
+    match:
+      query: |
+        (object_creation_expression
+          type: (identifier) @cls
+          arguments: (argument_list (argument (integer_literal) @size))) @call
+        (object_creation_expression
+          type: (qualified_name name: (identifier) @cls)
+          arguments: (argument_list (argument (integer_literal) @size))) @call
+      where:
+        - { capture: cls, regex: "^(RSA|DSA)(CryptoServiceProvider|Cng|Managed)$" }
+    extract:
+      algorithm: { from: cls, resolve: dotnet-crypto-class }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var r = new RSACryptoServiceProvider(1024); } }
+        - |
+          class C { void F() { var d = new DSACryptoServiceProvider(1024); } }
+      negative:
+        - |
+          class C { void F() { var r = new RSACryptoServiceProvider(); } }
+
+  - id: CS-DOTNET-ASYM-CREATE-SIZE
+    title: RSA.Create(2048) / DSA.Create(1024)
+    match:
+      query: |
+        (invocation_expression
+          function: (member_access_expression
+            expression: (identifier) @cls
+            name: (identifier) @meth)
+          arguments: (argument_list (argument (integer_literal) @size))) @call
+      where:
+        - { capture: meth, equals: Create }
+        - { capture: cls, in: [RSA, DSA] }
+    extract:
+      algorithm: { from: cls, resolve: capture-text }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var r = RSA.Create(1024); } }
+      negative:
+        - |
+          class C { void F() { var r = RSA.Create(); } }
+
+  - id: CS-DOTNET-ASYM-CREATE
+    title: RSA.Create() / ECDsa.Create() / ECDiffieHellman.Create() — no size at the call site
+    match:
+      query: |
+        (invocation_expression
+          function: (member_access_expression
+            expression: (identifier) @cls
+            name: (identifier) @meth)) @call
+        (invocation_expression
+          function: (member_access_expression
+            expression: (member_access_expression name: (identifier) @cls)
+            name: (identifier) @meth)) @call
+      where:
+        - { capture: meth, equals: Create }
+        - { capture: cls, in: [RSA, DSA, ECDsa, ECDiffieHellman] }
+    extract:
+      algorithm: { from: cls, resolve: dotnet-crypto-class }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: medium
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var e = ECDsa.Create(); } }
+        - |
+          class C { void F() { var r = System.Security.Cryptography.RSA.Create(); } }
+      negative:
+        - |
+          class C { void F() { var h = MD5.Create(); } }
+
+  - id: CS-DOTNET-ASYM-CNG-CTOR
+    title: new RSACng() / new ECDsaCng() / new DSACng()
+    match:
+      query: |
+        (object_creation_expression type: (identifier) @cls) @call
+        (object_creation_expression type: (qualified_name name: (identifier) @cls)) @call
+      where:
+        - { capture: cls, regex: "^(RSA|DSA|ECDsa|ECDiffieHellman)Cng$" }
+    extract:
+      algorithm: { from: cls, resolve: dotnet-crypto-class }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var r = new RSACng(); } }
+        - |
+          class C { void F() { var e = new ECDsaCng(); } }
+      negative:
+        - |
+          class C { void F() { var r = new RSAParameters(); } }
+
+  # ── Key derivation ──────────────────────────────────────────────────────────────────────────
+  - id: CS-DOTNET-PBKDF2
+    title: new Rfc2898DeriveBytes(...) — PBKDF2 under a class name that never says so
+    match:
+      query: |
+        (object_creation_expression type: (identifier) @cls) @call
+        (object_creation_expression type: (qualified_name name: (identifier) @cls)) @call
+      where:
+        - { capture: cls, in: [Rfc2898DeriveBytes, PasswordDeriveBytes] }
+    extract:
+      algorithm: { from: cls, resolve: dotnet-crypto-class }
+    asset: { asset_type: algorithm-use, usage_context: kdf }
+    confidence: high
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var k = new Rfc2898DeriveBytes(pw, salt, 1000); } }
+        - |
+          class C { void F() { var k = new PasswordDeriveBytes(pw, salt); } }
+      negative:
+        - |
+          class C { void F() { var k = new Rfc4648Encoder(); } }
+
+  # ── Transport security ──────────────────────────────────────────────────────────────────────
+  - id: CS-DOTNET-TLS-PROTOCOL
+    title: SecurityProtocolType.Tls / SslProtocols.Ssl3 — the bare `Tls` member IS TLS 1.0
+    match:
+      query: |
+        (member_access_expression
+          expression: (identifier) @enum
+          name: (identifier) @member) @call
+      where:
+        - { capture: enum, in: [SecurityProtocolType, SslProtocols] }
+        - { capture: member, in: [Tls, Tls11, Tls12, Tls13, Ssl2, Ssl3, Default] }
+    extract:
+      algorithm: { from: member, resolve: dotnet-tls-protocol }
+    asset: { asset_type: protocol-config, usage_context: tls }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          class C { void F() { ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls; } }
+        - |
+          class C { void F() { var p = SslProtocols.Ssl3; } }
+        - |
+          class C { void F() { var p = SslProtocols.Tls12; } }
+      negative:
+        - |
+          class C { void F() { var p = SslProtocols.None; } }
+
+  # ── Post-quantum (.NET 10) ──────────────────────────────────────────────────────────────────
+  # .NET 10 shipped first-class ML-KEM, ML-DSA and SLH-DSA in System.Security.Cryptography, with
+  # Windows CNG backing. Detecting them matters as much as detecting the broken algorithms: the
+  # migration validator's rescan has to be able to CONFIRM a patch landed on ML-KEM, and without
+  # these rules a correctly migrated C# service reads as having made no progress at all.
+  - id: CS-DOTNET-PQC-GENERATEKEY
+    title: MLKem.GenerateKey(MLKemAlgorithm.MLKem768) / MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65)
+    match:
+      query: |
+        (invocation_expression
+          function: (member_access_expression
+            expression: (identifier) @cls
+            name: (identifier) @meth)
+          arguments: (argument_list
+            (argument (member_access_expression
+              expression: (identifier) @algcls
+              name: (identifier) @param)))) @call
+      where:
+        - { capture: cls, in: [MLKem, MLDsa, SlhDsa] }
+        - { capture: meth, in: [GenerateKey, ImportPrivateSeed] }
+    extract:
+      algorithm: { from: param, resolve: pqc-identifier }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          using System.Security.Cryptography;
+          class C { void F() { var k = MLKem.GenerateKey(MLKemAlgorithm.MLKem768); } }
+        - |
+          class C { void F() { var k = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65); } }
+      negative:
+        - |
+          class C { void F() { var k = RSA.Create(2048); } }

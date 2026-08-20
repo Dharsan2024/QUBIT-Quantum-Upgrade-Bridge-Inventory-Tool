@@ -102,29 +102,37 @@ class RuleCatalog:
         except Exception as e:  # pydantic ValidationError
             raise RuleLoadError(f"{path}: does not match qubit-rule/v1: {e}") from e
 
-        try:
-            language = get_language(rf.language)  # type: ignore[arg-type]
-        except Exception as e:
-            raise RuleLoadError(f"{path}: unknown grammar '{rf.language}': {e}") from e
+        grammars: list[tuple[str, object]] = []
+        for name in rf.languages():
+            try:
+                grammars.append((name, get_language(name)))  # type: ignore[arg-type]
+            except Exception as e:
+                raise RuleLoadError(f"{path}: unknown grammar '{name}': {e}") from e
 
         out: list[CompiledRule] = []
         for rule in rf.rules:
             if "algorithm" not in rule.extract:
                 raise RuleLoadError(f"{path}:{rule.id}: extract must define 'algorithm'")
-            try:
-                query = Query(language, rule.match.query)
-            except Exception as e:
-                raise RuleLoadError(f"{path}:{rule.id}: query does not compile: {e}") from e
-            out.append(
-                CompiledRule(
-                    rule=rule,
-                    query=query,
-                    language=rf.language,
-                    library_name=rf.library.name,
-                    detect_imports=tuple(rf.library.detect_imports),
-                    source_file=path,
+            # One CompiledRule per (rule, grammar): a tree-sitter Query is bound to the Language
+            # it was compiled against and cannot be run over a tree from another grammar, so a
+            # pack covering TypeScript and TSX genuinely needs two compiled queries.
+            for name, language in grammars:
+                try:
+                    query = Query(language, rule.match.query)  # type: ignore[arg-type]
+                except Exception as e:
+                    raise RuleLoadError(
+                        f"{path}:{rule.id}: query does not compile for grammar '{name}': {e}"
+                    ) from e
+                out.append(
+                    CompiledRule(
+                        rule=rule,
+                        query=query,
+                        language=name,
+                        library_name=rf.library.name,
+                        detect_imports=tuple(rf.library.detect_imports),
+                        source_file=path,
+                    )
                 )
-            )
         return out
 
 

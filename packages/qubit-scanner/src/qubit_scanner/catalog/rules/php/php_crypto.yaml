@@ -1,0 +1,377 @@
+schema: qubit-rule/v1
+language: php
+library:
+  name: PHP standard library / OpenSSL / Sodium
+  # PHP's crypto is global functions, not an imported namespace: `md5()` and `openssl_encrypt()`
+  # need no `use` statement at all. An import gate here would exclude almost every real file.
+  detect_imports: []
+rules:
+  # ── Digests ─────────────────────────────────────────────────────────────────────────────────
+  - id: PHP-HASH-DIRECT
+    title: md5() / sha1() / crc32() and their _file twins
+    match:
+      query: |
+        (function_call_expression function: (name) @fn) @call
+      where:
+        - { capture: fn, in: [md5, sha1, crc32, md5_file, sha1_file, crc32_file] }
+    extract:
+      algorithm: { from: fn, resolve: php-crypto-const }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          $h = md5($password);
+        - |
+          <?php
+          $h = sha1_file($path);
+        - |
+          <?php
+          $c = crc32($payload);
+      negative:
+        - |
+          <?php
+          $h = hash("sha256", $payload);
+
+  - id: PHP-HASH-BY-NAME
+    title: hash("md5", ...) / hash_file(...) / openssl_digest($d, "md5")
+    match:
+      query: |
+        (function_call_expression
+          function: (name) @fn
+          arguments: (arguments . (argument (_) @algo))) @call
+      where:
+        - { capture: fn, in: [hash, hash_file, hash_init, hash_pbkdf2] }
+    extract:
+      algorithm: { from: algo, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          $h = hash("md5", $payload);
+        - |
+          <?php
+          $algo = "sha1";
+          $h = hash($algo, $payload);
+      negative:
+        - |
+          <?php
+          $h = md5($payload);
+
+  - id: PHP-OPENSSL-DIGEST
+    title: openssl_digest($data, "md5")
+    match:
+      query: |
+        (function_call_expression
+          function: (name) @fn
+          arguments: (arguments . (argument) . (argument (_) @algo))) @call
+      where:
+        - { capture: fn, equals: openssl_digest }
+    extract:
+      algorithm: { from: algo, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          $h = openssl_digest($data, "md5");
+        - |
+          <?php
+          $h = openssl_digest($data, "sha256");
+      negative:
+        - |
+          <?php
+          $h = openssl_random_pseudo_bytes(32);
+
+  - id: PHP-HASH-HMAC
+    title: hash_hmac("sha1", $data, $key) — the algorithm is HMAC-SHA1, not SHA-1
+    match:
+      query: |
+        (function_call_expression
+          function: (name) @fn
+          arguments: (arguments . (argument (_) @algo))) @call
+      where:
+        - { capture: fn, in: [hash_hmac, hash_hmac_file] }
+    extract:
+      algorithm: { from: algo, resolve: hmac-of-digest }
+    asset: { asset_type: algorithm-use, usage_context: mac }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          $m = hash_hmac("sha1", $data, $key);
+        - |
+          <?php
+          $m = hash_hmac("sha256", $data, $key);
+      negative:
+        - |
+          <?php
+          $m = hash("sha1", $data);
+
+  # ── Symmetric encryption ────────────────────────────────────────────────────────────────────
+  - id: PHP-OPENSSL-ENCRYPT
+    title: openssl_encrypt($d, "des-ede3-cbc", $k) / openssl_decrypt
+    match:
+      query: |
+        (function_call_expression
+          function: (name) @fn
+          arguments: (arguments . (argument) . (argument (_) @algo))) @call
+      where:
+        - { capture: fn, in: [openssl_encrypt, openssl_decrypt] }
+    extract:
+      algorithm: { from: algo, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          $c = openssl_encrypt($data, "des-ede3-cbc", $key);
+        # Decryption is as much a crypto usage as encryption. A PHP service that only ever
+        # decrypts a legacy blob still has to migrate it.
+        - |
+          <?php
+          $p = openssl_decrypt($blob, "rc4", $key);
+        - |
+          <?php
+          $c = openssl_encrypt($data, "aes-256-gcm", $key);
+      negative:
+        - |
+          <?php
+          $c = openssl_seal($data, $sealed, $keys, $pubkeys);
+
+  - id: PHP-MCRYPT-LEGACY
+    title: mcrypt_encrypt(MCRYPT_DES, ...) — removed in PHP 7.2 but still all over legacy code
+    match:
+      query: |
+        (function_call_expression
+          function: (name) @fn
+          arguments: (arguments . (argument (name) @algo))) @call
+      where:
+        - { capture: fn, regex: "^mcrypt_(encrypt|decrypt|generic|module_open)$" }
+        - { capture: algo, regex: "^MCRYPT_" }
+    extract:
+      algorithm: { from: algo, resolve: php-crypto-const }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          $c = mcrypt_encrypt(MCRYPT_DES, $key, $data, MCRYPT_MODE_ECB);
+        - |
+          <?php
+          $c = mcrypt_encrypt(MCRYPT_3DES, $key, $data, MCRYPT_MODE_CBC);
+      negative:
+        - |
+          <?php
+          $c = openssl_encrypt($data, "aes-256-gcm", $key);
+
+  # ── Asymmetric keys and signatures ──────────────────────────────────────────────────────────
+  - id: PHP-OPENSSL-SIGN-ALGO
+    title: openssl_sign($d, $sig, $key, OPENSSL_ALGO_SHA1)
+    match:
+      query: |
+        (function_call_expression
+          function: (name) @fn
+          arguments: (arguments (argument (name) @algo))) @call
+      where:
+        - { capture: fn, in: [openssl_sign, openssl_verify] }
+        - { capture: algo, regex: "^OPENSSL_ALGO_" }
+    extract:
+      algorithm: { from: algo, resolve: php-crypto-const }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          openssl_sign($data, $signature, $key, OPENSSL_ALGO_SHA1);
+        - |
+          <?php
+          openssl_verify($data, $signature, $key, OPENSSL_ALGO_SHA256);
+      negative:
+        - |
+          <?php
+          openssl_sign($data, $signature, $key);
+
+  - id: PHP-OPENSSL-PKEY-NEW-BITS
+    title: openssl_pkey_new(["private_key_bits" => 1024]) — RSA is PHP's default key type
+    match:
+      query: |
+        (function_call_expression
+          function: (name) @fn
+          arguments: (arguments (argument (array_creation_expression
+            (array_element_initializer
+              (encapsed_string (string_content) @key)
+              (integer) @size))))) @call
+      where:
+        - { capture: fn, equals: openssl_pkey_new }
+        - { capture: key, equals: private_key_bits }
+    extract:
+      algorithm: { literal: RSA }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          $k = openssl_pkey_new(array("private_key_bits" => 1024));
+        - |
+          <?php
+          $k = openssl_pkey_new(array("private_key_bits" => 4096, "private_key_type" => OPENSSL_KEYTYPE_RSA));
+      negative:
+        - |
+          <?php
+          $k = openssl_pkey_new(array("curve_name" => "prime256v1"));
+
+  - id: PHP-OPENSSL-PKEY-TYPE
+    title: openssl_pkey_new(["private_key_type" => OPENSSL_KEYTYPE_DSA])
+    match:
+      query: |
+        (function_call_expression
+          function: (name) @fn
+          arguments: (arguments (argument (array_creation_expression
+            (array_element_initializer
+              (encapsed_string (string_content) @key)
+              (name) @algo))))) @call
+      where:
+        - { capture: fn, equals: openssl_pkey_new }
+        - { capture: key, equals: private_key_type }
+        - { capture: algo, regex: "^OPENSSL_KEYTYPE_" }
+    extract:
+      algorithm: { from: algo, resolve: php-crypto-const }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          $k = openssl_pkey_new(array("private_key_type" => OPENSSL_KEYTYPE_DSA));
+        - |
+          <?php
+          $k = openssl_pkey_new(array("private_key_type" => OPENSSL_KEYTYPE_EC));
+      negative:
+        - |
+          <?php
+          $k = openssl_pkey_new(array("private_key_bits" => 2048));
+
+  # ── Password storage ────────────────────────────────────────────────────────────────────────
+  - id: PHP-PASSWORD-HASH
+    title: password_hash($pw, PASSWORD_BCRYPT)
+    match:
+      query: |
+        (function_call_expression
+          function: (name) @fn
+          arguments: (arguments . (argument) . (argument (name) @algo))) @call
+      where:
+        - { capture: fn, equals: password_hash }
+        - { capture: algo, regex: "^PASSWORD_" }
+    extract:
+      algorithm: { from: algo, resolve: php-crypto-const }
+    asset: { asset_type: algorithm-use, usage_context: kdf }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          $h = password_hash($pw, PASSWORD_BCRYPT);
+        - |
+          <?php
+          $h = password_hash($pw, PASSWORD_ARGON2ID);
+      negative:
+        - |
+          <?php
+          $h = md5($pw);
+
+  - id: PHP-CRYPT-UNRESOLVED
+    title: crypt($pw, $salt) — the algorithm lives in the salt prefix, not the call
+    match:
+      query: |
+        (function_call_expression function: (name) @fn) @call
+      where:
+        - { capture: fn, equals: crypt }
+    extract:
+      # The salt's prefix ($1$ = MD5, $2y$ = bcrypt, $6$ = SHA-512) decides the algorithm, and it
+      # is usually built at runtime. Reporting UNRESOLVED keeps the call visible for a human
+      # instead of guessing an algorithm or dropping a real password-hashing site.
+      algorithm: { literal: UNRESOLVED }
+    asset: { asset_type: algorithm-use, usage_context: kdf }
+    confidence: low
+    examples:
+      positive:
+        - |
+          <?php
+          $h = crypt($password, $salt);
+      negative:
+        - |
+          <?php
+          $h = password_hash($password, PASSWORD_DEFAULT);
+
+  # ── JWT ─────────────────────────────────────────────────────────────────────────────────────
+  - id: PHP-JWT-ENCODE
+    title: JWT::encode($payload, $key, "HS256") — firebase/php-jwt
+    match:
+      query: |
+        (scoped_call_expression
+          scope: (name) @cls
+          name: (name) @meth
+          arguments: (arguments . (argument) . (argument) . (argument (_) @alg))) @call
+      where:
+        - { capture: cls, equals: JWT }
+        - { capture: meth, in: [encode, decode] }
+    extract:
+      algorithm: { from: alg, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          $t = JWT::encode($payload, $key, "HS256");
+        - |
+          <?php
+          $t = JWT::encode($payload, $key, "RS256");
+      negative:
+        - |
+          <?php
+          $t = JWT::encode($payload, $key);
+
+  # ── libsodium — the modern, quantum-safe-by-default path ────────────────────────────────────
+  # Detecting these matters as much as detecting the broken ones: a PHP service that already uses
+  # sodium should not read as having no crypto at all, and the migration validator confirms a
+  # patch by seeing the new algorithm appear.
+  - id: PHP-SODIUM
+    title: sodium_crypto_secretbox / _sign / _box
+    match:
+      query: |
+        (function_call_expression function: (name) @fn) @call
+      where:
+        - capture: fn
+          regex: "^sodium_crypto_(secretbox|sign|box|aead_xchacha20poly1305_ietf)"
+    extract:
+      algorithm: { from: fn, resolve: sodium-primitive }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          <?php
+          $c = sodium_crypto_secretbox($msg, $nonce, $key);
+        - |
+          <?php
+          $s = sodium_crypto_sign($msg, $secret);
+        - |
+          <?php
+          $c = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($m, $ad, $n, $k);
+      negative:
+        - |
+          <?php
+          $c = openssl_encrypt($data, "aes-256-gcm", $key);

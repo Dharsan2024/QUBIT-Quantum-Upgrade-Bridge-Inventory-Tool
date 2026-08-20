@@ -1,0 +1,223 @@
+schema: qubit-rule/v1
+language: ruby
+library:
+  name: Ruby OpenSSL / Digest / JWT
+  detect_imports: []
+# Ruby is 6.4% of the Stack Overflow 2025 survey, and Rails still runs a large share of the
+# world's billing and admin backends — long-lived personal data behind code nobody rewrites.
+rules:
+  - id: RB-DIGEST-CLASS
+    title: Digest::MD5.hexdigest(x) / Digest::SHA1.digest(x)
+    match:
+      query: |
+        (call
+          receiver: (scope_resolution scope: (constant) @ns name: (constant) @alg)
+          method: (identifier) @meth) @call
+      where:
+        - { capture: ns, equals: Digest }
+        - { capture: alg, regex: "^(MD5|SHA1|SHA256|SHA384|SHA512|RMD160)$" }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          require 'digest'
+          def f(x) = Digest::MD5.hexdigest(x)
+        - |
+          def f(x) = Digest::SHA256.digest(x)
+      negative:
+        - |
+          def f(x) = Digest::UUID.uuid_v4
+
+  - id: RB-OPENSSL-DIGEST
+    title: OpenSSL::Digest::SHA1.new / OpenSSL::Digest.new('MD5')
+    match:
+      query: |
+        (call
+          receiver: (scope_resolution
+            scope: (scope_resolution scope: (constant) @ns name: (constant) @mod)
+            name: (constant) @alg)
+          method: (identifier) @meth) @call
+      where:
+        - { capture: ns, equals: OpenSSL }
+        - { capture: mod, equals: Digest }
+        - { capture: alg, regex: "^(MD4|MD5|SHA1|SHA224|SHA256|SHA384|SHA512|RIPEMD160)$" }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          require 'openssl'
+          def f = OpenSSL::Digest::SHA1.new
+        - |
+          def f = OpenSSL::Digest::SHA256.new
+      negative:
+        - |
+          def f = OpenSSL::Random.random_bytes(32)
+
+  - id: RB-OPENSSL-CIPHER-NEW
+    title: OpenSSL::Cipher.new('des-ede3-cbc')
+    match:
+      query: |
+        (call
+          receiver: (scope_resolution scope: (constant) @ns name: (constant) @cls)
+          method: (identifier) @meth
+          arguments: (argument_list . (_) @algo)) @call
+      where:
+        - { capture: ns, equals: OpenSSL }
+        - { capture: cls, equals: Cipher }
+        - { capture: meth, equals: new }
+    extract:
+      algorithm: { from: algo, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          require 'openssl'
+          def f = OpenSSL::Cipher.new('des-ede3-cbc')
+        - |
+          def f = OpenSSL::Cipher.new('aes-256-gcm')
+        - |
+          def f = OpenSSL::Cipher.new('rc4')
+      negative:
+        - |
+          def f = OpenSSL::Cipher.ciphers
+
+  - id: RB-OPENSSL-PKEY-NEW
+    title: OpenSSL::PKey::RSA.new(1024) / OpenSSL::PKey::DSA.new(1024)
+    match:
+      query: |
+        (call
+          receiver: (scope_resolution
+            scope: (scope_resolution scope: (constant) @ns name: (constant) @mod)
+            name: (constant) @alg)
+          method: (identifier) @meth
+          arguments: (argument_list . (integer) @size)) @call
+      where:
+        - { capture: ns, equals: OpenSSL }
+        - { capture: mod, equals: PKey }
+        - { capture: alg, in: [RSA, DSA, DH, EC] }
+        - { capture: meth, in: [new, generate] }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          require 'openssl'
+          def f = OpenSSL::PKey::RSA.new(1024)
+        - |
+          def f = OpenSSL::PKey::DSA.generate(2048)
+      negative:
+        - |
+          def f = OpenSSL::PKey::RSA.new(File.read('key.pem'))
+
+  - id: RB-OPENSSL-HMAC
+    title: OpenSSL::HMAC.hexdigest('SHA1', key, data)
+    match:
+      query: |
+        (call
+          receiver: (scope_resolution scope: (constant) @ns name: (constant) @cls)
+          method: (identifier) @meth
+          arguments: (argument_list . (_) @algo)) @call
+      where:
+        - { capture: ns, equals: OpenSSL }
+        - { capture: cls, equals: HMAC }
+    extract:
+      algorithm: { from: algo, resolve: hmac-of-digest }
+    asset: { asset_type: algorithm-use, usage_context: mac }
+    confidence: high
+    examples:
+      positive:
+        - |
+          require 'openssl'
+          def f(k, d) = OpenSSL::HMAC.hexdigest('SHA1', k, d)
+        - |
+          def f(k, d) = OpenSSL::HMAC.digest('SHA256', k, d)
+      negative:
+        - |
+          def f(k, d) = OpenSSL::Cipher.new('aes-256-gcm')
+
+  - id: RB-OPENSSL-SSL-VERSION
+    title: ctx.ssl_version = 'TLSv1' / min_version
+    match:
+      query: |
+        (assignment
+          left: (call method: (identifier) @attr)
+          right: (_) @proto) @call
+      where:
+        # The `=` belongs to the assignment operator, not the method name: `ctx.ssl_version =`
+        # parses as `(assignment left: (call method: (identifier "ssl_version")) right: ...)`.
+        - { capture: attr, in: [ssl_version, min_version, max_version] }
+    extract:
+      algorithm: { from: proto, resolve: string-constant }
+    asset: { asset_type: protocol-config, usage_context: tls }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          require 'openssl'
+          ctx = OpenSSL::SSL::SSLContext.new
+          ctx.ssl_version = 'TLSv1'
+        - |
+          ctx.min_version = 'TLSv1.2'
+      negative:
+        - |
+          ctx.verify_mode = OpenSSL::SSL::VERIFY_PEER
+
+  - id: RB-JWT-ENCODE
+    title: JWT.encode(payload, key, 'HS256')
+    match:
+      query: |
+        (call
+          receiver: (constant) @cls
+          method: (identifier) @meth
+          arguments: (argument_list . (_) . (_) . (_) @alg)) @call
+      where:
+        - { capture: cls, equals: JWT }
+        - { capture: meth, in: [encode, decode] }
+    extract:
+      algorithm: { from: alg, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          require 'jwt'
+          def f(p, k) = JWT.encode(p, k, 'HS256')
+        - |
+          def f(p, k) = JWT.encode(p, k, 'RS256')
+      negative:
+        - |
+          def f(p, k) = JWT.encode(p, k)
+
+  - id: RB-BCRYPT
+    title: BCrypt::Password.create(pw)
+    match:
+      query: |
+        (call
+          receiver: (scope_resolution scope: (constant) @ns name: (constant) @cls)
+          method: (identifier) @meth) @call
+      where:
+        - { capture: ns, equals: BCrypt }
+        - { capture: cls, in: [Password, Engine] }
+    extract:
+      algorithm: { literal: bcrypt }
+    asset: { asset_type: algorithm-use, usage_context: kdf }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          require 'bcrypt'
+          def f(pw) = BCrypt::Password.create(pw)
+      negative:
+        - |
+          def f(pw) = Digest::MD5.hexdigest(pw)

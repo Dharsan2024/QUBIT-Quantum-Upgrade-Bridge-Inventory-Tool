@@ -1,0 +1,186 @@
+schema: qubit-rule/v1
+language: swift
+library:
+  name: Swift CryptoKit / CommonCrypto / Security
+  detect_imports: []
+# Swift is 5.4% of the Stack Overflow 2025 survey and effectively 100% of new iOS work. Mobile is
+# also where the HNDL argument is sharpest: an app ships once and stays installed for years, so a
+# weak algorithm baked into a release keeps producing recordable traffic long after the fix lands.
+rules:
+  - id: SWIFT-CRYPTOKIT-INSECURE
+    title: Insecure.MD5.hash(data:) / Insecure.SHA1
+    match:
+      query: |
+        (navigation_expression
+          target: (simple_identifier) @ns
+          suffix: (navigation_suffix suffix: (simple_identifier) @alg)) @call
+      where:
+        - { capture: ns, equals: Insecure }
+        - { capture: alg, regex: "^(MD5|SHA1)$" }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import CryptoKit
+          func f(x: Data) { let d = Insecure.MD5.hash(data: x) }
+        - |
+          func f(x: Data) { let d = Insecure.SHA1.hash(data: x) }
+      negative:
+        - |
+          func f(x: Data) { let d = SHA256.hash(data: x) }
+
+  - id: SWIFT-CRYPTOKIT-STRONG
+    title: SHA256.hash(data:) / AES.GCM.seal / ChaChaPoly.seal
+    match:
+      query: |
+        (call_expression
+          (navigation_expression
+            target: (simple_identifier) @cls
+            suffix: (navigation_suffix suffix: (simple_identifier) @meth))) @call
+      where:
+        - { capture: cls, in: [SHA256, SHA384, SHA512, ChaChaPoly, Curve25519, P256, P384, P521] }
+        - { capture: meth, in: [hash, seal, open, sharedSecretFromKeyAgreement] }
+    extract:
+      algorithm: { from: cls, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: unknown }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          import CryptoKit
+          func f(x: Data) { let d = SHA256.hash(data: x) }
+        - |
+          func f(k: SymmetricKey, x: Data) { let b = ChaChaPoly.seal(x, using: k) }
+      negative:
+        - |
+          func f(x: Data) { let d = Insecure.MD5.hash(data: x) }
+
+  - id: SWIFT-COMMONCRYPTO-DIGEST
+    title: CC_MD5(...) / CC_SHA1(...)
+    match:
+      query: |
+        (call_expression (simple_identifier) @fn) @call
+      where:
+        - { capture: fn, regex: "^CC_(MD2|MD4|MD5|SHA1|SHA224|SHA256|SHA384|SHA512)$" }
+    extract:
+      algorithm: { from: fn, resolve: commoncrypto-alg }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import CommonCrypto
+          func f(p: UnsafeRawPointer, l: CC_LONG, o: UnsafeMutablePointer<UInt8>) { CC_MD5(p, l, o) }
+        - |
+          func f(p: UnsafeRawPointer, l: CC_LONG, o: UnsafeMutablePointer<UInt8>) { CC_SHA1(p, l, o) }
+      negative:
+        - |
+          func f() { CCRandomGenerateBytes(buf, 32) }
+
+  - id: SWIFT-COMMONCRYPTO-CIPHER
+    title: CCCrypt(..., kCCAlgorithm3DES, ...) — the algorithm is an argument constant
+    match:
+      query: |
+        (value_argument value: (simple_identifier) @alg) @call
+      where:
+        - { capture: alg, regex: "^kCCAlgorithm(DES|3DES|RC4|RC2|AES|AES128|Blowfish|CAST)$" }
+    extract:
+      algorithm: { from: alg, resolve: commoncrypto-alg }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          import CommonCrypto
+          func f() { CCCrypt(op, kCCAlgorithm3DES, opts, k, kl, iv, dIn, dInLen, dOut, dOutLen, moved) }
+        - |
+          func f() { CCCrypt(op, kCCAlgorithmRC4, opts, k, kl, iv, dIn, dInLen, dOut, dOutLen, moved) }
+      negative:
+        - |
+          func f() { CCCrypt(op, kCCOptionPKCS7Padding, opts, k, kl, iv, i, il, o, ol, m) }
+
+  - id: SWIFT-SECURITY-KEY-SIZE
+    title: "kSecAttrKeySizeInBits: 1024 in SecKeyCreateRandomKey attributes"
+    match:
+      query: |
+        ; The `.` between key and value is load-bearing. `dictionary_literal` carries repeated
+        ; `key:`/`value:` fields with no per-entry wrapper node, so without the adjacency anchor
+        ; the query pairs EVERY key with EVERY integer value — `[kSecAttrKeyType: ...RSA,
+        ; kSecAttrKeySizeInBits: 1024]` matched as (kSecAttrKeyType, 1024) too. That is how a
+        ; rule reports a key size belonging to a different attribute entirely.
+        (dictionary_literal
+          key: (simple_identifier) @key
+          . value: (integer_literal) @size) @call
+      where:
+        - { capture: key, equals: kSecAttrKeySizeInBits }
+    extract:
+      # The Security framework names the key TYPE in a sibling entry
+      # (`kSecAttrKeyTypeRSA`/`...ECSECPrimeRandom`), which this pattern cannot reach. Reporting
+      # UNRESOLVED with the size keeps the 1024-bit fact visible without asserting RSA over EC.
+      algorithm: { literal: UNRESOLVED }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: low
+    examples:
+      positive:
+        - |
+          import Security
+          func f() {
+            let attrs: [String: Any] = [kSecAttrKeySizeInBits: 1024]
+            _ = SecKeyCreateRandomKey(attrs as CFDictionary, nil)
+          }
+      negative:
+        - |
+          func f() { let attrs: [String: Any] = [kSecAttrLabel: "signing"] }
+
+  - id: SWIFT-SECURITY-KEY-TYPE
+    title: kSecAttrKeyTypeRSA / kSecAttrKeyTypeECSECPrimeRandom
+    match:
+      query: |
+        (simple_identifier) @keytype
+      where:
+        - { capture: keytype, regex: "^kSecAttrKeyType(RSA|DSA|EC|ECSECPrimeRandom|AES|DES|3DES|RC4|RC2)$" }
+    extract:
+      algorithm: { from: keytype, resolve: security-key-type }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          import Security
+          func f() { let attrs: [String: Any] = [kSecAttrKeyType: kSecAttrKeyTypeRSA] }
+        - |
+          func f() { let attrs: [String: Any] = [kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom] }
+      negative:
+        - |
+          func f() { let attrs: [String: Any] = [kSecAttrKeyType: kSecAttrKeyClassPrivate] }
+
+  - id: SWIFT-URLSESSION-TLS-VERSION
+    title: tlsMinimumSupportedProtocolVersion = .TLSv10
+    match:
+      query: |
+        (navigation_expression suffix: (navigation_suffix suffix: (simple_identifier) @proto)) @call
+        (prefix_expression (simple_identifier) @proto) @call
+      where:
+        - { capture: proto, regex: "^(sslv3|tlsv10|tlsv11|tlsv12|tlsv13|TLSv10|TLSv11|TLSv12|TLSv13|SSLv3)$" }
+    extract:
+      algorithm: { from: proto, resolve: swift-tls-version }
+    asset: { asset_type: protocol-config, usage_context: tls }
+    confidence: medium
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          import Foundation
+          func f(c: URLSessionConfiguration) { c.tlsMinimumSupportedProtocolVersion = .TLSv10 }
+        - |
+          func f(c: URLSessionConfiguration) { c.tlsMinimumSupportedProtocolVersion = .TLSv13 }
+      negative:
+        - |
+          func f(c: URLSessionConfiguration) { c.httpMaximumConnectionsPerHost = 4 }

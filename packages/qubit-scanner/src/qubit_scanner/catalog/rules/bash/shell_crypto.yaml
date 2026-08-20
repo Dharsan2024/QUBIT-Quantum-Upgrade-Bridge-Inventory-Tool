@@ -1,0 +1,228 @@
+schema: qubit-rule/v1
+language: bash
+library:
+  name: Shell crypto tooling (openssl, ssh-keygen, gpg, keytool, curl)
+  detect_imports: []
+# Bash/Shell is the fifth most-used language in the Stack Overflow 2025 survey (48.7% of all
+# respondents), and the cryptography in a shell script is not an API call — it is an argv token.
+# `openssl req -newkey rsa:1024 -sha1` in a certificate-provisioning script decides the key size
+# and signature digest for every certificate an organisation issues, and no application-code
+# scanner will ever see it.
+#
+# Each rule captures the WHOLE command node and reads it as argv, rather than trying to express
+# argument position in a tree-sitter query. Positional queries were the alternative and they are
+# brittle here: reordering `-in`/`-out` around the algorithm flag is free in a shell and would
+# break every one of them. The `where` regex on @call is what keeps the rule from firing on
+# unrelated invocations, so it is the precision mechanism, not a convenience.
+rules:
+  - id: SHELL-OPENSSL-DIGEST
+    title: openssl dgst -md5 / -sha1
+    match:
+      query: |
+        (command (command_name (word) @cmd)) @call
+      where:
+        - { capture: cmd, equals: openssl }
+        - capture: call
+          regex: "-(md2|md4|md5|sha|sha1|sha224|sha256|sha384|sha512|ripemd160|sm3)(\\s|$)"
+    extract:
+      algorithm: { from: call, resolve: shell-algorithm }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          openssl dgst -md5 release.tar.gz
+        - |
+          openssl dgst -sha256 release.tar.gz
+      negative:
+        - |
+          openssl version -a
+
+  - id: SHELL-OPENSSL-CIPHER
+    title: openssl enc -des3 / -rc4 / -aes-128-cbc
+    match:
+      query: |
+        (command (command_name (word) @cmd)) @call
+      where:
+        - { capture: cmd, equals: openssl }
+        - capture: call
+          regex: "-(des|des3|des-ede3-cbc|des-cbc|rc2|rc4|idea|cast|cast5|bf|blowfish|seed|sm4|aes-?[0-9]{3}(-[a-z]{3})?|camellia[0-9]{3}|chacha20)(\\s|$)"
+    extract:
+      algorithm: { from: call, resolve: shell-algorithm }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          openssl enc -des3 -in backup.sql -out backup.enc -k "$PASS"
+        - |
+          openssl enc -aes-256-cbc -in backup.sql -out backup.enc
+        - |
+          openssl enc -d -rc4 -in legacy.enc -out legacy.sql
+      negative:
+        - |
+          openssl enc -in backup.sql -out backup.enc
+
+  - id: SHELL-OPENSSL-KEYGEN
+    title: openssl genrsa 1024 / req -newkey rsa:2048 / dhparam 1024
+    match:
+      query: |
+        (command (command_name (word) @cmd)) @call
+      where:
+        - { capture: cmd, equals: openssl }
+        - capture: call
+          regex: "(genrsa|gendsa|dsaparam|ecparam|dhparam|-newkey)"
+    extract:
+      algorithm: { from: call, resolve: shell-algorithm }
+      key_size: { from: call, resolve: shell-key-bits }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          openssl genrsa -out server.key 1024
+        - |
+          openssl req -new -newkey rsa:2048 -nodes -keyout k.pem -out r.csr
+        - |
+          openssl dhparam -out dhparam.pem 1024
+      negative:
+        - |
+          openssl x509 -in server.crt -text -noout
+
+  - id: SHELL-OPENSSL-TLS-VERSION
+    title: openssl s_client -tls1 / -ssl3
+    match:
+      query: |
+        (command (command_name (word) @cmd)) @call
+      where:
+        - { capture: cmd, equals: openssl }
+        - { capture: call, regex: "-(ssl2|ssl3|tls1|tls1_1|tls1_2|tls1_3)(\\s|$)" }
+    extract:
+      algorithm: { from: call, resolve: shell-algorithm }
+    asset: { asset_type: protocol-config, usage_context: tls }
+    confidence: high
+    examples:
+      positive:
+        - |
+          openssl s_client -connect legacy.internal:443 -tls1
+        - |
+          openssl s_client -connect legacy.internal:443 -ssl3
+      negative:
+        - |
+          openssl s_client -connect legacy.internal:443
+
+  - id: SHELL-SSH-KEYGEN
+    title: ssh-keygen -t rsa -b 1024
+    match:
+      query: |
+        (command (command_name (word) @cmd)) @call
+      where:
+        - { capture: cmd, equals: ssh-keygen }
+        - { capture: call, regex: "-t\\s+(rsa|dsa|ecdsa|ed25519|ecdsa-sk|ed25519-sk)" }
+    extract:
+      algorithm: { from: call, resolve: shell-algorithm }
+      key_size: { from: call, resolve: shell-key-bits }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          ssh-keygen -t rsa -b 1024 -f deploy_key -N ""
+        - |
+          ssh-keygen -t ed25519 -f deploy_key -N ""
+        - |
+          ssh-keygen -t dsa -f legacy_key
+      negative:
+        - |
+          ssh-keygen -l -f deploy_key.pub
+
+  - id: SHELL-GPG-ALGO
+    title: gpg --cipher-algo 3DES / --digest-algo SHA1
+    match:
+      query: |
+        (command (command_name (word) @cmd)) @call
+      where:
+        - { capture: cmd, regex: "^gpg2?$" }
+        - { capture: call, regex: "--(cipher|digest|personal-cipher-preferences)-?algo" }
+    extract:
+      algorithm: { from: call, resolve: shell-algorithm }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          gpg --cipher-algo 3DES --symmetric archive.tar
+        - |
+          gpg --digest-algo SHA1 --sign release.tar
+        - |
+          gpg --cipher-algo AES256 --symmetric archive.tar
+      negative:
+        - |
+          gpg --verify release.tar.sig
+
+  - id: SHELL-COREUTILS-DIGEST
+    title: md5sum / sha1sum
+    match:
+      query: |
+        (command (command_name (word) @cmd)) @call
+      where:
+        - { capture: cmd, regex: "^(md5sum|sha1sum|sha256sum|sha512sum)$" }
+    extract:
+      algorithm: { from: cmd, resolve: shell-algorithm }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          md5sum artifact.bin > artifact.md5
+        - |
+          sha256sum artifact.bin > artifact.sha256
+      negative:
+        - |
+          cksum artifact.bin
+
+  - id: SHELL-CLIENT-TLS-VERSION
+    title: curl --tlsv1.0 / wget --secure-protocol=TLSv1
+    match:
+      query: |
+        (command (command_name (word) @cmd)) @call
+      where:
+        - { capture: cmd, regex: "^(curl|wget)$" }
+        - { capture: call, regex: "--(tlsv1(\\.[0-3])?|sslv2|sslv3|secure-protocol=)" }
+    extract:
+      algorithm: { from: call, resolve: shell-algorithm }
+    asset: { asset_type: protocol-config, usage_context: tls }
+    confidence: high
+    examples:
+      positive:
+        - |
+          curl --tlsv1.0 https://partner.example.com/api
+        - |
+          wget --secure-protocol=TLSv1 https://partner.example.com/feed
+      negative:
+        - |
+          curl https://partner.example.com/api
+
+  - id: SHELL-KEYTOOL-KEYGEN
+    title: keytool -genkeypair -keyalg RSA -keysize 1024 -sigalg SHA1withRSA
+    match:
+      query: |
+        (command (command_name (word) @cmd)) @call
+      where:
+        - { capture: cmd, equals: keytool }
+        - { capture: call, regex: "-(keyalg|sigalg)\\s" }
+    extract:
+      algorithm: { from: call, resolve: shell-algorithm }
+      key_size: { from: call, resolve: shell-key-bits }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          keytool -genkeypair -alias app -keyalg RSA -keysize 1024 -keystore app.jks
+        - |
+          keytool -genkeypair -alias app -keyalg EC -keystore app.jks
+      negative:
+        - |
+          keytool -list -keystore app.jks

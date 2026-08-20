@@ -110,6 +110,18 @@ export async function fetchHealthDeps(): Promise<{
   return send<{ api: string; docker: boolean; ollama: boolean }>("/health/deps");
 }
 
+/** Source languages the code scanner can read, with the rule count behind each.
+
+    Surfaced in the app because a language with no rules is invisible otherwise: the file parses,
+    finds nothing, and reports as scanned — identical to a file with no cryptography in it. */
+export async function fetchLanguages(): Promise<
+  { language: string; rules: number; libraries: string[]; extensions: string[] }[]
+> {
+  return send<{ language: string; rules: number; libraries: string[]; extensions: string[] }[]>(
+    "/registry/languages",
+  );
+}
+
 export async function fetchProjects(): Promise<Project[]> {
   return send<Project[]>("/projects");
 }

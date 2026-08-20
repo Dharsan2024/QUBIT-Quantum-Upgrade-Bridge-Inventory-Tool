@@ -1,0 +1,157 @@
+schema: qubit-rule/v1
+language: powershell
+library:
+  name: PowerShell cmdlets and .NET type literals
+  detect_imports: []
+# PowerShell is the tenth most-used language in the Stack Overflow 2025 survey (23.2%) and it is
+# where Windows estates are actually configured. A provisioning script that runs
+# `New-SelfSignedCertificate -KeyLength 1024 -HashAlgorithm SHA1` sets the cryptography for every
+# machine it touches, and it is not application code, so nothing else here would look at it.
+#
+# The cmdlet rules capture the whole `command` node and read it as argv — the same technique the
+# bash pack uses, and for the same reason: PowerShell parameters are order-free, so a positional
+# query would break the moment someone reorders `-Path` and `-Algorithm`.
+rules:
+  - id: PS-GET-FILEHASH
+    title: Get-FileHash -Algorithm MD5
+    match:
+      query: |
+        (command (command_name) @cmd) @call
+      where:
+        - { capture: cmd, regex: "(?i)^get-filehash$" }
+        - { capture: call, regex: "(?i)-Algorithm\\s" }
+    extract:
+      algorithm: { from: call, resolve: shell-algorithm }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          Get-FileHash -Algorithm MD5 -Path .\release.zip
+        - |
+          Get-FileHash -Algorithm SHA256 -Path .\release.zip
+      negative:
+        - |
+          Get-FileHash -Path .\release.zip
+
+  - id: PS-NEW-SELFSIGNEDCERTIFICATE
+    title: New-SelfSignedCertificate -KeyAlgorithm RSA -KeyLength 1024 -HashAlgorithm SHA1
+    match:
+      query: |
+        (command (command_name) @cmd) @call
+      where:
+        - { capture: cmd, regex: "(?i)^new-selfsignedcertificate$" }
+        - { capture: call, regex: "(?i)-(KeyAlgorithm|HashAlgorithm|KeyLength)\\s" }
+    extract:
+      algorithm: { from: call, resolve: shell-algorithm }
+      key_size: { from: call, resolve: shell-key-bits }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          New-SelfSignedCertificate -DnsName app.local -KeyAlgorithm RSA -KeyLength 1024
+        - |
+          New-SelfSignedCertificate -DnsName app.local -HashAlgorithm SHA1
+      negative:
+        - |
+          New-SelfSignedCertificate -DnsName app.local
+
+  - id: PS-DOTNET-TYPE-LITERAL
+    title: "[System.Security.Cryptography.MD5]::Create() — a .NET type literal in a script"
+    match:
+      query: |
+        (type_literal) @call
+      where:
+        - capture: call
+          regex: "(?i)(MD5|MD4|SHA1|TripleDES|DESCryptoServiceProvider|RC2|RijndaelManaged|HMACMD5|HMACSHA1|RSACryptoServiceProvider|Rfc2898DeriveBytes)"
+    extract:
+      algorithm: { from: call, resolve: powershell-type-literal }
+    asset: { asset_type: algorithm-use, usage_context: unknown }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          $md5 = [System.Security.Cryptography.MD5]::Create()
+        - |
+          $tdes = [System.Security.Cryptography.TripleDESCryptoServiceProvider]::new()
+      negative:
+        - |
+          $sb = [System.Text.StringBuilder]::new()
+
+  - id: PS-NEW-OBJECT-CRYPTO
+    title: New-Object System.Security.Cryptography.TripleDESCryptoServiceProvider
+    match:
+      query: |
+        (command (command_name) @cmd) @call
+      where:
+        - { capture: cmd, regex: "(?i)^new-object$" }
+        - capture: call
+          regex: "(?i)(MD5|MD4|SHA1|TripleDES|DESCryptoServiceProvider|RC2|Rijndael|HMACMD5|HMACSHA1|RSACryptoServiceProvider|Rfc2898DeriveBytes)"
+    extract:
+      algorithm: { from: call, resolve: powershell-type-literal }
+      key_size: { from: call, resolve: shell-key-bits }
+    asset: { asset_type: algorithm-use, usage_context: unknown }
+    confidence: high
+    examples:
+      positive:
+        - |
+          $c = New-Object System.Security.Cryptography.TripleDESCryptoServiceProvider
+        - |
+          $h = New-Object System.Security.Cryptography.MD5CryptoServiceProvider
+      negative:
+        - |
+          $l = New-Object System.Collections.ArrayList
+
+  - id: PS-SECURITY-PROTOCOL
+    title: "[Net.ServicePointManager]::SecurityProtocol = 'Tls' — the bare Tls value IS TLS 1.0"
+    match:
+      query: |
+        (assignment_expression) @call
+      where:
+        - { capture: call, regex: "(?i)SecurityProtocol" }
+        # Deliberately loose: any mention of a protocol token at all. The resolver decides WHICH
+        # version, most-specific-first, because `Tls12` contains `Tls` — a regex trying to be
+        # precise here would report every modern setting as the broken one.
+        - { capture: call, regex: "(?i)(ssl2|ssl3|tls)" }
+    extract:
+      algorithm: { from: call, resolve: powershell-security-protocol }
+    asset: { asset_type: protocol-config, usage_context: tls }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          [Net.ServicePointManager]::SecurityProtocol = "Tls"
+        - |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Ssl3
+        - |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      negative:
+        - |
+          $ProgressPreference = "SilentlyContinue"
+
+  - id: PS-SHELL-TOOLING
+    title: openssl / ssh-keygen invoked from a PowerShell script
+    match:
+      query: |
+        (command (command_name) @cmd) @call
+      where:
+        - { capture: cmd, regex: "(?i)^(openssl|ssh-keygen|gpg|keytool)(\\.exe)?$" }
+        - capture: call
+          regex: "(?i)(-(md5|sha1|des3|rc4|tls1|ssl3)(\\s|$)|genrsa|-newkey|-t\\s+(rsa|dsa)|-keyalg)"
+    extract:
+      algorithm: { from: call, resolve: shell-algorithm }
+      key_size: { from: call, resolve: shell-key-bits }
+    asset: { asset_type: algorithm-use, usage_context: unknown }
+    confidence: high
+    examples:
+      positive:
+        - |
+          openssl genrsa -out server.key 1024
+        - |
+          ssh-keygen -t rsa -b 1024 -f deploy_key
+      negative:
+        - |
+          openssl version

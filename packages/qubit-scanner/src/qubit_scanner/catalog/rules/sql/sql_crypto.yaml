@@ -1,0 +1,232 @@
+schema: qubit-rule/v1
+language: sql
+library:
+  name: SQL built-in and extension cryptography
+  # SQL has no import statement; the dialect decides what exists.
+  detect_imports: []
+# SQL is the third most-used language in the Stack Overflow 2025 survey (58.6% of all
+# respondents) and it was invisible to this scanner. It is also where the highest-value data
+# actually lives: `SELECT MD5(password)` in a migration or a stored procedure is a credential
+# digest that no application-code scan will ever see, because there is no application code.
+#
+# Function names are matched case-insensitively via `(?i)` regexes — SQL keywords and built-in
+# function names are case-insensitive, and real schemas mix `md5()` and `MD5()` freely.
+rules:
+  # ── MySQL / MariaDB built-ins ───────────────────────────────────────────────────────────────
+  - id: SQL-DIGEST-BUILTIN
+    title: MD5(x) / SHA1(x) / SHA(x) / CRC32(x)
+    match:
+      query: |
+        (invocation (object_reference name: (identifier) @fn)) @call
+      where:
+        - { capture: fn, regex: "(?i)^(md5|sha1|sha|crc32)$" }
+    extract:
+      algorithm: { from: fn, resolve: sql-digest-name }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - "SELECT MD5(password) FROM users;"
+        - "SELECT sha1(token) FROM sessions;"
+        - "UPDATE files SET checksum = CRC32(body);"
+      negative:
+        - "SELECT SHA2(password, 256) FROM users;"
+
+  - id: SQL-SHA2-BUILTIN
+    title: SHA2(x, 256) — the digest length is the second argument
+    match:
+      query: |
+        (invocation
+          (object_reference name: (identifier) @fn)
+          parameter: (term value: (literal) @bits)) @call
+      where:
+        - { capture: fn, regex: "(?i)^sha2$" }
+    extract:
+      algorithm: { from: bits, resolve: sql-sha2-length }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - "SELECT SHA2(password, 256) FROM users;"
+        - "SELECT SHA2(password, 224) FROM users;"
+      negative:
+        - "SELECT MD5(password) FROM users;"
+
+  - id: SQL-MYSQL-PASSWORD-FUNCTION
+    title: PASSWORD(x) / OLD_PASSWORD(x) — MySQL's legacy password digests
+    match:
+      query: |
+        (invocation (object_reference name: (identifier) @fn)) @call
+      where:
+        - { capture: fn, regex: "(?i)^(password|old_password)$" }
+    extract:
+      # MySQL's PASSWORD() is SHA1(SHA1(x)) — a double SHA-1 with no salt. OLD_PASSWORD() is the
+      # even weaker pre-4.1 hash. Reporting SHA-1 is the honest reading of both.
+      algorithm: { literal: SHA-1 }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: medium
+    examples:
+      positive:
+        - "SELECT PASSWORD('secret');"
+        - "UPDATE u SET pw = OLD_PASSWORD(:v);"
+      negative:
+        - "SELECT MD5('secret');"
+
+  - id: SQL-MYSQL-DES
+    title: DES_ENCRYPT(x, k) / DES_DECRYPT(x, k)
+    match:
+      query: |
+        (invocation (object_reference name: (identifier) @fn)) @call
+      where:
+        - { capture: fn, regex: "(?i)^des_(encrypt|decrypt)$" }
+    extract:
+      algorithm: { literal: DES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - "SELECT DES_ENCRYPT(card_number, @key) FROM cards;"
+        - "SELECT des_decrypt(blob, @key) FROM cards;"
+      negative:
+        - "SELECT AES_ENCRYPT(card_number, @key) FROM cards;"
+
+  - id: SQL-MYSQL-AES
+    title: AES_ENCRYPT(x, k) — MySQL defaults to aes-128-ecb
+    match:
+      query: |
+        (invocation (object_reference name: (identifier) @fn)) @call
+      where:
+        - { capture: fn, regex: "(?i)^aes_(encrypt|decrypt)$" }
+    extract:
+      # MySQL's `block_encryption_mode` defaults to `aes-128-ecb`, so an AES_ENCRYPT() call that
+      # does not set the session variable is AES-128 — not AES-256, and not a safe mode.
+      algorithm: { literal: AES-128 }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: medium
+    examples:
+      positive:
+        - "SELECT AES_ENCRYPT(ssn, @key) FROM staff;"
+      negative:
+        - "SELECT DES_ENCRYPT(ssn, @key) FROM staff;"
+
+  # ── PostgreSQL pgcrypto ─────────────────────────────────────────────────────────────────────
+  - id: SQL-PGCRYPTO-DIGEST
+    title: digest(data, 'md5') — pgcrypto
+    match:
+      query: |
+        (invocation
+          (object_reference name: (identifier) @fn)
+          parameter: (term value: (literal) @algo)) @call
+      where:
+        - { capture: fn, regex: "(?i)^digest$" }
+    extract:
+      algorithm: { from: algo, resolve: string-literal }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - "SELECT digest(payload, 'md5') FROM events;"
+        - "SELECT digest(payload, 'sha256') FROM events;"
+      negative:
+        - "SELECT hmac(payload, key, 'sha1') FROM events;"
+
+  - id: SQL-PGCRYPTO-HMAC
+    title: hmac(data, key, 'sha1') — pgcrypto
+    match:
+      query: |
+        (invocation
+          (object_reference name: (identifier) @fn)
+          parameter: (term value: (literal) @algo)) @call
+      where:
+        - { capture: fn, regex: "(?i)^hmac$" }
+    extract:
+      algorithm: { from: algo, resolve: hmac-of-digest }
+    asset: { asset_type: algorithm-use, usage_context: mac }
+    confidence: high
+    examples:
+      positive:
+        - "SELECT hmac(payload, secret, 'sha1') FROM events;"
+        - "SELECT hmac(payload, secret, 'sha256') FROM events;"
+      negative:
+        - "SELECT digest(payload, 'sha1') FROM events;"
+
+  - id: SQL-PGCRYPTO-ENCRYPT
+    title: encrypt(data, key, 'des') / decrypt — pgcrypto raw cipher
+    match:
+      query: |
+        (invocation
+          (object_reference name: (identifier) @fn)
+          parameter: (term value: (literal) @algo)) @call
+      where:
+        - { capture: fn, regex: "(?i)^(encrypt|decrypt|encrypt_iv|decrypt_iv)$" }
+    extract:
+      algorithm: { from: algo, resolve: string-literal }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - "SELECT encrypt(ssn, :key, 'des') FROM staff;"
+        - "SELECT decrypt(ssn, :key, 'aes') FROM staff;"
+      negative:
+        - "SELECT pgp_sym_encrypt(ssn, :key) FROM staff;"
+
+  - id: SQL-PGCRYPTO-GEN-SALT
+    title: crypt(pw, gen_salt('md5')) — the salt prefix picks the algorithm
+    match:
+      query: |
+        (invocation
+          (object_reference name: (identifier) @fn)
+          parameter: (term value: (literal) @algo)) @call
+      where:
+        - { capture: fn, regex: "(?i)^gen_salt$" }
+    extract:
+      # pgcrypto's gen_salt takes 'des', 'xdes', 'md5' or 'bf'. That string is the whole decision
+      # for how every password in the table is stored, and it is the only place it appears.
+      algorithm: { from: algo, resolve: string-literal }
+    asset: { asset_type: algorithm-use, usage_context: kdf }
+    confidence: high
+    examples:
+      positive:
+        - "INSERT INTO u(pw) VALUES (crypt(:pw, gen_salt('md5')));"
+        - "INSERT INTO u(pw) VALUES (crypt(:pw, gen_salt('bf', 8)));"
+      negative:
+        - "INSERT INTO u(pw) VALUES (crypt(:pw, :salt));"
+
+  - id: SQL-PGCRYPTO-PGP-SYM
+    title: pgp_sym_encrypt(data, key) — pgcrypto defaults to AES-128
+    match:
+      query: |
+        (invocation (object_reference name: (identifier) @fn)) @call
+      where:
+        - { capture: fn, regex: "(?i)^pgp_sym_(encrypt|decrypt)(_bytea)?$" }
+    extract:
+      # pgcrypto's default `cipher-algo` is aes128 unless the options string overrides it.
+      algorithm: { literal: AES-128 }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: medium
+    examples:
+      positive:
+        - "SELECT pgp_sym_encrypt(notes, :key) FROM records;"
+      negative:
+        - "SELECT encrypt(notes, :key, 'aes') FROM records;"
+
+  # ── SQL Server ──────────────────────────────────────────────────────────────────────────────
+  - id: SQL-MSSQL-HASHBYTES
+    title: HASHBYTES('MD5', x) — SQL Server
+    match:
+      query: |
+        (invocation
+          (object_reference name: (identifier) @fn)
+          parameter: (term value: (literal) @algo)) @call
+      where:
+        - { capture: fn, regex: "(?i)^hashbytes$" }
+    extract:
+      algorithm: { from: algo, resolve: sql-digest-name }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - "SELECT HASHBYTES('MD5', CONVERT(varchar, pw)) FROM dbo.Users;"
+        - "SELECT HASHBYTES('SHA2_256', pw) FROM dbo.Users;"
+      negative:
+        - "SELECT CHECKSUM(pw) FROM dbo.Users;"

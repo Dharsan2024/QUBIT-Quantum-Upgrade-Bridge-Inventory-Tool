@@ -400,6 +400,133 @@ Two details this required:
 - **`auto` names no algorithm.** nginx's `ssl_ecdh_curve auto` delegates the choice to OpenSSL, so it is skipped rather than reported — inventing a group would put a fabricated finding in the inventory.
 - **A bare curve name in a key-exchange list means key agreement, not signing.** `prime256v1` is the same curve whether it signs a certificate (ECDSA-P256) or agrees a session key (ECDH-P256), and the registry must pick one meaning for the bare name — it picks the signature one, which is right for a certificate's key algorithm and wrong here. Reporting a kex group as ECDSA understates HNDL urgency (a signature is not retroactively forgeable from a recording, so it carries no HNDL exposure at all) *and* misroutes migration, since transform rules match on `usage_context`. `config/groups.py::normalize_kex_group` re-spells bare curves to their ECDH identity; names already unambiguous (`X25519`, `X25519MLKEM768`) and anything unrecognised pass through untouched, so a new group name still reaches the registry and is still flagged if it does not resolve.
 
+### 4.4c Language coverage — which grammars, and why those (2026-08)
+
+The scanner shipped with six grammars: Python, Go, Java, JavaScript, TypeScript and C. That set
+was chosen by what the reference corpora happened to contain, which is not the same as what the
+industry writes. Coverage is now **19 grammars**, selected against measured usage rather than
+taste — the [Stack Overflow 2025 Developer Survey](https://survey.stackoverflow.co/2025/technology)
+"Programming, scripting, and markup languages" results, all-respondents column.
+
+| Rank | Language | Share | Status |
+|---:|---|---:|---|
+| 1 | JavaScript | 66.0% | was covered |
+| 2 | HTML/CSS | 61.9% | **not applicable** — no cryptographic API surface |
+| 3 | SQL | 58.6% | **added** |
+| 4 | Python | 57.9% | was covered |
+| 5 | Bash/Shell | 48.7% | **added** |
+| 6 | TypeScript | 43.6% | was covered (TSX **added**) |
+| 7 | Java | 29.4% | was covered |
+| 8 | C# | 27.8% | **added** |
+| 9 | C++ | 23.5% | **added** (was mapped with no rules — see below) |
+| 10 | PowerShell | 23.2% | **added** |
+| 11 | C | 22.0% | was covered |
+| 12 | PHP | 18.9% | **added** |
+| 13 | Go | 16.4% | was covered |
+| 14 | Rust | 14.8% | **added** |
+| 15 | Kotlin | 10.8% | **added** |
+| 18 | Ruby | 6.4% | **added** |
+| 19 | Dart | 5.9% | **added** |
+| 20 | Swift | 5.4% | **added** |
+| 29 | Scala | 2.6% | **added** |
+
+Every language in the top 15 that can express cryptography is now covered, plus Ruby, Dart, Swift
+and Scala. The four remaining top-20 entries are Lua (9.2%), Assembly (7.1%), R (4.9%) and
+Groovy (4.8%); Groovy's practical footprint is Gradle build files, which the **manifest** scanner
+reads (`build.gradle`, `build.gradle.kts`) rather than the code scanner.
+
+Every grammar comes from `tree-sitter-language-pack`, already a dependency — adding a language
+costs an entry in `code/languages.py` and a YAML pack, and no new dependency.
+
+#### Two silent failure modes this section exists to prevent
+
+Both produce a clean-looking scan of code that was never examined, which is the worst output a
+risk tool can give:
+
+1. **An extension absent from the map is never opened.** `.tsx` was missing, so every React and
+   Next.js component was skipped while the `.ts` files beside it were scanned — and a browser-side
+   crypto call most often lives in a component. `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`, `.kts` and
+   the full C++ header/source set had the same problem.
+2. **An extension mapped to a grammar with no rule pack parses and matches nothing.** `.cpp` was
+   in exactly this state: the file parsed cleanly, contributed zero findings, and was counted as
+   *scanned*. That is indistinguishable from a C++ service with no cryptography in it.
+
+`tests/test_language_coverage.py` asserts both directly: every claimed language has rules, every
+mapped extension reaches a pack, and every pack is reachable from some extension.
+
+#### Sibling grammars (`additional_languages`)
+
+tree-sitter treats TypeScript and TSX as separate languages, and a compiled `Query` is bound to
+the `Language` it was built against — a TypeScript query cannot be run over a TSX tree. The node
+types a crypto rule touches are nonetheless identical, and the C pack's OpenSSL queries match a
+C++ translation unit verbatim. So a pack may declare:
+
+```yaml
+language: typescript
+additional_languages: [tsx]
+```
+
+and the loader compiles each rule once per grammar. Only the TypeScript pack claims TSX — if the
+JavaScript pack claimed it too, every `.tsx` finding would appear twice under two rule ids for one
+call. Compiling is not proof of anything: `test_sibling_grammar_actually_matches` scans real source
+under the sibling grammar and requires a finding with a resolved algorithm, because a query can
+compile against a grammar and match nothing in it.
+
+#### Shebang dispatch for extensionless files
+
+A release script named `deploy` that runs `openssl enc -des3` has no suffix and no recognisable
+name, so a suffix-only lookup skips it. `CodeScanner.scan_file` reads the first 128 bytes of a
+suffix-less file and dispatches on the `#!` line, handling both direct interpreters
+(`#!/bin/bash`) and `env` indirection (`#!/usr/bin/env python3`). An interpreter with no rule pack
+returns None rather than claiming a grammar.
+
+#### Rules for argv, not just for call sites
+
+Shell, PowerShell and SQL do not express cryptography as an API call:
+
+- `openssl req -newkey rsa:1024 -sha1` decides the key size and signature digest for every
+  certificate an organisation issues.
+- `Get-FileHash -Algorithm MD5` and `New-SelfSignedCertificate -KeyLength 1024` configure Windows
+  estates.
+- `SELECT MD5(password)` in a migration is a credential digest that **no application-code scan can
+  ever see**, because there is no application code.
+
+For shell and PowerShell the rules capture the whole `command` node and hand its text to a
+`shell-algorithm` / `shell-key-bits` resolver that reads it as argv. Positional tree-sitter
+queries were the alternative and they are brittle here: reordering `-in` and `-out` around the
+algorithm flag is free in a shell and would break every one of them. Precision comes from the
+`where` regex gating which commands the rule fires on at all, so `openssl version` matches
+nothing.
+
+#### Semantic resolution had to be generalised, not just extended
+
+`resolve.py` reads literals **by node type**, and every grammar spells them differently. Three
+tables were single-language and silently degraded everywhere else:
+
+- **String and integer literals.** A grammar missing from the table makes an extractor return
+  None, so a rule that matched correctly reports `UNRESOLVED` — or, for `key_size`, drops the size
+  and turns an RSA-1024 keygen into a bare "RSA". `test_language_coverage.py` probes both in every
+  supported grammar.
+- **Constant folding.** `algo = "DES"` followed by `Cipher.getInstance(algo)` is the ordinary way
+  real code hides its algorithm from an AST match. Only Python's `assignment` node was handled, so
+  the fold worked in Python and gave up in every other language — including Go and C, which were
+  already supported. Both now fold, along with the twelve new grammars.
+- **Import extraction.** Used for rule shortlisting and for `evidence.context.imports`. Ruby
+  spells imports as ordinary method calls (`require "openssl"`), so its query needs a guard
+  capture: py-tree-sitter's `matches()` does **not** apply a query's `#eq?` text predicates —
+  measured, not assumed — and without the guard, the string argument of every call in the file
+  became an "import".
+
+#### Query hygiene: unanchored wildcards
+
+`(arguments (argument (_) @algo))` matches **every** argument independently, not the first one. On
+a single-argument call that is invisible; on `hash_hmac("md5", $data, $key)` it produced three
+findings — the correct HMAC-MD5 plus `UNKNOWN(HMAC-$data)` and `UNKNOWN(HMAC-$key)`, both rated
+NOT vulnerable. The fix is tree-sitter's `.` anchor. Typed captures such as `(string_literal) @algo`
+are self-anchoring, because a non-string argument cannot match them, which is why the six original
+packs were unaffected. `test_wildcard_argument_captures_are_anchored` lints for the pattern;
+keyword arguments are exempt, since they are identified by name rather than position.
+
 ### 4.4a Dependency/SCA manifest scanner (`deps/`, 2026-08 backlog item B2)
 
 Fills a previously-total gap: before this, library attribution only came indirectly from

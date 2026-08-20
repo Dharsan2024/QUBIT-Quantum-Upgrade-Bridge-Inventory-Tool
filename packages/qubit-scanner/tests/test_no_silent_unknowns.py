@@ -111,6 +111,192 @@ def _mixed_corpus(root: Path) -> None:
         encoding="utf-8",
     )
     (root / "requirements.txt").write_text("cryptography==49.0.0\nPyJWT==2.8.0\n", encoding="utf-8")
+    _mixed_corpus_extra_languages(root)
+
+
+def _mixed_corpus_extra_languages(root: Path) -> None:
+    """The twelve languages added after the original six.
+
+    Each file is written the way the language's real code is written, not the way its rule
+    examples are — the examples are minimal by design, while this corpus is meant to look like
+    something a scan would actually meet.
+    """
+    (root / "Vault.cs").write_text(
+        "using System.Security.Cryptography;\n"
+        "using System.Net;\n"
+        "class Vault {\n"
+        "  void Seal(byte[] data, byte[] key) {\n"
+        "    var h = MD5.Create();\n"
+        "    var c = new TripleDESCryptoServiceProvider();\n"
+        "    var r = new RSACryptoServiceProvider(1024);\n"
+        "    var m = new HMACMD5(key);\n"
+        "    var k = new Rfc2898DeriveBytes(pw, salt, 1000);\n"
+        "    ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls;\n"
+        "    var e = ECDsa.Create();\n"
+        '    var algo = "MD5";\n'
+        "    var byName = HashAlgorithm.Create(algo);\n"
+        "  }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (root / "legacy.php").write_text(
+        "<?php\n"
+        "function store_password($pw) { return md5($pw); }\n"
+        'function seal($d, $k) { return openssl_encrypt($d, "des-ede3-cbc", $k); }\n'
+        'function mac($d, $k) { return hash_hmac("sha1", $d, $k); }\n'
+        'function token($p, $k) { return JWT::encode($p, $k, "HS256"); }\n'
+        'function newkey() { return openssl_pkey_new(array("private_key_bits" => 1024)); }\n'
+        "function modern($m, $n, $k) { return sodium_crypto_secretbox($m, $n, $k); }\n"
+        "function stored($pw) { return password_hash($pw, PASSWORD_BCRYPT); }\n"
+        "function sign($d, &$s, $key) { openssl_sign($d, $s, $key, OPENSSL_ALGO_SHA1); }\n",
+        encoding="utf-8",
+    )
+    (root / "seal.rs").write_text(
+        "use md5::Md5;\nuse des::TdesEde3;\nuse openssl::rsa::Rsa;\n"
+        "fn seal(key: &[u8]) {\n"
+        "  let mut h = Md5::new();\n"
+        '  let d = Sha1::digest(b"payload");\n'
+        "  let c = TdesEde3::new(&key.into());\n"
+        "  let r = Rsa::generate(1024).unwrap();\n"
+        "  let m = MessageDigest::md5();\n"
+        "  let k = RsaPrivateKey::new(&mut rng, 1024).unwrap();\n"
+        "  let dg = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, data);\n"
+        "  let (dk, ek) = MlKem768::generate_keypair(&mut rng);\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (root / "Crypto.kt").write_text(
+        "import java.security.MessageDigest\nimport javax.crypto.Cipher\n"
+        "fun seal() {\n"
+        '  val d = MessageDigest.getInstance("MD5")\n'
+        '  val c = Cipher.getInstance("DES/ECB/PKCS5Padding")\n'
+        '  val kg = KeyPairGenerator.getInstance("RSA")\n'
+        '  val s = Signature.getInstance("SHA1withRSA")\n'
+        '  val m = Mac.getInstance("HmacMD5")\n'
+        '  val f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")\n'
+        '  val ctx = SSLContext.getInstance("TLSv1")\n'
+        "}\n",
+        encoding="utf-8",
+    )
+    (root / "Ledger.scala").write_text(
+        "import java.security.MessageDigest\nimport javax.crypto.Cipher\n"
+        "object Ledger {\n"
+        "  def seal(): Unit = {\n"
+        '    val d = MessageDigest.getInstance("MD5")\n'
+        '    val c = Cipher.getInstance("AES/ECB/NoPadding")\n'
+        '    val s = Signature.getInstance("SHA1withRSA")\n'
+        '    val ctx = SSLContext.getInstance("TLSv1")\n'
+        "  }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (root / "billing.rb").write_text(
+        "require 'openssl'\nrequire 'digest'\nrequire 'jwt'\n"
+        "def digest_pw(x) = Digest::MD5.hexdigest(x)\n"
+        "def cipher = OpenSSL::Cipher.new('des-ede3-cbc')\n"
+        "def key = OpenSSL::PKey::RSA.new(1024)\n"
+        "def mac(k, d) = OpenSSL::HMAC.hexdigest('SHA1', k, d)\n"
+        "def token(p, k) = JWT.encode(p, k, 'HS256')\n",
+        encoding="utf-8",
+    )
+    (root / "Wallet.swift").write_text(
+        "import CryptoKit\nimport CommonCrypto\nimport Security\n"
+        "func seal(x: Data) {\n"
+        "  let d = Insecure.MD5.hash(data: x)\n"
+        "  let s = Insecure.SHA1.hash(data: x)\n"
+        "  let g = SHA256.hash(data: x)\n"
+        "  CC_MD5(p, l, o)\n"
+        "  CCCrypt(op, kCCAlgorithm3DES, opts, kk, kl, iv, i, il, o, ol, m)\n"
+        "  let attrs: [String: Any] = [kSecAttrKeyType: kSecAttrKeyTypeRSA]\n"
+        "  c.tlsMinimumSupportedProtocolVersion = .TLSv10\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (root / "fleet.dart").write_text(
+        "import 'package:crypto/crypto.dart';\n"
+        "import 'package:encrypt/encrypt.dart';\n"
+        "void seal(List<int> bytes, Key key) {\n"
+        "  var d = md5.convert(bytes);\n"
+        "  var s = sha1.convert(bytes);\n"
+        "  var h = Hmac(md5, bytes);\n"
+        "  var e = Encrypter(AES(key, mode: AESMode.ecb));\n"
+        "  var p = RSAKeyGeneratorParameters(BigInt.from(65537), 1024, 64);\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (root / "gateway.cpp").write_text(
+        "#include <cryptopp/md5.h>\n#include <botan/hash.h>\n#include <openssl/evp.h>\n"
+        "void seal() {\n"
+        "  CryptoPP::Weak::MD5 hash;\n"
+        "  CryptoPP::DES_EDE3::Encryption enc(key, 24);\n"
+        '  auto h = Botan::HashFunction::create("MD5");\n'
+        "  EVP_DigestInit_ex(ctx, EVP_sha1(), NULL);\n"
+        "  cfg.setProtocol(QSsl::TlsV1_0);\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (root / "provision.sh").write_text(
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        "openssl dgst -md5 release.tar.gz\n"
+        "openssl enc -des3 -in backup.sql -out backup.enc\n"
+        "openssl genrsa -out server.key 1024\n"
+        "openssl req -new -newkey rsa:2048 -nodes -keyout k.pem -out r.csr\n"
+        "openssl s_client -connect legacy.internal:443 -tls1\n"
+        "ssh-keygen -t rsa -b 1024 -f deploy_key -N ''\n"
+        "gpg --cipher-algo 3DES --symmetric archive.tar\n"
+        "md5sum artifact.bin\n"
+        "curl --tlsv1.0 https://partner.example.com/api\n",
+        encoding="utf-8",
+    )
+    (root / "Provision.ps1").write_text(
+        "$md5 = [System.Security.Cryptography.MD5]::Create()\n"
+        "Get-FileHash -Algorithm MD5 -Path .\\release.zip\n"
+        "$c = New-Object System.Security.Cryptography.TripleDESCryptoServiceProvider\n"
+        "New-SelfSignedCertificate -DnsName app.local -KeyAlgorithm RSA -KeyLength 1024\n"
+        "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12\n",
+        encoding="utf-8",
+    )
+    (root / "V3__hash_passwords.sql").write_text(
+        "SELECT MD5(password) FROM users;\n"
+        "SELECT SHA2(password, 256) FROM users;\n"
+        "SELECT PASSWORD('secret');\n"
+        "SELECT DES_ENCRYPT(card_number, @key) FROM cards;\n"
+        "SELECT AES_ENCRYPT(ssn, @key) FROM staff;\n"
+        "SELECT digest(payload, 'md5') FROM events;\n"
+        "SELECT hmac(payload, secret, 'sha1') FROM events;\n"
+        "SELECT encrypt(ssn, :key, 'des') FROM staff;\n"
+        "INSERT INTO u(pw) VALUES (crypt(:pw, gen_salt('md5')));\n"
+        "SELECT HASHBYTES('SHA2_256', pw) FROM dbo.Users;\n",
+        encoding="utf-8",
+    )
+    (root / "Component.tsx").write_text(
+        "import * as crypto from 'crypto';\n"
+        "export const Panel = () => {\n"
+        "  crypto.createHash('md5');\n"
+        "  crypto.createCipheriv('aes-128-cbc', k, iv);\n"
+        "  return <div />;\n"
+        "};\n",
+        encoding="utf-8",
+    )
+    # Dependency manifests for the ecosystems the new packs opened up.
+    (root / "Cargo.toml").write_text(
+        '[package]\nname = "svc"\n[dependencies]\nmd-5 = "0.10"\nrsa = "0.9"\nserde = "1.0"\n',
+        encoding="utf-8",
+    )
+    (root / "composer.json").write_text(
+        '{"require": {"firebase/php-jwt": "^6.10", "phpseclib/phpseclib": "^3.0"}}\n',
+        encoding="utf-8",
+    )
+    (root / "Gemfile").write_text(
+        "source 'https://rubygems.org'\ngem 'jwt', '~> 2.8'\ngem 'bcrypt', '3.1.20'\n",
+        encoding="utf-8",
+    )
+    (root / "Billing.csproj").write_text(
+        '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup>'
+        '<PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />'
+        "</ItemGroup></Project>\n",
+        encoding="utf-8",
+    )
 
 
 def test_realistic_mixed_corpus_produces_no_unknown_assets(tmp_path: Path) -> None:
@@ -141,7 +327,20 @@ def test_known_weak_algorithms_are_actually_flagged(tmp_path: Path) -> None:
     result = scan_paths([tmp_path])
     vulnerable = {a.algorithm for a in result.assets if a.quantum_vulnerable.vulnerable}
 
-    for expected in ("MD5", "SHA-1", "3DES", "AES-128", "RSA-1024", "TLSv1.0", "DH-1024-group1"):
+    for expected in (
+        "MD5",
+        "SHA-1",
+        "3DES",
+        "AES-128",
+        "RSA-1024",
+        "TLSv1.0",
+        "DH-1024-group1",
+        # Reachable only through the languages added later — each one is a verdict that was
+        # unreachable before because the language itself could not be scanned.
+        "DES",  # SQL DES_ENCRYPT, PHP openssl_encrypt, Rust TdesEde3
+        "HMAC-MD5",  # .NET HMACMD5, PHP hash_hmac, Kotlin Mac.getInstance
+        "RSA",  # shell `ssh-keygen -t rsa`, PowerShell New-SelfSignedCertificate
+    ):
         assert expected in vulnerable, (
             f"{expected} was found but NOT marked quantum-vulnerable — "
             f"vulnerable set was {sorted(vulnerable)}"

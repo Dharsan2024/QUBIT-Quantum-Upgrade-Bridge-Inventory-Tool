@@ -1,0 +1,234 @@
+schema: qubit-rule/v1
+language: kotlin
+library:
+  name: Kotlin / JCA
+  detect_imports: []
+# Kotlin is the fifteenth most-used language in the Stack Overflow 2025 survey (10.8%) and the
+# default for Android, so it is where mobile crypto lives. It calls the same JCA API as Java, but
+# tree-sitter's Kotlin grammar shares no node types with the Java one — `MessageDigest.getInstance`
+# is a `call_expression > navigation_expression` here and a `method_invocation` there — so the Java
+# pack matches nothing in a `.kt` file. An Android app could not be scanned at all.
+#
+# These queries are positional rather than field-named: the Kotlin grammar labels no fields on
+# `call_expression` or `navigation_expression`.
+rules:
+  - id: KT-JCA-GETINSTANCE-DIGEST
+    title: MessageDigest.getInstance("MD5")
+    match:
+      query: |
+        (call_expression
+          (navigation_expression
+            (simple_identifier) @cls
+            (navigation_suffix (simple_identifier) @meth))
+          (call_suffix (value_arguments . (value_argument (_) @algo)))) @call
+      where:
+        - { capture: cls, equals: MessageDigest }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.MessageDigest
+          fun f() { val d = MessageDigest.getInstance("MD5") }
+        - |
+          fun f() { val algo = "SHA-1"; val d = MessageDigest.getInstance(algo) }
+      negative:
+        - |
+          fun f() { val d = Cipher.getInstance("AES/GCM/NoPadding") }
+
+  - id: KT-JCA-CIPHER
+    title: Cipher.getInstance("DES/ECB/PKCS5Padding")
+    match:
+      query: |
+        (call_expression
+          (navigation_expression
+            (simple_identifier) @cls
+            (navigation_suffix (simple_identifier) @meth))
+          (call_suffix (value_arguments . (value_argument (_) @algo)))) @call
+      where:
+        - { capture: cls, equals: Cipher }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: jca-transformation }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.Cipher
+          fun f() { val c = Cipher.getInstance("DES/ECB/PKCS5Padding") }
+        - |
+          fun f() { val c = Cipher.getInstance("AES/GCM/NoPadding") }
+        - |
+          fun f() { val c = Cipher.getInstance("RSA/ECB/PKCS1Padding") }
+      negative:
+        - |
+          fun f() { val d = MessageDigest.getInstance("MD5") }
+
+  - id: KT-JCA-KEYGEN
+    title: KeyPairGenerator.getInstance("RSA") / KeyGenerator.getInstance("DES")
+    match:
+      query: |
+        (call_expression
+          (navigation_expression
+            (simple_identifier) @cls
+            (navigation_suffix (simple_identifier) @meth))
+          (call_suffix (value_arguments . (value_argument (_) @algo)))) @call
+      where:
+        - { capture: cls, in: [KeyPairGenerator, KeyGenerator, KeyFactory] }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: jca-transformation }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.KeyPairGenerator
+          fun f() { val kg = KeyPairGenerator.getInstance("RSA") }
+        - |
+          fun f() { val kg = KeyGenerator.getInstance("DES") }
+        - |
+          fun f() { val kg = KeyPairGenerator.getInstance("Ed25519") }
+      negative:
+        - |
+          fun f() { val c = Cipher.getInstance("AES") }
+
+  - id: KT-JCA-KEY-SIZE
+    title: keyPairGenerator.initialize(1024) — the size lives on a later call than the algorithm
+    match:
+      query: |
+        (call_expression
+          (navigation_expression
+            (simple_identifier) @recv
+            (navigation_suffix (simple_identifier) @meth))
+          (call_suffix (value_arguments . (value_argument (integer_literal) @size)))) @call
+      where:
+        - { capture: meth, in: [initialize, init] }
+        - { capture: recv, regex: "(?i)(keypairgen|keygen|kpg|kg)" }
+    extract:
+      # The algorithm was named on the `getInstance` call and is not recoverable here, so this
+      # rule reports the SIZE with an UNRESOLVED algorithm rather than guessing RSA. A reviewer
+      # seeing `initialize(1024)` next to the RSA finding in the same function has what they need;
+      # a rule that guessed would be wrong on every EC keystore.
+      algorithm: { literal: UNRESOLVED }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: low
+    examples:
+      positive:
+        - |
+          fun f() { val keyPairGen = KeyPairGenerator.getInstance("RSA"); keyPairGen.initialize(1024) }
+      negative:
+        - |
+          fun f() { val list = ArrayList<String>(); list.add(1024) }
+
+  - id: KT-JCA-SIGNATURE
+    title: Signature.getInstance("SHA1withRSA")
+    match:
+      query: |
+        (call_expression
+          (navigation_expression
+            (simple_identifier) @cls
+            (navigation_suffix (simple_identifier) @meth))
+          (call_suffix (value_arguments . (value_argument (_) @algo)))) @call
+      where:
+        - { capture: cls, equals: Signature }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: jca-signature }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.Signature
+          fun f() { val s = Signature.getInstance("SHA1withRSA") }
+        - |
+          fun f() { val s = Signature.getInstance("SHA256withECDSA") }
+      negative:
+        - |
+          fun f() { val d = MessageDigest.getInstance("SHA-256") }
+
+  - id: KT-JCA-MAC
+    title: Mac.getInstance("HmacMD5")
+    match:
+      query: |
+        (call_expression
+          (navigation_expression
+            (simple_identifier) @cls
+            (navigation_suffix (simple_identifier) @meth))
+          (call_suffix (value_arguments . (value_argument (_) @algo)))) @call
+      where:
+        - { capture: cls, equals: Mac }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: jca-transformation }
+    asset: { asset_type: algorithm-use, usage_context: mac }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.Mac
+          fun f() { val m = Mac.getInstance("HmacMD5") }
+        - |
+          fun f() { val m = Mac.getInstance("HmacSHA256") }
+      negative:
+        - |
+          fun f() { val c = Cipher.getInstance("AES") }
+
+  - id: KT-JCA-PBKDF2
+    title: SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
+    match:
+      query: |
+        (call_expression
+          (navigation_expression
+            (simple_identifier) @cls
+            (navigation_suffix (simple_identifier) @meth))
+          (call_suffix (value_arguments . (value_argument (_) @algo)))) @call
+      where:
+        - { capture: cls, equals: SecretKeyFactory }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: "PBKDF" }
+    extract:
+      algorithm: { literal: PBKDF2 }
+    asset: { asset_type: algorithm-use, usage_context: kdf }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.SecretKeyFactory
+          fun f() { val f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1") }
+      negative:
+        - |
+          fun f() { val f = SecretKeyFactory.getInstance("DES") }
+
+  - id: KT-JSSE-SSLCONTEXT
+    title: SSLContext.getInstance("TLSv1")
+    match:
+      query: |
+        (call_expression
+          (navigation_expression
+            (simple_identifier) @cls
+            (navigation_suffix (simple_identifier) @meth))
+          (call_suffix (value_arguments . (value_argument (_) @proto)))) @call
+      where:
+        - { capture: cls, in: [SSLContext, SSLSocketFactory] }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: proto, resolve: jca-transformation }
+    asset: { asset_type: protocol-config, usage_context: tls }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.net.ssl.SSLContext
+          fun f() { val ctx = SSLContext.getInstance("TLSv1") }
+        - |
+          fun f() { val ctx = SSLContext.getInstance("TLSv1.3") }
+      negative:
+        - |
+          fun f() { val d = MessageDigest.getInstance("SHA-256") }

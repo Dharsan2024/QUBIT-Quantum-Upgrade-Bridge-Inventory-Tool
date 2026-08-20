@@ -80,8 +80,22 @@ class RuleFile(BaseModel):
 
     schema_: str = Field(default="qubit-rule/v1", alias="schema")
     language: str
+    # Sibling grammars the same queries also compile and match against, so one pack can cover a
+    # dialect without a duplicated copy that will drift. tree-sitter treats TypeScript and TSX as
+    # separate languages even though the node types a crypto rule touches are identical, and the
+    # C grammar's OpenSSL rules match C++ translation units verbatim. Without this, `.tsx` and
+    # `.cpp` parse fine and match nothing — which reads exactly like "no crypto here".
+    # Verified rather than assumed: `test_language_coverage.py` compiles every pack against every
+    # grammar it claims and asserts each one still matches its own positive examples there.
+    additional_languages: list[str] = Field(default_factory=list)
     library: LibrarySpec
     rules: list[Rule]
+
+    def languages(self) -> list[str]:
+        """Every grammar this pack applies to, primary first, de-duplicated."""
+        out = [self.language]
+        out.extend(lang for lang in self.additional_languages if lang not in out)
+        return out
 
 
 __all__ = [

@@ -1,0 +1,235 @@
+schema: qubit-rule/v1
+language: rust
+library:
+  name: RustCrypto / rust-openssl / ring / rustls
+  detect_imports: []
+# Rust is the fourteenth most-used language in the Stack Overflow 2025 survey (14.8%) and the
+# fastest-growing systems language, so a Rust rewrite of a legacy service is exactly the kind of
+# code an inventory needs to cover — including when the rewrite carried the old algorithm across.
+rules:
+  # ── RustCrypto digest crates ────────────────────────────────────────────────────────────────
+  - id: RUST-RUSTCRYPTO-DIGEST
+    title: Md5::new() / Sha1::digest(...)
+    match:
+      query: |
+        (call_expression
+          function: (scoped_identifier
+            path: (identifier) @type
+            name: (identifier) @fn)) @call
+      where:
+        - capture: type
+          regex: "^(Md2|Md4|Md5|Sha1|Sha224|Sha256|Sha384|Sha512|Ripemd160|Sha3_256|Sha3_512|Blake2b|Blake2s|Blake3)$"
+        - { capture: fn, in: [new, digest, default, new_with_prefix] }
+    extract:
+      algorithm: { from: type, resolve: rust-crypto-type }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          use md5::Md5;
+          fn f() { let mut h = Md5::new(); }
+        - |
+          use sha1::Sha1;
+          fn f() { let d = Sha1::digest(b"payload"); }
+        - |
+          fn f() { let d = Sha256::digest(b"payload"); }
+      negative:
+        - |
+          fn f() { let d = Hasher::new(); }
+
+  # ── RustCrypto cipher crates ────────────────────────────────────────────────────────────────
+  - id: RUST-RUSTCRYPTO-CIPHER
+    title: Aes128::new / TdesEde3::new / Rc4::new / Aes128Cbc::new_from_slices
+    match:
+      query: |
+        (call_expression
+          function: (scoped_identifier
+            path: (identifier) @type
+            name: (identifier) @fn)) @call
+      where:
+        - capture: type
+          regex: "^(Des|DesX|TdesEde2|TdesEde3|TdesEee3|Rc2|Rc4|Idea|Blowfish|Cast5|Aes128|Aes192|Aes256|Aes128Cbc|Aes256Cbc|Aes128Ecb|Aes256Ecb|Aes128Gcm|Aes256Gcm|ChaCha20|ChaCha20Poly1305|XChaCha20Poly1305|Camellia128)$"
+        - { capture: fn, in: [new, new_from_slice, new_from_slices, new_with_iv, default] }
+    extract:
+      algorithm: { from: type, resolve: rust-crypto-type }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          use des::TdesEde3;
+          fn f() { let c = TdesEde3::new(&key.into()); }
+        - |
+          fn f() { let c = Rc4::new(&key.into()); }
+        - |
+          fn f() { let c = Aes256Gcm::new(&key); }
+      negative:
+        - |
+          fn f() { let c = Vec::new(); }
+
+  # ── rust-openssl ────────────────────────────────────────────────────────────────────────────
+  - id: RUST-OPENSSL-RSA-GENERATE
+    title: Rsa::generate(1024) — rust-openssl
+    match:
+      query: |
+        (call_expression
+          function: (scoped_identifier
+            path: (identifier) @type
+            name: (identifier) @fn)
+          arguments: (arguments (integer_literal) @size)) @call
+      where:
+        - { capture: type, in: [Rsa, Dsa] }
+        - { capture: fn, in: [generate, generate_with_e] }
+    extract:
+      algorithm: { from: type, resolve: rust-crypto-type }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          use openssl::rsa::Rsa;
+          fn f() { let k = Rsa::generate(1024).unwrap(); }
+        - |
+          fn f() { let k = Dsa::generate(2048).unwrap(); }
+      negative:
+        - |
+          fn f() { let k = Rsa::from_public_key_pem(pem).unwrap(); }
+
+  - id: RUST-OPENSSL-MESSAGEDIGEST
+    title: MessageDigest::md5() / MessageDigest::sha1() — rust-openssl
+    match:
+      query: |
+        (call_expression
+          function: (scoped_identifier
+            path: (identifier) @type
+            name: (identifier) @alg)) @call
+      where:
+        - { capture: type, equals: MessageDigest }
+        - capture: alg
+          regex: "^(md4|md5|sha1|sha224|sha256|sha384|sha512|ripemd160|sm3)$"
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          use openssl::hash::MessageDigest;
+          fn f() { let d = MessageDigest::md5(); }
+        - |
+          fn f() { let d = MessageDigest::sha256(); }
+      negative:
+        - |
+          fn f() { let d = MessageDigest::from_nid(nid); }
+
+  - id: RUST-OPENSSL-SSL-VERSION
+    title: SslVersion::TLS1 / SslVersion::SSL3 — rust-openssl
+    match:
+      query: |
+        (scoped_identifier
+          path: (identifier) @type
+          name: (identifier) @proto) @call
+      where:
+        - { capture: type, equals: SslVersion }
+        - { capture: proto, regex: "^(SSL3|TLS1|TLS1_1|TLS1_2|TLS1_3)$" }
+    extract:
+      algorithm: { from: proto, resolve: rust-ssl-version }
+    asset: { asset_type: protocol-config, usage_context: tls }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          fn f() { builder.set_min_proto_version(Some(SslVersion::TLS1)).unwrap(); }
+        - |
+          fn f() { builder.set_min_proto_version(Some(SslVersion::TLS1_2)).unwrap(); }
+      negative:
+        - |
+          fn f() { builder.set_min_proto_version(None).unwrap(); }
+
+  # ── the `rsa` crate ─────────────────────────────────────────────────────────────────────────
+  - id: RUST-RSA-CRATE-KEYGEN
+    title: RsaPrivateKey::new(&mut rng, 1024)
+    match:
+      query: |
+        (call_expression
+          function: (scoped_identifier
+            path: (identifier) @type
+            name: (identifier) @fn)
+          arguments: (arguments (_) (integer_literal) @size)) @call
+      where:
+        - { capture: type, in: [RsaPrivateKey, RsaPublicKey] }
+        - { capture: fn, in: [new, new_with_exp] }
+    extract:
+      algorithm: { from: type, resolve: rust-crypto-type }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          use rsa::RsaPrivateKey;
+          fn f() { let k = RsaPrivateKey::new(&mut rng, 1024).unwrap(); }
+      negative:
+        - |
+          fn f() { let k = RsaPrivateKey::from_pkcs8_pem(pem).unwrap(); }
+
+  # ── ring ────────────────────────────────────────────────────────────────────────────────────
+  - id: RUST-RING-DIGEST
+    title: digest::SHA1_FOR_LEGACY_USE_ONLY / digest::SHA256 — ring
+    match:
+      query: |
+        (scoped_identifier
+          path: (identifier) @module
+          name: (identifier) @alg) @call
+      where:
+        - { capture: module, equals: digest }
+        - capture: alg
+          regex: "^(SHA1_FOR_LEGACY_USE_ONLY|SHA256|SHA384|SHA512|SHA512_256)$"
+    extract:
+      algorithm: { from: alg, resolve: ring-digest }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          use ring::digest;
+          fn f() { let d = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, data); }
+        - |
+          fn f() { let d = digest::digest(&digest::SHA256, data); }
+      negative:
+        - |
+          fn f() { let d = digest::Context::new(&alg); }
+
+  # ── Post-quantum ────────────────────────────────────────────────────────────────────────────
+  # RustCrypto's `ml-kem` (FIPS 203) and `ml-dsa` crates, plus the pre-standardisation `pqcrypto`
+  # spellings those crates were published under. Detecting the migrated state matters as much as
+  # detecting the broken one: the validator's rescan has to be able to confirm the patch landed.
+  - id: RUST-PQC-KEYGEN
+    title: MlKem768::generate_keypair() / MlDsa65::key_gen()
+    match:
+      query: |
+        (call_expression
+          function: (scoped_identifier
+            path: (identifier) @type
+            name: (identifier) @fn)) @call
+      where:
+        - capture: type
+          regex: "^(MlKem512|MlKem768|MlKem1024|MlDsa44|MlDsa65|MlDsa87|Kyber512|Kyber768|Kyber1024)$"
+    extract:
+      algorithm: { from: type, resolve: pqc-identifier }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          use ml_kem::MlKem768;
+          fn f() { let (dk, ek) = MlKem768::generate_keypair(&mut rng); }
+        - |
+          fn f() { let kp = MlDsa65::key_gen(&mut rng); }
+      negative:
+        - |
+          fn f() { let k = RsaPrivateKey::new(&mut rng, 2048).unwrap(); }

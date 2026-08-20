@@ -2,6 +2,10 @@
 # separate rule set — a .ts file matches none of the JS rules).
 schema: qubit-rule/v1
 language: typescript
+# Same queries also compiled against the tsx grammar:
+# tree-sitter treats TSX as its own language, and React components are
+  # where browser-side crypto usually lives.
+additional_languages: [tsx]
 library:
   name: node:crypto / WebCrypto
   detect_imports: []

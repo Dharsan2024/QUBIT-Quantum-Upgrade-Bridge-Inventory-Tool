@@ -5,6 +5,10 @@ library:
   name: crypto-js / node-forge / bcrypt / jose
   detect_imports: []
 language: typescript
+# Same queries also compiled against the tsx grammar:
+# tree-sitter treats TSX as its own language, and React components are
+  # where browser-side crypto usually lives.
+additional_languages: [tsx]
 rules:
   # Third-party libraries carry a large share of real JavaScript crypto — crypto-js and node-forge
   # are among the most-downloaded packages on npm — and none of them were detected. The SCA scanner

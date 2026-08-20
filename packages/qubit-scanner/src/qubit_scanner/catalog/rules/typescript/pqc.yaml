@@ -7,6 +7,10 @@
 # rewrite could never be confirmed, and the patch was rejected.
 schema: qubit-rule/v1
 language: typescript
+# Same queries also compiled against the tsx grammar:
+# tree-sitter treats TSX as its own language, and React components are
+  # where browser-side crypto usually lives.
+additional_languages: [tsx]
 library:
   name: "@noble/post-quantum"
   # Empty for the same reason as every other JS/TS pack here: resolve.py has no JS/TS

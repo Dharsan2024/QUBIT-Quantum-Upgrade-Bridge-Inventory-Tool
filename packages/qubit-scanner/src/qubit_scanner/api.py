@@ -44,7 +44,26 @@ _DEFAULT_IGNORES = [
 _MAX_FILE_BYTES = 2_000_000  # 2 MB per-file cap (NFR-8)
 
 # Dependency-manifest filenames the SCA scanner dispatches on (matched by exact name, not suffix).
-_MANIFEST_NAMES = {"go.mod", "package.json", "requirements.txt", "pyproject.toml", "pom.xml"}
+_MANIFEST_NAMES = {
+    "go.mod",
+    "package.json",
+    "requirements.txt",
+    "pyproject.toml",
+    "pom.xml",
+    "cargo.toml",
+    "composer.json",
+    "gemfile",
+    "build.gradle",
+    "build.gradle.kts",
+    "build.sbt",
+    "pubspec.yaml",
+    "package.swift",
+    "directory.packages.props",
+}
+
+# Manifests identified by suffix: a .NET project file is named after its project, so there is no
+# fixed filename to match on.
+_MANIFEST_SUFFIXES = {".csproj", ".vbproj", ".fsproj", ".gemspec"}
 
 # Config files whose format is identifiable by name.
 _SSH_CONFIG_NAMES = {"sshd_config", "ssh_config"}
@@ -90,8 +109,16 @@ def scan_paths(
     manifest_scanner = ManifestParser()
     spec = pathspec.PathSpec.from_lines("gitignore", _DEFAULT_IGNORES)
 
-    files = _collect_files(paths, spec)
+    files, missing = _collect_files(paths, spec)
     result = ScanResult(stats=ScanStats())
+    # A target that is neither a file nor a directory used to be dropped in silence, so
+    # `qubit scan ./srv` with a typo in the path returned "0 assets, 0 errors" — byte-identical to
+    # a clean scan of real code. In a pipeline that is the worst possible failure: the gate passes
+    # and nobody looks again. NFR-7 says fail loudly, so it is reported as a scan error.
+    for absent in missing:
+        result.errors.append(
+            ScanError(file=str(absent), reason="scan target does not exist or is not readable")
+        )
     detections: list[Detection] = []
 
     for i, f in enumerate(files):
@@ -103,11 +130,16 @@ def scan_paths(
                 result.stats.files_skipped += 1
                 continue
 
-            # Code scanner
-            if "code" in scanners and language_for(f) is not None:
+            # Code scanner. Extensionless files are handed to the scanner too, because it can
+            # still identify them from a `#!` line — a release script named `deploy` that runs
+            # `openssl enc -des3` has no suffix and no recognisable name. Gating on
+            # `language_for(f) is not None` here would have made that shebang path unreachable
+            # from a real scan while still passing its unit test.
+            if "code" in scanners and (language_for(f) is not None or f.suffix == ""):
                 found = code_scanner.scan_file(f, repo=repo)
-                detections.extend(found)
-                result.stats.files_scanned += 1
+                if found or language_for(f) is not None:
+                    detections.extend(found)
+                    result.stats.files_scanned += 1
 
             # Config scanner. Format is chosen by name/suffix rather than content-sniffing: nginx
             # needs crossplane, while Apache and OpenSSH are line-oriented and share a parser style.
@@ -141,7 +173,9 @@ def scan_paths(
                     detections.extend(found)
 
             # Dependency/SCA manifest scanner
-            if "dependency" in scanners and f.name in _MANIFEST_NAMES:
+            if "dependency" in scanners and (
+                f.name.lower() in _MANIFEST_NAMES or f.suffix.lower() in _MANIFEST_SUFFIXES
+            ):
                 found = manifest_scanner.parse(f)
                 if found:
                     detections.extend(found)
@@ -250,8 +284,10 @@ async def scan_vault(
     return result
 
 
-def _collect_files(paths: list[Path], spec: pathspec.PathSpec) -> list[Path]:
+def _collect_files(paths: list[Path], spec: pathspec.PathSpec) -> tuple[list[Path], list[Path]]:
+    """Return (files to scan, targets that could not be resolved)."""
     out: list[Path] = []
+    missing: list[Path] = []
     for p in paths:
         if p.is_file():
             out.append(p)
@@ -259,7 +295,9 @@ def _collect_files(paths: list[Path], spec: pathspec.PathSpec) -> list[Path]:
             for child in sorted(p.rglob("*")):
                 if child.is_file() and not spec.match_file(child.relative_to(p).as_posix()):
                     out.append(child)
-    return out
+        else:
+            missing.append(p)
+    return out, missing
 
 
 __all__ = [

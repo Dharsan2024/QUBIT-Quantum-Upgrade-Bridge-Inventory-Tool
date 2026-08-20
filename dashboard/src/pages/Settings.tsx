@@ -12,8 +12,9 @@ import {
   Database,
   ShieldCheck,
   WifiOff,
+  Code2,
 } from 'lucide-react';
-import { fetchHealth, fetchHealthDeps, getToken, setToken, whoami, getApiBase, setApiBase } from '../api/client';
+import { fetchHealth, fetchHealthDeps, fetchLanguages, getToken, setToken, whoami, getApiBase, setApiBase } from '../api/client';
 
 /** One labelled readout row inside a HUD panel. */
 function Row({
@@ -40,6 +41,30 @@ function Row({
   );
 }
 
+/** Display name for a tree-sitter grammar id. The grammar names are lowercase identifiers
+    (`csharp`, `cpp`, `tsx`) and showing them raw makes the coverage list read like debug output. */
+const LANGUAGE_LABELS: Record<string, string> = {
+  bash: 'Bash / Shell',
+  c: 'C',
+  cpp: 'C++',
+  csharp: 'C#',
+  dart: 'Dart',
+  go: 'Go',
+  java: 'Java',
+  javascript: 'JavaScript',
+  kotlin: 'Kotlin',
+  php: 'PHP',
+  powershell: 'PowerShell',
+  python: 'Python',
+  ruby: 'Ruby',
+  rust: 'Rust',
+  scala: 'Scala',
+  sql: 'SQL',
+  swift: 'Swift',
+  tsx: 'TSX',
+  typescript: 'TypeScript',
+};
+
 export function Settings() {
   const [token, setTokenInput] = useState(getToken());
   const [apiBase, setApiBaseInput] = useState(getApiBase());
@@ -52,6 +77,12 @@ export function Settings() {
     queryKey: ['health-deps'],
     queryFn: fetchHealthDeps,
     refetchInterval: 15_000,
+  });
+  // Rule packs are static per install, so this never needs refetching.
+  const languages = useQuery({
+    queryKey: ['registry-languages'],
+    queryFn: fetchLanguages,
+    staleTime: Infinity,
   });
 
   const verify = async () => {
@@ -171,6 +202,31 @@ export function Settings() {
               value={onOff(deps.data?.ollama)}
               tone={tone(deps.data?.ollama)}
             />
+          </div>
+
+          <div className="glass-card p-6">
+            <h2 className="mb-1 flex items-center gap-2">
+              <Code2 className="h-5 w-5 text-[color:var(--color-accent)]" /> Language coverage
+            </h2>
+            <p className="mb-3 text-xs text-[color:var(--color-ink-faint)]">
+              {languages.data
+                ? `${languages.data.length} grammars · ${languages.data.reduce((n, l) => n + l.rules, 0)} rules`
+                : languages.isLoading
+                  ? 'loading…'
+                  : 'unavailable'}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {(languages.data ?? []).map((l) => (
+                <span
+                  key={l.language}
+                  title={`${l.rules} rules · ${l.extensions.join(' ')}`}
+                  className="rounded-[3px] border border-[color:var(--edge)] px-2 py-1 font-mono text-[11px] text-[color:var(--color-ink-dim)]"
+                >
+                  {LANGUAGE_LABELS[l.language] ?? l.language}
+                  <span className="ml-1.5 text-[color:var(--color-accent-soft)]">{l.rules}</span>
+                </span>
+              ))}
+            </div>
           </div>
 
           <div className="glass-card p-6">

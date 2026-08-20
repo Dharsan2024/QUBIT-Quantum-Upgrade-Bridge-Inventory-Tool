@@ -1,0 +1,165 @@
+schema: qubit-rule/v1
+language: dart
+library:
+  name: Dart package:crypto / package:encrypt / PointyCastle
+  detect_imports: []
+# Dart is 5.9% of the Stack Overflow 2025 survey and is Flutter, so like Swift it is shipped
+# mobile code: released once, installed for years, still emitting recordable traffic long after a
+# fix exists.
+#
+# These queries use a wildcard parent `(_ ...)` with sibling anchors rather than field names.
+# Dart's grammar does not wrap a method call in a single node — `md5.convert(bytes)` is an
+# `identifier` followed by two sibling `selector` nodes under whatever statement contains it — so
+# there is no call node to match on.
+rules:
+  - id: DART-CRYPTO-CONVERT
+    title: md5.convert(bytes) / sha1.convert(bytes) — package:crypto
+    match:
+      query: |
+        (_ (identifier) @alg
+           . (selector (unconditional_assignable_selector (identifier) @meth))
+           . (selector (argument_part))) @call
+      where:
+        - { capture: alg, regex: "^(md5|sha1|sha224|sha256|sha384|sha512)$" }
+        - { capture: meth, in: [convert, startChunkedConversion, bind] }
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import 'package:crypto/crypto.dart';
+          void f(List<int> bytes) { var d = md5.convert(bytes); }
+        - |
+          void f(List<int> bytes) { var d = sha1.convert(bytes); }
+        - |
+          void f(List<int> bytes) { var d = sha256.convert(bytes); }
+      negative:
+        - |
+          void f(List<int> bytes) { var d = utf8.decode(bytes); }
+
+  - id: DART-CRYPTO-HMAC
+    title: Hmac(md5, key) — the digest is the first argument
+    match:
+      query: |
+        (_ (identifier) @cls
+           . (selector (argument_part (arguments . (argument (identifier) @alg))))) @call
+      where:
+        - { capture: cls, equals: Hmac }
+        - { capture: alg, regex: "^(md5|sha1|sha224|sha256|sha384|sha512)$" }
+    extract:
+      algorithm: { from: alg, resolve: hmac-of-digest }
+    asset: { asset_type: algorithm-use, usage_context: mac }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import 'package:crypto/crypto.dart';
+          void f(List<int> key) { var h = Hmac(md5, key); }
+        - |
+          void f(List<int> key) { var h = Hmac(sha256, key); }
+      negative:
+        - |
+          void f(List<int> key) { var h = Hmac(blake2b, key); }
+
+  - id: DART-ENCRYPT-AES-MODE
+    title: AESMode.ecb / AESMode.cbc — package:encrypt
+    match:
+      query: |
+        (_ (identifier) @cls
+           . (selector (unconditional_assignable_selector (identifier) @mode))) @call
+      where:
+        - { capture: cls, equals: AESMode }
+        - { capture: mode, regex: "^(ecb|cbc|cfb64|ofb64|ctr|gcm|sic)$" }
+    extract:
+      # package:encrypt's AES defaults to a 256-bit key derived from the supplied Key, but the
+      # MODE is what the source states here. Reporting bare AES keeps the Grover verdict without
+      # asserting a key size the call site never names.
+      algorithm: { literal: AES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: medium
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          import 'package:encrypt/encrypt.dart';
+          void f(Key key) { var e = Encrypter(AES(key, mode: AESMode.ecb)); }
+        - |
+          void f(Key key) { var e = Encrypter(AES(key, mode: AESMode.cbc)); }
+      negative:
+        - |
+          void f(Key key) { var e = Encrypter(Salsa20(key)); }
+
+  - id: DART-ENCRYPT-ALGORITHM-CTOR
+    title: "AES(key) / Salsa20(key) / RSA(publicKey: k) — package:encrypt"
+    match:
+      query: |
+        (_ (identifier) @cls . (selector (argument_part))) @call
+      where:
+        - { capture: cls, regex: "^(AES|Salsa20|Fernet|RSA)$" }
+    extract:
+      algorithm: { from: cls, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: medium
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          import 'package:encrypt/encrypt.dart';
+          void f(Key key) { var e = Encrypter(Salsa20(key)); }
+        - |
+          void f(Key key) { var e = Encrypter(AES(key)); }
+      negative:
+        - |
+          void f(Key key) { var e = Encrypter(Chacha20(key)); }
+
+  - id: DART-POINTYCASTLE-BY-NAME
+    title: Digest('MD5') / BlockCipher('AES') / Signer('SHA-1/RSA') — PointyCastle registry
+    match:
+      query: |
+        (_ (identifier) @cls
+           . (selector (argument_part (arguments . (argument (string_literal) @algo))))) @call
+      where:
+        - { capture: cls, in: [Digest, BlockCipher, StreamCipher, Signer, Mac, KeyDerivator] }
+    extract:
+      algorithm: { from: algo, resolve: jca-transformation }
+    asset: { asset_type: algorithm-use, usage_context: unknown }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import 'package:pointycastle/pointycastle.dart';
+          void f() { var d = Digest('MD5'); }
+        - |
+          void f() { var c = BlockCipher('AES'); }
+      negative:
+        - |
+          void f() { var r = SecureRandom('Fortuna'); }
+
+  - id: DART-POINTYCASTLE-RSA-KEYGEN
+    title: RSAKeyGeneratorParameters(BigInt.from(65537), 1024, 64)
+    match:
+      query: |
+        ; The key size is the SECOND argument; the third is the certainty parameter (64). Without
+        ; anchoring to position, one call produced two findings — RSA-1024 and a nonsensical
+        ; RSA-64 — because every integer argument matched.
+        (_ (identifier) @cls
+           . (selector (argument_part (arguments
+               . (argument)
+               . (argument (decimal_integer_literal) @size))))) @call
+      where:
+        - { capture: cls, equals: RSAKeyGeneratorParameters }
+    extract:
+      algorithm: { literal: RSA }
+      key_size: { from: size, resolve: int-literal }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import 'package:pointycastle/pointycastle.dart';
+          void f() { var p = RSAKeyGeneratorParameters(BigInt.from(65537), 1024, 64); }
+      negative:
+        - |
+          void f() { var p = ECKeyGeneratorParameters(ECCurve_secp256r1()); }

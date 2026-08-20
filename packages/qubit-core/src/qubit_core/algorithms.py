@@ -315,6 +315,15 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
     _safe(
         canonical="ChaCha20", family="ChaCha20", kind="symmetric", key_size=256, aliases=("chacha",)
     ),
+    # XChaCha20 is ChaCha20 with a 192-bit nonce (libsodium, RustCrypto, PHP's sodium_* API).
+    # Same 256-bit key, same verdict; it needs its own identity only because the name differs.
+    _safe(
+        canonical="XChaCha20",
+        family="ChaCha20",
+        kind="symmetric",
+        key_size=256,
+        aliases=("xchacha20", "xchacha20-poly1305", "xchacha"),
+    ),
     _safe(
         canonical="Salsa20",
         family="Salsa20",
@@ -394,6 +403,21 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
     _safe(canonical="SHA-512", family="SHA-2", kind="hash", aliases=("sha512",)),
     _grover(canonical="SHA-1", family="SHA-1", kind="hash", aliases=("sha1", "sha-1")),
     _grover(canonical="MD5", family="MD5", kind="hash", aliases=("md5",)),
+    # CRC32 is a checksum, not a hash — no preimage resistance at all, and Grover does not apply
+    # because there is nothing to search for. It is listed because real code reaches for it AS a
+    # digest (PHP's `crc32()`, MySQL's `CRC32()`), and the alternative is worse: an unlisted name
+    # becomes `UNKNOWN(crc32)`, which normalize() rates NOT vulnerable and prints as if the
+    # scanner had understood it. Here the verdict is the same but honest — quantum computing is
+    # not this algorithm's problem — and `classical_security_level=0` states the actual one.
+    # `kind="checksum"` maps to CycloneDX primitive "other" rather than "hash" so a CBOM does not
+    # assert it is a hash function either.
+    _safe(
+        canonical="CRC32",
+        family="CRC",
+        kind="checksum",
+        classical_security_level=0,
+        aliases=("crc32", "crc-32", "crc32b", "crc32c"),
+    ),
     # SHA-224 gives ~112-bit classical / ~56-bit Grover preimage margin: below the 128-bit bar the
     # SHA-256+ family clears, so it is flagged rather than treated as safe.
     _grover(canonical="SHA-224", family="SHA-2", kind="hash", aliases=("sha224",)),
@@ -494,6 +518,17 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
     _grover(canonical="GMAC", family="GMAC", kind="mac", aliases=("gmac",)),
     _grover(canonical="KMAC", family="KMAC", kind="mac", aliases=("kmac", "kmac128", "kmac256")),
     _safe(canonical="Poly1305", family="Poly1305", kind="mac", aliases=("poly1305",)),
+    # SipHash is libsodium's `crypto_shorthash` and the hash-table PRF in Rust, Python and Redis.
+    # Its 64-bit output makes it useless as a digest, but it is a keyed PRF with a 128-bit key, so
+    # quantum computing is not its problem — the verdict is honestly "not vulnerable". Listed so
+    # it resolves rather than arriving as UNKNOWN(SipHash) with the same verdict and no name.
+    _safe(
+        canonical="SipHash",
+        family="SipHash",
+        kind="mac",
+        key_size=128,
+        aliases=("siphash", "siphash24", "siphash-2-4", "siphash13"),
+    ),
     # --- PQC targets (quantum-safe) ---
     _safe(
         canonical="ML-KEM-512",
@@ -664,6 +699,13 @@ _BARE_FAMILY: dict[str, CanonicalAlgorithm] = {
     "ec": CanonicalAlgorithm("EC", "EC", "asymmetric", QuantumAttack.shor, vulnerable=True),
     "dsa": CanonicalAlgorithm("DSA", "DSA", "asymmetric", QuantumAttack.shor, vulnerable=True),
     "aes": CanonicalAlgorithm("AES", "AES", "symmetric", QuantumAttack.grover, vulnerable=True),
+    # Rijndael IS AES — it is the cipher NIST selected and renamed — and .NET's RijndaelManaged
+    # is still all over legacy code. It lands on the bare family rather than AES-128 because
+    # `RijndaelManaged.KeySize` defaults to 256 bits: resolving the class name to AES-128 would
+    # understate the key, and the source never states a size at all. Same reasoning as bare DH.
+    "rijndael": CanonicalAlgorithm(
+        "AES", "AES", "symmetric", QuantumAttack.grover, vulnerable=True
+    ),
     # WebCrypto names an RSA *padding scheme* rather than a key size ("RSASSA-PKCS1-v1_5",
     # "RSA-PSS", "RSA-OAEP"). The scheme does not change the Shor verdict, so each maps onto the
     # bare-RSA family entry instead of guessing a modulus size.

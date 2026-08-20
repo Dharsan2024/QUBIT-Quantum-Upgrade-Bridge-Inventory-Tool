@@ -10,6 +10,9 @@
 # constructor, which is what these rules capture.
 schema: qubit-rule/v1
 language: c
+# Same queries also compiled against the cpp grammar:
+# OpenSSL's C API is used from C++ verbatim; every query here matches a C++ TU.
+additional_languages: [cpp]
 library:
   name: liboqs
   # resolve.py has no C import-extraction query, and the OQS_* symbols are unmistakable on

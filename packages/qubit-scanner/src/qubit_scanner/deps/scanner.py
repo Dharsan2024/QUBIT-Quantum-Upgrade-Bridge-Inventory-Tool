@@ -26,9 +26,17 @@ from qubit_scanner.models import Detection
 from . import database
 from .manifest import (
     Dependency,
+    parse_build_gradle,
+    parse_build_sbt,
+    parse_cargo_toml,
+    parse_composer_json,
+    parse_csproj,
+    parse_gemfile,
     parse_go_mod,
     parse_package_json,
+    parse_package_swift,
     parse_pom_xml,
+    parse_pubspec_yaml,
     parse_pyproject_toml,
     parse_requirements_txt,
 )
@@ -39,6 +47,24 @@ _PARSERS = {
     "requirements.txt": parse_requirements_txt,
     "pyproject.toml": parse_pyproject_toml,
     "pom.xml": parse_pom_xml,
+    "cargo.toml": parse_cargo_toml,
+    "composer.json": parse_composer_json,
+    "gemfile": parse_gemfile,
+    "build.gradle": parse_build_gradle,
+    "build.gradle.kts": parse_build_gradle,
+    "build.sbt": parse_build_sbt,
+    "pubspec.yaml": parse_pubspec_yaml,
+    "package.swift": parse_package_swift,
+    "directory.packages.props": parse_csproj,
+}
+
+# Manifests identified by suffix rather than exact name: a .NET project file is named after its
+# project (`PaymentGateway.csproj`), so there is no fixed filename to match.
+_SUFFIX_PARSERS = {
+    ".csproj": parse_csproj,
+    ".vbproj": parse_csproj,
+    ".fsproj": parse_csproj,
+    ".gemspec": parse_gemfile,
 }
 
 _RULE_ID = {
@@ -46,6 +72,12 @@ _RULE_ID = {
     "npm": "DEP-NPM-001",
     "pypi": "DEP-PYPI-001",
     "maven": "DEP-MAVEN-001",
+    "cargo": "DEP-CARGO-001",
+    "packagist": "DEP-PACKAGIST-001",
+    "rubygems": "DEP-RUBYGEMS-001",
+    "nuget": "DEP-NUGET-001",
+    "pub": "DEP-PUB-001",
+    "swiftpm": "DEP-SWIFTPM-001",
 }
 
 # Leading numeric-ish version core, after stripping specifier operators and a Go "v" prefix.
@@ -76,7 +108,11 @@ class ManifestParser:
     """Scans a single dependency-manifest file for crypto-relevant declared dependencies."""
 
     def parse(self, file_path: Path) -> list[Detection]:
-        parse_fn = _PARSERS.get(file_path.name)
+        # Case-insensitive: the real files are `Gemfile`, `Cargo.toml`, `Package.swift`, and a
+        # case-sensitive lookup against lowercase keys would have matched none of them.
+        parse_fn = _PARSERS.get(file_path.name.lower()) or _SUFFIX_PARSERS.get(
+            file_path.suffix.lower()
+        )
         if parse_fn is None:
             return []
 

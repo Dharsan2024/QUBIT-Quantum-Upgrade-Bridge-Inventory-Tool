@@ -1,0 +1,200 @@
+schema: qubit-rule/v1
+language: scala
+library:
+  name: Scala / JCA
+  detect_imports: []
+# Scala carries less of the survey (2.6%) than its footprint suggests: it is concentrated in
+# banking, payments and data platforms — Spark, Akka, Kafka Streams — which is exactly where
+# long-lived secrets and 20-year retention obligations sit. A Mosca calculation over a payments
+# ledger is only as good as its ability to see the ledger's code.
+#
+# Scala reaches the same JCA API as Java and Kotlin, through a third set of node types:
+# `call_expression > field_expression`, with `value:`/`field:` fields.
+rules:
+  - id: SCALA-JCA-GETINSTANCE-DIGEST
+    title: MessageDigest.getInstance("MD5")
+    match:
+      query: |
+        (call_expression
+          function: (field_expression
+            value: (identifier) @cls
+            field: (identifier) @meth)
+          arguments: (arguments . (_) @algo)) @call
+      where:
+        - { capture: cls, equals: MessageDigest }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.MessageDigest
+          object A { def f(): Unit = { val d = MessageDigest.getInstance("MD5") } }
+        - |
+          object A { def f(): Unit = { val algo = "SHA-1"; val d = MessageDigest.getInstance(algo) } }
+      negative:
+        - |
+          object A { def f(): Unit = { val c = Cipher.getInstance("AES") } }
+
+  - id: SCALA-JCA-CIPHER
+    title: Cipher.getInstance("DES/ECB/PKCS5Padding")
+    match:
+      query: |
+        (call_expression
+          function: (field_expression
+            value: (identifier) @cls
+            field: (identifier) @meth)
+          arguments: (arguments . (_) @algo)) @call
+      where:
+        - { capture: cls, equals: Cipher }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: jca-transformation }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.Cipher
+          object A { def f(): Unit = { val c = Cipher.getInstance("DES/ECB/PKCS5Padding") } }
+        - |
+          object A { def f(): Unit = { val c = Cipher.getInstance("AES/GCM/NoPadding") } }
+      negative:
+        - |
+          object A { def f(): Unit = { val d = MessageDigest.getInstance("MD5") } }
+
+  - id: SCALA-JCA-KEYGEN
+    title: KeyPairGenerator.getInstance("RSA") / KeyGenerator.getInstance("DES")
+    match:
+      query: |
+        (call_expression
+          function: (field_expression
+            value: (identifier) @cls
+            field: (identifier) @meth)
+          arguments: (arguments . (_) @algo)) @call
+      where:
+        - { capture: cls, in: [KeyPairGenerator, KeyGenerator, KeyFactory] }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: jca-transformation }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.KeyPairGenerator
+          object A { def f(): Unit = { val kg = KeyPairGenerator.getInstance("RSA") } }
+        - |
+          object A { def f(): Unit = { val kg = KeyGenerator.getInstance("DES") } }
+      negative:
+        - |
+          object A { def f(): Unit = { val c = Cipher.getInstance("AES") } }
+
+  - id: SCALA-JCA-SIGNATURE
+    title: Signature.getInstance("SHA1withRSA")
+    match:
+      query: |
+        (call_expression
+          function: (field_expression
+            value: (identifier) @cls
+            field: (identifier) @meth)
+          arguments: (arguments . (_) @algo)) @call
+      where:
+        - { capture: cls, equals: Signature }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: jca-signature }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import java.security.Signature
+          object A { def f(): Unit = { val s = Signature.getInstance("SHA1withRSA") } }
+        - |
+          object A { def f(): Unit = { val s = Signature.getInstance("SHA256withECDSA") } }
+      negative:
+        - |
+          object A { def f(): Unit = { val d = MessageDigest.getInstance("SHA-256") } }
+
+  - id: SCALA-JCA-MAC
+    title: Mac.getInstance("HmacMD5")
+    match:
+      query: |
+        (call_expression
+          function: (field_expression
+            value: (identifier) @cls
+            field: (identifier) @meth)
+          arguments: (arguments . (_) @algo)) @call
+      where:
+        - { capture: cls, equals: Mac }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: jca-transformation }
+    asset: { asset_type: algorithm-use, usage_context: mac }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.Mac
+          object A { def f(): Unit = { val m = Mac.getInstance("HmacMD5") } }
+        - |
+          object A { def f(): Unit = { val m = Mac.getInstance("HmacSHA256") } }
+      negative:
+        - |
+          object A { def f(): Unit = { val c = Cipher.getInstance("AES") } }
+
+  - id: SCALA-JCA-PBKDF2
+    title: SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
+    match:
+      query: |
+        (call_expression
+          function: (field_expression
+            value: (identifier) @cls
+            field: (identifier) @meth)
+          arguments: (arguments . (_) @algo)) @call
+      where:
+        - { capture: cls, equals: SecretKeyFactory }
+        - { capture: meth, equals: getInstance }
+        - { capture: algo, regex: "PBKDF" }
+    extract:
+      algorithm: { literal: PBKDF2 }
+    asset: { asset_type: algorithm-use, usage_context: kdf }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.SecretKeyFactory
+          object A { def f(): Unit = { val k = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1") } }
+      negative:
+        - |
+          object A { def f(): Unit = { val k = SecretKeyFactory.getInstance("DES") } }
+
+  - id: SCALA-JSSE-SSLCONTEXT
+    title: SSLContext.getInstance("TLSv1")
+    match:
+      query: |
+        (call_expression
+          function: (field_expression
+            value: (identifier) @cls
+            field: (identifier) @meth)
+          arguments: (arguments . (_) @proto)) @call
+      where:
+        - { capture: cls, in: [SSLContext, SSLSocketFactory] }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: proto, resolve: jca-transformation }
+    asset: { asset_type: protocol-config, usage_context: tls }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.net.ssl.SSLContext
+          object A { def f(): Unit = { val ctx = SSLContext.getInstance("TLSv1") } }
+        - |
+          object A { def f(): Unit = { val ctx = SSLContext.getInstance("TLSv1.2") } }
+      negative:
+        - |
+          object A { def f(): Unit = { val d = MessageDigest.getInstance("SHA-256") } }

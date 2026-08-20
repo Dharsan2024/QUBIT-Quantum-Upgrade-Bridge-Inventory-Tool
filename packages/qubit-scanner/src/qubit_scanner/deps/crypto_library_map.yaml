@@ -7132,3 +7132,372 @@ packages:
     ecosystem: pypi
     algorithms:
       - { algorithm: X25519, usage_context: kex }
+
+  # --- crates.io (Rust) ---
+  # RustCrypto publishes one crate per primitive, so the crate name IS the algorithm in most
+  # cases; the wrapper crates (ring, openssl, rustls) are the ones that need a real list.
+  - package: ring
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: SHA-256, usage_context: hash }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: Ed25519, usage_context: signature }
+      - { algorithm: ECDSA-P256, usage_context: signature }
+      - { algorithm: X25519, usage_context: kex }
+      - { algorithm: HMAC, usage_context: mac }
+      # ring keeps SHA-1 available under a name that says not to use it.
+      - { algorithm: SHA-1, usage_context: hash }
+
+  - package: openssl
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: ECDSA, usage_context: signature }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: SHA-256, usage_context: hash }
+
+  - package: rustls
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: TLSv1.3, usage_context: tls }
+      - { algorithm: TLSv1.2, usage_context: tls }
+      - { algorithm: X25519, usage_context: kex }
+      - { algorithm: ECDSA-P256, usage_context: signature }
+
+  - package: rustls-post-quantum
+    ecosystem: cargo
+    algorithms:
+      # This crate exists solely to add the hybrid group to rustls.
+      - { algorithm: X25519MLKEM768, usage_context: kex }
+      - { algorithm: ML-KEM-768, usage_context: kex }
+
+  - package: ml-kem
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: ML-KEM-512, usage_context: kex }
+      - { algorithm: ML-KEM-768, usage_context: kex }
+      - { algorithm: ML-KEM-1024, usage_context: kex }
+
+  - package: ml-dsa
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: ML-DSA-44, usage_context: signature }
+      - { algorithm: ML-DSA-65, usage_context: signature }
+      - { algorithm: ML-DSA-87, usage_context: signature }
+
+  - package: md-5
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: MD5, usage_context: hash }
+
+  - package: sha1
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: SHA-1, usage_context: hash }
+
+  - package: sha2
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: SHA-256, usage_context: hash }
+      - { algorithm: SHA-512, usage_context: hash }
+
+  - package: des
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: DES, usage_context: encryption-at-rest }
+      - { algorithm: 3DES, usage_context: encryption-at-rest }
+
+  - package: aes
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: AES-128, usage_context: encryption-at-rest }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+
+  - package: rc4
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: RC4, usage_context: encryption-at-rest }
+
+  - package: blowfish
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: Blowfish, usage_context: encryption-at-rest }
+
+  - package: rsa
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+
+  - package: ed25519-dalek
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: Ed25519, usage_context: signature }
+
+  - package: x25519-dalek
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: X25519, usage_context: kex }
+
+  - package: p256
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: ECDSA-P256, usage_context: signature }
+      - { algorithm: ECDH-P256, usage_context: kex }
+
+  - package: chacha20poly1305
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: ChaCha20, usage_context: encryption-at-rest }
+      - { algorithm: XChaCha20, usage_context: encryption-at-rest }
+
+  - package: argon2
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: argon2id, usage_context: kdf }
+
+  - package: jsonwebtoken
+    ecosystem: cargo
+    algorithms:
+      - { algorithm: HS256, usage_context: token }
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+
+  # --- Packagist (PHP) ---
+  - package: firebase/php-jwt
+    ecosystem: packagist
+    algorithms:
+      - { algorithm: HS256, usage_context: token }
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: EdDSA, usage_context: token }
+
+  - package: lcobucci/jwt
+    ecosystem: packagist
+    algorithms:
+      - { algorithm: HS256, usage_context: token }
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+
+  - package: phpseclib/phpseclib
+    ecosystem: packagist
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: 3DES, usage_context: encryption-at-rest }
+      - { algorithm: DES, usage_context: encryption-at-rest }
+      - { algorithm: Blowfish, usage_context: encryption-at-rest }
+      - { algorithm: RC4, usage_context: encryption-at-rest }
+
+  - package: paragonie/halite
+    ecosystem: packagist
+    algorithms:
+      - { algorithm: XChaCha20, usage_context: encryption-at-rest }
+      - { algorithm: Ed25519, usage_context: signature }
+      - { algorithm: X25519, usage_context: kex }
+      - { algorithm: argon2id, usage_context: kdf }
+
+  - package: paragonie/sodium_compat
+    ecosystem: packagist
+    algorithms:
+      - { algorithm: XSalsa20, usage_context: encryption-at-rest }
+      - { algorithm: Ed25519, usage_context: signature }
+      - { algorithm: X25519, usage_context: kex }
+
+  - package: defuse/php-encryption
+    ecosystem: packagist
+    algorithms:
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: HMAC-SHA256, usage_context: mac }
+
+  - package: web-token/jwt-framework
+    ecosystem: packagist
+    algorithms:
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: ECDH-ES, usage_context: kex }
+      - { algorithm: A256GCM, usage_context: encryption-at-rest }
+
+  # --- RubyGems ---
+  - package: jwt
+    ecosystem: rubygems
+    algorithms:
+      - { algorithm: HS256, usage_context: token }
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+
+  - package: bcrypt
+    ecosystem: rubygems
+    algorithms:
+      - { algorithm: bcrypt, usage_context: kdf }
+
+  - package: rbnacl
+    ecosystem: rubygems
+    algorithms:
+      - { algorithm: Ed25519, usage_context: signature }
+      - { algorithm: X25519, usage_context: kex }
+      - { algorithm: XSalsa20, usage_context: encryption-at-rest }
+      - { algorithm: BLAKE2b, usage_context: hash }
+
+  - package: openssl
+    ecosystem: rubygems
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: ECDSA, usage_context: signature }
+      - { algorithm: SHA-256, usage_context: hash }
+
+  - package: lockbox
+    ecosystem: rubygems
+    algorithms:
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: XChaCha20, usage_context: encryption-at-rest }
+
+  - package: attr_encrypted
+    ecosystem: rubygems
+    algorithms:
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+
+  - package: scrypt
+    ecosystem: rubygems
+    algorithms:
+      - { algorithm: scrypt, usage_context: kdf }
+
+  # --- NuGet (.NET) ---
+  - package: bouncycastle.cryptography
+    ecosystem: nuget
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: ECDSA, usage_context: signature }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: 3DES, usage_context: encryption-at-rest }
+      - { algorithm: Ed25519, usage_context: signature }
+      # BouncyCastle C# 2.x carries the NIST PQC algorithms.
+      - { algorithm: ML-KEM-768, usage_context: kex, min_version: "2.0" }
+      - { algorithm: ML-DSA-65, usage_context: signature, min_version: "2.0" }
+
+  - package: portable.bouncycastle
+    ecosystem: nuget
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: ECDSA, usage_context: signature }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: 3DES, usage_context: encryption-at-rest }
+
+  - package: system.identitymodel.tokens.jwt
+    ecosystem: nuget
+    algorithms:
+      - { algorithm: HS256, usage_context: token }
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+
+  - package: microsoft.identitymodel.tokens
+    ecosystem: nuget
+    algorithms:
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: A256GCM, usage_context: encryption-at-rest }
+
+  - package: jose-jwt
+    ecosystem: nuget
+    algorithms:
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+      - { algorithm: RSA1_5, usage_context: kex }
+      - { algorithm: A256GCM, usage_context: encryption-at-rest }
+
+  - package: bcrypt.net-next
+    ecosystem: nuget
+    algorithms:
+      - { algorithm: bcrypt, usage_context: kdf }
+
+  - package: konscious.security.cryptography.argon2
+    ecosystem: nuget
+    algorithms:
+      - { algorithm: argon2id, usage_context: kdf }
+
+  - package: nsec.cryptography
+    ecosystem: nuget
+    algorithms:
+      - { algorithm: Ed25519, usage_context: signature }
+      - { algorithm: X25519, usage_context: kex }
+      - { algorithm: XChaCha20, usage_context: encryption-at-rest }
+      - { algorithm: BLAKE2b, usage_context: hash }
+
+  - package: sodium.core
+    ecosystem: nuget
+    algorithms:
+      - { algorithm: Ed25519, usage_context: signature }
+      - { algorithm: XSalsa20, usage_context: encryption-at-rest }
+      - { algorithm: X25519, usage_context: kex }
+
+  # --- pub.dev (Dart / Flutter) ---
+  - package: crypto
+    ecosystem: pub
+    algorithms:
+      - { algorithm: MD5, usage_context: hash }
+      - { algorithm: SHA-1, usage_context: hash }
+      - { algorithm: SHA-256, usage_context: hash }
+      - { algorithm: HMAC, usage_context: mac }
+
+  - package: pointycastle
+    ecosystem: pub
+    algorithms:
+      - { algorithm: RSA, usage_context: kex }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: ECDSA, usage_context: signature }
+      - { algorithm: 3DES, usage_context: encryption-at-rest }
+      - { algorithm: MD5, usage_context: hash }
+      - { algorithm: SHA-1, usage_context: hash }
+
+  - package: encrypt
+    ecosystem: pub
+    algorithms:
+      - { algorithm: AES, usage_context: encryption-at-rest }
+      - { algorithm: Salsa20, usage_context: encryption-at-rest }
+      - { algorithm: RSA, usage_context: kex }
+
+  - package: cryptography
+    ecosystem: pub
+    algorithms:
+      - { algorithm: X25519, usage_context: kex }
+      - { algorithm: Ed25519, usage_context: signature }
+      - { algorithm: ChaCha20, usage_context: encryption-at-rest }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+
+  - package: dart_jsonwebtoken
+    ecosystem: pub
+    algorithms:
+      - { algorithm: HS256, usage_context: token }
+      - { algorithm: RS256, usage_context: token }
+      - { algorithm: ES256, usage_context: token }
+
+  # --- SwiftPM ---
+  # Names are the repository's last path component, which is how SwiftPM identifies a package.
+  - package: swift-crypto
+    ecosystem: swiftpm
+    algorithms:
+      - { algorithm: SHA-256, usage_context: hash }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: ECDSA-P256, usage_context: signature }
+      - { algorithm: Ed25519, usage_context: signature }
+      - { algorithm: X25519, usage_context: kex }
+      - { algorithm: ChaCha20, usage_context: encryption-at-rest }
+      # Apple keeps MD5 and SHA-1 in an `Insecure` namespace rather than removing them.
+      - { algorithm: MD5, usage_context: hash }
+      - { algorithm: SHA-1, usage_context: hash }
+
+  - package: cryptoswift
+    ecosystem: swiftpm
+    algorithms:
+      - { algorithm: MD5, usage_context: hash }
+      - { algorithm: SHA-1, usage_context: hash }
+      - { algorithm: AES-256, usage_context: encryption-at-rest }
+      - { algorithm: Blowfish, usage_context: encryption-at-rest }
+      - { algorithm: 3DES, usage_context: encryption-at-rest }
+      - { algorithm: RC4, usage_context: encryption-at-rest }
+
+  - package: swift-nio-ssl
+    ecosystem: swiftpm
+    algorithms:
+      - { algorithm: TLSv1.2, usage_context: tls }
+      - { algorithm: TLSv1.3, usage_context: tls }

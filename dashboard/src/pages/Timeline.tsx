@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Plot from 'react-plotly.js';
 import { RefreshCw } from 'lucide-react';
 import { AnimatedPage } from '../components/AnimatedPage';
-import { fetchTimeline } from '../api/client';
+import { fetchProjectsOverview, fetchTimeline } from '../api/client';
+import { ProjectScopeBar } from '../components/ProjectScopeBar';
+import { useUiStore } from '../stores/ui';
 
 // Shor-vulnerable public-key algorithms the registry can model a CRQC arrival curve for.
 const ALGORITHMS = ['RSA-2048', 'RSA-3072', 'RSA-4096', 'ECDSA-P256', 'ECDH-P256'];
@@ -38,6 +40,33 @@ export function Timeline() {
   const [algorithm, setAlgorithm] = useState('RSA-2048');
   const [blend, setBlend] = useState(false);
   const [weight, setWeight] = useState(0.5);
+  const projectId = useUiStore((s) => s.projectId);
+
+  // This page is a Monte-Carlo simulator, not a view of an inventory: the curve is a property of
+  // the algorithm and the hardware model, not of your code. So it is deliberately NOT gated behind
+  // choosing a project the way Inventory, Risk, CNSA 2.0 and the Migration Hub are — gating it
+  // would block a page that works perfectly well on its own.
+  //
+  // What the project DOES decide is which algorithm is worth opening on. Landing on RSA-2048 for a
+  // project whose actual exposure is RSA-1024 makes the page decorative.
+  const overviewQ = useQuery({
+    queryKey: ['projects-overview'],
+    queryFn: fetchProjectsOverview,
+    enabled: !!projectId,
+  });
+  const project = overviewQ.data?.find((p) => p.id === projectId);
+  // Only Shor-broken public-key algorithms have a modelled arrival curve, so the project's most
+  // common exposure is used only when it is one this page can actually chart.
+  const projectAlgorithm = project?.top_algorithms.find((a) => ALGORITHMS.includes(a));
+  // Seed once per project, then leave the dropdown alone — re-applying it would fight the user
+  // every time the overview query refetched.
+  const seededFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!projectId || !projectAlgorithm) return;
+    if (seededFor.current === projectId) return;
+    seededFor.current = projectId;
+    setAlgorithm(projectAlgorithm);
+  }, [projectId, projectAlgorithm]);
 
   // Hardware-only Monte-Carlo curve (always shown as the physics baseline).
   const hwQuery = useQuery({
@@ -68,6 +97,12 @@ export function Timeline() {
             Monte-Carlo simulation of Cryptographically Relevant Quantum Computer arrival
             (surface-code resource model{blend ? ', blended with the GRI-2025 expert survey' : ''}).
           </p>
+          {projectAlgorithm && (
+            <p className="metric-label mt-1.5 normal-case tracking-normal">
+              Opened on {projectAlgorithm} — this project&apos;s most common Shor-breakable
+              algorithm.
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {isFetching && (
@@ -110,6 +145,8 @@ export function Timeline() {
           </select>
         </div>
       </header>
+
+      <ProjectScopeBar />
 
       {data && (
         <div className="stagger grid grid-cols-2 gap-5 md:grid-cols-4">

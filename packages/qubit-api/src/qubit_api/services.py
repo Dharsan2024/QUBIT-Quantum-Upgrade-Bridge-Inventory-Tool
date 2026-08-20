@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,8 @@ from sqlalchemy import Integer, Select, String, case, cast, func, select
 from sqlalchemy.orm import Session
 
 from .schemas import CryptoAssetOut, TrendPoint
+
+logger = logging.getLogger(__name__)
 
 
 def slugify(value: str) -> str:
@@ -54,6 +57,49 @@ def to_asset_out(row: AssetRow) -> CryptoAssetOut:
 def next_scan_sequence(session: Session, project_id: UUID) -> int:
     max_seq = session.scalar(select(func.max(ScanRow.seq)).where(ScanRow.project_id == project_id))
     return 1 if max_seq is None else int(max_seq) + 1
+
+
+def autobuild_migration_plan(session: Session, scan_id: UUID) -> UUID | None:
+    """Build the migration plan for a scan that has just finished, and return its id.
+
+    Called at the end of every successful risk-annotated scan. Before this, a plan only existed if
+    someone pressed "Build plan", and the plan that button produced was global — so the ordinary
+    path of "scan a project, open the Migration Hub" showed either nothing or a queue assembled
+    from some unrelated project's assets. Building it here is what makes a project's migration
+    appear as a consequence of scanning it.
+
+    Scoped to the *scan*, not the project: nothing dedupes assets across scans, so a project-wide
+    plan over a directory scanned three times would carry three copies of every task. One scan is
+    one coherent snapshot. A project-wide plan is still reachable on request.
+
+    Returns None when there is nothing to plan (no vulnerable assets), and swallows failures — a
+    scan that found real assets must not be reported as failed because planning tripped over.
+    """
+    from qubit_migrate.orchestrator import MigrationOrchestrator
+
+    scan = session.get(ScanRow, scan_id)
+    if scan is None:
+        return None
+    vulnerable = session.scalar(
+        select(func.count())
+        .select_from(AssetRow)
+        .where(
+            AssetRow.scan_id == scan_id,
+            AssetRow.qv_vulnerable.is_(True),
+            AssetRow.risk_score.is_not(None),
+        )
+    )
+    if not vulnerable:
+        return None
+    try:
+        plan = MigrationOrchestrator(session).build_plan(
+            project_id=scan.project_id, scan_id=scan_id
+        )
+    except Exception:
+        logger.exception("Auto-building a migration plan failed for scan %s", scan_id)
+        session.rollback()
+        return None
+    return plan.id
 
 
 def annotate_scan_risk(session: Session, scan_id: UUID) -> int:
@@ -215,6 +261,8 @@ def run_scan(
             if rows and run_risk:
                 session.commit()  # rows must be visible before the pipeline reads them
                 annotate_scan_risk(session, scan.id)
+                session.commit()  # ...and annotated before the planner reads them
+                autobuild_migration_plan(session, scan.id)
         except Exception as exc:
             scan.status = "failed"
             scan.error = str(exc)

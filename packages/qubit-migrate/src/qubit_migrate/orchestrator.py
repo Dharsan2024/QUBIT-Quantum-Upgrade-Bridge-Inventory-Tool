@@ -51,8 +51,22 @@ class MigrationOrchestrator:
         self.config = config or MigrateConfig()
         self._rules = load_rules()
 
-    def build_plan(self, *, min_risk: float = 0.0) -> MigrationPlan:
-        """Build graph+queue from risk-annotated assets -> saves plan."""
+    def build_plan(
+        self,
+        *,
+        min_risk: float = 0.0,
+        project_id: UUID | None = None,
+        scan_id: UUID | None = None,
+    ) -> MigrationPlan:
+        """Build graph+queue from risk-annotated assets -> saves plan.
+
+        `project_id` / `scan_id` bound the plan to one project (optionally to one scan within it).
+        Without them the plan spans every asset in the database, which is what every plan did
+        before scoping existed: the Migration Hub showed the newest plan, that plan had been
+        assembled from whatever else had ever been scanned, and the project you had just scanned
+        had no plan of its own to show. Both are recorded on the row AND in `scope_json`, so a plan
+        can always say what it was built from.
+        """
         # Domain assets live as flattened AssetRow rows; hydrate back to the schema the
         # graph/queue components expect.
         #
@@ -61,25 +75,43 @@ class MigrationOrchestrator:
         # convert each one through `row_to_asset` (pydantic validation per asset), and only then
         # discard the ones that are safe or unscored. A plan only ever concerns vulnerable,
         # risk-scored assets, so the rest was work done purely to be thrown away, and it grew with
-        # total scan history rather than with the size of the plan. `qv_vulnerable` and `risk_score`
-        # are both indexed.
-        rows = self.session.scalars(
-            select(AssetRow).where(
-                AssetRow.qv_vulnerable.is_(True),
-                AssetRow.risk_score.is_not(None),
-                AssetRow.risk_score >= min_risk,
-            )
-        ).all()
+        # total scan history rather than with the size of the plan. `qv_vulnerable`, `risk_score`,
+        # `project_id` and `scan_id` are all indexed.
+        predicates = [
+            AssetRow.qv_vulnerable.is_(True),
+            AssetRow.risk_score.is_not(None),
+            AssetRow.risk_score >= min_risk,
+        ]
+        if project_id is not None:
+            predicates.append(AssetRow.project_id == project_id)
+        if scan_id is not None:
+            predicates.append(AssetRow.scan_id == scan_id)
+        rows = self.session.scalars(select(AssetRow).where(*predicates)).all()
+        scope = {
+            "project_id": str(project_id) if project_id else None,
+            "scan_id": str(scan_id) if scan_id else None,
+            "min_risk": min_risk,
+        }
         in_scope = [row_to_asset(r) for r in rows]
         if not in_scope:
             plan = MigrationPlan(
-                status="completed", stats_json={"message": "No vulnerable assets in scope"}
+                status="completed",
+                project_id=project_id,
+                scan_id=scan_id,
+                scope_json=scope,
+                stats_json={"message": "No vulnerable assets in scope"},
             )
             self.session.add(plan)
             self.session.commit()
             return plan
 
-        plan = MigrationPlan(status="active", config_json=self.config.model_dump())
+        plan = MigrationPlan(
+            status="active",
+            project_id=project_id,
+            scan_id=scan_id,
+            scope_json=scope,
+            config_json=self.config.model_dump(),
+        )
         self.session.add(plan)
         self.session.flush()
 
@@ -132,7 +164,27 @@ class MigrationOrchestrator:
                     detail={"rule": task.rule_id},
                 )
 
-        plan.stats_json = {"tasks": len(in_scope), "units": len(units)}
+        # Rollups the Migration Hub would otherwise recompute by walking every task on every
+        # render. `automatable` is the one that matters operationally: a task with no codemod rule
+        # cannot be patched from the app at all, and a plan that is mostly unautomatable is a very
+        # different piece of work from one that is mostly not.
+        by_algorithm: dict[str, int] = {}
+        for rt in ranked:
+            by_algorithm[rt.asset.algorithm] = by_algorithm.get(rt.asset.algorithm, 0) + 1
+        tasks_built = [t for t in plan.tasks]
+        plan.stats_json = {
+            "tasks": len(in_scope),
+            "units": len(units),
+            "automatable": sum(1 for t in tasks_built if t.rule_id),
+            "effort_points": sum(t.effort_points for t in tasks_built),
+            "effort_hours_low": round(
+                sum(float(t.effort_json.get("hours_low", 0.0)) for t in tasks_built), 1
+            ),
+            "effort_hours_high": round(
+                sum(float(t.effort_json.get("hours_high", 0.0)) for t in tasks_built), 1
+            ),
+            "by_algorithm": dict(sorted(by_algorithm.items(), key=lambda kv: (-kv[1], kv[0]))),
+        }
         self.session.commit()
         return plan
 

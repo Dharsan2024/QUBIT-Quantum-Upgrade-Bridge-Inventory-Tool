@@ -1,6 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatedPage } from '../components/AnimatedPage';
+import { ProjectGrid } from '../components/ProjectGrid';
+import { ProjectScopeBar } from '../components/ProjectScopeBar';
+import { useActiveScan } from '../hooks/useActiveScan';
+import { useUiStore } from '../stores/ui';
 import {
   Terminal,
   RefreshCw,
@@ -15,6 +19,10 @@ import {
   ShieldCheck,
   ShieldAlert,
   List,
+  AlertTriangle,
+  FileCode2,
+  Clock3,
+  Layers,
 } from 'lucide-react';
 import {
   createPlan,
@@ -26,7 +34,7 @@ import {
   generatePatch,
   reviewPatch,
 } from '../api/client';
-import type { MigrationTask } from '../api/types';
+import type { MigrationPlan, MigrationTask } from '../api/types';
 import { displayAlgorithm } from '../lib/assetLabels';
 
 function StateChip({ state }: { state: string }) {
@@ -39,6 +47,11 @@ function StateChip({ state }: { state: string }) {
           ? 'chip chip-danger'
           : 'chip chip-warn';
   return <span className={cls}>{state.replace(/_/g, ' ')}</span>;
+}
+
+function shortPath(p: string | null, segments = 2): string {
+  if (!p) return '—';
+  return p.split(/[\\/]/).slice(-segments).join('/');
 }
 
 function TaskRow({ task }: { task: MigrationTask }) {
@@ -78,6 +91,7 @@ function TaskRow({ task }: { task: MigrationTask }) {
   });
 
   const latest = patches?.[0];
+  const COLS = 8;
 
   return (
     <>
@@ -91,17 +105,44 @@ function TaskRow({ task }: { task: MigrationTask }) {
             {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </button>
         </td>
-        <td className="px-4 py-3 text-xs text-[color:var(--color-accent-soft)]">
-          {task.file_path ? `${task.file_path.split(/[\\/]/).slice(-2).join('/')}${task.line ? `:${task.line}` : ''}` : '—'}
+        <td className="px-4 py-3">
+          <div
+            className="text-xs text-[color:var(--color-accent-soft)]"
+            title={task.file_path ?? undefined}
+          >
+            {shortPath(task.file_path)}
+            {task.line ? `:${task.line}` : ''}
+          </div>
+          {/* Provenance and purpose, which the queue previously could not show at all — a config
+              finding and a certificate are handled completely differently from a call site. */}
+          <div className="metric-label mt-1 flex flex-wrap gap-x-2">
+            {task.source_scanner && <span>{task.source_scanner}</span>}
+            {task.usage_context && task.usage_context !== 'unknown' && (
+              <span>· {task.usage_context}</span>
+            )}
+            {task.sensitivity && task.sensitivity !== 'unknown' && <span>· {task.sensitivity}</span>}
+          </div>
         </td>
         <td className="px-4 py-3">
           <span className="chip chip-danger" title={task.algorithm ?? undefined}>
             {task.algorithm ? displayAlgorithm(task.algorithm) : '?'}
           </span>
+          {task.key_size ? <span className="metric-label ml-2">{task.key_size} bit</span> : null}
         </td>
-        <td className="px-4 py-3 text-xs text-[color:var(--color-ink-dim)]">{task.rule_id ?? '—'}</td>
+        <td className="px-4 py-3 text-xs">
+          {task.rule_id ? (
+            <span className="font-mono text-[color:var(--color-ink-dim)]">{task.rule_id}</span>
+          ) : (
+            <span className="text-[color:var(--color-ink-faint)]">no codemod rule</span>
+          )}
+        </td>
         <td className="px-4 py-3 text-xs tabular-nums text-[color:var(--color-accent)]">
           {task.priority.toFixed(3)}
+        </td>
+        <td className="px-4 py-3 text-xs tabular-nums text-[color:var(--color-ink-dim)]">
+          {task.effort_hours_low != null && task.effort_hours_high != null
+            ? `${task.effort_hours_low}–${task.effort_hours_high} h`
+            : `${task.effort_points} pt`}
         </td>
         <td className="px-4 py-3">
           <StateChip state={task.state} />
@@ -134,13 +175,18 @@ function TaskRow({ task }: { task: MigrationTask }) {
             </span>
           )}
           {!task.rule_id && (
-            <span className="text-xs text-[color:var(--color-ink-faint)]">no codemod rule</span>
+            <span
+              className="text-xs text-[color:var(--color-ink-faint)]"
+              title="No migration rule matches this asset's language and algorithm, so QUBIT cannot propose a patch for it. It still counts towards the plan and its effort estimate."
+            >
+              manual change
+            </span>
           )}
         </td>
       </tr>
       {gen.isError && (
         <tr>
-          <td colSpan={7} className="px-4 pb-2">
+          <td colSpan={COLS} className="px-4 pb-2">
             <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
               {gen.error instanceof Error ? gen.error.message : 'generation failed'}
             </div>
@@ -149,7 +195,41 @@ function TaskRow({ task }: { task: MigrationTask }) {
       )}
       {open && (
         <tr>
-          <td colSpan={7} className="bg-black/15 px-6 py-4">
+          <td colSpan={COLS} className="bg-black/15 px-6 py-4">
+            <div className="mb-3 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-[3px] border border-[color:var(--edge)] bg-black/30 p-3">
+                <div className="metric-label mb-1">Full path</div>
+                <div className="break-all font-mono text-[color:var(--color-accent-soft)]">
+                  {task.file_path ?? '—'}
+                  {task.line ? `:${task.line}` : ''}
+                </div>
+              </div>
+              <div className="rounded-[3px] border border-[color:var(--edge)] bg-black/30 p-3">
+                <div className="metric-label mb-1">Risk / Mosca margin</div>
+                <div className="font-mono text-[color:var(--color-accent)]">
+                  {task.risk_score != null ? task.risk_score.toFixed(3) : '—'}
+                  {task.mosca_margin_years != null && (
+                    <span className="ml-2 text-[color:var(--color-ink-dim)]">
+                      {task.mosca_margin_years > 0 ? '+' : ''}
+                      {task.mosca_margin_years.toFixed(1)} y
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-[3px] border border-[color:var(--edge)] bg-black/30 p-3">
+                <div className="metric-label mb-1">Asset type</div>
+                <div className="text-[color:var(--color-ink-dim)]">
+                  {task.asset_type ?? '—'}
+                  {task.source_scanner ? ` · via ${task.source_scanner} scanner` : ''}
+                </div>
+              </div>
+              <div className="rounded-[3px] border border-[color:var(--edge)] bg-black/30 p-3">
+                <div className="metric-label mb-1">Effort drivers</div>
+                <div className="text-[color:var(--color-ink-dim)]">
+                  {task.effort_drivers.length ? task.effort_drivers.join(', ') : 'baseline'}
+                </div>
+              </div>
+            </div>
             {governance && (
               <div className="mb-3 flex items-center justify-between rounded-lg border border-[color:var(--glass-border)] bg-black/20 px-3 py-2 text-xs">
                 <div className="flex items-center gap-2">
@@ -158,17 +238,16 @@ function TaskRow({ task }: { task: MigrationTask }) {
                   ) : (
                     <ShieldAlert className="h-4 w-4 text-amber-400" />
                   )}
-                  <span className="font-medium text-[color:var(--color-ink)]">Governance Policy:</span>
+                  <span className="font-medium text-[color:var(--color-ink)]">
+                    Governance Policy:
+                  </span>
                   <span className="text-[color:var(--color-ink-dim)]">
-                    {governance.current_approvals} / {governance.required_approvals} approvals ({governance.sensitivity} sensitivity)
+                    {governance.current_approvals} / {governance.required_approvals} approvals (
+                    {governance.sensitivity} sensitivity)
                   </span>
                 </div>
                 <span
-                  className={
-                    governance.gate_status === 'passed'
-                      ? 'chip chip-safe'
-                      : 'chip chip-warn'
-                  }
+                  className={governance.gate_status === 'passed' ? 'chip chip-safe' : 'chip chip-warn'}
                 >
                   {governance.gate_status}
                 </span>
@@ -176,7 +255,9 @@ function TaskRow({ task }: { task: MigrationTask }) {
             )}
             {!patches?.length && (
               <div className="text-xs text-[color:var(--color-ink-faint)]">
-                No patches yet — generate one.
+                {task.rule_id
+                  ? 'No patches yet — generate one.'
+                  : 'No migration rule matches this asset, so no patch can be generated. Change it by hand, then rescan to confirm it is gone.'}
               </div>
             )}
             {latest && (
@@ -263,15 +344,110 @@ function TaskRow({ task }: { task: MigrationTask }) {
   );
 }
 
+/** Tasks grouped by the file they live in.
+ *
+ *  A flat 127-row queue is a list of findings; the unit of work is a file, because one editor
+ *  session fixes every finding in it. This view is what turns the plan into something you can hand
+ *  to somebody. */
+function ByFileView({ tasks }: { tasks: MigrationTask[] }) {
+  const groups = useMemo(() => {
+    const map = new Map<string, MigrationTask[]>();
+    for (const t of tasks) {
+      const key = t.file_path ?? '(no file)';
+      const list = map.get(key) ?? [];
+      list.push(t);
+      map.set(key, list);
+    }
+    return [...map.entries()]
+      .map(([file, list]) => ({
+        file,
+        tasks: [...list].sort((a, b) => (a.line ?? 0) - (b.line ?? 0)),
+        maxPriority: Math.max(...list.map((t) => t.priority)),
+        hours: list.reduce((n, t) => n + (t.effort_hours_high ?? 0), 0),
+        automatable: list.filter((t) => t.rule_id).length,
+      }))
+      .sort((a, b) => b.tasks.length - a.tasks.length || b.maxPriority - a.maxPriority);
+  }, [tasks]);
+
+  if (!groups.length) {
+    return (
+      <div className="glass-card p-10 text-center text-sm text-[color:var(--color-ink-faint)]">
+        Nothing to group — the queue is empty.
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {groups.map((g) => (
+        <div key={g.file} className="glass-card flex flex-col gap-3 p-5">
+          <div className="flex items-start justify-between gap-3 border-b border-[color:var(--edge)] pb-2.5">
+            <div className="min-w-0">
+              <div
+                className="truncate font-mono text-sm text-[color:var(--color-accent-soft)]"
+                title={g.file}
+              >
+                {shortPath(g.file, 3)}
+              </div>
+              <div className="metric-label mt-1">
+                {g.tasks.length} finding{g.tasks.length === 1 ? '' : 's'} · {g.automatable} with a
+                codemod · up to {g.hours} h
+              </div>
+            </div>
+            <FileCode2 className="h-4 w-4 flex-none text-[color:var(--color-ink-faint)]" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {g.tasks.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center justify-between gap-3 rounded-[3px] border border-[color:var(--edge)] bg-black/30 px-3 py-2 text-xs"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="w-12 flex-none font-mono text-[color:var(--color-ink-faint)]">
+                    {t.line ? `L${t.line}` : '—'}
+                  </span>
+                  <span className="chip chip-danger">
+                    {t.algorithm ? displayAlgorithm(t.algorithm) : '?'}
+                  </span>
+                  {t.usage_context && t.usage_context !== 'unknown' && (
+                    <span className="metric-label truncate">{t.usage_context}</span>
+                  )}
+                </span>
+                <span className="flex flex-none items-center gap-3">
+                  <span className="tabular-nums text-[color:var(--color-accent)]">
+                    {t.priority.toFixed(3)}
+                  </span>
+                  {t.rule_id ? (
+                    <span className="chip chip-info" title={t.rule_id}>
+                      auto
+                    </span>
+                  ) : (
+                    <span className="chip chip-warn">manual</span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DependencyGraphView({ planId }: { planId: string }) {
-  const { data: graph, isLoading, isError, error } = useQuery({
+  const {
+    data: graph,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ['plan-graph', planId],
     queryFn: () => fetchPlanGraph(planId),
   });
 
   if (isLoading) {
     return (
-      <div className="glass-card flex items-center justify-center gap-3 p-12 text-[color:var(--color-ink-dim)] text-sm">
+      <div className="glass-card flex items-center justify-center gap-3 p-12 text-sm text-[color:var(--color-ink-dim)]">
         <RefreshCw className="h-4 w-4 animate-spin" /> Loading dependency graph…
       </div>
     );
@@ -368,70 +544,145 @@ function DependencyGraphView({ planId }: { planId: string }) {
   );
 }
 
-export function Migrations() {
-  const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'queue' | 'graph'>('queue');
+/** The plan's headline numbers — what it covers, how big it is, and how much of it QUBIT can do
+ *  for you. `automatable` is the one that changes how the work is planned: a task with no codemod
+ *  rule has to be changed by hand whatever the app says. */
+function PlanSummary({ plan }: { plan: MigrationPlan }) {
+  const s = plan.stats;
+  const tasks = s.tasks ?? 0;
+  const automatable = s.automatable ?? 0;
+  const tiles = [
+    { label: 'Tasks', value: String(tasks), color: 'var(--color-accent)' },
+    { label: 'Execution units', value: String(s.units ?? 0), color: 'var(--color-accent-2)' },
+    {
+      label: 'Codemod available',
+      value: tasks ? `${automatable} / ${tasks}` : '—',
+      color: 'var(--color-safe)',
+    },
+    {
+      label: 'Estimated effort',
+      value:
+        s.effort_hours_low != null && s.effort_hours_high != null
+          ? `${s.effort_hours_low}–${s.effort_hours_high} h`
+          : '—',
+      color: 'var(--color-warn)',
+    },
+  ];
+  const byAlgorithm = Object.entries(s.by_algorithm ?? {});
 
-  const plansQ = useQuery({ queryKey: ['migrate-plans'], queryFn: fetchPlans });
-  const activePlan = plansQ.data?.find((p) => p.status === 'active') ?? plansQ.data?.[0];
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="glass-card grid grid-cols-2 gap-5 p-5 lg:grid-cols-4">
+        {tiles.map((t) => (
+          <div key={t.label}>
+            <div className="metric text-[1.7rem] leading-none" style={{ color: t.color }}>
+              {t.value}
+            </div>
+            <div className="metric-label mt-1.5">{t.label}</div>
+          </div>
+        ))}
+      </div>
+      {byAlgorithm.length > 0 && (
+        <div className="glass-card flex flex-col gap-3 p-5">
+          <div className="label-caps flex items-center gap-2 text-[color:var(--color-accent)]">
+            <Layers className="h-3.5 w-3.5" /> What this plan replaces
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {byAlgorithm.map(([algorithm, count]) => (
+              <span
+                key={algorithm}
+                className="flex items-center gap-2 rounded-[3px] border border-[color:var(--edge)] bg-black/40 px-2.5 py-1.5 text-xs"
+                title={algorithm}
+              >
+                <span className="text-[color:var(--color-danger)]">
+                  {displayAlgorithm(algorithm)}
+                </span>
+                <span className="tabular-nums text-[color:var(--color-ink-faint)]">×{count}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One project's migration state. */
+function ProjectMigration({ projectId }: { projectId: string }) {
+  const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState<'queue' | 'files' | 'graph'>('queue');
+  const { activeScan, projectScans } = useActiveScan();
+
+  const plansQ = useQuery({
+    queryKey: ['migrate-plans', projectId],
+    queryFn: () => fetchPlans(projectId),
+  });
+
+  // Newest plan for THIS project. Previously this took the newest plan in the entire installation,
+  // which is why a freshly scanned project showed another project's queue — or, if that plan had
+  // been built when nothing was vulnerable, the message "no vulnerable assets in scope" over a
+  // project full of them.
+  const plan = plansQ.data?.[0];
+  const latestScan = projectScans[0];
+  const planIsStale = Boolean(
+    plan && latestScan && new Date(latestScan.created_at) > new Date(plan.created_at),
+  );
 
   const queueQ = useQuery({
-    queryKey: ['migrate-queue', activePlan?.id],
-    queryFn: () => fetchPlanQueue(activePlan!.id),
-    enabled: !!activePlan && activePlan.status === 'active',
+    queryKey: ['migrate-queue', plan?.id],
+    queryFn: () => fetchPlanQueue(plan!.id),
+    enabled: !!plan && plan.status === 'active',
   });
 
   const build = useMutation({
-    mutationFn: () => createPlan(0),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['migrate-plans'] }),
+    mutationFn: (scope: 'scan' | 'project') =>
+      createPlan(0, {
+        projectId,
+        // Default to the displayed scan: nothing dedupes assets across scans, so a project-wide
+        // plan over a directory scanned three times carries three copies of every task.
+        scanId: scope === 'scan' ? (activeScan?.id ?? undefined) : undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['migrate-plans', projectId] });
+      qc.invalidateQueries({ queryKey: ['projects-overview'] });
+    },
   });
 
   const tasks = queueQ.data ?? [];
+  const planScanSeq = plan?.scan_id
+    ? projectScans.find((s) => s.id === plan.scan_id)?.seq
+    : undefined;
 
   return (
-    <AnimatedPage className="flex flex-col gap-5 py-4">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1>Migration Hub</h1>
-          <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
-            {activePlan
-              ? `Plan ${activePlan.id.slice(0, 8)} · ${activePlan.stats.tasks ?? 0} tasks / ${activePlan.stats.units ?? 0} units`
-              : 'Build a plan from risk-annotated assets, then generate and review patches.'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1 rounded-[3px] border border-[color:var(--edge)] bg-black/40 p-1">
-            <button
-              onClick={() => setActiveTab('queue')}
-              className={`label-caps flex items-center gap-1.5 rounded-[2px] px-3 py-1.5 transition-all ${
-                activeTab === 'queue'
-                  ? 'bg-[color:var(--color-accent)]/18 text-[color:var(--color-accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]'
-                  : 'hover:text-[color:var(--color-accent-soft)]'
-              }`}
-            >
-              <List className="h-3.5 w-3.5" /> Queue
-            </button>
-            <button
-              onClick={() => setActiveTab('graph')}
-              className={`label-caps flex items-center gap-1.5 rounded-[2px] px-3 py-1.5 transition-all ${
-                activeTab === 'graph'
-                  ? 'bg-[color:var(--color-accent)]/18 text-[color:var(--color-accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]'
-                  : 'hover:text-[color:var(--color-accent-soft)]'
-              }`}
-            >
-              <GitFork className="h-3.5 w-3.5" /> Dependency graph
-            </button>
-          </div>
-          <button onClick={() => build.mutate()} disabled={build.isPending} className="hud-btn">
-            {build.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Play className="h-3.5 w-3.5" />
-            )}
-            Build plan
-          </button>
-        </div>
-      </header>
+    <>
+      <ProjectScopeBar>
+        <button
+          onClick={() => build.mutate('scan')}
+          disabled={build.isPending || !activeScan}
+          className="hud-btn"
+          data-testid="build-plan"
+          title={
+            activeScan
+              ? `Build a plan from scan #${activeScan.seq}`
+              : 'This project has no scan to plan from'
+          }
+        >
+          {build.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Play className="h-3.5 w-3.5" />
+          )}
+          {plan ? 'Rebuild plan' : 'Build plan'}
+        </button>
+        <button
+          onClick={() => build.mutate('project')}
+          disabled={build.isPending}
+          className="hud-btn hud-btn-ghost"
+          title="Plan across every scan in this project. Repeated scans of the same target will appear more than once."
+        >
+          Whole project
+        </button>
+      </ProjectScopeBar>
 
       {(plansQ.isError || build.isError) && (
         <div className="glass-card border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
@@ -443,68 +694,153 @@ export function Migrations() {
         </div>
       )}
 
-      {activePlan?.status === 'completed' && (
-        <div className="glass-card p-6 text-center text-sm text-[color:var(--color-ink-dim)]">
-          {activePlan.stats.message ?? 'Plan completed — no vulnerable assets in scope.'}
-        </div>
-      )}
-
       {plansQ.isLoading && (
         <div className="glass-card flex items-center justify-center gap-3 p-12 text-[color:var(--color-ink-dim)]">
-          <RefreshCw className="h-4 w-4 animate-spin" /> Loading plans…
+          <RefreshCw className="h-4 w-4 animate-spin" /> Loading this project&apos;s plan…
         </div>
       )}
 
-      {activePlan?.status === 'active' && activeTab === 'graph' && (
-        <DependencyGraphView planId={activePlan.id} />
+      {plansQ.data && !plan && (
+        <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">
+          No migration plan for this project yet. A plan is built automatically when a scan
+          finishes — build one now with the button above, or rescan the project.
+        </div>
       )}
 
-      {activePlan?.status === 'active' && activeTab === 'queue' && (
-        <div className="glass-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="hud-table w-full">
-              <thead>
-                <tr>
-                  <th className="w-8 px-4 py-3" />
-                  <th className="px-4 py-3">Asset</th>
-                  <th className="px-4 py-3">Algorithm</th>
-                  <th className="px-4 py-3">Rule</th>
-                  <th className="px-4 py-3">WSJF</th>
-                  <th className="px-4 py-3">State</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks.map((t) => (
-                  <TaskRow key={t.id} task={t} />
-                ))}
-                {queueQ.isLoading && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center">
-                      <Loader2 className="inline h-4 w-4 animate-spin" /> Loading queue…
-                    </td>
-                  </tr>
-                )}
-                {!queueQ.isLoading && tasks.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-4 py-8 text-center text-[color:var(--color-ink-faint)]"
-                    >
-                      Queue is empty.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+      {planIsStale && (
+        <div
+          className="glass-card flex items-start gap-3 border-amber-400/40 bg-amber-500/10 p-4 text-sm text-amber-200"
+          data-testid="plan-stale"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <div>
+            This plan was built before the project&apos;s most recent scan
+            {latestScan ? ` (#${latestScan.seq})` : ''}, so its queue describes a snapshot that no
+            longer exists. Rebuild it to plan against what is there now.
           </div>
         </div>
       )}
 
-      {!activePlan && plansQ.data && (
-        <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">
-          No migration plans yet. Run a scan first, then Build Plan.
+      {plan && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[color:var(--color-ink-faint)]">
+          <span className="flex items-center gap-1.5">
+            <Clock3 className="h-3.5 w-3.5" />
+            Plan {plan.id.slice(0, 8)} built {new Date(plan.created_at).toLocaleString()}
+          </span>
+          <span>
+            ·{' '}
+            {plan.scan_id
+              ? `scoped to scan${planScanSeq ? ` #${planScanSeq}` : ''}`
+              : 'scoped to every scan in this project'}
+          </span>
         </div>
+      )}
+
+      {plan?.status === 'completed' && (
+        <div className="glass-card p-6 text-center text-sm text-[color:var(--color-ink-dim)]">
+          {plan.stats.message ?? 'Plan completed — no vulnerable assets in scope.'}
+        </div>
+      )}
+
+      {plan?.status === 'active' && (
+        <>
+          <PlanSummary plan={plan} />
+
+          <div className="flex gap-1 self-start rounded-[3px] border border-[color:var(--edge)] bg-black/40 p-1">
+            {(
+              [
+                ['queue', 'Queue', List],
+                ['files', 'By file', FileCode2],
+                ['graph', 'Dependency graph', GitFork],
+              ] as const
+            ).map(([key, label, Icon]) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                data-testid={`migration-tab-${key}`}
+                className={`label-caps flex items-center gap-1.5 rounded-[2px] px-3 py-1.5 transition-all ${
+                  activeTab === key
+                    ? 'bg-[color:var(--color-accent)]/18 text-[color:var(--color-accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]'
+                    : 'hover:text-[color:var(--color-accent-soft)]'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" /> {label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === 'graph' && <DependencyGraphView planId={plan.id} />}
+          {activeTab === 'files' && <ByFileView tasks={tasks} />}
+          {activeTab === 'queue' && (
+            <div className="glass-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="hud-table w-full">
+                  <thead>
+                    <tr>
+                      <th className="w-8 px-4 py-3" />
+                      <th className="px-4 py-3">Asset</th>
+                      <th className="px-4 py-3">Algorithm</th>
+                      <th className="px-4 py-3">Rule</th>
+                      <th className="px-4 py-3">WSJF</th>
+                      <th className="px-4 py-3">Effort</th>
+                      <th className="px-4 py-3">State</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tasks.map((t) => (
+                      <TaskRow key={t.id} task={t} />
+                    ))}
+                    {queueQ.isLoading && (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center">
+                          <Loader2 className="inline h-4 w-4 animate-spin" /> Loading queue…
+                        </td>
+                      </tr>
+                    )}
+                    {!queueQ.isLoading && tasks.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          className="px-4 py-8 text-center text-[color:var(--color-ink-faint)]"
+                        >
+                          Queue is empty.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+export function Migrations() {
+  const projectId = useUiStore((s) => s.projectId);
+
+  return (
+    <AnimatedPage className="flex flex-col gap-5 py-4">
+      <header>
+        <h1>Migration Hub</h1>
+        <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
+          {projectId
+            ? 'Ranked work for this project: what to replace, in what order, and which changes QUBIT can write for you.'
+            : 'Each project carries its own plan, built from its own scan. Choose one to open its queue.'}
+        </p>
+      </header>
+
+      {!projectId ? (
+        <ProjectGrid
+          metric="migration"
+          title="Migration by project"
+          subtitle="A plan is built automatically when a scan finishes. Projects showing “plan outdated” have been scanned since theirs was built."
+        />
+      ) : (
+        <ProjectMigration projectId={projectId} />
       )}
 
       <div className="glass-card flex items-start gap-3 border-indigo-400/20 bg-indigo-500/5 p-4 text-xs text-[color:var(--color-ink-faint)]">
@@ -512,11 +848,12 @@ export function Migrations() {
         <div>
           Applying approved patches to a working tree runs via{' '}
           <span className="font-mono text-[color:var(--color-accent)]">qubit migrate apply</span> (or{' '}
-          <span className="font-mono text-[color:var(--color-accent)]">POST /migrate/patches/&#123;id&#125;/apply</span>{' '}
+          <span className="font-mono text-[color:var(--color-accent)]">
+            POST /migrate/patches/&#123;id&#125;/apply
+          </span>{' '}
           with a repo root) so git safety checks run against the target checkout.
         </div>
       </div>
     </AnimatedPage>
   );
 }
-

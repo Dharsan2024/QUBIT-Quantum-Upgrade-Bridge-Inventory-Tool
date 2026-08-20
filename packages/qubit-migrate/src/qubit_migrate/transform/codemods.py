@@ -127,7 +127,12 @@ _SUFFIX_TO_LANGUAGE: dict[str, str] = {
     ".java": "java",
     ".js": "javascript",
     ".mjs": "javascript",
+    # .cjs and .tsx resolve to the same swap tables as .js/.ts. Without them a React component or a
+    # CommonJS module matched code-weakhash-02 and then produced no edit, because this map — not the
+    # rule's suffix list — is what selects the table.
+    ".cjs": "javascript",
     ".ts": "typescript",
+    ".tsx": "typescript",
     ".c": "c",
     ".h": "c",
     ".cc": "cpp",

@@ -20,7 +20,7 @@ const API_TOKEN = process.env.QUBIT_API_TOKEN ?? 'qubit-dev-token-do-not-use-in-
 const authHeaders = { Authorization: `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' };
 
 /** Scan a path that is guaranteed to exist and to contain vulnerable crypto. */
-async function seedScan(): Promise<string> {
+async function seedScan(): Promise<{ scanId: string; projectId: string; slug: string }> {
   const projects = await (
     await fetch(`${API_BASE}/api/v1/projects`, { headers: authHeaders })
   ).json();
@@ -52,7 +52,7 @@ async function seedScan(): Promise<string> {
     ).json();
     if (status.status !== 'running' && status.status !== 'queued') {
       expect(status.status, 'seed scan did not succeed').toBe('succeeded');
-      return scanId;
+      return { scanId, projectId: projectId as string, slug: 'e2e-compliance' };
     }
     await new Promise((r) => setTimeout(r, 1000));
   }
@@ -60,6 +60,7 @@ async function seedScan(): Promise<string> {
 }
 
 let scanId: string;
+let seeded: { scanId: string; projectId: string; slug: string };
 
 test.beforeAll(async () => {
   const health = await fetch(`${API_BASE}/api/v1/health`).catch(() => null);
@@ -67,7 +68,8 @@ test.beforeAll(async () => {
     !health?.ok,
     `No QUBIT API at ${API_BASE} — start one with \`qubit serve\` (these tests use real data on purpose).`,
   );
-  scanId = await seedScan();
+  seeded = await seedScan();
+  scanId = seeded.scanId;
 });
 
 test.beforeEach(async ({ page }) => {
@@ -75,6 +77,10 @@ test.beforeEach(async ({ page }) => {
     ([base, token]) => {
       localStorage.setItem('qubit_api_base', base as string);
       localStorage.setItem('qubit_token', token as string);
+      // Nothing is written for the project selection. Playwright gives each test a fresh browser
+      // context, so localStorage starts empty and every test lands on the project grid and drills
+      // in — which is the step a real user takes. Clearing it here instead would ALSO run on
+      // page.reload(), which would break the test that checks the selection survives one.
     },
     [API_BASE, API_TOKEN],
   );
@@ -83,11 +89,24 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-/** Wait for the CNSA page to finish evaluating rather than asserting on the spinner. */
+/** Open the CNSA page for the seeded project, and wait for it to finish evaluating rather than
+ *  asserting on the spinner.
+ *
+ *  The tab opens on a project grid, because CNSA 2.0 posture is a statement about one system and
+ *  averaging several unrelated ones produces a number about nothing. Clicking through is therefore
+ *  part of what this spec covers. */
 async function openCompliance(page: Page) {
   await page.goto('/compliance');
   const root = page.getByTestId('compliance-root');
   await expect(root).toBeVisible();
+
+  const card = page.getByTestId(`project-card-${seeded.slug}`);
+  await expect(card, 'the seeded project should appear in the project grid').toBeVisible();
+  await card.click();
+  // Inside the project now — the scope bar names it, which is what makes the numbers attributable.
+  await expect(page.getByTestId('project-scope-bar')).toBeVisible();
+  await expect(page.getByTestId('scope-project-name')).toContainText('E2E compliance');
+
   await expect(root).not.toContainText('Evaluating milestones', { timeout: 30_000 });
   return root;
 }
@@ -136,6 +155,22 @@ test('CNSA 2.0 is reachable from the sidebar', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: /CNSA 2\.0/i }).click();
   await expect(page.getByTestId('compliance-root')).toBeVisible();
+  // With no project chosen the tab lands on its project grid rather than on somebody's data.
+  await expect(page.getByTestId('project-grid')).toBeVisible();
+});
+
+test('leaving a project returns to the grid, and the choice survives a reload', async ({ page }) => {
+  // The selection is persisted, so switching tabs (or reopening the app) keeps you in the project
+  // you were working in instead of silently changing whose numbers you are reading.
+  await openCompliance(page);
+  await page.reload();
+  await expect(page.getByTestId('scope-project-name')).toContainText('E2E compliance');
+  await expect(page.getByTestId('project-grid')).toBeHidden();
+
+  await page.getByTestId('leave-project').first().click();
+  await expect(page.getByTestId('project-grid')).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId('project-grid')).toBeVisible();
 });
 
 test('the PDF button downloads the real composed report, not a page screenshot', async ({

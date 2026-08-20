@@ -84,10 +84,20 @@ export function Report() {
     queryFn: () => fetchRiskSummary(scanId as string),
     enabled: !!scanId,
   });
-  const plansQ = useQuery({ queryKey: ['report-plans'], queryFn: fetchPlans });
-  const activePlan = plansQ.data?.find(
-    (p) => p.status === 'active' || p.status === 'completed',
-  );
+  // The plan for THIS scan's project. This used to fetch every plan in the installation and take
+  // the newest active one, so a report for scan #4 of one project could embed the migration queue
+  // of a completely different project — with a task count and file list that had nothing to do
+  // with the assets listed above it in the same document.
+  const reportProjectId = scanQ.data?.project_id;
+  const plansQ = useQuery({
+    queryKey: ['report-plans', reportProjectId],
+    queryFn: () => fetchPlans(reportProjectId as string),
+    enabled: !!reportProjectId,
+  });
+  // Prefer a plan built from this exact scan; fall back to the project's newest.
+  const activePlan =
+    plansQ.data?.find((p) => p.scan_id === scanId && p.status === 'active') ??
+    plansQ.data?.find((p) => p.status === 'active' || p.status === 'completed');
   const queueQ = useQuery({
     queryKey: ['report-queue', activePlan?.id],
     queryFn: () => fetchPlanQueue(activePlan!.id),

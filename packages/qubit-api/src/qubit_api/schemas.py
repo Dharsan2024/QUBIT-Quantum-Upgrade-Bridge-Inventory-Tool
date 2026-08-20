@@ -61,6 +61,58 @@ class ProjectOut(BaseModel):
     updated_at: UtcDateTime
 
 
+class ProjectScanRef(BaseModel):
+    """The scan a project overview card is reporting on."""
+
+    id: UUID
+    seq: int
+    status: str
+    targets: list[str] = Field(default_factory=list)
+    created_at: UtcDateTime
+    assets: int = 0
+
+
+class ProjectPlanRef(BaseModel):
+    """The project's newest migration plan, if it has one."""
+
+    id: UUID
+    status: str
+    tasks: int = 0
+    units: int = 0
+    automatable: int = 0
+    created_at: UtcDateTime
+    scan_id: UUID | None = None
+    #: True when a scan has landed since this plan was built, so the queue no longer reflects
+    #: what the project currently looks like. The app says so rather than showing a stale queue
+    #: as though it were current.
+    stale: bool = False
+
+
+class ProjectOverview(BaseModel):
+    """One project's headline numbers, for the project-wise landing on every tab.
+
+    Exists so the app does not have to fetch every scan and every asset just to draw a grid of
+    project cards — the counts are aggregated in SQL, and a project with 872 assets costs the
+    same as one with 4.
+    """
+
+    id: UUID
+    name: str
+    slug: str
+    description: str | None = None
+    created_at: UtcDateTime
+    scans: int = 0
+    latest_scan: ProjectScanRef | None = None
+    assets: int = 0
+    vulnerable: int = 0
+    shor: int = 0
+    grover: int = 0
+    mean_risk: float | None = None
+    max_risk: float | None = None
+    top_algorithms: list[str] = Field(default_factory=list)
+    plan: ProjectPlanRef | None = None
+
+
 class ScannerName(StrEnum):
     """Which scanners a scan should run.
 

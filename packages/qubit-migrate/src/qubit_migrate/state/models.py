@@ -16,6 +16,18 @@ class MigrationPlan(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    # Which project (and optionally which single scan) this plan was built from.
+    #
+    # Nullable because plans predating scoping were built across the ENTIRE database — every
+    # project, every historical scan — and there is no honest way to retro-assign one of them to a
+    # project. NULL means exactly that: "unscoped, built before plans had a scope". The UI shows
+    # those as legacy rather than filing them under a project they may not represent.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True, default=None
+    )
+    scan_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("scans.id", ondelete="SET NULL"), nullable=True, index=True, default=None
+    )
     scope_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(32), default="draft")

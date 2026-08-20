@@ -11,15 +11,16 @@ from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from qubit_core.db import AssetRow
+from qubit_core.db import AssetRow, ProjectRow
 from qubit_migrate.orchestrator import MigrationOrchestrator
 from qubit_migrate.state import MigrationPlan, MigrationTask, PatchProposal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..deps import get_session
+from ..schemas import UtcDateTime
 
 router = APIRouter(tags=["migrate"])
 
@@ -29,18 +30,33 @@ router = APIRouter(tags=["migrate"])
 
 class PlanCreate(BaseModel):
     min_risk: float = Field(0.0, ge=0.0, le=1.0)
+    # Optional so the pre-scoping call shape (`{"min_risk": 0}`) still means what it always meant:
+    # a plan across everything. The app always sends a project.
+    project_id: UUID | None = None
+    scan_id: UUID | None = None
 
 
 class PlanOut(BaseModel):
     id: UUID
     status: str
     stats: dict
-    created_at: str
+    # `UtcDateTime`, not a hand-rolled `.isoformat()` string. SQLite has no timezone type, so the
+    # value comes back naive and `.isoformat()` emitted `2026-08-20T15:51:25.853134` with no
+    # offset — which JavaScript parses as LOCAL time. On this UTC+5:30 machine a plan built two
+    # seconds ago looked 5.5 hours OLDER than the scan it was built from, so the Migration Hub
+    # showed "this plan is outdated, rebuild it" on every freshly built plan. `schemas._ensure_utc`
+    # already existed for exactly this failure (it was fixed for scans); this router had simply
+    # never adopted it.
+    created_at: UtcDateTime
+    project_id: UUID | None = None
+    scan_id: UUID | None = None
+    scope: dict = Field(default_factory=dict)
 
 
 class TaskOut(BaseModel):
     id: UUID
     plan_id: UUID
+    unit_id: UUID
     asset_id: UUID
     state: str
     rule_id: str | None
@@ -50,9 +66,21 @@ class TaskOut(BaseModel):
     last_error: str | None
     # denormalized asset context for the UI
     algorithm: str | None = None
+    key_size: int | None = None
     file_path: str | None = None
     line: int | None = None
     risk_score: float | None = None
+    # The remaining asset context the queue table had no way to show. Without these a row read
+    # "AES-128 · 0.412" with no way to tell a config finding from a certificate or to know whether
+    # the number is a signing key or a hash, which is most of what decides how a task is handled.
+    asset_type: str | None = None
+    source_scanner: str | None = None
+    usage_context: str | None = None
+    sensitivity: str | None = None
+    mosca_margin_years: float | None = None
+    effort_hours_low: float | None = None
+    effort_hours_high: float | None = None
+    effort_drivers: list[str] = Field(default_factory=list)
 
 
 class GenerateRequest(BaseModel):
@@ -92,15 +120,21 @@ def _plan_out(plan: MigrationPlan) -> PlanOut:
         id=plan.id,
         status=plan.status,
         stats=plan.stats_json or {},
-        created_at=plan.created_at.isoformat(),
+        created_at=plan.created_at,
+        project_id=plan.project_id,
+        scan_id=plan.scan_id,
+        scope=plan.scope_json or {},
     )
 
 
 def _task_out(task: MigrationTask, row: AssetRow | None) -> TaskOut:
     loc = (row.location or {}) if row else {}
+    effort = task.effort_json or {}
+    drivers = effort.get("drivers") or []
     return TaskOut(
         id=task.id,
         plan_id=task.plan_id,
+        unit_id=task.unit_id,
         asset_id=task.asset_id,
         state=task.state,
         rule_id=task.rule_id,
@@ -109,9 +143,18 @@ def _task_out(task: MigrationTask, row: AssetRow | None) -> TaskOut:
         effort_points=task.effort_points,
         last_error=task.last_error,
         algorithm=row.algorithm if row else None,
+        key_size=row.key_size if row else None,
         file_path=loc.get("file_path"),
         line=loc.get("line"),
         risk_score=row.risk_score if row else None,
+        asset_type=row.asset_type if row else None,
+        source_scanner=row.source_scanner if row else None,
+        usage_context=row.usage_context if row else None,
+        sensitivity=row.sensitivity if row else None,
+        mosca_margin_years=row.mosca_margin_years if row else None,
+        effort_hours_low=effort.get("hours_low"),
+        effort_hours_high=effort.get("hours_high"),
+        effort_drivers=[str(d) for d in drivers],
     )
 
 
@@ -139,16 +182,33 @@ def create_plan(
     payload: PlanCreate,
     session: Annotated[Session, Depends(get_session)],
 ) -> PlanOut:
+    if payload.project_id is not None and not session.get(ProjectRow, payload.project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
     orch = MigrationOrchestrator(session)
-    plan = orch.build_plan(min_risk=payload.min_risk)
+    plan = orch.build_plan(
+        min_risk=payload.min_risk,
+        project_id=payload.project_id,
+        scan_id=payload.scan_id,
+    )
     return _plan_out(plan)
 
 
 @router.get("/migrate/plans", response_model=list[PlanOut])
-def list_plans(session: Annotated[Session, Depends(get_session)]) -> list[PlanOut]:
-    plans = session.scalars(
-        select(MigrationPlan).order_by(MigrationPlan.created_at.desc()).limit(20)
-    ).all()
+def list_plans(
+    session: Annotated[Session, Depends(get_session)],
+    project_id: UUID | None = None,
+    limit: int = Query(50, ge=1, le=200),
+) -> list[PlanOut]:
+    """Plans, newest first.
+
+    `project_id` filters to one project. Without it every plan is returned, including the
+    unscoped ones built before plans carried a project — the caller can tell them apart by
+    `project_id` being null rather than having them silently folded into some project's list.
+    """
+    stmt = select(MigrationPlan).order_by(MigrationPlan.created_at.desc()).limit(limit)
+    if project_id is not None:
+        stmt = stmt.where(MigrationPlan.project_id == project_id)
+    plans = session.scalars(stmt).all()
     return [_plan_out(p) for p in plans]
 
 

@@ -219,11 +219,61 @@ class MigrationPlan(Base):
     __tablename__ = "migration_plans"
     id:            Mapped[uuid.UUID]  # pk, default uuid4
     created_at:    Mapped[datetime]
-    scope_json:    Mapped[dict]       # {"repos": [...], "hosts": [...], "min_risk": 0.4}
+    project_id:    Mapped[uuid.UUID | None]  # fk projects.id ON DELETE CASCADE, indexed
+    scan_id:       Mapped[uuid.UUID | None]  # fk scans.id ON DELETE SET NULL, indexed
+    scope_json:    Mapped[dict]       # {"project_id": ..., "scan_id": ..., "min_risk": 0.4}
     config_json:   Mapped[dict]       # frozen snapshot: model tag, rule-pack version, thresholds
     status:        Mapped[str]        # draft | active | completed | abandoned
-    stats_json:    Mapped[dict]       # {"tasks": 42, "verified": 7, ...} denormalized for dashboard
+    stats_json:    Mapped[dict]       # denormalized for the dashboard — see §4.2a
 
+```
+
+#### 4.2a Plan scope — a correction to what shipped
+
+`project_id` / `scan_id` were added by Alembic revision `a1c7e4b90f21` (both nullable). Until then
+this table had **no scope column and no populated `scope_json`** — every plan ever built recorded
+`{}` — and `build_plan` selected every vulnerable, risk-scored asset in the database regardless of
+project. That was a silent deviation from §5.2's `build_plan(*, scope: PlanScope | None)`, and it
+produced the user-visible failure it implies: the Migration Hub showed whichever plan was newest,
+so after scanning a project you were reading a queue assembled from some other project's assets,
+and the project you had just scanned had no plan of its own at all. On the development machine
+that was one 18-task plan standing in for eight unrelated projects, replicated across 24 identical
+plan rows.
+
+The columns are nullable because plans built before the fix genuinely had no scope. `NULL` means
+"unscoped, built across everything", which is the truth about them; filing them under a project
+would be a fabrication. `GET /migrate/plans?project_id=` excludes them.
+
+**Scan scope, not project scope, is the default.** Nothing dedupes assets across scans, so a
+project-wide plan over a directory scanned three times carries three copies of every task. One scan
+is one coherent snapshot. A project-wide plan is still reachable on request ("Whole project" in the
+hub), with that caveat stated on the control.
+
+`stats_json` carries the rollups the hub leads with, so they are not recomputed per render:
+
+```python
+{"tasks": 16, "units": 3, "automatable": 0,           # how many tasks have a codemod rule at all
+ "effort_points": 128, "effort_hours_low": 64.0, "effort_hours_high": 192.0,
+ "by_algorithm": {"SHA-1": 4, "MD5": 3, "3DES": 2, ...}}
+```
+
+`automatable` is the one that changes how the work is planned rather than merely describing it: a
+task with no matching rule has to be changed by hand whatever the app offers. Measured on the
+demo lab, an all-Swift project reports `0 / 16` and an all-PHP project `0 / 17` — QUBIT has no
+codemod for either language. Reporting a higher number would require matching them to a rule
+written for a different language, which is exactly the defect §6.2a records.
+
+#### 4.2b Auto-building on scan completion
+
+`qubit_api.services.autobuild_migration_plan` runs at the end of every successful risk-annotated
+scan (all three paths: the inline route, `scan_handler`, and `_persist_scan_result`). Before it, a
+plan existed only if somebody pressed "Build plan", so the ordinary path — scan a project, open the
+Migration Hub — showed nothing. It is scoped to the finishing scan, runs after risk (the planner
+only considers risk-scored assets, so running it earlier yields a silently empty plan), and
+swallows its own failures: a scan that found real assets must not report as failed because planning
+tripped over.
+
+```python
 class DependencyEdge(Base):
     __tablename__ = "migration_dependency_edges"
     id:            Mapped[int]        # pk autoincrement
@@ -510,7 +560,9 @@ from qubit_migrate import MigrationOrchestrator, MigrateConfig
 
 class MigrationOrchestrator:
     def __init__(self, session: sqlalchemy.orm.Session, config: MigrateConfig | None = None) -> None: ...
-    def build_plan(self, *, scope: PlanScope | None = None) -> MigrationPlan: ...
+    def build_plan(self, *, min_risk: float = 0.0,
+                   project_id: UUID | None = None,
+                   scan_id: UUID | None = None) -> MigrationPlan: ...   # §4.2a
     def get_queue(self, plan_id: UUID) -> list[MigrationTask]: ...          # ready frontier, ranked
     def generate_patch(self, task_id: UUID, *, generator: Literal["auto","llm","template"] = "auto") -> PatchProposal: ...
     def review_patch(self, patch_id: UUID, *, approve: bool, note: str = "", actor: str = "cli") -> PatchProposal: ...
@@ -602,6 +654,42 @@ points = snap_to_fibonacci(sum)          hours = points × {low: 0.5, high: 1.5}
 ```
 
 `priority = risk.score / points` (WSJF), tie-break ascending `risk.mosca_margin_years`, then asset id (stability). The queue only ranks the **ready frontier**: tasks whose prerequisite units are all `verified` (or in the same unit). Frontier recomputed on every verify.
+
+#### 6.2a Rule matching must constrain the language, not merely name it
+
+`match_rule` (transform/rules.py) filters on `source_scanner`, then `file_suffix`, then `file_name`,
+then algorithm / usage context / library — first match wins, rules ordered by filename. Two rules,
+`py-rsa-kex-01` and `py-weakhash-01`, declared `language: python` **without** a `file_suffix`
+constraint. Every other rule in the pack that names a language also constrains the suffix; those two
+did not, so they matched a `source_scanner=code` asset in *any* language.
+
+That was harmless while the scanner read six languages, all of which had their own `code-*` rule.
+It stopped being harmless when code scanning grew to nineteen: the thirteen added languages have no
+codemod rules, so their findings fell through every guarded rule and were caught by the two
+unguarded Python ones. Measured on the `polyglot-coverage` project, **34 of 127 tasks (27%)** were
+offered a **libcst Python codemod** for a `.rb`, `.php`, `.cs`, `.rs`, `.kt`, `.swift`, `.scala`,
+`.dart`, `.sh`, `.ps1`, `.tsx` or `.sql` file. The template generator refused with a 422 *after* the
+click; the LLM generator would have applied `py-rsa-kex-01`'s Python-specific `prompt_constraints`
+and `pqcrypto` target library to a Ruby file and produced a plausible, wrong patch.
+
+Both rules now carry `file_suffix: [".py"]`, and those assets resolve to **no rule** — which the
+hub renders as "manual change" rather than offering a patch it cannot produce. The honest cost is
+visible in the numbers: `automatable` for that project fell from 77 to 44.
+
+Separately, `code-weakhash-02` listed `.ts` and `.js` but not `.tsx` or `.cjs`, though every other
+`code-*` rule did and the JS/TS swap table handles both — so a React component fell through to the
+Python rule despite having a correct transform available. Both suffixes were added here and to
+`codemods._SUFFIX_TO_LANGUAGE` (the rule's suffix list decides *matching*; that map decides which
+*swap table* runs, and a suffix present in one and missing from the other matches and then edits
+nothing).
+
+Pinned by `test_llm_generation.py::test_python_rules_do_not_claim_other_languages`, which asserts
+the resolved rule id for 20 paths; removing either guard fails 11 of them.
+
+**Not fixed here, and stated rather than implied:** the thirteen added languages still have no
+migration rules of their own. Every finding in them is a manual change. Adding a weak-hash swap
+table per language is real work — each needs the correct library idiom for that ecosystem, verified
+rather than guessed — and is tracked as follow-up, not quietly bundled into a matching fix.
 
 ### 6.3 LLM patch generation (with repair loop)
 

@@ -15,6 +15,9 @@ import {
 import { AnimatedPage } from '../components/AnimatedPage';
 import { fetchAssetHndl, fetchRiskSummary } from '../api/client';
 import { useActiveScan } from '../hooks/useActiveScan';
+import { useUiStore } from '../stores/ui';
+import { ProjectGrid } from '../components/ProjectGrid';
+import { ProjectScopeBar } from '../components/ProjectScopeBar';
 import { displayAlgorithm } from '../lib/assetLabels';
 
 function riskColor(score: number): string {
@@ -190,7 +193,6 @@ function RiskRow({
   );
 }
 
-
 /** Segmented risk readout, matching the inventory table's HUD bar. */
 function SegBar({ score }: { score: number }) {
   const filled = Math.max(1, Math.round(score * 10));
@@ -224,6 +226,7 @@ function histogram(xs: number[]): { edges: number[]; counts: number[] } {
 
 export function Risk() {
   const { activeScanId, activeScan } = useActiveScan();
+  const projectId = useUiStore((s) => s.projectId);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['risk-summary', activeScanId],
@@ -239,6 +242,30 @@ export function Risk() {
   const med = data ? median(data.risk_scores) : 0;
   const { edges, counts } = histogram(data?.risk_scores ?? []);
 
+  // Placed below every hook on purpose. React requires the same hooks to run in the same order on
+  // every render, so an early return above `useQuery` makes the hook count change the moment a
+  // project is chosen — which crashed this page with React error #310 (caught by the browser
+  // suite, not by tsc, which cannot see hook order).
+  if (!projectId) {
+    return (
+      <AnimatedPage className="flex flex-col gap-5 py-4">
+        <header>
+          <h1>Risk Posture</h1>
+          <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
+            HNDL risk is scored per project. Open one to see its distribution, top exposures and
+            Mosca margins.
+          </p>
+        </header>
+
+        <ProjectGrid
+          metric="risk"
+          title="Risk by project"
+          subtitle="Mean HNDL risk score across each project's scored assets."
+        />
+      </AnimatedPage>
+    );
+  }
+
   return (
     <AnimatedPage className="flex flex-col gap-5 py-4">
       <header className="flex items-end justify-between">
@@ -251,6 +278,8 @@ export function Risk() {
           </p>
         </div>
       </header>
+
+      <ProjectScopeBar />
 
       {!activeScanId && (
         <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">

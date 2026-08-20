@@ -14,7 +14,7 @@ from qubit_core.db import AssetRow, ProjectRow, ScanRow
 from qubit_risk.pipeline import RiskPipeline
 from qubit_scanner import SCANNER_NAMES, scan_paths
 
-from ..services import is_git_url
+from ..services import autobuild_migration_plan, is_git_url
 from .runner import ProgressReporter
 
 logger = logging.getLogger(__name__)
@@ -152,6 +152,7 @@ def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[st
             _run_risk_impl(scan_id, {}, reporter)
         except Exception:
             logger.exception("Chained risk run failed for scan %s", scan_id)
+        _chain_migration_plan(scan_id, reporter)
 
     with reporter.sf() as session:
         scan = session.get(ScanRow, scan_id)
@@ -161,6 +162,21 @@ def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[st
 
     reporter.update(1.0, "done", f"Completed. Found {len(result.assets)} assets.")
     return {"scan_id": str(scan_id), "assets": len(result.assets)}
+
+
+def _chain_migration_plan(scan_id: UUID, reporter: ProgressReporter) -> None:
+    """Build this scan's migration plan, so the project has one the moment the scan lands.
+
+    Runs after risk because the planner only considers risk-scored assets; running it before would
+    silently produce an empty plan. Failures are logged, never raised — the scan's assets are real
+    whether or not a plan could be assembled from them.
+    """
+    reporter.update(0.95, "plan", "Building migration plan")
+    try:
+        with reporter.sf() as session:
+            autobuild_migration_plan(session, scan_id)
+    except Exception:
+        logger.exception("Auto-building a migration plan failed for scan %s", scan_id)
 
 
 def _persist_scan_result(
@@ -201,6 +217,7 @@ def _persist_scan_result(
             _run_risk_impl(scan_id, {}, reporter)
         except Exception:
             logger.exception("Chained risk run failed for scan %s", scan_id)
+        _chain_migration_plan(scan_id, reporter)
 
     with reporter.sf() as session:
         scan = session.get(ScanRow, scan_id)

@@ -6,6 +6,7 @@ import type {
   MigrationTask,
   Paginated,
   Project,
+  ProjectOverview,
   RiskSummary,
   ScanSummary,
   TimelineResponse,
@@ -18,9 +19,11 @@ import type {
  *  from `tauri.localhost`, so a RELATIVE base (e.g. "/api/v1") resolves to tauri.localhost and every
  *  request fails with "Failed to fetch". Always keep this absolute for the desktop build. */
 import { API_PREFIX, DEFAULT_API_BASE, normalizeApiBase } from "./apiBase";
+import { projectNameForTargets } from "../lib/projectNames";
 
 // Re-exported so existing importers of the client keep working.
 export { API_PREFIX, normalizeApiBase };
+export { projectNameForTargets };
 
 /** Set by the API itself on the HTML it serves (native desktop mode) — see `_mount_dashboard`.
  *  Present ONLY when this page came from the API, so it is a reliable signal that the API shares
@@ -126,6 +129,16 @@ export async function fetchProjects(): Promise<Project[]> {
   return send<Project[]>("/projects");
 }
 
+/** Every project with the headline numbers each tab's landing grid needs, aggregated server-side.
+ *  One request instead of "fetch all scans, then all assets, then count in the browser". */
+export async function fetchProjectsOverview(): Promise<ProjectOverview[]> {
+  return send<ProjectOverview[]>("/projects/overview");
+}
+
+export async function createProject(name: string, description?: string): Promise<Project> {
+  return send<Project>("/projects", "POST", { name, description: description ?? null });
+}
+
 // ── Scans ────────────────────────────────────────────────────────────────────
 export async function fetchScans(): Promise<ScanSummary[]> {
   return send<ScanSummary[]>("/scans");
@@ -135,22 +148,31 @@ export async function fetchScan(scanId: string): Promise<ScanSummary> {
   return send<ScanSummary>(`/scans/${scanId}`);
 }
 
-const DASHBOARD_PROJECT = "Dashboard scans";
-
-/** Find the single stable dashboard project, creating it once. Previously every scan minted a new
- *  `scan-<timestamp>` project, which piled up dozens of empty junk projects. */
-async function ensureDashboardProject(): Promise<string> {
+/** Find (or create) the project a scan belongs to, by name. */
+async function ensureProject(name: string, description: string): Promise<string> {
   const projects = await fetchProjects();
-  const existing = projects.find((p) => p.name === DASHBOARD_PROJECT);
+  const existing = projects.find((p) => p.name === name);
   if (existing) return existing.id;
-  const created = await send<{ id: string }>("/projects", "POST", { name: DASHBOARD_PROJECT });
-  return created.id;
+  try {
+    const created = await send<{ id: string }>("/projects", "POST", { name, description });
+    return created.id;
+  } catch (e) {
+    // 409 means another tab (or a double-click) created it between the read and the write.
+    if (e instanceof ApiError && e.status === 409) {
+      const again = (await fetchProjects()).find((p) => p.name === name);
+      if (again) return again.id;
+    }
+    throw e;
+  }
 }
 
 /** Scan the given target paths into the stable dashboard project (risk analysis runs inline).
  *  Surfaces the API's error (e.g. "scan target does not exist") to the caller instead of hiding it. */
 export async function createScan(targets: string[]): Promise<ScanSummary> {
-  const projectId = await ensureDashboardProject();
+  const projectId = await ensureProject(
+    projectNameForTargets(targets, "files"),
+    targets.join(", "),
+  );
   const resp = await send<{ scan: ScanSummary }>(`/projects/${projectId}/scans`, "POST", {
     targets,
     run_risk: true,
@@ -167,7 +189,10 @@ export async function createNetworkScan(
   targets: string[],
   opts: { ports?: number[]; probePqc?: boolean; authorized?: boolean } = {},
 ): Promise<ScanSummary> {
-  const projectId = await ensureDashboardProject();
+  const projectId = await ensureProject(
+    projectNameForTargets(targets, "network"),
+    targets.join(", "),
+  );
   const resp = await send<{ scan: ScanSummary }>(
     `/projects/${projectId}/scans/network`,
     "POST",
@@ -191,7 +216,7 @@ export async function createVaultScan(
   token: string,
   opts: { mountTransit?: string; mountPki?: string } = {},
 ): Promise<ScanSummary> {
-  const projectId = await ensureDashboardProject();
+  const projectId = await ensureProject(projectNameForTargets([addr], "vault"), addr);
   const resp = await send<{ scan: ScanSummary }>(`/projects/${projectId}/scans/vault`, "POST", {
     addr,
     token,
@@ -261,12 +286,26 @@ export async function fetchRiskSummary(scanId: string): Promise<RiskSummary> {
 }
 
 // ── Migration workflow ───────────────────────────────────────────────────────
-export async function fetchPlans(): Promise<MigrationPlan[]> {
-  return send<MigrationPlan[]>("/migrate/plans");
+/** Migration plans, newest first. With `projectId`, only that project's — plans built before
+ *  plans carried a scope have a null `project_id` and are excluded by the filter rather than
+ *  being silently attributed to a project they were not built from. */
+export async function fetchPlans(projectId?: string): Promise<MigrationPlan[]> {
+  const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return send<MigrationPlan[]>(`/migrate/plans${q}`);
 }
 
-export async function createPlan(minRisk = 0): Promise<MigrationPlan> {
-  return send<MigrationPlan>("/migrate/plans", "POST", { min_risk: minRisk });
+/** Build a plan. `scanId` narrows it to one scan's assets — the default for a rebuild, because
+ *  nothing dedupes assets across scans, so a project-wide plan over a directory scanned three
+ *  times carries three copies of every task. */
+export async function createPlan(
+  minRisk = 0,
+  opts: { projectId?: string; scanId?: string } = {},
+): Promise<MigrationPlan> {
+  return send<MigrationPlan>("/migrate/plans", "POST", {
+    min_risk: minRisk,
+    project_id: opts.projectId ?? null,
+    scan_id: opts.scanId ?? null,
+  });
 }
 
 export async function fetchPlanQueue(planId: string): Promise<MigrationTask[]> {

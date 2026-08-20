@@ -93,6 +93,47 @@ export interface Project {
   updated_at: string;
 }
 
+/** One project's headline numbers — GET /projects/overview. Powers the project-wise landing
+ *  grid that every data tab now opens on. */
+export interface ProjectScanRef {
+  id: string;
+  seq: number;
+  status: string;
+  targets: string[];
+  created_at: string;
+  assets: number;
+}
+
+export interface ProjectPlanRef {
+  id: string;
+  status: string;
+  tasks: number;
+  units: number;
+  automatable: number;
+  created_at: string;
+  scan_id: string | null;
+  /** A scan landed after this plan was built, so its queue describes a snapshot that is gone. */
+  stale: boolean;
+}
+
+export interface ProjectOverview {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  created_at: string;
+  scans: number;
+  latest_scan: ProjectScanRef | null;
+  assets: number;
+  vulnerable: number;
+  shor: number;
+  grover: number;
+  mean_risk: number | null;
+  max_risk: number | null;
+  top_algorithms: string[];
+  plan: ProjectPlanRef | null;
+}
+
 export interface ScanStats {
   files_scanned?: number;
   files_skipped?: number;
@@ -121,13 +162,27 @@ export interface ScanSummary {
 export interface MigrationPlan {
   id: string;
   status: string;
-  stats: { tasks?: number; units?: number; message?: string };
+  stats: {
+    tasks?: number;
+    units?: number;
+    message?: string;
+    automatable?: number;
+    effort_points?: number;
+    effort_hours_low?: number;
+    effort_hours_high?: number;
+    by_algorithm?: Record<string, number>;
+  };
   created_at: string;
+  /** Null on plans built before plans carried a scope — those spanned the whole database. */
+  project_id: string | null;
+  scan_id: string | null;
+  scope: { project_id?: string | null; scan_id?: string | null; min_risk?: number };
 }
 
 export interface MigrationTask {
   id: string;
   plan_id: string;
+  unit_id: string;
   asset_id: string;
   state: string;
   rule_id: string | null;
@@ -136,9 +191,18 @@ export interface MigrationTask {
   effort_points: number;
   last_error: string | null;
   algorithm: string | null;
+  key_size: number | null;
   file_path: string | null;
   line: number | null;
   risk_score: number | null;
+  asset_type: string | null;
+  source_scanner: string | null;
+  usage_context: string | null;
+  sensitivity: string | null;
+  mosca_margin_years: number | null;
+  effort_hours_low: number | null;
+  effort_hours_high: number | null;
+  effort_drivers: string[];
 }
 
 export interface MigrationPatch {

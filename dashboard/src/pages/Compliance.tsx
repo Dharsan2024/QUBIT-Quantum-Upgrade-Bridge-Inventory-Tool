@@ -13,6 +13,9 @@ import {
 } from 'lucide-react';
 import { fetchCnsa2 } from '../api/client';
 import { useActiveScan } from '../hooks/useActiveScan';
+import { useUiStore } from '../stores/ui';
+import { ProjectGrid } from '../components/ProjectGrid';
+import { ProjectScopeBar } from '../components/ProjectScopeBar';
 import type { Cnsa2Milestone } from '../api/types';
 
 /**
@@ -72,6 +75,7 @@ function StatusPill({ status }: { status: Cnsa2Milestone['status'] }) {
 
 export function Compliance() {
   const { activeScanId, activeScan } = useActiveScan();
+  const projectId = useUiStore((s) => s.projectId);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['cnsa2', activeScanId],
@@ -82,6 +86,37 @@ export function Compliance() {
   const milestones = data?.milestones ?? [];
   const satisfied = milestones.filter((m) => m.status === 'compliant').length;
   const overdue = milestones.filter((m) => m.is_due && m.status !== 'compliant').length;
+
+  // Placed below every hook on purpose. React requires the same hooks to run in the same order on
+  // every render, so an early return above `useQuery` makes the hook count change the moment a
+  // project is chosen — which crashed this page with React error #310 (caught by the browser
+  // suite, not by tsc, which cannot see hook order).
+  if (!projectId) {
+    return (
+      <AnimatedPage
+        className="flex flex-col gap-6 py-5"
+        data-testid="compliance-root"
+        aria-label="CNSA 2.0 compliance posture"
+      >
+        <header>
+          <h1 className="flex items-center gap-3">
+            <Landmark className="h-8 w-8 text-[color:var(--color-accent)]" />
+            CNSA 2.0 Posture
+          </h1>
+          <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
+            Posture is evaluated per project against NSA&apos;s mandated milestones (2025 → 2035).
+            Open a project to see its milestone verdicts.
+          </p>
+        </header>
+
+        <ProjectGrid
+          metric="vulnerable"
+          title="Compliance by project"
+          subtitle="Quantum-vulnerable assets are what the CNSA 2.0 milestones are measured against."
+        />
+      </AnimatedPage>
+    );
+  }
 
   return (
     <AnimatedPage
@@ -107,6 +142,8 @@ export function Compliance() {
           </p>
         )}
       </header>
+
+      <ProjectScopeBar />
 
       {!activeScanId && (
         <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">

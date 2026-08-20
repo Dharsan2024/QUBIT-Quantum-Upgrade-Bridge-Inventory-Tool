@@ -1,11 +1,12 @@
 id: code-weakhash-02
 language: multi
-title: "Weak hash in Go/Java/JS/TS/C → SHA-256 (line-scoped swap)"
+title: "Weak hash in Go/Java/JS/TS/C++ → SHA-256 (line-scoped swap)"
 matches:
   source_scanner: [code]
   # Everything EXCEPT .py — Python has its own rule using a precise libcst codemod that can also
   # take the argon2id password path, which a token swap cannot do.
-  file_suffix: [".go", ".java", ".js", ".mjs", ".ts", ".c", ".h", ".cc", ".cpp", ".hpp"]
+  file_suffix:
+    [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp"]
   algorithm: ["MD5", "SHA-1", "MD4", "RIPEMD-160", "SHA-224"]
   usage_context: ["hash", "unknown", "signature", "token"]
   library_name: [null]

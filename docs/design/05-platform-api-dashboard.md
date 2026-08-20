@@ -448,6 +448,7 @@ Auth column: 🔓 = anonymous, 🔑ro = any valid token, 🔑rw = write-scope to
 | GET | `/registry/algorithms` | 🔑ro | canonical algorithm registry (drives dashboard filter dropdowns) |
 | GET | `/auth/whoami` | 🔑ro | token name + scopes |
 | GET/POST | `/projects` | 🔑ro / 🔑rw | list / create (`{name, root_path?, description?}`) |
+| GET | `/projects/overview` | 🔑ro | per-project rollup for the project-wise landing on every tab: `[{id, name, scans, latest_scan, assets, vulnerable, shor, grover, mean_risk, max_risk, top_algorithms, plan}]`. Aggregated in SQL — a project with 872 assets costs the same as one with 4. `plan.stale` is true once a scan finished after the plan was built. Declared **before** `/projects/{pid}` (which types its parameter as a UUID), or `overview` 422s. See §6.7a |
 | GET/PATCH/DELETE | `/projects/{pid}` | 🔑ro/🔑rw/🔑rw | detail incl. latest-scan summary; PATCH settings (`allow_apply`); DELETE cascades |
 | GET | `/projects/{pid}/trends` | 🔑ro | per-scan time series: `[{scan_id, seq, finished_at, total, vulnerable, median_risk, negative_mosca}]` (F1) |
 | POST | `/projects/{pid}/scans` | 🔑rw | body `ScanCreate` → `202 {job, scan}`; job kind=`scan` |
@@ -494,6 +495,8 @@ and do not touch the binding schema. Added here as normative rows so sibling doc
 | Method | Path | Auth | Purpose / notes |
 |---|---|---|---|
 | GET | `/assets/{aid}/recommendation` | 🔑ro | **E1** — `AssetRecommendation` read model: current algo → target `{algorithm, mode:pure\|hybrid, parameter_set}`, `library{name,min_version}`, `rationale`, `source`, `confidence`. Assembled from the doc-03 rule-matcher + registry + KB (E5) + agility policy (E2); no DB table |
+| GET/POST | `/migrate/plans` | 🔑ro / 🔑rw | list (`?project_id=` filters; plans predating scoping have `project_id: null` and are excluded by the filter) / build (`{min_risk?, project_id?, scan_id?}`). See doc 03 §4.2a |
+| GET | `/migrate/plans/{plan_id}/queue` | 🔑ro | ranked tasks with the asset context the queue renders: algorithm, key size, file:line, `asset_type`, `source_scanner`, `usage_context`, `sensitivity`, risk, Mosca margin, effort hours + drivers, `unit_id` |
 | GET | `/plans/{plan_id}/graph` | 🔑ro | **E3** — serialized dependency graph: `{nodes[], edges[{kind,confidence}], units[{is_cycle}]}` from doc-03 `graph/export.py`; reuses `build_dependency_graph`/`migration_order` |
 | GET | `/migrations/{mid}/governance` | 🔑ro | **E4** — gate state for the item (`{required_approvals, have, blocked_by}`); evaluated against `params/governance_policy.yaml` |
 | GET | `/meta/agility-policy` | 🔑ro | **E2** — active `agility_policy.yaml` (version + defaults + overrides) for the Settings page |
@@ -792,6 +795,11 @@ State rules: **all server data via TanStack Query** (`staleTime` 15 s; job-linke
 8. **Scans & Jobs** (`/p/:pid/scans`): scan history table (seq, label, status, assets, duration) with per-scan actions (assets / CBOM / delete / compare→`/scans/{sid}/diff` view showing added/removed/persisting); live jobs panel with progress bars fed by SSE.
 9. **Settings** (`/settings`): server URL + token (test button → `/auth/whoami`), theme toggle, danger zone (delete project).
 
+**Sidebar order (as shipped):** Scans & Jobs · Projects · Inventory · Risk Posture · CRQC Timeline ·
+CNSA 2.0 · Migration Hub · Settings. It follows the order the work happens in, and leads with the
+page a new installation needs first; Scans & Jobs previously sat second from the bottom, beneath
+five tabs that are empty until a scan has run.
+
 **M3+ extended-module surfaces (additive, from [doc 08 §2](../design/08-extended-modules.md); no new pages, cut-line-eligible where noted):**
 - **E1 recommendation** — a "→ target (mode) · library≥ver" badge with a rationale tooltip in the
   Inventory drawer (page 2) and the Migration detail header (page 6), fed by `/assets/{aid}/recommendation`.
@@ -805,6 +813,53 @@ State rules: **all server data via TanStack Query** (`staleTime` 15 s; job-linke
 - **E2 agility policy / E5 migration KB** — read-only reference tables on the Settings page from
   `/meta/agility-policy` and `/meta/migration-kb`. *Never-cut* (small; they document the policy the
   recommendations stand on).
+
+### 6.7a Project scoping — how §6.7 is actually navigated
+
+§6.7 routes every data page under `/p/:pid/...`. The shipped app registered those routes but also
+registered unscoped twins (`/inventory`, `/risk`, …), and the sidebar linked to the twins. The
+zustand `projectId` defaulted to the literal string `"default"` — an id no database has ever held —
+and **nothing read it**. Each page instead resolved its own scan from the *global* scan list via
+`pickActiveScan`, so "the newest scan anywhere" decided what Inventory, Risk Posture, CNSA 2.0 and
+the CBOM export all displayed, regardless of which project you had opened.
+
+Compounding it, `createScan` filed every scan the dashboard started into one project literally
+named **"Dashboard scans"**. On the development machine that project had accumulated ten unrelated
+scans and 872 assets — two source trees, a git remote and three probes of `127.0.0.1` — presented
+as a single inventory with no column that could tell them apart.
+
+**What it does now.** The unit of scoping is the project, and the project is the thing you scanned:
+
+- `lib/projectNames.ts` names a project after its target (folder basename, git repo name without
+  `.git`, or host for network/Vault scans). Rescanning the same target reuses the same project,
+  which is what gives a project a scan history rather than minting one project per scan.
+- `stores/ui.ts` holds `projectId` / `scanId` and persists both to `localStorage`. `undefined`
+  means "no project chosen", which is a real state, not a placeholder id.
+- Every data tab opens on **`ProjectGrid`** — one card per project, leading with the number that tab
+  is about (assets / vulnerable / mean risk / migration tasks), fed by one aggregate request to
+  `GET /projects/overview` rather than by pulling every asset into the browser.
+- Choosing a project swaps the tab to that project's data, headed by **`ProjectScopeBar`**: the
+  project name, a scan selector limited to that project's scans, and the way back out. The top rail
+  carries the project name too, so a number on screen is always attributable.
+- `pickActiveScan` now filters to the selected project first, and ignores a remembered scan that no
+  longer belongs to it (or has been deleted — that previously left every page blank with no
+  indication why).
+
+**Deviation from §6.7, deliberate:** the scope lives in the store rather than in `/p/:pid/`. Routing
+it would put the project id in six route patterns and every internal link, for a single-window
+desktop app with no deep-linking or multi-tab requirement. The `/p/:pid/...` routes remain
+registered and working. Revisiting this is cheap and is the right move the moment two projects need
+to be open side by side.
+
+**CRQC Timeline is deliberately NOT gated.** It is a Monte-Carlo simulator — the curve is a property
+of the algorithm and the hardware model, not of your code — so requiring a project choice would
+block a page that works on its own. What the project does decide is the algorithm it opens on: the
+project's most common Shor-breakable algorithm, when that is one the page can chart.
+
+**The report was scoped too.** `Report.tsx` fetched every plan in the installation and embedded the
+newest active one, so a report for scan #4 of one project could carry a completely different
+project's migration queue in the same document, beneath that scan's asset list. It now asks for its
+own scan's project, preferring a plan built from that exact scan.
 
 ### 6.8 Serving model
 

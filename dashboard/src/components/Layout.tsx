@@ -11,27 +11,33 @@ import {
   Rocket,
   Radar,
   Landmark,
+  FolderGit2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { DepsBanner, DepsLeds } from './BootGate';
 import { PageErrorBoundary } from './PageErrorBoundary';
 import { useQuery } from '@tanstack/react-query';
-import { fetchScans } from '../api/client';
+import { fetchProjects, fetchScans } from '../api/client';
 import { useUiStore } from '../stores/ui';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Sidebar order follows the order the work happens in: scan something, see the projects it
+ *  produced, then read that project's inventory, risk, timeline, compliance and migration. Scans &
+ *  Jobs leads because it is both the first thing a new installation needs and the page people
+ *  return to most; it used to sit second from the bottom, below five tabs that are empty until a
+ *  scan has run. */
 const NAV_ITEMS = [
+  { path: '/scans', label: 'Scans & Jobs', icon: Activity },
   { path: '/', label: 'Projects', icon: LayoutDashboard, exact: true },
   { path: '/inventory', label: 'Inventory', icon: FileCode2 },
   { path: '/risk', label: 'Risk Posture', icon: ShieldAlert },
   { path: '/timeline', label: 'CRQC Timeline', icon: Clock },
   { path: '/compliance', label: 'CNSA 2.0', icon: Landmark },
-  { path: '/migrations', label: 'Migrations', icon: GitPullRequestDraft },
-  { path: '/scans', label: 'Scans & Jobs', icon: Activity },
+  { path: '/migrations', label: 'Migration Hub', icon: GitPullRequestDraft },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -52,13 +58,17 @@ export function Layout() {
     OFF_NAV_LABELS.find((o) => normalizedPath.startsWith(o.prefix))?.label ??
     'Command';
 
-  // Resolve the active scan for HUD context chip — reuses the shared React Query cache.
+  // Resolve the active project + scan for the HUD context chips — reuses the shared React Query
+  // cache, so this costs no extra request.
   const scanId = useUiStore((s) => s.scanId);
+  const projectId = useUiStore((s) => s.projectId);
   const { data: scans } = useQuery({ queryKey: ['scans'], queryFn: fetchScans });
+  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const activeScan = scans?.find((s) => s.id === scanId);
+  const activeProject = projects?.find((p) => p.id === projectId);
 
   // Pages where showing scan context makes sense (not projects list or settings).
-  const showScanContext = activeScan && !['/', '/settings'].includes(normalizedPath);
+  const showScanContext = !['/', '/settings'].includes(normalizedPath);
 
   return (
     <div className="relative flex h-screen w-full overflow-hidden text-[color:var(--color-ink)]">
@@ -133,18 +143,30 @@ export function Layout() {
             <span className="text-[color:var(--color-ink-faint)]">QUBIT</span>
             <span className="text-[color:var(--color-ink-faint)]">//</span>
             <span className="truncate text-[color:var(--color-accent-soft)]">{railLabel}</span>
-            {/* Active scan context chip — only on data pages when a scan is loaded */}
-            {showScanContext && (
+            {/* Which project (and scan) the page below is showing. Without the project name the
+                numbers on a data page are unattributed — the exact ambiguity that scoping the
+                tabs was meant to remove. */}
+            {showScanContext && activeProject && (
               <>
                 <span className="text-[color:var(--color-ink-faint)]">·</span>
                 <span
-                  className="flex items-center gap-1 rounded-[2px] border border-[color:var(--color-accent)]/25 bg-[color:var(--color-accent)]/10 px-2 py-0.5 font-mono text-[10px] text-[color:var(--color-accent)]"
-                  title={`Active scan: ${activeScan.targets.join(', ')}`}
+                  className="flex max-w-[16rem] items-center gap-1 truncate rounded-[2px] border border-[color:var(--color-accent)]/25 bg-[color:var(--color-accent)]/10 px-2 py-0.5 font-mono text-[10px] text-[color:var(--color-accent)]"
+                  title={`Showing project: ${activeProject.name}`}
+                  data-testid="rail-project-chip"
                 >
-                  <Radar className="h-2.5 w-2.5" />
-                  scan #{activeScan.seq}
+                  <FolderGit2 className="h-2.5 w-2.5 flex-none" />
+                  {activeProject.name}
                 </span>
               </>
+            )}
+            {showScanContext && activeScan && (
+              <span
+                className="flex items-center gap-1 rounded-[2px] border border-[color:var(--color-accent-2)]/25 bg-[color:var(--color-accent-2)]/10 px-2 py-0.5 font-mono text-[10px] text-[color:var(--color-accent-2)]"
+                title={`Active scan: ${activeScan.targets.join(', ')}`}
+              >
+                <Radar className="h-2.5 w-2.5" />
+                scan #{activeScan.seq}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-5">

@@ -5,6 +5,9 @@ import { AnimatedPage } from '../components/AnimatedPage';
 import { Download, Terminal, FileJson, RefreshCw, Check } from 'lucide-react';
 import { fetchCbom } from '../api/client';
 import { useActiveScan } from '../hooks/useActiveScan';
+import { useUiStore } from '../stores/ui';
+import { ProjectGrid } from '../components/ProjectGrid';
+import { ProjectScopeBar } from '../components/ProjectScopeBar';
 import { saveTextFile } from '../lib/tauri';
 
 // Minimal JSON syntax highlighter for the CBOM preview. Escapes HTML-significant characters
@@ -32,6 +35,7 @@ function syntaxHighlight(json: string): string {
 
 export function Cbom() {
   const { activeScanId, activeScan } = useActiveScan();
+  const projectId = useUiStore((s) => s.projectId);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['cbom', activeScanId],
@@ -48,6 +52,26 @@ export function Cbom() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // A CBOM is a bill of materials for one system. Exporting a document that merges several
+  // unrelated projects would produce a file that describes nothing you actually ship.
+  if (!projectId) {
+    return (
+      <AnimatedPage className="flex flex-col gap-6 py-5">
+        <header>
+          <h1>CBOM Export</h1>
+          <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
+            A CycloneDX 1.7 CBOM is produced per scan. Open a project to export one.
+          </p>
+        </header>
+        <ProjectGrid
+          metric="assets"
+          title="CBOM by project"
+          subtitle="Each project exports its own document, from the scan you select inside it."
+        />
+      </AnimatedPage>
+    );
+  }
 
   const download = async () => {
     if (!data) return;
@@ -82,6 +106,8 @@ export function Cbom() {
           </p>
         </div>
       </header>
+
+      <ProjectScopeBar />
 
       {!activeScanId && (
         <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">

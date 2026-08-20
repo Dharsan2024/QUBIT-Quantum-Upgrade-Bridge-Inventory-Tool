@@ -4,6 +4,8 @@ import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { fetchScanAssets, fetchScans } from '../api/client';
 import { useUiStore } from '../stores/ui';
 import { pickActiveScan } from '../hooks/useActiveScan';
+import { ProjectGrid } from '../components/ProjectGrid';
+import { ProjectScopeBar } from '../components/ProjectScopeBar';
 import { AssetTable } from '../components/AssetTable';
 import { AnimatedPage } from '../components/AnimatedPage';
 import { Kpi } from '../components/Kpi';
@@ -39,6 +41,7 @@ function riskBucket(a: CryptoAsset): RiskFilter {
 
 export function Inventory() {
   const scanId = useUiStore((s) => s.scanId);
+  const projectId = useUiStore((s) => s.projectId);
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [searchInput, setSearchInput] = useState('');
@@ -52,7 +55,7 @@ export function Inventory() {
 
   // Resolve which scan to show — same rule every page uses (see pickActiveScan).
   const { data: scans } = useQuery({ queryKey: ['scans'], queryFn: fetchScans });
-  const activeScanId = pickActiveScan(scans, scanId);
+  const activeScanId = pickActiveScan(scans, scanId, projectId);
   const activeScan = scans?.find((s) => s.id === activeScanId);
 
   // 200 is the server's hard page cap (see routers/assets.py `limit: le=200`), so most real
@@ -94,6 +97,27 @@ export function Inventory() {
     [items, typeFilter, riskFilter],
   );
 
+  // The inventory is the tab where merging projects did the most damage: on this machine the
+  // single "Dashboard scans" project held 872 assets from two source trees, a git remote and
+  // three probes of 127.0.0.1, all in one table with no column that could tell them apart.
+  if (!projectId) {
+    return (
+      <AnimatedPage className="flex flex-col gap-6 py-5">
+        <header>
+          <h1>Cryptographic Inventory</h1>
+          <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
+            Assets are held per project. Open one to see its findings on their own.
+          </p>
+        </header>
+        <ProjectGrid
+          metric="assets"
+          title="Inventory by project"
+          subtitle="Every project keeps its own assets — open one to filter, search and export just those."
+        />
+      </AnimatedPage>
+    );
+  }
+
   return (
     <AnimatedPage className="flex flex-col gap-6 py-5">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -126,6 +150,8 @@ export function Inventory() {
           </Link>
         </div>
       </header>
+
+      <ProjectScopeBar />
 
       <div className="stagger grid grid-cols-2 gap-5 lg:grid-cols-4">
         <Kpi

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { AnimatedPage } from '../components/AnimatedPage';
 import {
   Activity,
@@ -59,14 +59,26 @@ function timeAgo(iso: string | null): string {
   return `${Math.round(hrs / 24)} d ago`;
 }
 
+/** Everything a finished (or deleted) scan invalidates.
+ *
+ *  A scan no longer only adds rows to the scan list: it creates or reuses the project named after
+ *  its target, and the API now builds that project's migration plan as the scan completes. Leaving
+ *  `projects` and `projects-overview` cached meant the project grid on every other tab kept showing
+ *  the pre-scan counts — and a brand-new project did not appear at all until a manual reload. */
+function invalidateAfterScan(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: ['scans'] });
+  qc.invalidateQueries({ queryKey: ['projects'] });
+  qc.invalidateQueries({ queryKey: ['projects-overview'] });
+  qc.invalidateQueries({ queryKey: ['migrate-plans'] });
+}
+
 const isGitUrl = (t: string) =>
   /^(https?:\/\/|git@|ssh:\/\/|git:\/\/)/.test(t.trim()) || t.trim().endsWith('.git');
 
 export function Scans() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const setScanId = useUiStore((s) => s.setScanId);
-  const setProjectId = useUiStore((s) => s.setProjectId);
+  const openScan = useUiStore((s) => s.openScan);
   // Default to the bundled sample apps; accepts either a local path or a git remote URL.
   const [target, setTarget] = useState('/samples');
 
@@ -121,7 +133,7 @@ export function Scans() {
           authorized,
         },
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
+    onSuccess: () => invalidateAfterScan(qc),
   });
 
   const vaultScan = useMutation({
@@ -131,18 +143,18 @@ export function Scans() {
       // to localStorage and never stored server-side, so this keeps it out of a React DevTools
       // inspection of a page someone leaves open during a demo.
       setVaultToken('');
-      qc.invalidateQueries({ queryKey: ['scans'] });
+      invalidateAfterScan(qc);
     },
   });
 
   const newScan = useMutation({
     mutationFn: (paths: string[]) => createScan(paths),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
+    onSuccess: () => invalidateAfterScan(qc),
   });
 
   const removeScan = useMutation({
     mutationFn: (id: string) => deleteScan(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
+    onSuccess: () => invalidateAfterScan(qc),
   });
 
   /** Track which scan ID is in the "pending confirm" state (first-click shows confirm chip). */
@@ -161,9 +173,11 @@ export function Scans() {
 
   const cancelConfirm = () => setConfirmId(null);
 
-  const openScan = (scan: ScanSummary) => {
-    setScanId(scan.id);
-    setProjectId(scan.project_id);
+  // Enter the scan's project AND select that scan, in one store write. Setting them separately
+  // meant `setProjectId` cleared the scan selection it had just been given, so "Open" landed on
+  // the project's default scan rather than the row that was clicked.
+  const handleOpenScan = (scan: ScanSummary) => {
+    openScan(scan.project_id, scan.id);
     navigate('/inventory');
   };
 
@@ -452,7 +466,7 @@ export function Scans() {
                       </td>
                       <td className="whitespace-nowrap px-5 py-3.5 text-right">
                         <button
-                          onClick={() => openScan(scan)}
+                          onClick={() => handleOpenScan(scan)}
                           disabled={scan.status !== 'succeeded'}
                           className="label-caps mr-4 text-[color:var(--color-accent)] transition-colors hover:text-[color:var(--color-accent-soft)] disabled:opacity-40"
                         >

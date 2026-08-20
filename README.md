@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-1368%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-1407%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 1368 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 1407 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
 
 ---
 
@@ -193,7 +193,7 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-1368 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+1407 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
 
@@ -349,8 +349,10 @@ cd dashboard && npm run build && npm run test:e2e
 Quality bar: **zero test failures, zero skips**, ruff clean, and ≥70% coverage on `qubit-core`,
 `qubit-scanner`, and `qubit-risk` (currently 82%).
 
-The dashboard is verified in a real Chromium via Playwright — **23 browser tests, zero skips** —
-against a real risk-annotated scan seeded through the public API, not mocked. `tsc -b` proves every API field access
+The dashboard is verified in a real Chromium via Playwright — **31 browser tests, zero skips** —
+against a real risk-annotated scan seeded through the public API, not mocked. That includes the
+project drill-in: a data tab opens on its project grid, clicking a project scopes the tab to it,
+and the choice survives a reload. `tsc -b` proves every API field access
 matches the declared contract, but only a browser catches a component that throws at mount, a
 `median(undefined)` printing NaN, or an export button that downloads an empty file. The suite asserts
 the rendered verdict, the CRQC years, the algorithm inventory, all five CNSA 2.0 milestones, and

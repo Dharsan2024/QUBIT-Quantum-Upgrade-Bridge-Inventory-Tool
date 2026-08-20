@@ -3,6 +3,13 @@ language: python
 title: "RSA key transport/encryption → ML-KEM-768 hybrid (HPKE pattern)"
 matches:
   source_scanner: [code]  # not config/cert/key assets — this codemod edits source
+  # Every OTHER rule in this pack that names a language also constrains the file suffix; this one
+  # did not, so it claimed `code` assets in EVERY language the scanner can read. Once the scanner
+  # grew from 6 languages to 19, that meant a libcst Python codemod was the offered migration for
+  # MD5 in .rb, .php, .cs, .rs, .kt, .swift, .scala, .dart, .sh, .ps1 and .sql files — 34 of the
+  # 127 tasks in the polyglot demo project. Matching nothing is the correct answer for those: the
+  # app then says "no codemod rule" instead of offering a patch it cannot produce.
+  file_suffix: [".py"]
   # Bare "RSA" included deliberately: a keygen call that takes its size from a variable normalizes
   # to the bare family, and those assets previously matched no transform rule at all.
   algorithm: ["RSA", "RSA-1024", "RSA-2048", "RSA-3072", "RSA-4096"]

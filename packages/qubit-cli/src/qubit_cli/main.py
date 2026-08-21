@@ -690,6 +690,60 @@ def rules_lint() -> None:
     console.print(f"[green]OK[/green] - {len(catalog)} rules compiled across {catalog.languages()}")
 
 
+@rules_app.command("examples")
+def rules_examples(
+    language: Annotated[str, typer.Option("--language", "-l", help="Source language, e.g. rust")],
+    algorithm_prefix: Annotated[
+        str, typer.Option("--algorithm-prefix", "-a", help="Only shapes yielding this algorithm")
+    ] = "",
+) -> None:
+    """Emit the code shapes this scanner can actually RECOGNISE, as JSON.
+
+    A migration is only accepted if the rescan finds the target algorithm in the patched file, so
+    the set of rewrites that can pass is exactly the set this scanner can detect. Nothing was
+    publishing that set, and the generator was left to guess at the API — see
+    `qubit_migrate.transform.target_shapes`, which consumes this.
+
+    Every shape returned is a rule's own positive example, and each one is scanned here before it
+    is emitted, so what comes out is verified to produce the algorithm it claims rather than
+    asserted to. `--algorithm-prefix ML-KEM` narrows it to the shapes that satisfy a migration
+    rule's `rescan_expect.present`.
+    """
+    from qubit_scanner import CodeScanner
+    from qubit_scanner.normalize import normalize
+
+    catalog = RuleCatalog.load()
+    scanner = CodeScanner(catalog)
+    wanted = language.strip().lower()
+    prefix = algorithm_prefix.strip().upper()
+
+    shapes: list[dict[str, Any]] = []
+    for compiled in catalog.all_rules():
+        if compiled.language.lower() != wanted:
+            continue
+        for example in compiled.rule.examples.positive:
+            detections = [
+                d
+                for d in scanner.scan_source(example.encode(), compiled.language, file_path="ex")
+                if d.rule_id == compiled.rule.id
+            ]
+            algorithms = sorted({normalize(d).algorithm for d in detections})
+            if not algorithms:
+                continue
+            if prefix and not any(a.upper().startswith(prefix) for a in algorithms):
+                continue
+            shapes.append(
+                {
+                    "rule_id": compiled.rule.id,
+                    "language": compiled.language,
+                    "title": compiled.rule.title,
+                    "algorithms": algorithms,
+                    "source": example.strip(),
+                }
+            )
+    console.print_json(json.dumps(shapes))
+
+
 @rules_app.command("list")
 def rules_list() -> None:
     """List every detection rule (id, language, title)."""

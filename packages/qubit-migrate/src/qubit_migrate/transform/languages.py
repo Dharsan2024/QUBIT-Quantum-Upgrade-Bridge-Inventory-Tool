@@ -21,6 +21,41 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+#: The names a rule may address a language by, when it writes per-language guidance as
+#: "Go: use crypto/mlkem ...". Only the language whose name matches is shown that line, so a
+#: `.rs` file is no longer handed Go's API as its only concrete instruction (measured: the model
+#: transliterated `mlkem.GenerateKey768()` into Rust, where no such crate exists). A language not
+#: listed here answers only to its own name.
+LANGUAGE_ALIASES: dict[str, frozenset[str]] = {
+    "javascript": frozenset({"javascript", "js", "node", "nodejs", "ecmascript"}),
+    "typescript": frozenset({"typescript", "ts"}),
+    # .tsx is TypeScript with JSX syntax; the crypto APIs a rule names are identical, so guidance
+    # addressed to TypeScript applies to it. Its tree-sitter grammar differs, which is why it is a
+    # separate language everywhere else.
+    "tsx": frozenset({"tsx", "typescript", "ts", "react"}),
+    "csharp": frozenset({"csharp", "c#", "dotnet", ".net"}),
+    "cpp": frozenset({"cpp", "c++"}),
+    "go": frozenset({"go", "golang"}),
+    "bash": frozenset({"bash", "sh", "shell", "posix shell"}),
+    "powershell": frozenset({"powershell", "pwsh"}),
+    "python": frozenset({"python", "py"}),
+    # Kotlin and Scala call the Java Cryptography Architecture directly — `Cipher.getInstance`,
+    # `KeyPairGenerator.getInstance` — so a rule's "Java: ..." guidance is literally their API too.
+    # Scoping it away from them cost three Kotlin tasks that had been passing, because the file was
+    # left with no concrete API named at all.
+    "kotlin": frozenset({"kotlin", "kt", "java"}),
+    "scala": frozenset({"scala", "java"}),
+}
+
+
+def language_aliases(language: str | None) -> frozenset[str]:
+    """Every name ``language`` answers to, lowercased. Its own name is always one of them."""
+    lang = (language or "").strip().lower()
+    if not lang:
+        return frozenset()
+    return LANGUAGE_ALIASES.get(lang, frozenset({lang}))
+
+
 #: Suffix -> the language name used by the codemod tables and the validator's grammar lookup.
 #: Every entry has a tree-sitter grammar in `tree_sitter_language_pack`, which is what makes the
 #: validator's `parses` stage meaningful for it.
@@ -175,6 +210,7 @@ __all__ = [
     "LANGUAGE_TO_EXT",
     "SUFFIX_TO_LANGUAGE",
     "TS_GRAMMAR",
+    "language_aliases",
     "language_for_suffix",
     "parse_error",
 ]

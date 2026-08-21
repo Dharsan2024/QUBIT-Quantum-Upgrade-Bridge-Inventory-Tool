@@ -33,13 +33,16 @@ rules:
           func f(x: Data) { let d = SHA256.hash(data: x) }
 
   - id: SWIFT-CRYPTOKIT-STRONG
-    title: SHA256.hash(data:) / AES.GCM.seal / ChaChaPoly.seal
+    # AES.GCM was named here but never matched: it is a two-level navigation, which this
+    # query's `target: (simple_identifier)` cannot reach. SWIFT-CRYPTOKIT-AEAD covers it.
+    title: SHA256.hash(data:) / ChaChaPoly.seal / P256 key agreement
     match:
+      # Not anchored on the enclosing call, for the same reason as SWIFT-CRYPTOKIT-AEAD:
+      # `try! ChaChaPoly.seal(...)` puts a prefix_expression in between and was being missed.
       query: |
-        (call_expression
-          (navigation_expression
-            target: (simple_identifier) @cls
-            suffix: (navigation_suffix suffix: (simple_identifier) @meth))) @call
+        (navigation_expression
+          target: (simple_identifier) @cls
+          suffix: (navigation_suffix suffix: (simple_identifier) @meth)) @call
       where:
         - { capture: cls, in: [SHA256, SHA384, SHA512, ChaChaPoly, Curve25519, P256, P384, P521] }
         - { capture: meth, in: [hash, seal, open, sharedSecretFromKeyAgreement] }
@@ -55,9 +58,54 @@ rules:
           func f(x: Data) { let d = SHA256.hash(data: x) }
         - |
           func f(k: SymmetricKey, x: Data) { let b = ChaChaPoly.seal(x, using: k) }
+        - |
+          func f(k: SymmetricKey, x: Data) { let b = try! ChaChaPoly.seal(x, using: k) }
       negative:
         - |
           func f(x: Data) { let d = Insecure.MD5.hash(data: x) }
+
+  # CryptoKit's AEAD types nest the mode inside the primitive — `AES.GCM.seal(_:using:nonce:)` —
+  # so the call is a navigation_expression whose TARGET is itself a navigation_expression. Every
+  # other rule in this file matches the one-level shape, which is why this went undetected: a Swift
+  # file migrated to AES-256-GCM read as having no cipher at all, and the migration was rejected for
+  # not containing the algorithm it had correctly introduced.
+  # https://developer.apple.com/documentation/cryptokit/aes/gcm
+  - id: SWIFT-CRYPTOKIT-AEAD
+    title: AES.GCM.seal / AES.GCM.open (CryptoKit authenticated encryption)
+    match:
+      # Anchored on the navigation, NOT on the enclosing call: `try!` inserts a
+      # `prefix_expression` between them, and force-try is idiomatic in exactly this code.
+      query: |
+        (navigation_expression
+          target: (navigation_expression
+            target: (simple_identifier) @cls
+            suffix: (navigation_suffix suffix: (simple_identifier) @mode))
+          suffix: (navigation_suffix suffix: (simple_identifier) @meth)) @call
+      where:
+        - { capture: cls, in: [AES] }
+        - { capture: mode, in: [GCM, CBC] }
+        - { capture: meth, in: [seal, open] }
+    extract:
+      algorithm: { from: cls, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          import CryptoKit
+          func f(k: SymmetricKey, x: Data) { let b = try AES.GCM.seal(x, using: k) }
+        - |
+          func g(k: SymmetricKey, b: AES.GCM.SealedBox) { let d = try AES.GCM.open(b, using: k) }
+        - |
+          func h(k: SymmetricKey, x: Data, n: AES.GCM.Nonce) {
+            let b = try! AES.GCM.seal(x, using: k, nonce: n)
+          }
+      negative:
+        - |
+          func f(k: SymmetricKey, x: Data) { let b = try ChaChaPoly.seal(x, using: k) }
+        - |
+          func f(x: Data) { let d = SHA256.hash(data: x) }
 
   - id: SWIFT-COMMONCRYPTO-DIGEST
     title: CC_MD5(...) / CC_SHA1(...)

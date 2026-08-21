@@ -179,6 +179,7 @@ class MigrationOrchestrator:
             return None
 
         from .transform.languages import language_for_suffix
+        from .transform.target_shapes import verified_target_shapes
         from .transform.validate import _stage_rescan
 
         language = language_for_suffix(rel_path) or rule.language
@@ -187,6 +188,24 @@ class MigrationOrchestrator:
             result = _stage_rescan(candidate, rule, language, asset.algorithm)
             if result.status != "fail":
                 return None
+            # There are two ways to fail this stage and they need opposite advice. Appending one
+            # fixed sentence to both told the model "your rewrite still leaves RSA in the file"
+            # when RSA was gone and the real problem was that the replacement could not be found —
+            # so the repair loop spent every remaining attempt correcting something that was
+            # already correct. The rescan reports which expectation failed; use it.
+            if result.expectation == "present":
+                shapes = verified_target_shapes(language, result.expected or "")
+                hint = ""
+                if shapes:
+                    hint = (
+                        " QUBIT recognises it from code shaped like this:\n```"
+                        f"{language}\n{shapes[0].source}\n```"
+                    )
+                return (
+                    f"{result.detail}. You removed {asset.algorithm}, but the replacement is not "
+                    f"one QUBIT can detect — check the module path and the call names."
+                    f"{hint}"
+                )
             return (
                 f"{result.detail}. Your rewrite still leaves {asset.algorithm} in the file — check "
                 "for an import, use-statement or include that you no longer call, and for another "

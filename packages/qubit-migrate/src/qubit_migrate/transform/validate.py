@@ -10,11 +10,9 @@ Stages 3 (compile) and 4 (tests) are M2 (require Docker sandbox).
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import shutil
 import subprocess
-import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -23,6 +21,7 @@ from typing import Any, Literal
 
 from .languages import LANGUAGE_TO_EXT, TS_GRAMMAR, parse_error
 from .languages import SUFFIX_TO_LANGUAGE as _SUFFIX_TO_LANGUAGE
+from .scanner_cli import cli_command
 
 StageStatus = Literal["pass", "fail", "skipped"]
 
@@ -56,6 +55,14 @@ class StageResult:
     status: StageStatus
     detail: str = ""
     duration_s: float = 0.0
+    #: Which rescan expectation failed — "gone" (the old algorithm survived) or "present" (the new
+    #: one was not detected). They need opposite corrections, and a caller that cannot tell them
+    #: apart gives the wrong one: the repair loop was telling the model "your rewrite still leaves
+    #: RSA in the file" for rewrites that had removed RSA entirely. Deliberately not serialized by
+    #: `as_dict` — this is guidance for the repair loop, not part of the stored validation record.
+    expectation: str = ""
+    #: The algorithm prefix that expectation named, e.g. "ML-KEM".
+    expected: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -179,24 +186,10 @@ def _scan_command(target: Path) -> list[str]:
 
     Stage 5 deliberately goes through the ``qubit scan`` **CLI** rather than importing
     qubit-scanner, because doc 03 §2 forbids qubit-migrate from importing scanner internals — the
-    CLI is the public interface. What it should NOT depend on is `uv`:
-
-    * `uv` need not be installed at all in a pip-installed or containerized deployment, in which
-      case every patch failed validation for a reason unrelated to the patch.
-    * `uv run` nested inside an already-running `uv run` contends for the environment lock, which
-      was observed hanging until the 60s timeout rather than returning.
-
-    So the current interpreter runs the CLI module directly — the same public entry point
-    (`qubit_cli.main`) without the resolver in front of it. The installed `qubit` console script
-    and `uv run` remain as fallbacks so this keeps working in every install shape.
+    CLI is the public interface. The argv-building itself lives in `scanner_cli`, shared with the
+    target-shape lookup that asks the same CLI what a migrated state looks like.
     """
-    args = ["scan", str(target), "--json"]
-    if importlib.util.find_spec("qubit_cli") is not None:
-        return [sys.executable, "-m", "qubit_cli.main", *args]
-    console_script = shutil.which("qubit")
-    if console_script:
-        return [console_script, *args]
-    return ["uv", "run", "qubit", *args]
+    return cli_command("scan", str(target), "--json")
 
 
 def _stage_rescan(
@@ -287,6 +280,8 @@ def _stage_rescan(
                         "fail",
                         f"Expected {gone_prefix!r} gone, but still found: {still_present}",
                         time.monotonic() - t0,
+                        expectation="gone",
+                        expected=gone_prefix,
                     )
             # Any ONE of the listed prefixes satisfies the expectation: a rule may offer several
             # acceptable targets (ML-KEM or a hybrid group), and requiring all of them at once would
@@ -297,6 +292,8 @@ def _stage_rescan(
                     f"Expected one of {present_prefixes!r} present, but not found. "
                     f"Algorithms: {algos}",
                     time.monotonic() - t0,
+                    expectation="present",
+                    expected=present_prefixes[0],
                 )
             return StageResult("pass", f"rescan ok. algorithms: {algos}", time.monotonic() - t0)
 

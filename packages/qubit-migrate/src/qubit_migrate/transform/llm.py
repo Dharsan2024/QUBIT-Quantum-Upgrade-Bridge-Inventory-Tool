@@ -19,8 +19,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .languages import SUFFIX_TO_LANGUAGE, parse_error
+from .languages import (
+    LANGUAGE_TO_EXT,
+    SUFFIX_TO_LANGUAGE,
+    language_aliases,
+    parse_error,
+)
 from .rules import MigrationRule
+from .target_shapes import verified_target_shapes
 
 if TYPE_CHECKING:
     from qubit_core import CryptoAsset
@@ -123,11 +129,128 @@ def _model_missing_message(model: str, base_url: str) -> str:
     )
 
 
+def present_prefixes(rule: MigrationRule) -> list[str]:
+    """The algorithms the rule's rescan requires to be PRESENT after a successful migration.
+
+    This is the expectation the patch is finally judged against, so it is also the one the
+    generator has to be told about.
+    """
+    expect = getattr(rule, "rescan_expect", None)
+    if not isinstance(expect, dict):
+        return []
+    spec = expect.get("present", {})
+    raw = spec.get("algorithm_prefix", "") if isinstance(spec, dict) else ""
+    if isinstance(raw, str):
+        return [raw] if raw else []
+    if isinstance(raw, list):
+        return [p for p in raw if isinstance(p, str) and p]
+    return []
+
+
+def _scoped_constraints(
+    rule: MigrationRule, language: str, *, have_target_shape: bool = False
+) -> str:
+    """Render the rule's constraints with each language's guidance addressed to that language.
+
+    A cross-language rule writes its per-language API guidance as "Go: use crypto/mlkem ...".
+    Every one of those lines was previously shown to every file it matched, unlabelled, so a `.rs`
+    file's only concrete instruction was Go's — and the model followed it exactly, emitting
+    `mlkem::GenerateKey768(&mut rng)` in Rust, where no such crate exists. The scanner cannot detect
+    that, so the rescan reported the target missing and the task failed all three attempts. It was
+    read as the model being too small for a structural rewrite; it was the prompt naming the wrong
+    language.
+
+    Scoping them away, though, cost more than it saved on the first measurement: `Wallet.swift`'s
+    3DES → AES migration had been passing, and dropping every language-specific line left a Swift
+    file with no concrete API named at all — the rule has guidance for four languages and Swift is
+    not one of them. The wrong-language lines had been carrying real semantics (use GCM, keep the
+    tag) along with the misdirection.
+
+    So nothing is dropped. The lines addressed to this file's language are promoted to plain
+    instructions; the rest are kept, still labelled with the language they belong to, under a note
+    saying they are for reference and their APIs are not this file's. That removes the misdirection
+    — which came from an unlabelled foreign instruction reading as an order — without removing what
+    the rule knows.
+
+    The fallback is last-resort only. When `have_target_shape` is set the scanner has supplied a
+    verified example of the migrated state in this language, which is strictly better evidence than
+    another language's prose, so the foreign lines are dropped rather than competing with it.
+
+    A line is language-specific when everything before its first colon names languages and nothing
+    else. Anything else, including a line with no colon at all, is universal and always shown.
+    """
+    aliases = language_aliases(language)
+    kept: list[str] = []
+    foreign: list[str] = []
+    matched_own_language = False
+    for line in rule.prompt_constraints or []:
+        head, sep, tail = line.partition(":")
+        if sep and tail.strip():
+            names = [n.strip().lower() for n in head.replace(",", "/").split("/")]
+            # EVERY name must be a language for this to count as language-specific guidance —
+            # otherwise an ordinary sentence like "Note: keep the old decrypt path" would be
+            # silently dropped from every prompt it appears in.
+            if names and all(n in _ALL_LANGUAGE_NAMES for n in names):
+                if aliases.intersection(names):
+                    kept.append(tail.strip())
+                    matched_own_language = True
+                else:
+                    foreign.append(line.strip())
+                continue
+        kept.append(line)
+
+    rendered = "\n".join("- " + c for c in kept)
+    if foreign and not matched_own_language and not have_target_shape:
+        label = language or "this language"
+        rendered += (
+            f"\n\nThis rule has no guidance written for {label}. The lines below describe how "
+            f"OTHER languages do it. Read them for the shape of the migration, not for API "
+            f"names. Use "
+            f"{label}'s own crypto library; do not translate these calls literally.\n"
+        )
+        rendered += "\n".join("- " + c for c in foreign)
+    return rendered
+
+
+def _target_shape_block(rule: MigrationRule, language: str) -> str:
+    """Show the model a shape the scanner is verified to recognise as the migrated state.
+
+    A patch is kept only if the rescan DETECTS the target algorithm in the rewritten file, so the
+    shapes the scanner can recognise are the only rewrites that can ever pass. Nothing published
+    that set, and the model was left to infer the API from prose. Handing it one verified example
+    turned a case refused after three attempts into one accepted on its second — same model, same
+    machine, same file.
+
+    The shapes come from the scanner's own rule examples via `verified_target_shapes`, so the
+    instruction the generator follows and the check that judges it have one source and cannot
+    drift apart.
+    """
+    for prefix in present_prefixes(rule):
+        shapes = verified_target_shapes(language, prefix)
+        if not shapes:
+            continue
+        best = shapes[0]
+        return (
+            "QUBIT confirms a migration by DETECTING the new algorithm in your output. In "
+            + language
+            + " it recognises "
+            + ", ".join(best.algorithms)
+            + " from code shaped like this — use this module and these call names, adapted to "
+            + "the file you are given:\n```"
+            + language
+            + "\n"
+            + best.source
+            + "\n```\n\n"
+        )
+    return ""
+
+
 def _build_prompt(
     source: str, rule: MigrationRule, asset: CryptoAsset, feedback: str | None = None
 ) -> str:
-    constraints = "\n".join(f"- {c}" for c in (rule.prompt_constraints or []))
     language = _prompt_language(rule, asset)
+    target_shape = _target_shape_block(rule, language)
+    constraints = _scoped_constraints(rule, language, have_target_shape=bool(target_shape))
     return (
         "You are a cryptographic migration codemod engine. Rewrite the file below to "
         "migrate the flagged weak cryptography. Output ONLY the complete rewritten file "
@@ -150,15 +273,17 @@ def _build_prompt(
         "data?) and prefer the general-purpose digest path unless the code clearly handles "
         "credentials.\n"
         "Do NOT add an import for a library you do not actually call in the rewritten file.\n"
-        # The mirror of the line above, and the single most expensive omission measured: a Rust
-        # rewrite migrated `Rsa::generate(1024)` to ML-KEM correctly and then kept
-        # `use rsa::RsaPrivateKey;`, because the next line told it to preserve imports. The
-        # scanner reads an import as a finding, so the rescan reported the algorithm still
-        # present and a correct patch was thrown away.
+        # An import left behind for an algorithm no longer called is dead code, and in a language
+        # whose rules match import statements it is also still a finding. Measured in Rust it is
+        # not: `use rsa::RsaPrivateKey;` alone produces no detection, because the rule matches the
+        # keygen call. So this instruction is hygiene, not the fix it was once described as — the
+        # rewrites that were failing had removed the old algorithm entirely and were rejected for
+        # the opposite reason, that the NEW one could not be found. See `_target_shape_block`.
         "REMOVE any import, use-statement or include that your rewritten file no longer "
         "references. An import for the algorithm you just migrated leaves that algorithm present "
         "in the file, which means the migration did not happen.\n\n"
         "Preserve all unrelated code, comments, and formatting exactly.\n\n"
+        f"{target_shape}"
         f"{_worked_examples(rule, language)}"
         f"{_repair_feedback(feedback)}"
         f"```{language}\n{source}\n```\n"
@@ -170,6 +295,13 @@ def _build_prompt(
 # a hardcoded list would silently treat those as replacement branches and render them for every
 # language at once.
 _EXAMPLE_LANGUAGES = frozenset(SUFFIX_TO_LANGUAGE.values())
+
+# Every name any supported language answers to. Derived from the shared suffix map and the
+# alias table rather than listed here, so a language added to the scanner is recognised in
+# rule guidance without a second edit — the drift that put Go's API into a Rust prompt.
+_ALL_LANGUAGE_NAMES = frozenset(
+    name for lang in _EXAMPLE_LANGUAGES for name in language_aliases(lang)
+)
 
 
 def _prompt_language(rule: MigrationRule, asset: CryptoAsset) -> str:
@@ -353,6 +485,40 @@ def check_rewrite(source: str, new_source: str, language: str | None) -> str | N
     return None
 
 
+def unverifiable_reason(rule: MigrationRule, language: str) -> str | None:
+    """Why a failed rewrite in ``language`` may have been unwinnable, or None if it looks winnable.
+
+    A patch is kept only if the rescan DETECTS the rule's target algorithm in the rewritten file.
+    Where QUBIT ships no verified shape for that algorithm in this language, a `present` failure is
+    likely to be the check being unsatisfiable rather than the model being wrong — `code-kex-01`
+    claims 21 file suffixes and the shipped shapes cover 9 languages.
+
+    **This is a diagnosis, never a gate.** It was briefly used to refuse such tasks before calling
+    the model at all, and that was wrong: absence of a rule *example* resolving to the target is not
+    evidence that no rule detects it. Measured, the guard refused ten tasks, of which two —
+    `Wallet.swift` 3DES and `Crypto.kt` RSA — had passed their rescan on the previous run. So it
+    now runs only after every attempt has already failed, where it can sharpen the message it
+    reports and cannot remove a capability.
+    """
+    prefixes = present_prefixes(rule)
+    if not prefixes:
+        return None
+    # The rescan only runs when the language maps to a file extension the scanner reads; otherwise
+    # the stage skips and never blocks the patch, so there is nothing to be unwinnable about.
+    if LANGUAGE_TO_EXT.get(language) is None:
+        return None
+    for prefix in prefixes:
+        answer = verified_target_shapes(language, prefix)
+        if answer is None or answer:
+            return None
+    targets = " or ".join(prefixes)
+    return (
+        f"QUBIT ships no verified {targets} shape for {language or 'this language'}, so the rescan "
+        f"may be unsatisfiable here regardless of what is generated — this finding is a candidate "
+        f"for migration advice rather than a patch"
+    )
+
+
 def generate_llm_source(
     source: str,
     rule: MigrationRule,
@@ -416,7 +582,16 @@ def generate_llm_source(
         last_reason = reason
         feedback = reason
 
-    raise OllamaError(f"LLM rewrite rejected after {max_attempts} attempt(s): {last_reason}")
+    # A `present` failure that persists in a language QUBIT ships no verified shape for is more
+    # likely an unsatisfiable check than a bad rewrite, and saying which one costs nothing here.
+    suffix = ""
+    if "present, but not found" in last_reason:
+        hint = unverifiable_reason(rule, _prompt_language(rule, asset))
+        if hint:
+            suffix = f". {hint}"
+    raise OllamaError(
+        f"LLM rewrite rejected after {max_attempts} attempt(s): {last_reason}{suffix}"
+    )
 
 
 __all__ = [
@@ -426,4 +601,6 @@ __all__ = [
     "extract_code_block",
     "generate_llm_source",
     "installed_models",
+    "present_prefixes",
+    "unverifiable_reason",
 ]

@@ -138,7 +138,8 @@ tight spot when Docker + dashboard + browser + IDE run together — mitigations 
       - Node 24 (not 22 LTS) is fine for Vite 8 + React 18. uv 0.10.9 works; optional bump to ≥0.11.
       - Model not pulled yet: `ollama pull qwen2.5-coder:7b-instruct-q4_K_M` (after Ollama runs).
 - [x] Environment verified 2026-07-16: Docker 29.6.1 engine running, Ollama 0.32.0 + qwen2.5-coder:7b
-      pulled, RTX 4060 (8188 MiB) detected. (Also present: gemma4:12b — 7B is the default.)
+      pulled, RTX 4060 (8188 MiB) detected. 7B is the only model QUBIT uses; gemma4:12b and qwen3:8b
+      were pulled for a comparison, measured slower and no more accurate, and removed 2026-08-21.
 - [x] **Phase 0 DONE:** uv monorepo bootstrapped; `qubit-core` built + **CryptoAsset schema FROZEN**;
       6 sibling packages stubbed; `uv sync` resolves all 7; **quality gate green** (ruff + mypy --strict +
       31 tests). Git repo initialized (branch `main`). NOT yet committed / pushed to GitHub.
@@ -1035,7 +1036,7 @@ Reviewed 2 commits that landed while away (B2 resume):
   model recognized the *password* context and rewrote `hashlib.sha1(password)` → argon2
   `PasswordHasher` (import + init included) — context-aware beyond the template codemod.
   parses✓ rescan✓ → proposed.
-- Note: Ollama server must be running (`ollama serve`); models pulled: qwen2.5-coder:7b, gemma4:12b.
+- Note: Ollama server must be running (`ollama serve`); the one model pulled is qwen2.5-coder:7b.
 - Gate: **192 tests**, ruff+mypy clean.
 - **Next:** qubit-risk M2 OR JobRunner async polish OR bridge/demo-lab e2e (`qubit demo run`).
 
@@ -1362,6 +1363,45 @@ Answering the user's "make sure it's real, not mock" demand + wiring the first m
 - **qubit-migrate:** Implemented M1 including Graph builder, queue prioritization, state machine, patch generation, and validation pipeline.
 - **Dashboard:** Scaffolded the M1 Platform Slice `dashboard/` with React 18, Vite 8, TailwindCSS v4, Zustand, and React Router v7. Implemented the `Inventory` page featuring an interactive table (`@tanstack/react-table`) hooked to the `qubit-api`.
 - **Next:** M2 feature implementation (network/config scanners).
+
+### 2026-08-21 — The structural rewrites were a prompt bug, not a model limit
+- **Retracted two claims from the previous round.** Measurement, not argument, overturned both.
+  A leftover `use` statement does NOT register as a finding (scanning two Rust imports alone yields
+  zero detections), and the local 7B model DOES complete a structural RSA → ML-KEM rewrite. The
+  earlier report said the opposite of each.
+- **The real defect.** `code-kex-01` carries per-language API guidance for 4 languages and claims 21
+  file suffixes, and nothing scoped those lines to a language — so a `.rs` file's only concrete
+  instruction was `"Go: use crypto/mlkem … GenerateKey768()"`. The model followed it and emitted
+  `mlkem::GenerateKey768(&mut rng)` in Rust. Undetectable, so the rescan failed with
+  `Expected one of ['ML-KEM'] present, but not found` — the OPPOSITE of the reported failure.
+- **The fix that mattered.** `qubit rules examples --language <lang> --algorithm-prefix <alg>`
+  publishes the code shapes the scanner is verified to recognise (each one scanned before it is
+  emitted), and `transform/target_shapes.py` feeds them to the generator across the CLI boundary
+  doc 03 §2 requires. The generator is now instructed by the same authority that judges it.
+- **Two further defects.** The repair loop appended "your rewrite still leaves {alg} in the file" to
+  BOTH rescan failure modes, sending the model to fix what it had already fixed; `StageResult` now
+  reports which expectation failed. And a guard added this round refused 10 tasks of which 2 had
+  been passing — absence of a rule *example* never proved absence of a *rule* — so it was demoted
+  from a gate to a diagnosis appended after failure.
+- **A scanner recall bug found from the migration side.** `SWIFT-CRYPTOKIT-STRONG`'s title
+  advertises `AES.GCM.seal` but AES is absent from its captures and the call is a two-level
+  navigation its query cannot reach. Widening it exposed a blind spot in both Swift CryptoKit
+  rules: Swift's grammar inserts a node for `try!`, so a query anchored on the enclosing call missed
+  every force-tried call — idiomatic in exactly this code. Both re-anchored, both carry a `try!`
+  example.
+- **Measured, 105 real tasks, Ollama + Docker live, nothing mocked:** 74 → **84 accepted**; the local
+  model's share 37 → **47**; refusals 25 → **15**; validation failures unchanged at 6. No file in the
+  corpus regressed. No model was upgraded — `qwen3:8b` and `gemma4:12b` were deleted (11.9 GB) after
+  measuring warm that neither helps.
+- **Files:** `qubit_cli/main.py` (`rules examples`), `transform/{target_shapes,scanner_cli}.py` (new),
+  `transform/{llm,languages,validate}.py`, `orchestrator.py`,
+  `catalog/rules/swift/swift_crypto.yaml`, `docs/design/03` §3.2 + §6.2g/§6.2i,
+  `tests/test_target_shapes.py` + `tests/test_rules_examples.py` (new).
+- **Verified:** 1 505 Python tests + 31 browser tests, zero skips; ruff, format and mypy clean across
+  all 7 packages.
+- **Next:** the shipped PQC shapes cover 9 languages while the key-exchange rule claims 21 — closing
+  that is rule-pack work, and the same lookup that reports the gap feeds the generator once a rule
+  lands.
 
 <!-- TEMPLATE for the next entry (copy above this line):
 ### YYYY-MM-DD — <short title>

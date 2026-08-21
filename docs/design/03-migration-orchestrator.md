@@ -179,6 +179,20 @@ Dev: `pytest≥8`, `pytest-cov`, `mypy≥1.10`, `ruff≥0.5`, `respx`/`pytest-ht
 | **Default** | `qwen2.5-coder:7b-instruct-q4_K_M` | ~4.7 GB | 8 GB VRAM or 16 GB RAM (CPU, slow) | Primary transformer. ~80% HumanEval, 128k ctx — best quality/VRAM ratio in class. Apache-2.0 |
 | Fallback (CPU-only laptops) | `qwen2.5-coder:1.5b-instruct-q4_K_M` | ~1.0 GB | any | Degraded mode; templates preferred first. **Apache-2.0** (the 3B size is the one Qwen2.5-Coder tier under the non-commercial Qwen Research License — avoided deliberately in an MIT product) |
 | Optional (lab desktop) | `qwen3-coder:30b` | ~19 GB | 24 GB+ VRAM/unified | Paper evaluation comparison row |
+
+**Measured on the development machine (RTX 4060 Laptop, 8 GB VRAM), warm, 2026-08-21.** Two larger
+models were pulled to test whether the structural rewrites needed one: `qwen3:8b` (5.2 GB) answered
+the same cases 6× slower and failed them identically, and `gemma4:12b` (7.6 GB) spills to CPU and
+returns no fenced code block. Both were removed. The failures they were pulled to fix turned out
+not to be a capability limit at all — see §6.2i — and the 7B default lands those cases on the first
+attempt. An earlier note here said the 12B model "times out"; that was a cold-load measurement.
+Warm, it answers in 45 s.
+
+`qwen3` is a *thinking* model, which exposed a real defect: reasoning tokens consumed the entire
+`num_predict` budget before the answer began — 2 604 characters of reasoning and 35 of answer in
+14.8 s — and QUBIT discards the reasoning, so it paid for nothing and reported a failed task.
+Requests now send `think: false`; the same request answers in 2.9 s. Ollama ignores the field for
+models that do not support it.
 | Optional | `deepseek-coder-v2:16b-lite-instruct-q4_K_M` | ~10 GB | 12–16 GB | Second comparison row |
 
 Model tag is config (`QUBIT_MIGRATE_MODEL`), never hardcoded. Startup check: `ollama.list()` must contain the tag, else auto-fallback chain `configured → 7b → 1.5b → templates-only` with a logged warning.
@@ -877,16 +891,23 @@ use openssl::rsa::Rsa;
 use rsa::RsaPrivateKey;
 ```
 
-Nothing in the rewritten file used either. The scanner reads an import as a finding, so the rescan
-reported `Expected 'RSA' gone, but still found: ['RSA-1024']` and a correct migration was thrown
-away because of a dead import.
+Nothing in the rewritten file used either.
+
+> **Correction (2026-08-21).** This section originally continued: *"The scanner reads an import as
+> a finding, so the rescan reported `Expected 'RSA' gone` and a correct migration was thrown away
+> because of a dead import."* That causal claim is wrong, and re-measuring it is what produced
+> §6.2i. Scanning the two `use` statements on their own yields **no detection at all** — the Rust
+> rules match the keygen call, not the import. Leaving a dead import behind is still worth fixing
+> and the prompt change below still stands on its own; it was simply not the reason those patches
+> were rejected. The real reason is in §6.2i.
 
 Two causes:
 
 1. **The prompt asked for it.** *"Preserve all unrelated code, **imports**, comments, and formatting
    exactly."* An import that existed only to serve the call you just migrated is not unrelated code.
-   The instruction now says to remove any import the rewrite no longer references, and says why: an
-   import for the migrated algorithm leaves that algorithm in the file.
+   The instruction now says to remove any import the rewrite no longer references. This is code
+   hygiene — and in a language whose rules match import statements it would also be a finding —
+   but per the correction above it is not what was failing these tasks.
 
 2. **The repair loop could not learn it.** `generate_llm_source` retried on the cheap local checks —
    empty, truncated, unparseable, wrong language — but *"is the finding gone"* was asked only by the
@@ -948,6 +969,99 @@ same family is **not** excluded: RSA-2048 in place of RSA-1024 is precisely the 
 
 With the knowledge base wired in, the same question now answers *"Replace RSA-1024 key generation
 with ML-KEM-768"* — QUBIT's target, applied to the user's code by the model.
+
+#### 6.2i The generator was never told what the checker would accept
+
+With the repair loop wired up, the structural key-exchange tasks still failed, and the natural
+reading was that a 7B model cannot perform an RSA → ML-KEM rewrite. Printing every attempt beside
+the rescan verdict says otherwise. For a Rust file the model removed RSA **completely** and wrote:
+
+```rust
+use crypto::mlkem;
+let (decap_key, encap_key) = mlkem::GenerateKey768(&mut rng);
+```
+
+That is Go's standard-library API transliterated into Rust. No such crate exists, the scanner
+cannot see it, and the verdict was not *"RSA is still here"* but its opposite:
+`Expected one of ['ML-KEM'] present, but not found`.
+
+The model was not hallucinating. It was following instructions:
+
+* **`prompt_constraints` were never scoped to the file's language.** `code-kex-01` claims 21 file
+  suffixes and carries concrete API guidance for four languages, written as `"Go: use
+  crypto/mlkem … mlkem.GenerateKey768() …"`. Every one of those lines went into every prompt, so a
+  `.rs` file's only concrete instruction was Go's — and it followed it exactly. The *worked
+  examples* had been scoped this way since §6.2d; the constraints had not. They are now: a
+  constraint line whose text before the first colon names only languages is shown to those
+  languages alone, with the language vocabulary derived from the shared suffix map and alias table
+  rather than listed, so adding a language does not require a second edit.
+
+* **Nothing published what the rescan would accept.** A patch is kept only if the rescan *detects*
+  the target algorithm, so the shapes the scanner can recognise are the only rewrites that can ever
+  pass — and that set was never shown to the generator. `qubit rules examples --language rust
+  --algorithm-prefix ML-KEM` now publishes it, scanning each shape before emitting it so the
+  contract is verified rather than asserted, and `transform/target_shapes.py` consumes it across
+  the CLI boundary §2 requires. The generator is now instructed by the same authority that judges
+  it, and the two cannot drift: teaching a detection rule a new crate spelling updates the prompt.
+
+Measured, same model and machine: the Rust case above went from **refused after three attempts** to
+**accepted on the first**.
+
+**A third defect the same investigation exposed.** The rescan can fail two opposite ways, and the
+repair loop appended one fixed sentence to both — *"Your rewrite still leaves RSA in the file"* —
+including to rewrites that had removed RSA entirely. The model was sent to correct a problem that
+did not exist, using up every remaining attempt. `StageResult` now reports which expectation failed
+(`gone` or `present`) and the feedback matches it, quoting a verified target shape when the
+replacement is what could not be found.
+
+**A fourth change, and the measurement that cut it back.** QUBIT ships verified ML-KEM shapes for
+nine languages while `code-kex-01` claims twenty-one, so `unverifiable_reason()` was added to refuse
+a task before any model call when no shape existed for its language — one subprocess instead of
+three generations, with the finding routed to the advisory tier of §6.2h.
+
+Running the whole plan showed that inference was too strong. Of the ten tasks it refused, **two had
+passed their rescan on the previous run**: `Wallet.swift`'s 3DES → AES and `Crypto.kt`'s RSA →
+ML-KEM. A rule can detect an algorithm without shipping a positive example that resolves to it, so
+"no example" was never evidence of "no rule", and a gate built on it removed working capability.
+
+It is now a diagnosis rather than a gate: it runs only after every attempt has already failed on the
+`present` expectation, where it appends *"QUBIT ships no verified ML-KEM shape for php, so the
+rescan may be unsatisfiable here"* to the error. The precise message survives for the tasks where it
+is right, and it cannot cost a task that would have succeeded.
+
+**And one task's failure was the scanner's, not the model's.** `Wallet.swift`'s 3DES → AES
+migration kept failing after the fixes, so it was worth reading the output rather than counting it.
+The model had written correct, idiomatic CryptoKit:
+
+```swift
+import CryptoKit
+let sealedData = try! AES.GCM.seal(x, using: key, nonce: nonce)
+```
+
+The scanner could not see it, for two reasons in one rule. `SWIFT-CRYPTOKIT-STRONG`'s title
+advertises `AES.GCM.seal` while `AES` is absent from its capture list — and adding it would not have
+helped, because `AES.GCM.seal` is a *two-level* navigation (`AES` → `.GCM` → `.seal`) and the query
+matched only the one-level shape `ChaChaPoly.seal`. Neither was caught because the rule's positive
+examples cover exactly the two shapes it does match, so the title's third claim was never exercised.
+
+Widening it exposed a blind spot shared by both rules: Swift's grammar inserts a `prefix_expression`
+between `call_expression` and the navigation for `try!`, so a query anchored on the enclosing call
+matched `AES.GCM.seal(...)` and missed `try! AES.GCM.seal(...)`. Force-try is idiomatic in exactly
+the code this scanner is pointed at. Both queries now anchor on the navigation itself, with the
+method name (`seal`/`open`/`hash`) doing the narrowing, and both carry a `try!` example so the gap
+cannot reopen silently. That one change is worth more than the task that found it: every forced
+CryptoKit call in every Swift file was invisible.
+
+This is the architecture paying off in the other direction. Because the generator's target and the
+validator's check now come from the same published set, a missing detection rule shows up as a
+migration that will not land — and closing it improves both at once.
+
+**The same run exposed a second cost of scoping.** Three Kotlin tasks that had been passing began
+failing, because Kotlin calls the Java Cryptography Architecture directly — `Cipher.getInstance`,
+`KeyPairGenerator.getInstance` — and scoping the rule's `"Java: …"` line away from `.kt` files left
+them with no concrete API named at all. Kotlin and Scala now answer to Java's name in the alias
+table, which is a statement about the JVM rather than a special case: the guidance is literally
+their API.
 
 ### 6.3 LLM patch generation (with repair loop)
 

@@ -19,6 +19,7 @@ them, not by a dependency.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 #: Suffix -> the language name used by the codemod tables and the validator's grammar lookup.
 #: Every entry has a tree-sitter grammar in `tree_sitter_language_pack`, which is what makes the
@@ -126,4 +127,54 @@ def language_for_suffix(path: str | Path | None) -> str | None:
     return SUFFIX_TO_LANGUAGE.get(Path(path).suffix.lower())
 
 
-__all__ = ["LANGUAGE_TO_EXT", "SUFFIX_TO_LANGUAGE", "TS_GRAMMAR", "language_for_suffix"]
+def parse_error(source: str, language: str | None) -> str | None:
+    """Return a description of the first syntax problem in ``source``, or None if it parses.
+
+    One implementation, two callers — the validator's `parses` stage and the LLM rewrite guard —
+    because a check that exists twice is a check that will disagree with itself.
+
+    Uses tree-sitter's ``has_error``, which reports an ERROR or MISSING node ANYWHERE in the tree.
+    Both callers previously inspected only ``root_node.children``, so a syntax error nested inside a
+    function body passed both. Measured: Go source handed to the Ruby grammar produces zero
+    top-level ERROR children and ``has_error == True`` — which is exactly the shape the local model
+    returned when it answered a Ruby file with a Go rewrite, and exactly what both checks missed.
+
+    Returns None (rather than an error) when the language has no grammar: not every patched file is
+    source code, and a config file has nothing to parse against.
+    """
+    lang = (language or "").lower()
+    grammar = TS_GRAMMAR.get(lang)
+    if grammar is None:
+        return None
+    try:
+        from tree_sitter_language_pack import get_parser  # type: ignore[import-untyped]
+
+        tree = get_parser(grammar).parse(source.encode("utf-8", errors="replace"))
+    except Exception as exc:
+        return f"could not parse as {lang}: {exc}"
+    if not tree.root_node.has_error:
+        return None
+    node = _first_error(tree.root_node)
+    where = f" at line {node.start_point[0] + 1}" if node is not None else ""
+    return f"does not parse as {lang}{where}"
+
+
+def _first_error(node: object) -> Any:
+    """Depth-first search for the first ERROR/MISSING node, for a useful line number."""
+    children = getattr(node, "children", None) or []
+    for child in children:
+        if getattr(child, "type", "") == "ERROR" or getattr(child, "is_missing", False):
+            return child
+        found = _first_error(child)
+        if found is not None:
+            return found
+    return None
+
+
+__all__ = [
+    "LANGUAGE_TO_EXT",
+    "SUFFIX_TO_LANGUAGE",
+    "TS_GRAMMAR",
+    "language_for_suffix",
+    "parse_error",
+]

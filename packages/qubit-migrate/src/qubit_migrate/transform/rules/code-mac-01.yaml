@@ -42,6 +42,10 @@ prompt_constraints:
   - "Require a key of at least 32 bytes; do not derive it from a short password without a KDF."
   - "Keep verification of the previous MAC alongside the new one until outstanding tokens expire."
   - "Never compare MACs with a plain equality operator — use the constant-time comparison for the language."
+# The language the `example:` block below is written in. A `language: multi` rule has no
+# other way to say so, and an example shown to a file in a DIFFERENT language is worse
+# than no example at all — the local model returns the example's language verbatim.
+example_language: python
 example:
   before: |
     import hashlib

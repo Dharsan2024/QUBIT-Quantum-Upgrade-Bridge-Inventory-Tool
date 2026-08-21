@@ -35,6 +35,10 @@ prompt_constraints:
   - "C/OpenSSL: use TLS_method() with SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION); never TLSv1_method() or SSLv3_method()."
   - "Do not disable certificate or hostname verification while changing the version."
   - "Never remove TLS 1.2 support — dropping it breaks peers and makes the patch unusable."
+# The language the `example:` block below is written in. A `language: multi` rule has no
+# other way to say so, and an example shown to a file in a DIFFERENT language is worse
+# than no example at all — the local model returns the example's language verbatim.
+example_language: python
 example:
   before: |
     import ssl

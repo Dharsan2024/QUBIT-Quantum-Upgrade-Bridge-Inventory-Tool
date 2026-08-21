@@ -359,7 +359,14 @@ class MigrationOrchestrator:
                     raise ValueError("already remediated by an earlier task in this plan")
             try:
                 orig = file_path.read_text(encoding="utf-8")
-                new = generate_llm_source(orig, rule, asset, model=self.config.model)
+                new = generate_llm_source(
+                    orig,
+                    rule,
+                    asset,
+                    model=self.config.model,
+                    fallback_model=self.config.fallback_model,
+                    timeout=self.config.llm_timeout,
+                )
                 model_name = self.config.model
             except (OSError, OllamaError) as e:
                 self._fail_task(task, f"LLM generation failed: {e}")
@@ -370,6 +377,21 @@ class MigrationOrchestrator:
                 raise ValueError(f"Rule {rule.id} has no codemod fallback")
             try:
                 result = run_codemod(rule.codemod, asset, file_path)
+                if not result and rule.codemod == "bump_crypto_dependency":
+                    # A version bump with nothing to raise means the pin is ALREADY at or above the
+                    # PQC-capable floor — the outcome the rule exists to reach, reported as a
+                    # generic "produced no change" failure. Measured on the polyglot corpus, whose
+                    # requirements.txt pins cryptography==49.0.0 against a 48.0.0 floor.
+                    #
+                    # The task is still parked rather than completed: the FSM's terminal states all
+                    # mean "a patch was applied and verified", and claiming that for a file nothing
+                    # touched would be worse than an accurate message.
+                    detail = (
+                        "no bump needed - this dependency already pins a version that provides "
+                        "PQC primitives"
+                    )
+                    self._fail_task(task, detail)
+                    raise ValueError(detail)
                 if not result:
                     # "Produced no change" is true but unhelpful, and for a dependency bump it is
                     # actively misleading: the usual cause is that the pin is ALREADY at or above
@@ -406,6 +428,7 @@ class MigrationOrchestrator:
             target_rel_path=diff_path,
             no_docker=self.config.no_docker,
             asset_algorithm=asset.algorithm,
+            original_source=orig,
         )
 
         patch = PatchProposal(

@@ -14,6 +14,10 @@ class MigrateConfig(BaseSettings):
 
     model: str = "qwen2.5-coder:7b-instruct-q4_K_M"
     fallback_model: str = "qwen2.5-coder:1.5b-instruct-q4_K_M"
+    #: Seconds to wait for one model completion. The default suits a 7B coder model; a 12B
+    #: model exceeded it on the development machine for a two-line file, so it is settable
+    #: rather than hardcoded.
+    llm_timeout: float = 180.0
     max_repair_rounds: int = 2
     min_confidence: float = 0.5
     # validation sandbox

@@ -47,6 +47,14 @@ class MigrationRule(BaseModel):
     # branches a rule offers — demonstrating only one of them biases the model toward it, which is
     # exactly how py-weakhash-01 ended up emitting argon2 for generic digests.
     extra_examples: dict[str, dict[str, str]] = {}
+    #: Which language the unlabelled `example:` block is written in.
+    #:
+    #: A cross-language rule declares `language: multi`, so nothing said what its primary example
+    #: was written in — and the prompt builder attached that example to files in EVERY language it
+    #: had no specific example for. Measured against the real 7B model, that made the model return
+    #: the example's language: a Ruby file came back as Go. Stated here so an example is only ever
+    #: shown to a file it actually demonstrates.
+    example_language: str | None = None
     rescan_expect: dict[str, Any] | None = None
 
     @model_validator(mode="before")

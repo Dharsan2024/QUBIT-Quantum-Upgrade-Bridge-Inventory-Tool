@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-1434%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-1465%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 1434 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 1465 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
 
 ---
 
@@ -66,7 +66,11 @@ A dependency graph plus WSJF prioritization feeds a 12-state FSM. **14 transform
 
 Weak-hash remediation is deterministic in **all 19 scanned languages** — Ruby, PHP, C#, Rust, Kotlin, Scala, Swift, Dart, Bash, PowerShell, SQL and the rest — with each swap table written against that ecosystem's own reference documentation (cited in `codemods.py`) rather than from memory. Two of them need more than a rename and would otherwise produce code that compiles and then misbehaves: C# is statically typed, so the declared type moves with the factory call (`using (MD5 h = MD5.Create())` → `using (SHA256 h = SHA256.Create())`), and Swift's CommonCrypto path needs the digest **length constant** to move with the function or a 32-byte digest lands in a 20-byte buffer. Correctness is measured, not reviewed: every swap is run over a real fixture and the **output is rescanned by QUBIT's own scanner**, which must report the weak algorithm gone, SHA-256 present, and zero parse errors.
 
+The LLM tier is exercised against a **real local model**, not a mocked HTTP response. That distinction is not academic: every test it had was mocked, and the first time the local `qwen2.5-coder:7b` was actually asked to migrate 3DES in a **Ruby** file it returned **Go** — it was echoing the rule's worked example, because the prompt labelled the file's language as `multi` and attached a Go demonstration to it. A rule now declares which language its example is written in, a file whose language has no example gets none, and the rewrite is rejected and re-prompted if it does not parse as the file's own language. All four languages tested now come back correct — Ruby gets `OpenSSL::Cipher.new('aes-256-gcm')` with a fresh nonce and auth tag, Kotlin gets `SSLContext.getInstance("TLS")`.
+
 The division of labour between deterministic codemods and the **local, sandboxed LLM** is explicit rather than incidental. Where the correct output is a *constant* — `ssl_ecdh_curve X25519MLKEM768`, `KexAlgorithms sntrup761x25519-sha512@openssh.com`, a dependency version floor — the codemod is marked `codemod_authoritative` and an LLM never replaces it, even when one is explicitly requested: a 7B model asked to harden an nginx.conf produced a config that *looked* modern (TLS 1.2+1.3, AEAD suites) while silently omitting the hybrid group, which is the one line that actually makes the deployment quantum-safe. The LLM is used where the transform needs judgement about surrounding code (key lengths, nonce handling, call-site changes), behind a repair loop that feeds rejections back for up to 3 attempts and a preservation guard that refuses a rewrite which drops unrelated code or fails to parse.
+
+Patches are validated in a Docker sandbox with **no network**, using each language's own parser where one can check a single file — `php -l`, `ruby -c`, `node --check`, `bash -n`, Python's `compile()`. The sandbox **never pulls an image**: a tool whose promise is that your code never leaves the machine must not make an unrequested network call, so a missing image skips the stage and names the `docker pull` command instead of fetching it.
 
 Because remediation output is also scanner *input*, hardened files are re-scanned and asserted on: the algorithms the codemods write must resolve in the canonical registry and must be rated quantum-safe, so a migration can prove where it landed instead of reporting its own output as `UNKNOWN`. A versioned migration knowledge base (`migration_kb.yaml`) and crypto-agility policy decide each target. Governance gates require sign-off before a patch can be applied.
 
@@ -195,7 +199,7 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-1434 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+1465 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
 

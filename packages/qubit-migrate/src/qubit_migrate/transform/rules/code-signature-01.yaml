@@ -4,10 +4,15 @@ title: "Signatures in Go, Java, JS, TS, C → ML-DSA-65 (FIPS-204)"
 matches:
   source_scanner: [code]
   # Non-Python only; py-signature-01 owns .py.
+  # Shell, PowerShell and SQL are deliberately absent. A key-exchange or signature migration is a
+  # structural change to a crypto API, and `openssl genrsa` / `ssh-keygen -t rsa` have no ML-KEM or
+  # ML-DSA equivalent to be rewritten into — the post-quantum answer for SSH is a KexAlgorithms
+  # config change, which cfg-ssh-01 makes. Claiming them sent the local model three attempts at
+  # something the tooling cannot express, and it correctly returned the file unchanged every time.
+  # Those findings stay in the plan as manual work, which is what they are.
   file_suffix:
     [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp",
-    ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart", ".sh", ".bash",
-    ".ps1", ".psm1", ".sql"]
+    ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart"]
   algorithm:
     [
       "RSA",
@@ -65,6 +70,10 @@ prompt_constraints:
   - "C: use liboqs — OQS_SIG_new(OQS_SIG_alg_ml_dsa_65), OQS_SIG_sign, OQS_SIG_verify."
   - "Keep the existing verify path alongside the new one so signatures already in circulation still validate."
   - "Do NOT shrink or truncate a signature to fit an existing field; widen the field instead."
+# The language the `example:` block below is written in. A `language: multi` rule has no
+# other way to say so, and an example shown to a file in a DIFFERENT language is worse
+# than no example at all — the local model returns the example's language verbatim.
+example_language: go
 example:
   before: |
     package main

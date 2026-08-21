@@ -36,8 +36,13 @@ from .languages import SUFFIX_TO_LANGUAGE as _SUFFIX_TO_LANGUAGE
 # ahead of the structural rewrites: it is the change that makes the PQC primitives available at all.
 # Minimum versions come from the same facts recorded in docs/design/07-ecosystem-factcheck.md §10.
 _MIN_PQC_VERSIONS: dict[str, str] = {
+    # Package name (lowercased, `_` normalised to `-`) -> first version providing PQC primitives.
+    # Each is a version where the SAME library gained them, which is what makes a floor bump the
+    # right transform. Where an ecosystem instead requires adding a NEW package, no entry belongs
+    # here — see the note under `dep-pqc-01`.
     "cryptography": "48.0.0",  # pyca/cryptography ships native ML-KEM + ML-DSA from 48
-    "bcprov-jdk18on": "1.79",  # BouncyCastle ships ML-KEM/ML-DSA/SLH-DSA from 1.79
+    "bcprov-jdk18on": "1.79",  # BouncyCastle Java ships ML-KEM/ML-DSA/SLH-DSA from 1.79
+    "bouncycastle.cryptography": "2.5.0",  # BouncyCastle .NET, same algorithms, from 2.5.0
 }
 
 _PY_PIN_RE = re.compile(r"^(?P<name>[A-Za-z0-9._-]+)\s*(?P<op>==|>=|~=)\s*(?P<ver>[0-9][^\s;#]*)")
@@ -53,35 +58,129 @@ def _version_tuple(text: str) -> tuple[int, ...]:
     return tuple(parts) or (0,)
 
 
+_MAVEN_DEP_RE = re.compile(
+    r"<artifactId>\s*(?P<name>[^<\s]+)\s*</artifactId>(?P<between>.*?)"
+    r"<version>\s*(?P<ver>[^<\s]+)\s*</version>",
+    re.DOTALL,
+)
+_NUGET_REF_RE = re.compile(
+    r'(?P<head><PackageReference\s+Include\s*=\s*"(?P<name>[^"]+)"[^/>]*?'
+    r'Version\s*=\s*")(?P<ver>[^"]+)(?P<tail>")',
+    re.IGNORECASE,
+)
+#: A pip requirement inside a quoted TOML string: `"cryptography==42.0.8"`.
+_TOML_PIN_RE = re.compile(
+    r'(?P<q>["\'])(?P<name>[A-Za-z0-9._-]+)\s*(?P<op>==|>=|~=)\s*(?P<ver>[0-9][^"\'\s;]*)(?P=q)'
+)
+
+
+def _floor_for(name: str) -> str | None:
+    """The PQC-capable floor for a package, or None if we have no verified one."""
+    return _MIN_PQC_VERSIONS.get(name.strip().lower().replace("_", "-"))
+
+
+def _below_floor(current: str, floor: str) -> bool:
+    return _version_tuple(current) < _version_tuple(floor)
+
+
+def _bump_requirements(source: str) -> tuple[str, bool]:
+    """pip requirement lines: `cryptography==42.0.8`."""
+    changed = False
+    out: list[str] = []
+    for line in source.splitlines():
+        pin = _PY_PIN_RE.match(line.strip())
+        floor = _floor_for(pin.group("name")) if pin else None
+        if pin is None or floor is None or not _below_floor(pin.group("ver"), floor):
+            out.append(line)
+            continue
+        # `==` is deliberately relaxed to `>=`: pinning exactly would re-freeze the dependency at
+        # the very moment the point is to allow the PQC-capable line.
+        indent = line[: len(line) - len(line.lstrip())]
+        out.append(
+            f"{indent}{pin.group('name')}>={floor}  # QUBIT: version providing PQC primitives"
+        )
+        changed = True
+    return "\n".join(out) + ("\n" if source.endswith("\n") else ""), changed
+
+
+def _bump_pyproject(source: str) -> tuple[str, bool]:
+    """PEP 621 dependencies, where the pin lives inside a quoted string in an array.
+
+    `_PY_PIN_RE` anchors at the start of a stripped line, so it matched neither
+    `dependencies = ["cryptography==42.0.8"]` nor the one-per-line form, whose lines begin with a
+    quote. pyproject.toml was accepted by filename and then never modified.
+    """
+    changed = False
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal changed
+        floor = _floor_for(match.group("name"))
+        if floor is None or not _below_floor(match.group("ver"), floor):
+            return match.group(0)
+        changed = True
+        q = match.group("q")
+        return f"{q}{match.group('name')}>={floor}{q}"
+
+    return _TOML_PIN_RE.sub(replace, source), changed
+
+
+def _bump_maven(source: str) -> tuple[str, bool]:
+    """Maven coordinates, where the version is its own element in the same <dependency> block.
+
+    A version given as a property (`<version>${bc.version}</version>`) is left alone: the real pin
+    is elsewhere in the file, and rewriting the reference would break the build rather than raise
+    the floor.
+    """
+    changed = False
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal changed
+        floor = _floor_for(match.group("name"))
+        current = match.group("ver")
+        if floor is None or current.startswith("${") or not _below_floor(current, floor):
+            return match.group(0)
+        changed = True
+        return match.group(0).replace(f"<version>{current}<", f"<version>{floor}<")
+
+    return _MAVEN_DEP_RE.sub(replace, source), changed
+
+
+def _bump_nuget(source: str) -> tuple[str, bool]:
+    """.NET project references: `<PackageReference Include="X" Version="Y" />`."""
+    changed = False
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal changed
+        floor = _floor_for(match.group("name"))
+        current = match.group("ver")
+        if floor is None or current.startswith("$(") or not _below_floor(current, floor):
+            return match.group(0)
+        changed = True
+        return f"{match.group('head')}{floor}{match.group('tail')}"
+
+    return _NUGET_REF_RE.sub(replace, source), changed
+
+
 def _apply_dependency_bump(source: str, filename: str) -> tuple[str, bool]:
     """Raise a crypto library's pinned version to one that provides PQC primitives.
 
     Only ever raises a floor, never lowers one — a project already ahead of the minimum is left
     exactly as it is.
-    """
-    if filename not in ("requirements.txt", "pyproject.toml", "pom.xml"):
-        return source, False
 
-    changed = False
-    out: list[str] = []
-    for line in source.splitlines(keepends=False):
-        pin = _PY_PIN_RE.match(line.strip())
-        if pin is None:
-            out.append(line)
-            continue
-        name = pin.group("name").lower().replace("_", "-")
-        minimum = _MIN_PQC_VERSIONS.get(name)
-        if minimum is None or _version_tuple(pin.group("ver")) >= _version_tuple(minimum):
-            out.append(line)
-            continue
-        # `==` is deliberately relaxed to `>=`: pinning exactly would re-freeze the
-        # dependency at the very moment the point is to allow the PQC-capable line.
-        indent = line[: len(line) - len(line.lstrip())]
-        out.append(
-            f"{indent}{pin.group('name')}>={minimum}  # QUBIT: version providing PQC primitives"
-        )
-        changed = True
-    return ("\n".join(out) + ("\n" if source.endswith("\n") else ""), changed)
+    Dispatches on the manifest's real syntax. It previously applied the pip requirement regex to
+    all three formats it accepted, so only requirements.txt ever changed; pom.xml and pyproject.toml
+    were claimed by the rule and then silently produced nothing.
+    """
+    name = filename.lower()
+    if name == "requirements.txt":
+        return _bump_requirements(source)
+    if name == "pyproject.toml":
+        return _bump_pyproject(source)
+    if name == "pom.xml":
+        return _bump_maven(source)
+    if name.endswith((".csproj", ".vbproj", ".fsproj")):
+        return _bump_nuget(source)
+    return source, False
 
 
 # ---------------------------------------------------------------------------

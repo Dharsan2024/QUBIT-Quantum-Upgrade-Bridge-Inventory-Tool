@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from .languages import LANGUAGE_TO_EXT, TS_GRAMMAR
+from .languages import LANGUAGE_TO_EXT, TS_GRAMMAR, parse_error
 from .languages import SUFFIX_TO_LANGUAGE as _SUFFIX_TO_LANGUAGE
 
 StageStatus = Literal["pass", "fail", "skipped"]
@@ -121,7 +121,18 @@ _NON_CODE_LANGUAGES = frozenset(
 _TS_LANGUAGES = TS_GRAMMAR
 
 
-def _stage_parses(patched_source: str, language: str = "python") -> StageResult:
+def _stage_parses(
+    patched_source: str,
+    language: str = "python",
+    original_source: str | None = None,
+) -> StageResult:
+    """Did this patch break the file's syntax?
+
+    `original_source` is the baseline. Without it the stage asks "is this file perfect", which is a
+    different and less useful question: a file the grammar cannot fully parse — SQL with `:name`
+    bind parameters is the case that surfaced — fails for a defect the patch did not introduce, and
+    every correct rewrite of that file is thrown away with it.
+    """
     t0 = time.monotonic()
     lang = (language or "").lower()
 
@@ -137,30 +148,30 @@ def _stage_parses(patched_source: str, language: str = "python") -> StageResult:
             time.monotonic() - t0,
         )
 
-    try:
-        from tree_sitter_language_pack import (  # type: ignore[import-untyped]
-            get_parser,
+    # One shared implementation with the LLM rewrite guard — see languages.parse_error. Both used
+    # to inspect only `root_node.children`, so a syntax error nested inside a function body passed
+    # both checks; `has_error` looks at the whole tree.
+    if lang not in TS_GRAMMAR:
+        return StageResult(
+            "skipped",
+            f"no tree-sitter grammar mapped for language {lang!r}",
+            time.monotonic() - t0,
         )
+    problem = parse_error(patched_source, lang)
+    if problem is None:
+        return StageResult("pass", "parses with no errors", time.monotonic() - t0)
 
-        ts_lang_name = _TS_LANGUAGES.get(lang)
-        if ts_lang_name is None:
-            return StageResult(
-                "skipped",
-                f"no tree-sitter grammar mapped for language {lang!r}",
-                time.monotonic() - t0,
-            )
-        parser = get_parser(ts_lang_name)
-        tree = parser.parse(patched_source.encode("utf-8", errors="replace"))
-        error_nodes = [n for n in tree.root_node.children if n.type == "ERROR"]
-        if error_nodes:
-            return StageResult(
-                "fail",
-                f"{len(error_nodes)} ERROR nodes in tree-sitter parse",
-                time.monotonic() - t0,
-            )
-        return StageResult("pass", "zero ERROR nodes", time.monotonic() - t0)
-    except Exception as exc:
-        return StageResult("fail", f"parse error: {exc}", time.monotonic() - t0)
+    baseline = parse_error(original_source, lang) if original_source is not None else None
+    if baseline is not None:
+        # The file did not parse before the patch either, so this stage cannot attribute the error
+        # to the change. Say so instead of failing a rewrite that may be perfectly correct.
+        return StageResult(
+            "skipped",
+            f"the file already {baseline} before this patch, so the parser cannot judge the "
+            f"change (patched: {problem})",
+            time.monotonic() - t0,
+        )
+    return StageResult("fail", problem, time.monotonic() - t0)
 
 
 def _scan_command(target: Path) -> list[str]:
@@ -295,6 +306,7 @@ def _stage_rescan(
             return StageResult("skipped", "qubit CLI not found in PATH", time.monotonic() - t0)
 
 
+#: Kept for the sandbox-availability tests; the per-language table above is what runs.
 _SANDBOX_IMAGE = "python:3.12-slim"
 _docker_ok: bool | None = None  # process-level cache; daemon state won't flip mid-run
 
@@ -314,16 +326,70 @@ def _docker_available() -> bool:
     return _docker_ok
 
 
+#: language -> (image, filename, argv). Each command is the language's OWN single-file syntax check,
+#: which is a stronger statement than a tree-sitter parse: it is the real parser, and it knows that
+#: version's grammar.
+#:
+#: Only languages whose toolchain can check ONE file with no project, no manifest and no
+#: network are here. Rust, Swift, Kotlin, Scala, C# and Dart all need a project or a resolved
+#: dependency graph to say anything useful about a single file, and their images are 1 GB and
+#: up; they keep the tree-sitter parse and the rescan, which is what the other stages are for.
+_COMPILE_SANDBOX: dict[str, tuple[str, str, list[str]]] = {
+    "python": (
+        "python:3.12-slim",
+        "patched.py",
+        ["python", "-c", "compile(open('/work/patched.py').read(), 'patched.py', 'exec')"],
+    ),
+    "php": ("php:8.3-cli-alpine", "patched.php", ["php", "-l", "/work/patched.php"]),
+    "ruby": ("ruby:3.3-alpine", "patched.rb", ["ruby", "-c", "/work/patched.rb"]),
+    "javascript": ("node:22-alpine", "patched.js", ["node", "--check", "/work/patched.js"]),
+    "bash": ("bash:5.2", "patched.sh", ["bash", "-n", "/work/patched.sh"]),
+}
+
+
+def _image_present(image: str) -> bool:
+    """Is this image already pulled?
+
+    QUBIT is offline by mandate, so the sandbox must never pull. `docker run` would fetch a missing
+    image silently — from a tool whose stated promise is that your code never leaves the machine.
+    """
+    try:
+        return (
+            subprocess.run(
+                ["docker", "image", "inspect", image],
+                capture_output=True,
+                timeout=15,
+            ).returncode
+            == 0
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
 def _stage_compiles(patched_source: str, language: str = "python") -> StageResult:
-    """Stage 3: byte-compile the patched file inside an isolated container (no network)."""
+    """Stage 3: run the language's own syntax check inside an isolated container (no network)."""
     t0 = time.monotonic()
-    if language != "python":
-        return StageResult("skipped", f"compile sandbox is python-only (got {language})", 0.0)
+    spec = _COMPILE_SANDBOX.get((language or "").lower())
+    if spec is None:
+        return StageResult(
+            "skipped",
+            f"no single-file compile check for {language} — it needs a project to build",
+            0.0,
+        )
     if not _docker_available():
         return StageResult("skipped", "docker unavailable", time.monotonic() - t0)
 
+    image, filename, argv = spec
+    if not _image_present(image):
+        return StageResult(
+            "skipped",
+            f"sandbox image {image} is not pulled (QUBIT never downloads one itself) — "
+            f"run: docker pull {image}",
+            time.monotonic() - t0,
+        )
+
     with tempfile.TemporaryDirectory() as tmpdir:
-        (Path(tmpdir) / "patched.py").write_text(patched_source, encoding="utf-8")
+        (Path(tmpdir) / filename).write_text(patched_source, encoding="utf-8")
         try:
             result = subprocess.run(
                 [
@@ -333,10 +399,8 @@ def _stage_compiles(patched_source: str, language: str = "python") -> StageResul
                     "--network=none",
                     "-v",
                     f"{tmpdir}:/work:ro",
-                    _SANDBOX_IMAGE,
-                    "python",
-                    "-c",
-                    "compile(open('/work/patched.py').read(), 'patched.py', 'exec')",
+                    image,
+                    *argv,
                 ],
                 capture_output=True,
                 timeout=120,
@@ -344,12 +408,11 @@ def _stage_compiles(patched_source: str, language: str = "python") -> StageResul
         except subprocess.TimeoutExpired:
             return StageResult("fail", "sandbox compile timed out", time.monotonic() - t0)
         if result.returncode == 0:
-            return StageResult("pass", "byte-compiles in sandbox", time.monotonic() - t0)
-        return StageResult(
-            "fail",
-            result.stderr.decode("utf-8", errors="replace")[:2048],
-            time.monotonic() - t0,
-        )
+            return StageResult(
+                "pass", f"passes {argv[0]} syntax check in sandbox", time.monotonic() - t0
+            )
+        detail = (result.stderr or result.stdout).decode("utf-8", errors="replace")[:2048]
+        return StageResult("fail", detail, time.monotonic() - t0)
 
 
 def _has_test_suite(repo_root: Path) -> bool:
@@ -438,6 +501,7 @@ def validate_patch(
     target_rel_path: str | None = None,
     no_docker: bool = False,
     asset_algorithm: str | None = None,
+    original_source: str | None = None,
 ) -> ValidationReport:
     """Run validation stages 1 applies, 2 parses, 3 compiles, 4 tests, 5 rescan.
 
@@ -450,7 +514,7 @@ def validate_patch(
     language = _effective_language(language, target_rel_path)
 
     stages["applies"] = _stage_applies(diff_text, repo_root)
-    stages["parses"] = _stage_parses(patched_source, language)
+    stages["parses"] = _stage_parses(patched_source, language, original_source)
     if no_docker:
         stages["compiles"] = StageResult("skipped", "no_docker configured")
         stages["tests"] = StageResult("skipped", "no_docker configured")

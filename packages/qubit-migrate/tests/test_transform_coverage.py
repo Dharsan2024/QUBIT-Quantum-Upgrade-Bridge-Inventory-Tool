@@ -790,3 +790,92 @@ def test_every_language_specific_rule_constrains_the_file_suffix() -> None:
         f"these rules name a language but match any file type: {unguarded}. They will claim assets "
         "in other languages and offer a transform that cannot work on them."
     )
+
+
+# ── Dependency version bumps, per manifest format ────────────────────────────
+#
+# `_apply_dependency_bump` gated on the filename for three formats and then applied ONE regex —
+# pip's `name==version`. Measured: requirements.txt bumped, pom.xml and pyproject.toml never
+# changed at all, because a Maven version is its own XML element and a PEP 621 pin lives inside a
+# quoted string in an array. The rule claimed three formats and delivered on one; the other two
+# answered `422 Codemod produced no change` after the click.
+#
+# Version floors are verified, not assumed:
+#   pyca/cryptography 48      — native ML-KEM + ML-DSA
+#   BouncyCastle Java 1.79    — bouncycastle.org release notes
+#   BouncyCastle .NET 2.5.0   — bouncycastle.org release notes
+
+_BUMP_CASES = [
+    (
+        "requirements.txt",
+        "cryptography==42.0.8\nPyJWT==2.8.0\n",
+        "cryptography>=48.0.0",
+    ),
+    (
+        "pyproject.toml",
+        '[project]\ndependencies = ["cryptography==42.0.8", "pyjwt>=2.8"]\n',
+        '"cryptography>=48.0.0"',
+    ),
+    (
+        "pom.xml",
+        "<project><dependencies><dependency>\n"
+        "<groupId>org.bouncycastle</groupId>\n"
+        "<artifactId>bcprov-jdk18on</artifactId>\n"
+        "<version>1.78</version>\n"
+        "</dependency></dependencies></project>\n",
+        "<version>1.79</version>",
+    ),
+    (
+        "Billing.csproj",
+        "<Project><ItemGroup>\n"
+        '  <PackageReference Include="BouncyCastle.Cryptography" Version="2.3.0" />\n'
+        '  <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />\n'
+        "</ItemGroup></Project>\n",
+        'Version="2.5.0"',
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("filename", "source", "expected"), _BUMP_CASES, ids=[c[0] for c in _BUMP_CASES]
+)
+def test_dependency_bump_understands_each_manifest_format(
+    filename: str, source: str, expected: str
+) -> None:
+    from qubit_migrate.transform.codemods import _apply_dependency_bump
+
+    patched, changed = _apply_dependency_bump(source, filename)
+    assert changed, f"{filename} was accepted but produced no change"
+    assert expected in patched, f"{filename}: expected {expected!r} in\n{patched}"
+
+
+@pytest.mark.parametrize(
+    ("filename", "source"),
+    [
+        # Already at or above the floor — the rule only ever raises one.
+        ("requirements.txt", "cryptography==49.0.0\n"),
+        ("pom.xml", "<artifactId>bcprov-jdk18on</artifactId><version>1.80</version>\n"),
+        (
+            "Billing.csproj",
+            '<PackageReference Include="BouncyCastle.Cryptography" Version="2.6.1" />\n',
+        ),
+        # A package with no verified floor must never be touched.
+        ("requirements.txt", "PyJWT==2.8.0\n"),
+        # A version held in a property or MSBuild variable: the real pin is elsewhere in the file,
+        # and rewriting the reference would break the build rather than raise the floor.
+        ("pom.xml", "<artifactId>bcprov-jdk18on</artifactId><version>${bc.version}</version>\n"),
+        (
+            "Billing.csproj",
+            '<PackageReference Include="BouncyCastle.Cryptography" Version="$(BcVer)" />\n',
+        ),
+        # A manifest format the codemod does not understand must decline, not guess.
+        ("Cargo.toml", 'md-5 = "0.10"\n'),
+        ("package.json", '{"dependencies": {"jsonwebtoken": "9.0.0"}}\n'),
+    ],
+)
+def test_dependency_bump_leaves_everything_else_alone(filename: str, source: str) -> None:
+    from qubit_migrate.transform.codemods import _apply_dependency_bump
+
+    patched, changed = _apply_dependency_bump(source, filename)
+    assert not changed, f"{filename} was modified when it should not have been:\n{patched}"
+    assert patched == source

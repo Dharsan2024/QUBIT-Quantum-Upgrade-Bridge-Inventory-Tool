@@ -39,6 +39,10 @@ prompt_constraints:
   - "Generate a fresh random 12-byte nonce per encryption and store it with the ciphertext."
   - "Store and verify the authentication tag; discarding it silently removes the integrity guarantee."
   - "Keep the old decrypt path so already-encrypted data can still be read during re-encryption."
+# The language the `example:` block below is written in. A `language: multi` rule has no
+# other way to say so, and an example shown to a file in a DIFFERENT language is worse
+# than no example at all — the local model returns the example's language verbatim.
+example_language: go
 example:
   before: |
     package main

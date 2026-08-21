@@ -7,10 +7,15 @@ matches:
   # constraints for pyca. Without this rule, key exchange — the single highest-HNDL-risk finding
   # class there is, because recorded traffic becomes readable the moment the group breaks — had NO
   # migration path in any language other than Python.
+  # Shell, PowerShell and SQL are deliberately absent. A key-exchange or signature migration is a
+  # structural change to a crypto API, and `openssl genrsa` / `ssh-keygen -t rsa` have no ML-KEM or
+  # ML-DSA equivalent to be rewritten into — the post-quantum answer for SSH is a KexAlgorithms
+  # config change, which cfg-ssh-01 makes. Claiming them sent the local model three attempts at
+  # something the tooling cannot express, and it correctly returned the file unchanged every time.
+  # Those findings stay in the plan as manual work, which is what they are.
   file_suffix:
     [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp",
-    ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart", ".sh", ".bash",
-    ".ps1", ".psm1", ".sql"]
+    ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart"]
   # Bare family names matter as much as sized ones: a keygen call that does not spell out a key size
   # normalizes to bare `RSA` / `EC` / `DH`, and those were the assets slipping through.
   algorithm:
@@ -61,6 +66,10 @@ prompt_constraints:
   - "Never send or store the shared secret itself; only the encapsulation ciphertext and the AEAD ciphertext."
   - "Generate a fresh 12-byte nonce per encryption and store it alongside the ciphertext."
   - "Keep the old decrypt path so already-encrypted data can still be read until it is re-encrypted."
+# The language the `example:` block below is written in. A `language: multi` rule has no
+# other way to say so, and an example shown to a file in a DIFFERENT language is worse
+# than no example at all — the local model returns the example's language verbatim.
+example_language: go
 example:
   before: |
     package main

@@ -768,6 +768,104 @@ Each was found by running the pipeline and measuring, not by reading it.
    vanish from the file made a correct, complete weak-hash patch fail. The check is now scoped to
    the algorithm of the asset being migrated.
 
+#### 6.2d The LLM tier returned the wrong language
+
+Nine of the fourteen rules have no deterministic codemod — cipher swaps, key exchange, signatures,
+TLS versions — so this tier owns most of a real queue. Every test it had used a **mocked** HTTP
+response (the `llm` pytest marker was declared in `pyproject.toml` and used by nothing), so the
+following was only found by asking the local model, `qwen2.5-coder:7b-instruct-q4_K_M`:
+
+| file | asked for | returned |
+|---|---|---|
+| `seal.rb` (Ruby) | 3DES → AES-GCM | **Go** |
+| `Vault.cs` (C#) | 3DES → AES-GCM | the *same* **Go** |
+| `Client.kt` (Kotlin) | TLSv1 → TLS 1.2+ | **Python** |
+| `legacy.php` (PHP) | 3DES → AES-GCM | PHP ✓ |
+
+1 of 4. The model was echoing the rule's worked example, and three faults compounded to make that
+the likeliest output:
+
+1. **A fifth private copy of the suffix map.** `llm.py` kept its own, listing only the original
+   languages, so `_prompt_language` returned `None` for `.rb` / `.cs` / `.kt` and fell back to
+   `rule.language` — which for a cross-language rule is the literal string `multi`. The prompt's
+   code fences were labelled ```` ```multi ````: exactly the bug `_prompt_language`'s own docstring
+   says was fixed, still live for every language added since.
+2. **The primary example was attached to files it did not demonstrate.** With the language unknown,
+   `_worked_examples` could not find a language-specific example and fell through to the rule's
+   primary one — Go, for `code-weakcipher-01`. A 7B model handed a Go demonstration and no language
+   label returns Go. Rules now declare `example_language:`, and a file whose language has no example
+   gets **none**: an example in the wrong language is worse than no example at all.
+3. **The rewrite guard was given the rule's language, not the file's.** `check_rewrite(..., "multi")`
+   matched no grammar, so its one language-aware check never ran and all three repair attempts were
+   spent re-prompting with the same misleading context.
+
+After the fix, all four return their own language, and the content is right: Ruby gets
+`OpenSSL::Cipher.new('aes-256-gcm')` with a fresh nonce and auth tag; Kotlin gets
+`SSLContext.getInstance("TLS")`.
+
+**A sixth copy, found while fixing it.** Both the validator's parse stage and the new rewrite guard
+inspected only `root_node.children` for ERROR nodes. Go source handed to the Ruby grammar produces
+**zero** top-level ERROR children and `has_error == True` — so the shallow check missed exactly the
+failure it was there to catch. Both now call one shared `languages.parse_error`.
+
+That change then over-corrected, and the over-correction is worth recording because it was caught by
+measurement rather than review: `V3__hash_passwords.sql` contains `encrypt(ssn, :key, 'des')`, and
+the SQL grammar cannot parse a `:name` bind parameter — **before any patch**. All four SQL tasks
+were rejected for a defect the patch had not caused, and the LLM path burned three repair attempts
+on it. The stage now compares against the original: a patch is only blamed for an error it actually
+introduced, and a file that already had one reports `skipped` with the reason.
+
+#### 6.2e What a whole plan actually does
+
+All 107 rule-matched tasks of the polyglot plan, run through `generator: auto` against live Ollama
+and Docker. This is the number that matters, and it is the one nothing had ever measured.
+
+The failures that remained were not all bugs, and two of them were:
+
+* **Key-exchange and signature rules claimed shell, PowerShell and SQL.** Extending every `code-*`
+  rule to all nineteen languages was right for hashes, MACs, ciphers and TLS versions — those are
+  token-level edits a shell script can express, and the model does them successfully. It was wrong
+  for key exchange and signatures: `provision.sh` runs `openssl genrsa -out server.key 1024` and
+  `ssh-keygen -t rsa -b 1024`, and there is no ML-KEM equivalent to `openssl genrsa`, no ML-DSA host
+  key for `ssh-keygen`. The post-quantum answer for SSH is a `KexAlgorithms` config change, which
+  `cfg-ssh-01` already makes. The rule matched anyway and spent three model attempts per finding on
+  something the tooling cannot express. Those findings are now `manual`, which is what they are.
+* **`bump_crypto_dependency` only ever worked for `requirements.txt`.** It gated on the filename for
+  three formats and then applied one regex — pip's `name==version`. A Maven `<version>1.78</version>`
+  and a PEP 621 `dependencies = ["cryptography==42.0.8"]` never matched, so `pom.xml` and
+  `pyproject.toml` were claimed by the rule and silently produced nothing. Each format now has a
+  parser for how it really writes a version, `.csproj` is added, and a pin already at or above the
+  floor says so instead of failing as "produced no change".
+
+The rest are the LLM tier's real limit, stated rather than dressed up: a 7B model asked to replace
+RSA key transport with an ML-KEM KEM-DEM across a whole file frequently leaves one of several RSA
+usages behind, and the rescan stage correctly rejects the patch. That is the tier working — the
+patch is refused, not applied — and it is why every LLM patch requires human review.
+
+#### 6.2f Compile validation beyond Python
+
+`_stage_compiles` reported `skipped: compile sandbox is python-only` for every other language, so
+the strongest check available — the language's **own** parser, which knows that version's grammar —
+never ran on a patch in any of the other eighteen. It now runs for the languages whose toolchain can
+check a single file with no project, no manifest and no network:
+
+| language | image | check |
+|---|---|---|
+| Python | `python:3.12-slim` | `compile()` |
+| PHP | `php:8.3-cli-alpine` | `php -l` |
+| Ruby | `ruby:3.3-alpine` | `ruby -c` |
+| JavaScript | `node:22-alpine` | `node --check` |
+| Bash | `bash:5.2` | `bash -n` |
+
+Rust, Swift, Kotlin, Scala, C# and Dart need a resolved dependency graph before their compiler can
+say anything about one file, and their images are a gigabyte and up; they keep the tree-sitter parse
+and the rescan.
+
+**The stage never pulls an image.** `docker run` fetches a missing one silently, and a tool whose
+stated promise is that your code never leaves the machine must not make an unrequested network call.
+An image is used only if it is already present; otherwise the stage skips and names the exact
+`docker pull` command.
+
 ### 6.3 LLM patch generation (with repair loop)
 
 ```

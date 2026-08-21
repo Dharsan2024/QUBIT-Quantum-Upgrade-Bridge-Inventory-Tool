@@ -157,10 +157,17 @@ def test_rsa_kex_resolves_per_language() -> None:
         "app/billing.rb",
         "src/seal.rs",
         "src/Wallet.swift",
-        "bin/provision.sh",
         "src/Vault.cs",
     ):
         assert rsa_at(path) == "code-kex-01", path
+
+    # Shell, PowerShell and SQL deliberately match NO key-exchange rule. `openssl genrsa` and
+    # `ssh-keygen -t rsa` have no ML-KEM equivalent to be rewritten into — the post-quantum answer
+    # for SSH is a KexAlgorithms config change, which cfg-ssh-01 makes against sshd_config. Claiming
+    # them spent three local-model attempts per finding on something the tooling cannot express;
+    # measured on the polyglot corpus, the model correctly returned the file unchanged every time.
+    for path in ("bin/provision.sh", "bin/Provision.ps1", "migrations/V3__keys.sql"):
+        assert rsa_at(path) is None, f"{path} should be manual work, not an LLM rewrite"
 
 
 def _seeded_orchestrator(tmp_path) -> tuple[MigrationOrchestrator, object]:

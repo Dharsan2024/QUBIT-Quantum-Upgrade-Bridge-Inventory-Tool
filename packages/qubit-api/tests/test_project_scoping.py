@@ -503,3 +503,54 @@ def test_a_plan_built_before_the_split_still_reports_it(
     )
     assert row_out["plan"]["with_codemod"] == expected["with_codemod"]
     assert row_out["plan"]["manual"] == expected["manual"]
+
+
+def test_advice_endpoint_explains_a_finding_that_cannot_be_patched(
+    client: TestClient, two_projects: dict[str, Any], tmp_path: Path
+) -> None:
+    """The queue's answer for an unpatchable finding used to be "manual change" and nothing else.
+
+    This is the other half: what the code does, why it is a problem, what to change in THIS file,
+    what it breaks, and how to prove it is gone — written by the local model from the real source,
+    with the target taken from QUBIT's own knowledge base rather than the model's recollection.
+
+    Skips when Ollama is not running; it is a real generation, not a mock, because the defect this
+    guards against (recommending RSA-2048 to replace RSA-1024) only appears when a model answers.
+    """
+    import urllib.error
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=3) as probe:
+            ollama_up = probe.status == 200
+    except (urllib.error.URLError, TimeoutError, OSError):
+        ollama_up = False
+    if not ollama_up:
+        pytest.skip("no Ollama server on 127.0.0.1:11434")
+
+    plans = client.get(
+        "/api/v1/migrate/plans", params={"project_id": two_projects["a_project"]}
+    ).json()
+    queue = client.get(f"/api/v1/migrate/plans/{plans[0]['id']}/queue").json()
+    task = queue[0]
+    assert task["advice_text"] is None, "advice should not be generated until it is asked for"
+
+    response = client.post(f"/api/v1/migrate/tasks/{task['id']}/advise", json={"force": False})
+    assert response.status_code == 200, response.text
+    advised = response.json()
+
+    assert advised["advice_text"], "no advice was produced"
+    assert advised["advice_model"], "the model that wrote it must be recorded"
+    for heading in ("WHAT TO CHANGE", "HOW TO VERIFY"):
+        assert heading.lower() in advised["advice_text"].lower(), advised["advice_text"]
+
+    # It must never recommend something the registry itself rates quantum-vulnerable.
+    from qubit_migrate.transform.advise import recommended_vulnerable_algorithms
+
+    assert recommended_vulnerable_algorithms(advised["advice_text"], task["algorithm"]) == [], (
+        advised["advice_text"]
+    )
+
+    # Cached: a second call without `force` returns the same text rather than paying for the model.
+    again = client.post(f"/api/v1/migrate/tasks/{task['id']}/advise", json={"force": False}).json()
+    assert again["advice_text"] == advised["advice_text"]

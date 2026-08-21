@@ -4,7 +4,7 @@
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
   <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-1465%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-1473%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
@@ -21,7 +21,7 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 1465 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
+> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 1473 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
 
 ---
 
@@ -69,6 +69,8 @@ Weak-hash remediation is deterministic in **all 19 scanned languages** — Ruby,
 The LLM tier is exercised against a **real local model**, not a mocked HTTP response. That distinction is not academic: every test it had was mocked, and the first time the local `qwen2.5-coder:7b` was actually asked to migrate 3DES in a **Ruby** file it returned **Go** — it was echoing the rule's worked example, because the prompt labelled the file's language as `multi` and attached a Go demonstration to it. A rule now declares which language its example is written in, a file whose language has no example gets none, and the rewrite is rejected and re-prompted if it does not parse as the file's own language. All four languages tested now come back correct — Ruby gets `OpenSSL::Cipher.new('aes-256-gcm')` with a fresh nonce and auth tag, Kotlin gets `SSLContext.getInstance("TLS")`.
 
 The division of labour between deterministic codemods and the **local, sandboxed LLM** is explicit rather than incidental. Where the correct output is a *constant* — `ssl_ecdh_curve X25519MLKEM768`, `KexAlgorithms sntrup761x25519-sha512@openssh.com`, a dependency version floor — the codemod is marked `codemod_authoritative` and an LLM never replaces it, even when one is explicitly requested: a 7B model asked to harden an nginx.conf produced a config that *looked* modern (TLS 1.2+1.3, AEAD suites) while silently omitting the hybrid group, which is the one line that actually makes the deployment quantum-safe. The LLM is used where the transform needs judgement about surrounding code (key lengths, nonce handling, call-site changes), behind a repair loop that feeds rejections back for up to 3 attempts and a preservation guard that refuses a rewrite which drops unrelated code or fails to parse.
+
+For the findings QUBIT **cannot** patch — a structural protocol change, a dialect a token swap cannot express — the queue no longer just says "manual change". It asks the local model to read that file and explain the change under five headings: what the code does, why it is a problem, what to change here, what it breaks, and how to verify. The advice is generated per finding, not templated — two RSA findings in different files get different answers — but the *facts* come from QUBIT: the target algorithm and parameter set are taken from the migration knowledge base, and the finished advice is resolved against the algorithm registry so it can never recommend something the scanner itself rates quantum-vulnerable. That guard exists because the first thing the model suggested, for a 1024-bit RSA key, was RSA-2048 and ECDSA-P256 — both Shor-breakable.
 
 Patches are validated in a Docker sandbox with **no network**, using each language's own parser where one can check a single file — `php -l`, `ruby -c`, `node --check`, `bash -n`, Python's `compile()`. The sandbox **never pulls an image**: a tool whose promise is that your code never leaves the machine must not make an unrequested network call, so a missing image skips the stage and names the `docker pull` command instead of fetching it.
 
@@ -199,7 +201,7 @@ September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-1465 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+1473 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
 
 **Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
 

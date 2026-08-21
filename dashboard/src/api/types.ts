@@ -216,6 +216,9 @@ export interface MigrationTask {
   effort_hours_low: number | null;
   effort_hours_high: number | null;
   effort_drivers: string[];
+  /** Model-written guidance for a finding that could not be patched. Null until asked for. */
+  advice_text: string | null;
+  advice_model: string | null;
 }
 
 export interface MigrationPatch {

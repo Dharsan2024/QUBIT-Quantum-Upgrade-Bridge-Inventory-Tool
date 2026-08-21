@@ -319,6 +319,15 @@ export async function generatePatch(
   return send<MigrationPatch>(`/migrate/tasks/${taskId}/generate`, "POST", { generator });
 }
 
+/** Ask the local model how to migrate this finding by hand.
+ *
+ *  For the tasks QUBIT cannot patch — a structural protocol change, a language with no codemod, a
+ *  SQL dialect the token swap cannot express — the queue otherwise says "manual change" and stops.
+ *  Needs Ollama; the result is cached on the task, and `force` regenerates it. */
+export async function adviseTask(taskId: string, force = false): Promise<MigrationTask> {
+  return send<MigrationTask>(`/migrate/tasks/${taskId}/advise`, "POST", { force });
+}
+
 export async function fetchTaskPatches(taskId: string): Promise<MigrationPatch[]> {
   return send<MigrationPatch[]>(`/migrate/tasks/${taskId}/patches`);
 }

@@ -18,6 +18,10 @@ class MigrateConfig(BaseSettings):
     #: model exceeded it on the development machine for a two-line file, so it is settable
     #: rather than hardcoded.
     llm_timeout: float = 180.0
+    #: Run the rule's rescan expectation between LLM attempts, so a rewrite that leaves the
+    #: finding behind is fed back for correction instead of being rejected at the end. Costs
+    #: one scanner subprocess per attempt.
+    llm_verify_rescan: bool = True
     max_repair_rounds: int = 2
     min_confidence: float = 0.5
     # validation sandbox

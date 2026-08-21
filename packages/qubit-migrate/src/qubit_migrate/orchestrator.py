@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from datetime import UTC
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 from uuid import UUID
@@ -38,6 +39,7 @@ from .transform import (
     run_codemod,
     validate_patch,
 )
+from .transform.advise import generate_migration_advice
 from .transform.languages import language_for_suffix
 from .transform.llm import OllamaError, generate_llm_source
 
@@ -102,6 +104,96 @@ class MigrationOrchestrator:
             "library_pinned": asset.library is not None and bool(asset.library.version),
             "cross_service": asset.usage_context.value in ("tls", "kex"),
         }
+
+    def advise_task(self, task_id: UUID, *, force: bool = False) -> MigrationTask:
+        """Generate migration advice for one task, and store it on the task.
+
+        This is what a task with no patch is left with, so it has to be worth reading: the model is
+        given the real file, the real finding and — when a patch was attempted — the real reason it
+        was rejected, and asked to explain the change for THIS code. Nothing is templated; two
+        findings of the same algorithm in different files produce different advice because the code
+        around them differs.
+
+        Cached on the task. `force=True` regenerates.
+        """
+        task = self.session.get(MigrationTask, task_id)
+        if task is None:
+            raise ValueError(f"Task {task_id} not found")
+        if task.advice_text and not force:
+            return task
+
+        row = self.session.get(AssetRow, task.asset_id)
+        if row is None:
+            raise ValueError("the asset this task was built from no longer exists")
+        asset = row_to_asset(row)
+
+        path = asset.location.file_path if asset.location else None
+        source = ""
+        if path:
+            candidate = Path(path)
+            if candidate.is_file():
+                source = candidate.read_text(encoding="utf-8", errors="replace")
+        if not source:
+            raise ValueError(
+                f"cannot read {path or 'the file'} — advice is grounded in the real source, so "
+                "there is nothing to reason about without it"
+            )
+
+        rule = match_rule(asset, self._rules)
+        try:
+            advice = generate_migration_advice(
+                source,
+                asset,
+                rule,
+                model=self.config.model,
+                timeout=self.config.llm_timeout,
+                # The rejection reason, when there is one, is the most useful single fact: it says
+                # what the automated attempt could not do, which is exactly what the human has to.
+                failure_reason=task.last_error,
+            )
+        except OllamaError as exc:
+            raise ValueError(f"could not generate advice: {exc}") from exc
+
+        task.advice_text = advice
+        task.advice_model = self.config.model
+        task.advice_at = datetime.now(UTC)
+        self.session.add(task)
+        self.session.commit()
+        self.session.refresh(task)
+        return task
+
+    def _rescan_verifier(
+        self, rule: Any, asset: CryptoAsset, rel_path: str
+    ) -> Callable[[str], str | None] | None:
+        """A closure the repair loop can call to ask "is the finding gone?".
+
+        Returns None when the rule declares no `rescan_expect`, so nothing is verified that the rule
+        did not ask for.
+
+        This runs the SAME stage the validator runs, rather than a second approximation of it — a
+        check that exists twice is a check that will disagree with itself. It costs one scanner
+        subprocess per attempt, against a model call of several seconds, and it converts a rejected
+        patch into a correctable one.
+        """
+        if not getattr(rule, "rescan_expect", None) or not self.config.llm_verify_rescan:
+            return None
+
+        from .transform.languages import language_for_suffix
+        from .transform.validate import _stage_rescan
+
+        language = language_for_suffix(rel_path) or rule.language
+
+        def verify(candidate: str) -> str | None:
+            result = _stage_rescan(candidate, rule, language, asset.algorithm)
+            if result.status != "fail":
+                return None
+            return (
+                f"{result.detail}. Your rewrite still leaves {asset.algorithm} in the file — check "
+                "for an import, use-statement or include that you no longer call, and for another "
+                "call site further down."
+            )
+
+        return verify
 
     def build_plan(
         self,
@@ -366,6 +458,7 @@ class MigrationOrchestrator:
                     model=self.config.model,
                     fallback_model=self.config.fallback_model,
                     timeout=self.config.llm_timeout,
+                    verify=self._rescan_verifier(rule, asset, diff_path),
                 )
                 model_name = self.config.model
             except (OSError, OllamaError) as e:

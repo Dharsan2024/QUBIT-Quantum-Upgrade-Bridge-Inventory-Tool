@@ -86,6 +86,10 @@ class TaskOut(BaseModel):
     effort_hours_low: float | None = None
     effort_hours_high: float | None = None
     effort_drivers: list[str] = Field(default_factory=list)
+    #: Migration advice, when it has been generated. Present on the task so the queue can show
+    #: which entries already have guidance without a request per row.
+    advice_text: str | None = None
+    advice_model: str | None = None
 
 
 class GenerateRequest(BaseModel):
@@ -199,6 +203,8 @@ def _task_out(task: MigrationTask, row: AssetRow | None) -> TaskOut:
         effort_hours_low=effort.get("hours_low"),
         effort_hours_high=effort.get("hours_high"),
         effort_drivers=[str(d) for d in drivers],
+        advice_text=task.advice_text,
+        advice_model=task.advice_model,
     )
 
 
@@ -298,6 +304,33 @@ def generate_patch(
     except (ValueError, NotImplementedError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return _patch_out(patch)
+
+
+class AdviseRequest(BaseModel):
+    force: bool = False
+
+
+@router.post("/migrate/tasks/{task_id}/advise", response_model=TaskOut)
+def advise_task(
+    task_id: UUID,
+    payload: AdviseRequest,
+    session: Annotated[Session, Depends(get_session)],
+) -> TaskOut:
+    """Ask the local model how to migrate this finding by hand.
+
+    For the tasks QUBIT cannot patch — a structural protocol change, a language with no codemod, a
+    SQL dialect the token swap cannot express — the queue otherwise says "manual change" and stops.
+    This is the other half: what the code does, why it is a problem, what to change in THIS file,
+    what it breaks, and how to prove it is gone.
+
+    Needs Ollama. Cached on the task; `force` regenerates.
+    """
+    orch = MigrationOrchestrator(session)
+    try:
+        task = orch.advise_task(task_id, force=payload.force)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return _task_out(task, session.get(AssetRow, task.asset_id))
 
 
 @router.get("/migrate/tasks/{task_id}/patches", response_model=list[PatchOut])

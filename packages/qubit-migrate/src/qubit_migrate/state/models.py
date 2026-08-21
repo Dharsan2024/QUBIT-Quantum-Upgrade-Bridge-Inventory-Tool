@@ -99,6 +99,12 @@ class MigrationTask(Base):
     rank: Mapped[int] = mapped_column(default=0)
     attempts: Mapped[int] = mapped_column(default=0)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Migration advice for a finding no patch could be produced for. A queue entry that says
+    # "manual change" and nothing else is a dead end: it names an algorithm and a line and leaves
+    # the reader to work out what the code does, what it should become, and what breaks on the way.
+    advice_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    advice_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    advice_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     unit: Mapped[MigrationUnit] = relationship(back_populates="tasks")
     plan: Mapped[MigrationPlan] = relationship(back_populates="tasks")

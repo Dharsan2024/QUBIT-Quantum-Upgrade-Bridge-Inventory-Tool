@@ -23,8 +23,10 @@ import {
   FileCode2,
   Clock3,
   Layers,
+  Lightbulb,
 } from 'lucide-react';
 import {
+  adviseTask,
   createPlan,
   fetchPlanGraph,
   fetchPlanQueue,
@@ -78,6 +80,13 @@ function TaskRow({ task }: { task: MigrationTask }) {
       qc.invalidateQueries({ queryKey: ['migrate-queue'] });
       setOpen(true);
     },
+  });
+
+  // Guidance for a finding no patch can be produced for. The queue's honest answer for those is
+  // "manual change", which names an algorithm and a line and stops — this is the other half.
+  const advise = useMutation({
+    mutationFn: (force: boolean) => adviseTask(task.id, force),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['migrate-queue'] }),
   });
 
   const review = useMutation({
@@ -279,6 +288,56 @@ function TaskRow({ task }: { task: MigrationTask }) {
                   : 'No migration rule matches this asset, so no patch can be generated. Change it by hand, then rescan to confirm it is gone.'}
               </div>
             )}
+
+            {/* Migration guidance. Offered on every task, but it is the answer for the ones that
+                cannot be patched: what this code does, why it is a problem, what to change in THIS
+                file, what it breaks, and how to prove it is gone. Written by the local model from
+                the real source — two findings of the same algorithm in different files get
+                different advice. */}
+            <div className="mt-3 flex flex-col gap-2 border-t border-[color:var(--edge)] pt-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="label-caps flex items-center gap-1.5 text-[color:var(--color-accent-2)]">
+                  <Lightbulb className="h-3.5 w-3.5" />
+                  How to migrate this
+                </span>
+                <button
+                  onClick={() => advise.mutate(Boolean(task.advice_text))}
+                  disabled={advise.isPending}
+                  className="hud-btn hud-btn-ghost px-3 py-1.5"
+                  data-testid="advise-task"
+                  title="Asks the local Ollama model to read this file and explain the change. Nothing leaves the machine."
+                >
+                  {advise.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Lightbulb className="h-3.5 w-3.5" />
+                  )}
+                  {task.advice_text ? 'Regenerate' : 'Explain'}
+                </button>
+                {task.advice_model && (
+                  <span className="metric-label">written by {task.advice_model}</span>
+                )}
+              </div>
+
+              {advise.isError && (
+                <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  {advise.error instanceof Error ? advise.error.message : 'could not generate advice'}
+                </div>
+              )}
+
+              {task.advice_text ? (
+                <div className="whitespace-pre-wrap rounded-[3px] border border-[color:var(--edge)] bg-black/30 p-3 text-xs leading-relaxed text-[color:var(--color-ink-dim)]">
+                  {task.advice_text}
+                </div>
+              ) : (
+                !advise.isPending && (
+                  <p className="text-xs text-[color:var(--color-ink-faint)]">
+                    Reads this file with the local model and explains what to change, what it
+                    breaks, and how to verify it. Requires Ollama.
+                  </p>
+                )
+              )}
+            </div>
             {latest && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center gap-3 text-xs">

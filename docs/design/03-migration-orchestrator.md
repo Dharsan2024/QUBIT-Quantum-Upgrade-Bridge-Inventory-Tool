@@ -866,6 +866,89 @@ stated promise is that your code never leaves the machine must not make an unreq
 An image is used only if it is already present; otherwise the stage skips and names the exact
 `docker pull` command.
 
+#### 6.2g The repair loop was never told the one thing that mattered
+
+The remaining LLM failures were not a model-capability limit. Printing the real prompt beside the
+real output for a Rust file with two RSA call sites showed the model migrating correctly —
+`Rsa::generate(1024)` became an ML-KEM keypair — and leaving behind:
+
+```rust
+use openssl::rsa::Rsa;
+use rsa::RsaPrivateKey;
+```
+
+Nothing in the rewritten file used either. The scanner reads an import as a finding, so the rescan
+reported `Expected 'RSA' gone, but still found: ['RSA-1024']` and a correct migration was thrown
+away because of a dead import.
+
+Two causes:
+
+1. **The prompt asked for it.** *"Preserve all unrelated code, **imports**, comments, and formatting
+   exactly."* An import that existed only to serve the call you just migrated is not unrelated code.
+   The instruction now says to remove any import the rewrite no longer references, and says why: an
+   import for the migrated algorithm leaves that algorithm in the file.
+
+2. **The repair loop could not learn it.** `generate_llm_source` retried on the cheap local checks —
+   empty, truncated, unparseable, wrong language — but *"is the finding gone"* was asked only by the
+   validator, **after** generation had returned. The model was never told the single thing it got
+   wrong, and its three attempts were spent on questions nobody had asked.
+
+The rescan now runs *between* attempts, as an injected verifier. It is injected rather than
+imported because doc 03 §2 forbids qubit-migrate from importing scanner internals: the orchestrator
+closes over the same `_stage_rescan` the validator calls, so the check the repair loop uses and the
+check that gates the patch are the same code rather than two approximations of it. One scanner
+subprocess per attempt, against a model call of several seconds.
+
+Measured on the polyglot plan, `generator: auto` with Ollama and Docker live: **74 of 105 accepted
+before, 71 of the first 73 after**, with every remaining failure being one of the two cases
+deliberately excluded from the codemods (MySQL's `MD5()`, whose replacement changes the call's
+arity, and a digest selected through a variable).
+
+#### 6.2h Advice for the findings that cannot be patched
+
+A queue entry reading *"manual change"* names an algorithm and a line number and stops. For the
+findings QUBIT cannot patch — a structural protocol change, a language with no codemod, a dialect
+the token swap cannot express — that is where the work actually stops too.
+
+`POST /migrate/tasks/{id}/advise` asks the local model for the other half, under five headings: what
+this code does, why it is a problem, what to change **in this file**, what it breaks, and how to
+verify. The result is cached on the task.
+
+**It is generated, not templated.** There is no per-algorithm paragraph and no text keyed off the
+rule id. The prompt carries the real source around the finding, the real file and line, the real
+language, and — when a patch was attempted — the real reason it was rejected, which is the most
+useful single fact available because it says what the automated attempt could not do. Two RSA
+findings in different files produce different advice; `test_advice.py::
+test_advice_is_specific_to_the_file_not_the_algorithm` asserts exactly that.
+
+**What the model is not trusted with is fact.** The target algorithm, parameter set, hybrid group,
+data-compatibility class and library floor come from the rule pack, and when no rule matches, from
+`params/migration_kb.yaml` — the project's existing single source of truth for
+vulnerable-family + usage-context → PQC target, which this path was not consulting. That omission
+was not theoretical. Asked about `openssl genrsa -out server.key 1024` in a shell script, the model
+answered:
+
+> "Replace the RSA-1024 key generation with **RSA-2048 or RSA-3072**. Update the encryption and
+> signing operations to use NIST-recommended algorithms like AES-256 and **ECDSA with a 256-bit
+> curve**."
+
+Every one of those is Shor-breakable. It is the correct answer to *"this key is too short"* and the
+wrong answer to *"this key is quantum-vulnerable"*, and a post-quantum migration tool that prints it
+is worse than one that prints nothing.
+
+So the advice is **checked against the algorithm registry** before it is stored: every algorithm
+named in the WHAT TO CHANGE section is resolved through `qubit_core.algorithms`, and if any is one
+the registry rates quantum-vulnerable, the answer is rejected and re-asked with that named. The
+check uses the same registry the scanner uses to decide a finding is vulnerable in the first place,
+so advice cannot contradict the finding that produced it.
+
+Two spellings of the *current* algorithm are excluded — its exact name and its bare family —
+because "Replace RSA-1024…" and "the RSA key" describe what is there now. A different member of the
+same family is **not** excluded: RSA-2048 in place of RSA-1024 is precisely the failure above.
+
+With the knowledge base wired in, the same question now answers *"Replace RSA-1024 key generation
+with ML-KEM-768"* — QUBIT's target, applied to the user's code by the model.
+
 ### 6.3 LLM patch generation (with repair loop)
 
 ```

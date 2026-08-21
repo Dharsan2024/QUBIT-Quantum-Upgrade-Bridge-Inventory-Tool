@@ -15,6 +15,7 @@ import re
 import socket
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -44,6 +45,13 @@ def _ollama_generate(
             "model": model,
             "prompt": prompt,
             "stream": False,
+            # Reasoning models spend the output budget on reasoning QUBIT then discards, and the
+            # answer never arrives. Measured on qwen3:8b: with thinking on, one request produced
+            # 2 604 characters of reasoning and 35 of answer in 14.8 s; with it off, the same
+            # request answered in 2.9 s. On a real file the reasoning exhausted `num_predict`
+            # entirely and Ollama returned an empty response, which surfaced as a failed task.
+            # Ollama ignores this field for models that do not support it.
+            "think": False,
             "options": {"temperature": 0.0, "num_predict": 4096},
         }
     ).encode("utf-8")
@@ -141,8 +149,16 @@ def _build_prompt(
         "decide from the surrounding code (does it store or verify a credential, or merely digest "
         "data?) and prefer the general-purpose digest path unless the code clearly handles "
         "credentials.\n"
-        "Do NOT add an import for a library you do not actually call in the rewritten file.\n\n"
-        "Preserve all unrelated code, imports, comments, and formatting exactly.\n\n"
+        "Do NOT add an import for a library you do not actually call in the rewritten file.\n"
+        # The mirror of the line above, and the single most expensive omission measured: a Rust
+        # rewrite migrated `Rsa::generate(1024)` to ML-KEM correctly and then kept
+        # `use rsa::RsaPrivateKey;`, because the next line told it to preserve imports. The
+        # scanner reads an import as a finding, so the rescan reported the algorithm still
+        # present and a correct patch was thrown away.
+        "REMOVE any import, use-statement or include that your rewritten file no longer "
+        "references. An import for the algorithm you just migrated leaves that algorithm present "
+        "in the file, which means the migration did not happen.\n\n"
+        "Preserve all unrelated code, comments, and formatting exactly.\n\n"
         f"{_worked_examples(rule, language)}"
         f"{_repair_feedback(feedback)}"
         f"```{language}\n{source}\n```\n"
@@ -347,6 +363,7 @@ def generate_llm_source(
     max_attempts: int = _MAX_ATTEMPTS,
     fallback_model: str | None = None,
     timeout: float = 180.0,
+    verify: Callable[[str], str | None] | None = None,
 ) -> str:
     """Return the LLM-rewritten file content, or raise :class:`OllamaError`.
 
@@ -389,6 +406,11 @@ def generate_llm_source(
         # The FILE's language, not the rule's: a cross-language rule says "multi", which
         # matches no grammar and skipped every language-aware check in the guard.
         reason = check_rewrite(source, new_source, _prompt_language(rule, asset))
+        if reason is None and verify is not None:
+            # The expensive check, and the only one that answers "did the finding go away". It runs
+            # here rather than only after generation so its answer can be fed back — the model
+            # cannot correct a mistake nobody tells it about.
+            reason = verify(new_source)
         if reason is None:
             return new_source
         last_reason = reason

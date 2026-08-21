@@ -191,3 +191,34 @@ class TestAgreement:
     def test_disjoint_detectors_agree_not_at_all(self) -> None:
         sites = {"a": {("f.go", "RSA")}, "b": {("g.go", "AES")}}
         assert agreement_matrix(sites)[("a", "b")] == 0.0
+
+
+class TestDivergentFits:
+    """A fit that has not converged must refuse to answer, not crash and not invent a number."""
+
+    def test_a_sparse_table_is_refused_rather_than_overflowing(self) -> None:
+        """This exact shape raised OverflowError and killed a 26-repository sweep mid-run.
+
+        Three detectors sharing almost nothing sends the Poisson fit's intercept to where
+        `exp(intercept + 1.96*se)` is not a float. The unseen cell is unidentifiable there, so the
+        honest response is the same refusal a saturated model gets.
+        """
+        # Found by search over small capture tables: this one drives the standard error to ~4e5,
+        # so `exp(intercept + 1.96*se)` overflows even though the intercept itself is fine.
+        table = {
+            (True, False, False): 50,
+            (True, True, False): 50,
+            (True, False, True): 1,
+            (False, True, False): 0,
+            (False, False, True): 0,
+            (False, True, True): 0,
+            (True, True, True): 0,
+        }
+        with pytest.raises(ValueError, match="converge|parameters"):
+            loglinear_estimate(table)
+
+    def test_a_healthy_table_still_fits(self) -> None:
+        """The guard must not refuse ordinary data."""
+        sites = _simulate([0.6, 0.5, 0.4], seed=7)
+        estimate = loglinear_estimate(capture_histories(sites))
+        assert estimate.total.point > estimate.observed

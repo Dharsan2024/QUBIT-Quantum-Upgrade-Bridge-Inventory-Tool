@@ -254,6 +254,18 @@ def loglinear_estimate(
         )
 
     intercept, se = _fit_poisson_intercept(rows, counts)
+
+    # A sparse capture table can send the fit somewhere it cannot come back from: on a corpus
+    # repository whose detectors shared a single site, `exp(intercept + 1.96*se)` raised
+    # OverflowError and killed the whole sweep entry. That is the model failing to identify the
+    # unseen cell, not a population of 10^300, so it is refused the same way a saturated model is.
+    # A number produced by a diverged fit is worse than no number, because it looks like a result.
+    if not math.isfinite(intercept) or not math.isfinite(se) or intercept > 50 or se > 25:
+        raise ValueError(
+            f"fit did not converge (intercept={intercept:.3g}, se={se:.3g}); the capture table is "
+            "too sparse to identify the unseen cell"
+        )
+
     unseen = math.exp(intercept)
     observed = int(sum(counts))
     total = observed + unseen
@@ -271,9 +283,10 @@ def loglinear_estimate(
             "estimate is correspondingly fragile"
         )
 
-    # Delta method on exp(intercept).
-    low = math.exp(intercept - 1.96 * se) if se else unseen
-    high = math.exp(intercept + 1.96 * se) if se else unseen
+    # Delta method on exp(intercept). Bounded above: the guard on `intercept`/`se` keeps this
+    # finite, and the cap makes the failure mode a visibly absurd interval rather than an exception.
+    low = math.exp(max(intercept - 1.96 * se, -50)) if se else unseen
+    high = math.exp(min(intercept + 1.96 * se, 50)) if se else unseen
     return PopulationEstimate(
         observed=observed,
         total=Interval(total, observed + low, observed + high),

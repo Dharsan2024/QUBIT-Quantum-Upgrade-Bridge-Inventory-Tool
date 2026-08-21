@@ -21,7 +21,8 @@ from .schemas import QuantumAttack, QuantumVulnerability
 class CanonicalAlgorithm:
     canonical: str
     family: str
-    kind: str  # asymmetric | symmetric | hash | kdf | mac | pqc-kem | pqc-sig | protocol
+    kind: str  # asymmetric | symmetric | hash | kdf | mac | pqc-kem | pqc-sig |
+    #            protocol | checksum | indeterminate
     attack: QuantumAttack
     vulnerable: bool
     key_size: int | None = None
@@ -50,6 +51,25 @@ def _grover(**kw: object) -> CanonicalAlgorithm:
 # One entry per canonical algorithm. Parameterized families (RSA/ECDSA sizes) are resolved
 # dynamically in resolve(); only representative anchors are listed explicitly.
 ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
+    # Five rules — in C, Kotlin, PHP, Python and Swift — deliberately emit `UNRESOLVED`: the
+    # cryptographic call is real, and the algorithm it will use is bound at runtime
+    # (`EVP_PKEY_sign` on a key parsed at load time, `Cipher.getInstance(name)` where `name` is a
+    # variable, `openssl_encrypt($data, $method, ...)`). That is a finding worth keeping — it is
+    # also, read the other way, the signature of an agile design.
+    #
+    # With no registry entry it degraded to `UNKNOWN(UNRESOLVED)`, which reads as a scanner
+    # failure rather than a deliberate verdict. Measured on open-quantum-safe/oqs-provider: 24 of
+    # 29 findings. Rated not-vulnerable because the algorithm is genuinely undetermined and
+    # guessing either way is worse than naming the uncertainty; the canonical spelling is chosen
+    # so it cannot be misread as "safe" in a report.
+    CanonicalAlgorithm(
+        canonical="RUNTIME-SELECTED",
+        family="INDETERMINATE",
+        kind="indeterminate",
+        attack=QuantumAttack.none,
+        vulnerable=False,
+        aliases=("unresolved", "runtime-selected"),
+    ),
     # --- RSA (Shor-broken) ---
     _shor(
         canonical="RSA-2048",
@@ -264,8 +284,18 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         family="AES",
         kind="symmetric",
         key_size=128,
-        # A128GCM / A128CBC-HS256 are the JWE `enc` identifiers (RFC 7518 §5).
-        aliases=("aes128", "aes-128", "aes/128", "a128gcm", "a128cbc-hs256", "a128kw"),
+        # A128GCM / A128CBC-HS256 are the JWE `enc` identifiers (RFC 7518 §5); A128KW and
+        # A128GCMKW are the `alg` key-wrap ones (§4.4, §4.7). A128GCMKW was missing, so go-jose's
+        # own algorithm table reported UNKNOWN(A128GCMKW) once JWA detection reached it.
+        aliases=(
+            "aes128",
+            "aes-128",
+            "aes/128",
+            "a128gcm",
+            "a128cbc-hs256",
+            "a128kw",
+            "a128gcmkw",
+        ),
     ),
     # AES-192 gives ~96-bit post-quantum security under Grover — below the 128-bit bar AES-256
     # clears, and CNSA 2.0 approves only AES-256, so it is flagged like AES-128 rather than treated
@@ -275,14 +305,14 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         family="AES",
         kind="symmetric",
         key_size=192,
-        aliases=("aes192", "aes-192", "a192gcm", "a192cbc-hs384", "a192kw"),
+        aliases=("aes192", "aes-192", "a192gcm", "a192cbc-hs384", "a192kw", "a192gcmkw"),
     ),
     _safe(
         canonical="AES-256",
         family="AES",
         kind="symmetric",
         key_size=256,
-        aliases=("aes256", "aes-256", "a256gcm", "a256cbc-hs512", "a256kw"),
+        aliases=("aes256", "aes-256", "a256gcm", "a256cbc-hs512", "a256kw", "a256gcmkw"),
     ),
     _grover(
         canonical="3DES",

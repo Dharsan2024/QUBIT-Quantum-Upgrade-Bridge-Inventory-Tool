@@ -1,0 +1,39 @@
+schema: qubit-rule/v1
+language: python
+library:
+  name: liboqs-python
+  # Gated on the binding's own import, not on pyca/cryptography. This rule lived in pqc.yaml
+  # first, where `detect_imports: ["cryptography"]` meant it only fired in files importing a
+  # different library entirely — so the sample it was written for never matched it.
+  detect_imports: ["oqs"]
+rules:
+  # liboqs' own Python binding, found by benchmarks/recall on cryptoscan's crypto-samples. PQC was
+  # detected through pyca/cryptography but not through liboqs-python, which is how a Python service
+  # actually reaches ML-KEM today -- so a project that HAD migrated read as not having migrated.
+  # https://github.com/open-quantum-safe/liboqs-python
+  - id: PY-OQS-BINDING
+    title: liboqs-python — oqs.KeyEncapsulation("ML-KEM-768") / oqs.Signature("ML-DSA-65")
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @pkg attribute: (identifier) @cls)
+          arguments: (argument_list (string (string_content) @alg))) @call
+      where:
+        - { capture: pkg, equals: oqs }
+        - { capture: cls, in: [KeyEncapsulation, Signature] }
+    extract:
+      algorithm: { from: alg, resolve: pqc-identifier }
+    asset: { asset_type: algorithm-use, usage_context: unknown }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import oqs
+          kem = oqs.KeyEncapsulation("ML-KEM-768")
+        - |
+          import oqs
+          sig = oqs.Signature("SLH-DSA-SHA2-128f")
+      negative:
+        - |
+          import oqs
+          info = oqs.get_enabled_kem_mechanisms()

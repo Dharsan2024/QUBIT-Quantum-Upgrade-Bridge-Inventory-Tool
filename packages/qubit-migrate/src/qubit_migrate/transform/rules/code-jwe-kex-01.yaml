@@ -1,0 +1,190 @@
+id: code-jwe-kex-01
+language: multi
+title: "JOSE key management (ECDH-ES) → hybrid X25519 + ML-KEM-768 (FIPS-203)"
+matches:
+  source_scanner: [code]
+  # Why this is its own rule rather than three more entries in code-kex-01.
+  #
+  # code-signature-01 already carries the JOSE `alg` identifiers for SIGNING (RS256, ES256, EdDSA)
+  # and sends them to ML-DSA-65, so the project has already taken the position that a JOSE algorithm
+  # is migratable. ECDH-ES is the key-MANAGEMENT half of the same registry and was simply missed:
+  # the coverage guard caught it the moment GO-JWA-IDENTIFIER started detecting it.
+  #
+  # The obvious fix — add ECDH-ES to code-kex-01 and add `token` to its usage_context — is wrong,
+  # and quietly so. Rules are first-match-wins in load order, `code-kex-01` sorts before
+  # `code-signature-01`, and code-kex-01 already lists bare "RSA". Admitting `token` there would
+  # make an RS256 JWT SIGNING key match the key-exchange rule first and get migrated to ML-KEM
+  # instead of ML-DSA — a silently wrong migration of the most common JOSE algorithm there is.
+  # A separate rule matching only the ECDH-ES family cannot do that to anything.
+  file_suffix:
+    [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".py", ".cs", ".php", ".rb", ".rs",
+    ".kt", ".kts", ".scala", ".swift", ".dart"]
+  # The four ECDH-ES forms in the IANA JOSE registry (RFC 7518 §4.6). Direct agreement derives the
+  # CEK itself; the +AxxxKW forms wrap a separately generated CEK. Both are ECDH underneath, so
+  # both fall to Shor and both need the same replacement.
+  algorithm:
+    [
+      "ECDH-ES",
+      "ECDH-ES+A128KW",
+      "ECDH-ES+A192KW",
+      "ECDH-ES+A256KW",
+    ]
+  # `token` is the context a JWA identifier is detected in; `kex` and `unknown` cover the same
+  # identifier reached through a variable or a config constant.
+  usage_context: ["token", "kex", "unknown"]
+  library_name: [null]
+target:
+  algorithm: ML-KEM-768
+  mode: hybrid
+  hybrid_group: X25519MLKEM768
+  parameter_set: ML-KEM-768
+  category: 3
+  fips: FIPS-203
+# The JWE header, the encrypted-key field and the recipient's key type all change together. A token
+# issued under the new scheme is unreadable to an old verifier and vice versa, so both must be
+# understood at once before issuance switches.
+data_compat: dual_read
+semantic_note: >
+  ECDH-ES derives the content-encryption key by elliptic-curve agreement (RFC 7518 §4.6), so a
+  recorded JWE becomes readable the moment the curve breaks — this is a harvest-now-decrypt-later
+  finding, not a hygiene one. Be precise about what post-quantum JOSE currently is: ML-KEM as a JWE
+  `alg` is an IETF DRAFT (draft-ietf-jose-pqc-kem), NOT a finalised registry entry, so a migration
+  here cannot be a one-token header swap the way RS256 to ML-DSA nearly is. Do not invent a
+  registered `alg` value and do not claim one exists. The defensible transformation is a HYBRID
+  key-encapsulation performed alongside the existing ECDH-ES: encapsulate to an ML-KEM-768 key,
+  concatenate that shared secret with the X25519 shared secret, feed the concatenation to HKDF-SHA256
+  to derive the CEK, and carry the ML-KEM encapsulation in the JWE header as an explicit custom
+  parameter. The result is no weaker than the ECDH-ES it replaces if either primitive falls, which is
+  the entire point of hybrid. Every recipient must understand the new parameter before any issuer
+  emits it.
+prompt_constraints:
+  - "Do NOT write `alg: \"ML-KEM-768\"` into a JWE header as if it were registered. It is not. Keep ECDH-ES and ADD the ML-KEM encapsulation as an explicit extra header parameter."
+  - "Go: use crypto/mlkem (Go 1.24+). ek.Encapsulate() returns (sharedSecret, ciphertext); dk.Decapsulate(ciphertext) returns the shared secret."
+  - "JavaScript/TypeScript: use ml_kem768 from @noble/post-quantum/ml-kem alongside the existing jose library."
+  - "Python: use the liboqs binding — oqs.KeyEncapsulation(\"ML-KEM-768\") — alongside the existing JOSE library."
+  - "Concatenate the classical and post-quantum shared secrets in a FIXED order and feed both to the KDF. Never use the ML-KEM secret alone; that would discard the classical guarantee."
+  - "Keep the existing ECDH-ES decrypt path so tokens already issued can still be read during rollout."
+example_language: go
+example:
+  before: |
+    package main
+
+    import "github.com/go-jose/go-jose/v4"
+
+    func encrypter(pub interface{}) (jose.Encrypter, error) {
+        return jose.NewEncrypter(
+            jose.A256GCM,
+            jose.Recipient{Algorithm: jose.ECDH_ES, Key: pub},
+            nil,
+        )
+    }
+  after: |
+    package main
+
+    import (
+        "crypto/ecdh"
+        "crypto/mlkem"
+        "crypto/sha256"
+        "encoding/base64"
+        "io"
+
+        "github.com/go-jose/go-jose/v4"
+        "golang.org/x/crypto/hkdf"
+    )
+
+    // hybridCEK derives the content-encryption key from BOTH an X25519 agreement and an ML-KEM-768
+    // encapsulation. The token stays readable only if an attacker breaks both, which is what makes
+    // this hybrid rather than a swap. The encapsulation travels in a custom header parameter
+    // because ML-KEM has no registered JWE `alg` yet (draft-ietf-jose-pqc-kem).
+    func hybridCEK(
+        classicalPriv *ecdh.PrivateKey,
+        classicalPub *ecdh.PublicKey,
+        pqPub *mlkem.EncapsulationKey768,
+    ) (key []byte, encapsulation []byte, err error) {
+        classicalSecret, err := classicalPriv.ECDH(classicalPub)
+        if err != nil {
+            return nil, nil, err
+        }
+        pqSecret, encapsulation := pqPub.Encapsulate()
+
+        // Fixed order: classical first, then post-quantum. Both sides must agree.
+        combined := append(append([]byte{}, classicalSecret...), pqSecret...)
+
+        key = make([]byte, 32)
+        if _, err := io.ReadFull(
+            hkdf.New(sha256.New, combined, nil, []byte("qubit-jwe-hybrid-v1")), key,
+        ); err != nil {
+            return nil, nil, err
+        }
+        return key, encapsulation, nil
+    }
+
+    func encrypter(pub interface{}, encapsulation []byte) (jose.Encrypter, error) {
+        return jose.NewEncrypter(
+            jose.A256GCM,
+            jose.Recipient{Algorithm: jose.ECDH_ES, Key: pub},
+            (&jose.EncrypterOptions{}).WithHeader(
+                "epk_mlkem768",
+                base64.RawURLEncoding.EncodeToString(encapsulation),
+            ),
+        )
+    }
+example_javascript:
+  before: |
+    import { CompactEncrypt } from "jose";
+
+    const jwe = await new CompactEncrypt(payload)
+      .setProtectedHeader({ alg: "ECDH-ES", enc: "A256GCM" })
+      .encrypt(recipientPublicKey);
+  after: |
+    import { CompactEncrypt } from "jose";
+    import { ml_kem768 } from "@noble/post-quantum/ml-kem";
+    import crypto from "node:crypto";
+
+    // ML-KEM-768 encapsulation alongside the existing ECDH-ES agreement. `alg` stays ECDH-ES
+    // because ML-KEM has no registered JWE alg value yet (draft-ietf-jose-pqc-kem); the
+    // encapsulation is carried in an explicit custom header parameter instead.
+    const { cipherText, sharedSecret } = ml_kem768.encapsulate(recipientMlKemPublicKey);
+
+    const jwe = await new CompactEncrypt(payload)
+      .setProtectedHeader({
+        alg: "ECDH-ES",
+        enc: "A256GCM",
+        epk_mlkem768: Buffer.from(cipherText).toString("base64url"),
+      })
+      .encrypt(recipientPublicKey);
+    // The recipient decapsulates cipherText, concatenates the ECDH-ES secret with the ML-KEM
+    // secret in that fixed order, and derives the CEK with HKDF-SHA256.
+example_python:
+  before: |
+    from jwcrypto import jwe, jwk
+
+    token = jwe.JWE(payload, protected={"alg": "ECDH-ES", "enc": "A256GCM"})
+    token.add_recipient(recipient_key)
+  after: |
+    import base64
+
+    import oqs
+    from jwcrypto import jwe
+
+    # ML-KEM-768 encapsulation carried beside the classical ECDH-ES agreement. `alg` is unchanged
+    # because no registered JOSE value exists for ML-KEM yet (draft-ietf-jose-pqc-kem).
+    with oqs.KeyEncapsulation("ML-KEM-768") as kem:
+        ciphertext, pq_secret = kem.encap_secret(recipient_mlkem_public_key)
+
+    token = jwe.JWE(
+        payload,
+        protected={
+            "alg": "ECDH-ES",
+            "enc": "A256GCM",
+            "epk_mlkem768": base64.urlsafe_b64encode(ciphertext).rstrip(b"=").decode(),
+        },
+    )
+    token.add_recipient(recipient_key)
+    # The recipient decapsulates, concatenates the ECDH-ES secret with pq_secret in that fixed
+    # order, and derives the content-encryption key with HKDF-SHA256.
+rescan_expect:
+  # ECDH-ES deliberately REMAINS: this is a hybrid, and removing the classical half would make the
+  # result weaker than what it replaced, not stronger. Only the arrival of ML-KEM is asserted.
+  present:
+    algorithm_prefix: ["ML-KEM"]

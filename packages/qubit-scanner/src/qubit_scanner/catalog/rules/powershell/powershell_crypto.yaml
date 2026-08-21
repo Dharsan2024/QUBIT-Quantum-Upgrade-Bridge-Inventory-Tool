@@ -64,7 +64,10 @@ rules:
         (type_literal) @call
       where:
         - capture: call
-          regex: "(?i)(MD5|MD4|SHA1|TripleDES|DESCryptoServiceProvider|RC2|RijndaelManaged|HMACMD5|HMACSHA1|RSACryptoServiceProvider|Rfc2898DeriveBytes)"
+          # The strong classes are listed too: a migration is confirmed by detecting its
+          # target, so matching only the broken ones made every PowerShell cipher migration
+          # unverifiable. `Aes\b` so it does not swallow `AesGcm`, which is listed ahead of it.
+          regex: "(?i)(MD5|MD4|SHA1|TripleDES|DESCryptoServiceProvider|RC2|RijndaelManaged|HMACMD5|HMACSHA1|RSACryptoServiceProvider|Rfc2898DeriveBytes|AesGcm|AesCcm|AesManaged|AesCryptoServiceProvider|Aes\\b|SHA256|SHA384|SHA512|HMACSHA256|HMACSHA384|HMACSHA512|ChaCha20Poly1305)"
     extract:
       algorithm: { from: call, resolve: powershell-type-literal }
     asset: { asset_type: algorithm-use, usage_context: unknown }
@@ -76,6 +79,12 @@ rules:
           $md5 = [System.Security.Cryptography.MD5]::Create()
         - |
           $tdes = [System.Security.Cryptography.TripleDESCryptoServiceProvider]::new()
+        - |
+          $aes = [System.Security.Cryptography.Aes]::Create()
+        - |
+          $gcm = [System.Security.Cryptography.AesGcm]::new($key)
+        - |
+          $sha = [System.Security.Cryptography.SHA256]::Create()
       negative:
         - |
           $sb = [System.Text.StringBuilder]::new()
@@ -88,7 +97,7 @@ rules:
       where:
         - { capture: cmd, regex: "(?i)^new-object$" }
         - capture: call
-          regex: "(?i)(MD5|MD4|SHA1|TripleDES|DESCryptoServiceProvider|RC2|Rijndael|HMACMD5|HMACSHA1|RSACryptoServiceProvider|Rfc2898DeriveBytes)"
+          regex: "(?i)(MD5|MD4|SHA1|TripleDES|DESCryptoServiceProvider|RC2|Rijndael|HMACMD5|HMACSHA1|RSACryptoServiceProvider|Rfc2898DeriveBytes|AesGcm|AesCcm|AesManaged|AesCryptoServiceProvider|Aes\\b|SHA256|SHA384|SHA512|HMACSHA256|HMACSHA384|HMACSHA512|ChaCha20Poly1305)"
     extract:
       algorithm: { from: call, resolve: powershell-type-literal }
       key_size: { from: call, resolve: shell-key-bits }
@@ -100,6 +109,8 @@ rules:
           $c = New-Object System.Security.Cryptography.TripleDESCryptoServiceProvider
         - |
           $h = New-Object System.Security.Cryptography.MD5CryptoServiceProvider
+        - |
+          $a = New-Object System.Security.Cryptography.AesCryptoServiceProvider
       negative:
         - |
           $l = New-Object System.Collections.ArrayList

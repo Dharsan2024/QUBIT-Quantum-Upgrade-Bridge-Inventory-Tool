@@ -1,0 +1,200 @@
+# Crypto-Agility Maturity Model (CAMM) — requirement catalogue.
+#
+# Source: T. Hohm, A. Wiesmaier et al., "Towards a maturity model for crypto-agility assessment",
+# arXiv:2202.07645; published in Foundations and Practice of Security (LNCS 13877, Springer 2023),
+# DOI 10.1007/978-3-031-30122-3_7. Requirement identifiers and texts as published at
+# https://camm.h-da.io/requirements/ (Hochschule Darmstadt).
+#
+# CAMM is normally assessed by expert review or questionnaire. The point of recording it here is
+# that a scanner holds direct evidence for a *subset* of these requirements, and can therefore
+# REFUTE a claimed level without asking anyone anything. It cannot confirm one: `evidence: none`
+# below marks the requirements that are organisational or architectural, where absence of
+# contradicting code evidence says nothing at all. Those are reported as "not assessable from
+# source", never as met.
+#
+# Levels are cumulative: a system is at Level N only if every requirement of levels 1..N holds.
+
+levels:
+  0:
+    name: "Initial / Not possible"
+    summary: >
+      Violates at least one Level 1 requirement, typically because hardware or software cannot be
+      changed after the original design.
+  1:
+    name: "Possible"
+    summary: "The primary conditions for adapting cryptography are met."
+  2:
+    name: "Prepared"
+    summary: >
+      Measures are in place, but preparatory work is still needed before cryptography can be
+      changed.
+  3:
+    name: "Practiced"
+    summary: "Migration between cryptographic methods is demonstrably, effectively and securely feasible."
+  4:
+    name: "Sophisticated"
+    summary: "Crypto-agility is automated and applied across the wider infrastructure."
+
+requirements:
+  # ── Level 1: Possible ──────────────────────────────────────────────────────────────────────
+  - id: "1.0"
+    level: 1
+    name: System Knowledge
+    text: >
+      For crypto-agility requirements to be effectively evaluated, detailed knowledge of the
+      affected system and its environment is required.
+    evidence: scan_coverage
+  - id: "1.1"
+    level: 1
+    name: Updateability
+    text: "Maintainers can modify the system and provide updates to new software versions."
+    evidence: none
+  - id: "1.2"
+    level: 1
+    name: Extensibility
+    text: "The system can be extended with new cryptographic algorithms and parameters."
+    evidence: none
+  - id: "1.3"
+    level: 1
+    name: Reversibility
+    text: "The system can be rolled back to a previous state."
+    evidence: none
+  - id: "1.4"
+    level: 1
+    name: Cryptography Inventory
+    text: >
+      The cryptographic functions used are documented and their current security level is known.
+    evidence: inventory_resolved
+
+  # ── Level 2: Prepared ──────────────────────────────────────────────────────────────────────
+  - id: "2.0"
+    level: 2
+    name: Cryptographic Modularity
+    text: >
+      The system is modularly designed in such a way that changes to the cryptographic components
+      do not affect the functionality of the other system components coupled to it.
+    # Tried and withdrawn. Counting how many files contain cryptography can suggest a codebase is
+    # NOT modular, but the check had no denominator it could trust and so could never refute
+    # anything — it always returned "unrefuted", which reads like evidence and is not. Modularity
+    # is an architectural property; a file list is not a coupling analysis.
+    evidence: none
+  - id: "2.1"
+    level: 2
+    name: Algorithm IDs
+    text: "The algorithms used are uniquely identifiable."
+    evidence: algorithm_identifiable
+  - id: "2.2"
+    level: 2
+    name: Algorithm Intersection
+    text: "All subsystems share a common set of cryptographic algorithms."
+    evidence: algorithm_intersection
+  - id: "2.3"
+    level: 2
+    name: Algorithm Exclusion
+    text: "The system can disable the use of supported algorithms."
+    evidence: none
+  - id: "2.4"
+    level: 2
+    name: Opportunistic Security
+    text: "The system always uses the strongest available algorithm."
+    evidence: opportunistic_security
+  - id: "2.5"
+    level: 2
+    name: Usability
+    text: "The system's crypto-agility module is easy to use."
+    evidence: none
+
+  # ── Level 3: Practiced ─────────────────────────────────────────────────────────────────────
+  - id: "3.0"
+    level: 3
+    name: Policies
+    text: "Policies are used to restrict the allowed algorithms and their parameters."
+    evidence: none
+  - id: "3.1"
+    level: 3
+    name: Performance Awareness
+    text: "The additional effort and impact of crypto-agility is known and accepted."
+    evidence: none
+  - id: "3.2"
+    level: 3
+    name: Hardware Modularity
+    text: >
+      Hardware and software can be improved or exchanged independently of each other in a
+      compatible manner.
+    evidence: none
+  - id: "3.3"
+    level: 3
+    name: Testing
+    text: "The system is regularly tested for compliance with crypto-agility requirements."
+    evidence: none
+  - id: "3.4"
+    level: 3
+    name: Enforceability
+    text: "Crypto agility can be made mandatory for certain contexts."
+    evidence: none
+  - id: "3.5"
+    level: 3
+    name: Security
+    text: "The crypto-agility mechanism is secure against attacks."
+    evidence: none
+  - id: "3.6"
+    level: 3
+    name: Backwards Compatibility
+    text: "New versions are compatible with older states of the system."
+    evidence: none
+  - id: "3.7"
+    level: 3
+    name: Transition Mechanism
+    text: >
+      A strategy that ensures the functionality of the overall system for the transition period of
+      performing an update.
+    evidence: none
+  - id: "3.8"
+    level: 3
+    name: Effectiveness
+    text: "Migration between cryptographic algorithms must be feasible in a reasonable amount of time."
+    evidence: none
+
+  # ── Level 4: Sophisticated ─────────────────────────────────────────────────────────────────
+  - id: "4.0"
+    level: 4
+    name: Automation
+    text: "Modifications to crypto-agile modules do not require manual interaction."
+    evidence: none
+  - id: "4.1"
+    level: 4
+    name: Context Independence
+    text: >
+      The requirements and techniques used to implement crypto-agility can also be used for other
+      scenarios.
+    evidence: none
+  - id: "4.2"
+    level: 4
+    name: Scalability
+    text: "The crypto-agility implementation can be deployed in additional systems."
+    evidence: none
+  - id: "4.3"
+    level: 4
+    name: Real-time
+    text: >
+      Modifications to cryptographic functions become active in the production system as
+      immediately as possible.
+    evidence: none
+  - id: "4.4"
+    level: 4
+    name: Cross-System Interoperability
+    text: "Different cryptographically agile systems are interoperable with each other."
+    evidence: none
+
+# Thresholds for the evidence checks. Stated here rather than in code so a reviewer can see and
+# change what each verdict actually depends on.
+thresholds:
+  # 1.4 — an inventory whose entries do not resolve to a known algorithm is not an inventory whose
+  # "current security level is known".
+  inventory_resolved_min: 0.95
+  # 2.1 — the same bar, stated separately because it is a different CAMM requirement and a project
+  # may reasonably want to move one without the other.
+  algorithm_identifiable_min: 0.95
+  # 2.2 — the share of scanned components that must agree on a primitive for it to count as
+  # "common". Below this the estate has no shared algorithm set for that purpose.
+  intersection_min_share: 0.5

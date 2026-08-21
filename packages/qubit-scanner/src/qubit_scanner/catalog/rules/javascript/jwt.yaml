@@ -9,6 +9,35 @@ library:
   # extraction lands.
   detect_imports: []
 rules:
+  # Found by benchmarks/recall against an independent detector on go-jose, where JWA identifiers
+  # were 17 of the 23 remaining file-level misses. The rules below this one match a single call
+  # shape from a single library, so every other way a codebase names a token algorithm -- a list of
+  # accepted algorithms, a JOSE header dict, a comparison against a constant -- was invisible.
+  # Identifiers per the IANA JOSE registry (RFC 7518 §3.1, §4.1, §5.1); `dir` and `none` are
+  # excluded as too generic to be evidence.
+  - id: JS-JWA-WIRE-NAME
+    title: JWA algorithm identifier in a string ("RS256", "RSA-OAEP", "A128CBC-HS256")
+    match:
+      query: |
+        (string (string_fragment) @alg) @call
+      where:
+        - capture: alg
+          regex: "^(RS256|RS384|RS512|PS256|PS384|PS512|ES256K|ES256|ES384|ES512|EdDSA|HS256|HS384|HS512|RSA1_5|RSA-OAEP-256|RSA-OAEP|ECDH-ES\\+A128KW|ECDH-ES\\+A192KW|ECDH-ES\\+A256KW|ECDH-ES|A128KW|A192KW|A256KW|A128GCMKW|A192GCMKW|A256GCMKW|A128GCM|A192GCM|A256GCM|A128CBC-HS256|A192CBC-HS384|A256CBC-HS512|PBES2-HS256\\+A128KW|PBES2-HS384\\+A192KW|PBES2-HS512\\+A256KW)$"
+    extract:
+      algorithm: { from: alg, resolve: jwa-identifier }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: medium
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          const allowed = ['RS256', 'ES256'];
+        - |
+          const h = { alg: 'RSA-OAEP' };
+      negative:
+        - |
+          const name = 'some other string';
+
   - id: JS-JWT-RS256
     title: "jsonwebtoken RS256 token signing (jwt.sign(payload, key, { algorithm: 'RS256' }))"
     match:

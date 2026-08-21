@@ -11,6 +11,67 @@ library:
   # in every github.com import. Running the query unconditionally is the correct choice.
   detect_imports: []
 rules:
+  # Found by benchmarks/recall against an independent pattern set on go-jose: 17 of the 23
+  # remaining file-level misses were JWA identifiers. The two rules above match ONE call shape from
+  # ONE library, so `jose.RS256`, `[]SignatureAlgorithm{RS256, ES256}` and
+  # `KeyAlgorithm("RSA-OAEP")` — the way go-jose itself names algorithms — were all invisible.
+  #
+  # Identifiers per the IANA JOSE registry (RFC 7518 §3.1, §4.1, §5.1). Deliberately narrow: only
+  # registered identifiers match, so a variable called `key` or a string "aes" does not.
+  - id: GO-JWA-IDENTIFIER
+    title: JWA algorithm identifier as a constant (jose.RS256, ECDH_ES, EdDSA)
+    match:
+      query: |
+        (selector_expression
+          operand: (identifier) @pkg
+          field: (field_identifier) @alg) @call
+      where:
+        - capture: alg
+          regex: "^(RS256|RS384|RS512|PS256|PS384|PS512|ES256|ES384|ES512|EdDSA|ED25519|HS256|HS384|HS512|RSA1_5|RSA_OAEP_256|RSA_OAEP|ECDH_ES_A128KW|ECDH_ES_A192KW|ECDH_ES_A256KW|ECDH_ES|A128KW|A192KW|A256KW|A128GCMKW|A192GCMKW|A256GCMKW|A128GCM|A192GCM|A256GCM|A128CBC_HS256|A192CBC_HS384|A256CBC_HS512|PBES2_HS256_A128KW|PBES2_HS384_A192KW|PBES2_HS512_A256KW)$"
+    extract:
+      algorithm: { from: alg, resolve: jwa-identifier }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          package main
+          func f() { a := jose.RS256; _ = a }
+        - |
+          package main
+          func f() { a := jose.ECDH_ES_A128KW; _ = a }
+      negative:
+        - |
+          package main
+          func f() { a := jose.CompactSerialize; _ = a }
+
+  - id: GO-JWA-WIRE-NAME
+    title: JWA algorithm identifier as a string ("RS256", "RSA-OAEP", "A128CBC-HS256")
+    match:
+      query: |
+        (interpreted_string_literal) @call
+      where:
+        - capture: call
+          regex: "^\"(RS256|RS384|RS512|PS256|PS384|PS512|ES256|ES384|ES512|EdDSA|HS256|HS384|HS512|RSA1_5|RSA-OAEP-256|RSA-OAEP|ECDH-ES\\+A128KW|ECDH-ES\\+A192KW|ECDH-ES\\+A256KW|ECDH-ES|A128KW|A192KW|A256KW|A128GCMKW|A192GCMKW|A256GCMKW|A128GCM|A192GCM|A256GCM|A128CBC-HS256|A192CBC-HS384|A256CBC-HS512|PBES2-HS256\\+A128KW|PBES2-HS384\\+A192KW|PBES2-HS512\\+A256KW)\"$"
+    extract:
+      algorithm: { from: call, resolve: jwa-identifier }
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          package main
+          func f() { a := SignatureAlgorithm("RS256"); _ = a }
+        - |
+          package main
+          func f() { a := KeyAlgorithm("RSA-OAEP"); _ = a }
+      negative:
+        - |
+          package main
+          func f() { a := "some other string"; _ = a }
+
   - id: GO-JWT-RS256
     title: golang-jwt RS256 token signing (jwt.NewWithClaims(jwt.SigningMethodRS256, ...))
     match:

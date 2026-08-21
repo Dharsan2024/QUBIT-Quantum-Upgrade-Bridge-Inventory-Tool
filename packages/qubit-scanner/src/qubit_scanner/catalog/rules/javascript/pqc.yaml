@@ -15,6 +15,34 @@ library:
   # identifiers are unmistakable on their own, so running the query unqualified is correct.
   detect_imports: []
 rules:
+  # liboqs' Node binding — the JavaScript half of the same gap. Found by benchmarks/recall.
+  # https://github.com/open-quantum-safe/liboqs-node
+  - id: JS-OQS-BINDING
+    title: liboqs-node — new oqs.KeyEncapsulation('ML-KEM-768')
+    match:
+      query: |
+        (new_expression
+          constructor: (member_expression
+            object: (identifier) @pkg
+            property: (property_identifier) @cls)
+          arguments: (arguments (string (string_fragment) @alg))) @call
+      where:
+        - { capture: pkg, equals: oqs }
+        - { capture: cls, in: [KeyEncapsulation, Signature] }
+    extract:
+      algorithm: { from: alg, resolve: pqc-identifier }
+    asset: { asset_type: algorithm-use, usage_context: unknown }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const mlkem = new oqs.KeyEncapsulation('ML-KEM-768');
+        - |
+          const sig = new oqs.Signature('ML-DSA-65');
+      negative:
+        - |
+          const list = new oqs.Registry('everything');
+
   - id: JS-NOBLE-PQC-KEM
     title: "@noble/post-quantum ML-KEM (quantum-safe KEM)"
     match:

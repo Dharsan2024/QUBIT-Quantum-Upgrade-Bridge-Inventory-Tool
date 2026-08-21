@@ -56,6 +56,38 @@ def _language_of(asset: CryptoAsset) -> str:
     return language_for_suffix(path) or "unknown"
 
 
+def _flagged_line_untouched(orig: str, new: str, asset: CryptoAsset) -> str | None:
+    """Why this codemod's edit does not address the flagged finding, or None if it does.
+
+    A file often holds several findings of the same algorithm, each its own task. A token-swap
+    codemod rewrites every occurrence it CAN express, which may not include this one — measured on
+    `V3__hash_passwords.sql`, where MySQL's `MD5(password)` and `gen_salt('md5')` are both excluded
+    by design while `digest(payload,'md5')` on another line is swapped. Both excluded tasks were
+    recording the line-6 rewrite as their own patch.
+
+    Only meaningful when the codemod preserved the line count, which a token swap does. If it did
+    not, the line numbers no longer correspond and the rescan's occurrence check takes over.
+    """
+    line = asset.location.line if asset.location else None
+    if line is None:
+        return None
+    before = orig.splitlines()
+    after = new.splitlines()
+    if len(before) != len(after) or not (1 <= line <= len(before)):
+        return None
+    if before[line - 1] != after[line - 1]:
+        return None
+    changed = [i for i, (a, b) in enumerate(zip(before, after, strict=True), 1) if a != b]
+    if not changed:
+        return None
+    where = ", ".join(str(c) for c in changed[:6])
+    return (
+        f"the codemod cannot express the {asset.algorithm} usage on line {line}; it rewrote "
+        f"line(s) {where} instead, which belong to other findings. This one needs migration "
+        f"advice rather than a patch."
+    )
+
+
 class MigrationOrchestrator:
     """Facade wiring all qubit-migrate components (the only import surface for api/cli)."""
 
@@ -518,6 +550,10 @@ class MigrationOrchestrator:
                     self._fail_task(task, detail)
                     raise ValueError(detail)
                 orig, new = result
+                untouched = _flagged_line_untouched(orig, new, asset)
+                if untouched is not None:
+                    self._fail_task(task, untouched)
+                    raise ValueError(untouched)
             except Exception as e:
                 self._fail_task(task, f"Codemod error: {e}")
                 raise
@@ -541,6 +577,10 @@ class MigrationOrchestrator:
             no_docker=self.config.no_docker,
             asset_algorithm=asset.algorithm,
             original_source=orig,
+            # This task owns ONE finding. Other occurrences of the same algorithm in the
+            # same file are other tasks; judging this patch on theirs made every task in a
+            # mixed file fail. Measured: 3 MD5 findings in one SQL file, 2 in one C# file.
+            asset_line=asset.location.line if asset.location else None,
         )
 
         patch = PatchProposal(

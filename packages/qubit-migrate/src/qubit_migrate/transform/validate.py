@@ -192,11 +192,92 @@ def _scan_command(target: Path) -> list[str]:
     return cli_command("scan", str(target), "--json")
 
 
+def _scan_source(source: str, ext: str) -> list[dict[str, Any]]:
+    """Scan one in-memory source through the scanner's public CLI. [] when it cannot be read."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_file = Path(tmpdir) / f"probe{ext}"
+        tmp_file.write_text(source, encoding="utf-8")
+        try:
+            result = subprocess.run(
+                _scan_command(tmp_file),
+                capture_output=True,
+                timeout=60,
+                cwd=str(Path(__file__).parents[6]),
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return []
+        raw = result.stdout.decode("utf-8", errors="replace")
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            # exit code 3 means no assets found — an empty inventory, not a failure
+            return []
+    assets = data.get("assets", [])
+    return [a for a in assets if isinstance(a, dict)]
+
+
+def _occurrence_survived(
+    *,
+    still_present: list[dict[str, Any]],
+    gone_prefix: str,
+    patched_source: str,
+    original_source: str | None,
+    asset_line: int | None,
+    ext: str,
+) -> str | None:
+    """Did THIS task's finding survive the patch? A detail string if so, None if it went away.
+
+    Other findings of the same algorithm elsewhere in the file are other tasks, each with its own
+    patch, and holding this one responsible for them makes every task in a mixed file unsatisfiable.
+    """
+    lines_preserved = original_source is not None and len(original_source.splitlines()) == len(
+        patched_source.splitlines()
+    )
+
+    if asset_line is not None and lines_preserved:
+        # Exact, when it applies: a token swap does not move code, so the flagged line is still the
+        # flagged line.
+        at_line = [a for a in still_present if a.get("location", {}).get("line") == asset_line]
+        if at_line:
+            return (
+                f"Expected {gone_prefix!r} gone from line {asset_line}, but it is still there: "
+                f"{sorted({str(a.get('algorithm', '')) for a in at_line})}"
+            )
+
+    if original_source is None:
+        # No baseline to compare against: fall back to the original whole-file rule rather than
+        # passing something unverified.
+        return (
+            f"Expected {gone_prefix!r} gone, but still found: "
+            f"{sorted({str(a.get('algorithm', '')) for a in still_present})}"
+        )
+
+    # The line check alone is not enough, and the difference is a real one: a rewrite that MOVES the
+    # algorithm to another line leaves the flagged line clean while changing nothing that matters.
+    # The count has to fall as well — this patch is responsible for exactly one occurrence, and it
+    # must have removed it.
+    before = [
+        a
+        for a in _scan_source(original_source, ext)
+        if str(a.get("algorithm", "")).startswith(gone_prefix)
+    ]
+    if len(still_present) < len(before):
+        return None
+    return (
+        f"Expected {gone_prefix!r} gone, but the patch removed none of it: "
+        f"{len(before)} occurrence(s) before, {len(still_present)} after "
+        f"({sorted({str(a.get('algorithm', '')) for a in still_present})})"
+    )
+
+
 def _stage_rescan(
     patched_source: str,
     rule: Any | None,
     language: str = "python",
     asset_algorithm: str | None = None,
+    original_source: str | None = None,
+    asset_line: int | None = None,
 ) -> StageResult:
     """Run qubit scan --json on the patched source and check rescan_expect.
 
@@ -205,6 +286,12 @@ def _stage_rescan(
     whenever a file mixes usages that different rules own — an MD5 digest beside an HMAC-SHA1 and a
     SHA-1 signature is ordinary code, and `code-weakhash-02` is responsible for exactly one of the
     three.
+
+    ``asset_line`` and ``original_source`` narrow it the rest of the way, from "this algorithm" to
+    "this occurrence of it". One file routinely holds several findings of the SAME algorithm — the
+    polyglot corpus has three MD5 findings in one SQL file and two in one C# file — and each is a
+    separate task. Requiring all of them to vanish made every one of those tasks fail, including the
+    ones whose own occurrence the patch had migrated correctly. See ``_occurrence_survived``.
     """
     t0 = time.monotonic()
     if rule is None or rule.rescan_expect is None:
@@ -274,11 +361,23 @@ def _stage_rescan(
                     gone_prefixes = matching
 
             for gone_prefix in gone_prefixes:
-                still_present = [a for a in algos if a.startswith(gone_prefix)]
-                if still_present:
+                surviving = [
+                    a for a in assets if str(a.get("algorithm", "")).startswith(gone_prefix)
+                ]
+                if not surviving:
+                    continue
+                detail = _occurrence_survived(
+                    still_present=surviving,
+                    gone_prefix=gone_prefix,
+                    patched_source=patched_source,
+                    original_source=original_source,
+                    asset_line=asset_line,
+                    ext=ext,
+                )
+                if detail is not None:
                     return StageResult(
                         "fail",
-                        f"Expected {gone_prefix!r} gone, but still found: {still_present}",
+                        detail,
                         time.monotonic() - t0,
                         expectation="gone",
                         expected=gone_prefix,
@@ -499,6 +598,7 @@ def validate_patch(
     no_docker: bool = False,
     asset_algorithm: str | None = None,
     original_source: str | None = None,
+    asset_line: int | None = None,
 ) -> ValidationReport:
     """Run validation stages 1 applies, 2 parses, 3 compiles, 4 tests, 5 rescan.
 
@@ -518,7 +618,14 @@ def validate_patch(
     else:
         stages["compiles"] = _stage_compiles(patched_source, language)
         stages["tests"] = _stage_tests(patched_source, repo_root, target_rel_path, language)
-    stages["rescan"] = _stage_rescan(patched_source, rule, language, asset_algorithm)
+    stages["rescan"] = _stage_rescan(
+        patched_source,
+        rule,
+        language,
+        asset_algorithm,
+        original_source=original_source,
+        asset_line=asset_line,
+    )
 
     passed = all(v.status in ("pass", "skipped") for v in stages.values())
     partial = any(v.status == "skipped" for v in stages.values())

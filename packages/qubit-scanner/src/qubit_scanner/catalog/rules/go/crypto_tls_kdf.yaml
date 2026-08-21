@@ -179,6 +179,85 @@ rules:
           import "crypto/ecdsa"
           func f() { ecdsa.GenerateKey(elliptic.P256(), rand.Reader) }
 
+  # Found by benchmarks/recall against pqaudit's independent pattern set on go-jose. The rule
+  # directly above carries `ecdsa.GenerateKey` as its NEGATIVE example -- correctly, it is not DSA --
+  # and nothing else claimed it, so the standard way to create an ECDSA key in Go was undetected.
+  # The curve is an argument (`elliptic.P256()`, or a `.Curve` field read), so it is not captured
+  # here; the registry rates bare ECDSA as Shor-vulnerable regardless of curve, which is the verdict
+  # that matters.
+  - id: GO-CRYPTO-ECDSA-GENERATEKEY
+    title: ecdsa.GenerateKey — ECDSA key generation
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, equals: ecdsa }
+        - { capture: fn, in: [GenerateKey] }
+    extract:
+      algorithm: { literal: ECDSA }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f() { ecdsa.GenerateKey(elliptic.P256(), rand.Reader) }
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f(pub *ecdsa.PublicKey) { ecdsa.GenerateKey(pub.Curve, randReader) }
+      negative:
+        - |
+          package main
+          import "crypto/dsa"
+          func f() { dsa.GenerateKey(params, rand.Reader) }
+
+  # Go names a hash twice: the package that implements it (`crypto/sha256`, already matched by the
+  # digest rules) and the `crypto.Hash` constant that SELECTS it. Real code selects far more often
+  # than it imports -- `NewConcatKDF(crypto.SHA256, ...)`, `priv.Thumbprint(crypto.SHA256)`,
+  # `hash = crypto.SHA1` -- and only the first was detected, so a file choosing SHA-1 for a
+  # signature read as having no hash at all. Found by benchmarks/recall on go-jose.
+  # `crypto.Hash` itself is deliberately absent: it is the TYPE, and names no algorithm.
+  - id: GO-CRYPTO-HASH-CONST
+    title: crypto.SHA256 / crypto.SHA1 — the crypto.Hash constant that selects a digest
+    match:
+      query: |
+        (selector_expression
+          operand: (identifier) @pkg
+          field: (field_identifier) @alg) @call
+      where:
+        - { capture: pkg, equals: crypto }
+        - capture: alg
+          regex: "^(MD4|MD5|SHA1|SHA224|SHA256|SHA384|SHA512|SHA512_224|SHA512_256|SHA3_224|SHA3_256|SHA3_384|SHA3_512|RIPEMD160|BLAKE2s_256|BLAKE2b_256|BLAKE2b_384|BLAKE2b_512)$"
+    extract:
+      algorithm: { from: alg, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          package main
+          import "crypto"
+          func f() { h := crypto.SHA256; _ = h }
+        - |
+          package main
+          import "crypto"
+          func f() { sign(payload, crypto.SHA1) }
+      negative:
+        - |
+          package main
+          import "crypto"
+          func f() { var h crypto.Hash; _ = h }
+        - |
+          package main
+          import "crypto/rand"
+          func f() { rand.Read(b) }
+
   - id: GO-CRYPTO-ECDH-CURVE
     title: crypto/ecdh curve selection
     match:

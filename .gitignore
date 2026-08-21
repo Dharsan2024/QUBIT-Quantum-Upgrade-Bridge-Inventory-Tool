@@ -103,3 +103,11 @@ demo-lab/meridian-driver/
 demo-lab/sonar-array/
 demo-lab/helm-ops/
 demo-lab/DEMO_TARGETS.md
+
+# --- benchmark oracles ---
+# Semgrep registry rules are LGPL-2.1 and are fetched, not vendored: only their sha256 manifest is
+# committed, so a run can prove which rules produced a number without redistributing them.
+benchmarks/oracles/rulesets/*.yaml
+!benchmarks/oracles/rulesets/MANIFEST.sha256
+# Stray editor build downloaded into the tree.
+*.vsix

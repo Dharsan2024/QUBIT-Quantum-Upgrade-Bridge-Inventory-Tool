@@ -1,0 +1,5 @@
+# Upstream semgrep registry packs, hashed at fetch time.
+# Rules are LGPL-2.1 and are NOT vendored into this repository; only their hash is.
+# selected 108 crypto rules by CWE ['CWE-326', 'CWE-327', 'CWE-328', 'CWE-347', 'CWE-916']
+7e035b4f04e29aa0bf7d8b5e50e89b09de03a8842583ff6a56a6f35734e670da  https://semgrep.dev/c/p/owasp-top-ten
+b109a039df712f30c6d3e25e1e8358053fd0f1c91b92d0e8d2871cd141fe602f  https://semgrep.dev/c/p/security-audit

@@ -363,6 +363,10 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
             # `TripleDESCryptoServiceProvider` -> "3DES", `RijndaelManaged` -> AES,
             # `Rfc2898DeriveBytes` -> PBKDF2. .NET spells one algorithm several ways.
             return _dotnet_crypto_algorithm(resolve.node_text(node))
+        case "jwa-identifier":
+            # `jose.RS256`, `SignatureAlgorithm("RS256")`, `ECDH_ES` — a JOSE codebase names its
+            # algorithms as identifiers and strings, not as calls into a crypto package.
+            return _jwa_algorithm(resolve.node_text(node))
         case "powershell-type-literal":
             # A PowerShell script names .NET classes by their full type path, inside a type
             # literal or after New-Object: `[System.Security.Cryptography.MD5]::Create()`. Pull
@@ -467,16 +471,34 @@ def _pqc_identifier_algorithm(name: str) -> str:
     """
     lowered = name.lower()
     digits = "".join(c for c in lowered if c.isdigit())
+    # Every separator spelling in one place. liboqs' own bindings pass the HYPHENATED canonical
+    # name
+    # ("ML-KEM-768"), the C constants use underscores (`OQS_KEM_alg_ml_kem_768`) and @noble
+    # runs them together (`ml_kem768`). Testing only the underscore form sent `ML-KEM-768` to
+    # the fallback.
+    squashed = lowered.replace("-", "_")
 
-    if "ml_kem" in lowered or "mlkem" in lowered or "kyber" in lowered:
+    if "ml_kem" in squashed or "mlkem" in squashed or "kyber" in squashed:
         return f"ML-KEM-{digits}" if digits in {"512", "768", "1024"} else "ML-KEM"
-    if "ml_dsa" in lowered or "mldsa" in lowered or "dilithium" in lowered:
+    if "ml_dsa" in squashed or "mldsa" in squashed or "dilithium" in squashed:
         return f"ML-DSA-{digits}" if digits in {"44", "65", "87"} else "ML-DSA"
-    if "slh_dsa" in lowered or "slhdsa" in lowered or "sphincs" in lowered:
+    if "slh_dsa" in squashed or "slhdsa" in squashed or "sphincs" in squashed:
         # SLH-DSA parameter sets carry a hash and a size (`sha2_128f`); the registry tracks the
         # family, so the parameter set stays in the evidence rather than the algorithm identity.
         return "SLH-DSA"
-    return name
+    # Not a recognised PQC identifier. In real liboqs code the argument is often a VARIABLE —
+    # `OQS_SIG_new(oqs_name)` — and returning its name produced findings labelled
+    # `UNKNOWN(oqs_name)`, which reports the scanner's own local variable as an algorithm.
+    # Measured on open-quantum-safe/oqs-provider. The algorithm is selected at runtime, which is
+    # what RUNTIME-SELECTED means, and the identifier is deliberately excluded from that judgement
+    # only when it plainly is not an algorithm name.
+    # liboqs spells its constants `OQS_KEM_alg_...` / `OQS_SIG_alg_...`, so `_alg_` is what
+    # separates a real algorithm constant from a local variable holding one. Keeping the raw name
+    # for the former leaves an unmapped liboqs algorithm visible; a bare `oqs_name` is not an
+    # algorithm at all.
+    if "_alg_" in squashed:
+        return name
+    return "UNRESOLVED"
 
 
 def _openssl_tls_version(fn_name: str) -> str:
@@ -585,6 +607,10 @@ _DOTNET_CLASS_ALIASES: dict[str, str] = {
     "Rfc2898DeriveBytes": "PBKDF2",  # the class name never says PBKDF2; the RFC number does
     "PasswordDeriveBytes": "PBKDF1",
     "RNGCryptoServiceProvider": "CSPRNG",
+    # AEAD modes of AES. .NET gives each its own class; the registry knows the mode-qualified name,
+    # which is what a rule's `present: AES` expectation is satisfied by either way.
+    "AesGcm": "AES-GCM",
+    "AesCcm": "AES-CCM",
     "DES": "DES",
     "RC2": "RC2",
 }
@@ -615,24 +641,81 @@ _DOTNET_TLS_PROTOCOLS: dict[str, str] = {
 
 
 # .NET class names a PowerShell script can name, longest first so `MD5CryptoServiceProvider` is
-# preferred over the bare `MD5` substring it contains.
+# preferred over the bare `MD5` substring it contains -- and so `SHA1` never wins inside `SHA1...`
+# variants or `HMACSHA1` inside `HMACSHA1`.
+#
+# The strong classes are here for the same reason the PQC rules exist: a migration is confirmed by
+# DETECTING its target, so a language that can be scanned for 3DES but not for AES can never be
+# shown to have been migrated. Measured on `Provision.ps1`, whose 3DES -> AES-GCM rewrite was
+# refused with "Expected one of ['AES'] present, but not found".
 _POWERSHELL_TYPE_NAMES: tuple[str, ...] = (
     "TripleDESCryptoServiceProvider",
     "RSACryptoServiceProvider",
+    "AesCryptoServiceProvider",
     "DESCryptoServiceProvider",
     "MD5CryptoServiceProvider",
     "SHA1CryptoServiceProvider",
+    "SHA256CryptoServiceProvider",
     "RC2CryptoServiceProvider",
     "Rfc2898DeriveBytes",
+    "ChaCha20Poly1305",
     "RijndaelManaged",
+    "SHA256Managed",
     "SHA1Managed",
+    "AesManaged",
+    "HMACSHA256",
+    "HMACSHA384",
+    "HMACSHA512",
     "HMACSHA1",
     "HMACMD5",
     "TripleDES",
+    "AesGcm",
+    "AesCcm",
+    "SHA256",
+    "SHA384",
+    "SHA512",
     "SHA1",
+    "Aes",
     "MD5",
     "MD4",
 )
+
+
+# JWA identifiers as a Go or Java CONSTANT spells them, mapped to the spelling the algorithm
+# registry uses. The wire format is hyphenated ("RSA-OAEP"), while an identifier cannot contain a
+# hyphen, so every library writes the same algorithm two ways. Only the ones that actually differ
+# are listed; `RS256` and `ES256` are identical in both forms, and `RSA1_5` really is spelled with
+# an underscore in RFC 7518 §4.1.
+# https://www.iana.org/assignments/jose/jose.xhtml — RFC 7518 §3.1, §4.1, §5.1
+_JWA_CONSTANT_ALIASES: dict[str, str] = {
+    "RSA_OAEP": "RSA-OAEP",
+    "RSA_OAEP_256": "RSA-OAEP-256",
+    "ECDH_ES": "ECDH-ES",
+    "ECDH_ES_A128KW": "ECDH-ES+A128KW",
+    "ECDH_ES_A192KW": "ECDH-ES+A192KW",
+    "ECDH_ES_A256KW": "ECDH-ES+A256KW",
+    "A128CBC_HS256": "A128CBC-HS256",
+    "A192CBC_HS384": "A192CBC-HS384",
+    "A256CBC_HS512": "A256CBC-HS512",
+    "PBES2_HS256_A128KW": "PBES2-HS256+A128KW",
+    "PBES2_HS384_A192KW": "PBES2-HS384+A192KW",
+    "PBES2_HS512_A256KW": "PBES2-HS512+A256KW",
+}
+
+
+def _jwa_algorithm(text: str) -> str | None:
+    """A JWA identifier in either spelling, normalised to the registry's.
+
+    `jose.RS256` and `KeyAlgorithm("RSA-OAEP")` name the same kind of thing, and both are how a
+    JOSE codebase actually selects an algorithm. Returning the identifier is enough: the registry
+    resolves RS256 to a Shor-vulnerable RSA signature and A256GCM to AES-256 on its own.
+    """
+    token = text.strip().strip("\"'")
+    if not token:
+        return None
+    # A selector like `jose.RS256` arrives whole when the query captures the expression.
+    token = token.rsplit(".", 1)[-1]
+    return _JWA_CONSTANT_ALIASES.get(token, token)
 
 
 def _powershell_type_algorithm(text: str) -> str | None:

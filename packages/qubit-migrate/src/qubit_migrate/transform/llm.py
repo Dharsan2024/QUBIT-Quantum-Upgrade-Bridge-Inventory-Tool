@@ -16,6 +16,7 @@ import socket
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -245,6 +246,31 @@ def _target_shape_block(rule: MigrationRule, language: str) -> str:
     return ""
 
 
+def _attack_note(asset: CryptoAsset) -> str:
+    """One line saying what KIND of broken this finding is, taken from the finding itself.
+
+    Without it the model read "RSA-1024" as a short key and returned RSA-2048 -- correct for a
+    key-length problem, useless against Shor's algorithm, and rejected by the rescan. Grover is the
+    opposite case: for a symmetric primitive a larger key genuinely is part of the answer, so this
+    is read from the asset rather than asserted for every finding.
+    """
+    attack = getattr(getattr(asset, "quantum_vulnerable", None), "attack", None)
+    value = getattr(attack, "value", attack)
+    if value == "shor":
+        return (
+            f"{asset.algorithm} is broken by Shor's algorithm at EVERY key size. Increasing the "
+            f"key length is not a migration and will be rejected: only a post-quantum algorithm "
+            f"fixes this.\n"
+        )
+    if value == "grover":
+        return (
+            f"{asset.algorithm} is weakened by Grover's algorithm, which halves the effective "
+            f"strength of a symmetric primitive. A large enough key and a modern construction are "
+            f"the fix here.\n"
+        )
+    return ""
+
+
 def _build_prompt(
     source: str, rule: MigrationRule, asset: CryptoAsset, feedback: str | None = None
 ) -> str:
@@ -257,6 +283,7 @@ def _build_prompt(
         "inside a single fenced code block. No explanations.\n\n"
         f"Flagged asset: algorithm={asset.algorithm}, usage_context={asset.usage_context.value}, "
         f"line={asset.location.line if asset.location else '?'}\n"
+        f"{_attack_note(asset)}"
         f"Migration rule: {rule.title}\n"
         f"Guidance: {rule.semantic_note or ''}\n"
         f"Hard constraints:\n{constraints}\n\n"
@@ -282,7 +309,16 @@ def _build_prompt(
         "REMOVE any import, use-statement or include that your rewritten file no longer "
         "references. An import for the algorithm you just migrated leaves that algorithm present "
         "in the file, which means the migration did not happen.\n\n"
-        "Preserve all unrelated code, comments, and formatting exactly.\n\n"
+        "Preserve all unrelated code, comments, and formatting exactly.\n"
+        # A file of unrelated crypto calls reads like a list of examples, and the model answered
+        # one of them: asked to migrate 3DES in this 15-line file it returned a clean 6-line
+        # AES-GCM module and dropped the other nine calls. The truncation guard caught it, but
+        # "return the COMPLETE file" as retry feedback did not fix it three attempts running.
+        # Stating the size up front makes the requirement one the model can check as it writes,
+        # rather than one only the guard can check afterwards.
+        f"The file below has {len(source.splitlines())} lines. Your output must contain all of "
+        "them, in order, changing only what this migration requires. Do not summarise, "
+        "reorganise, or drop code unrelated to the flagged algorithm.\n\n"
         f"{target_shape}"
         f"{_worked_examples(rule, language)}"
         f"{_repair_feedback(feedback)}"
@@ -427,7 +463,56 @@ _MIN_RETAINED_FRACTION = 0.7
 _MAX_ATTEMPTS = 3
 
 
-def check_rewrite(source: str, new_source: str, language: str | None) -> str | None:
+def _normalised(text: str) -> str:
+    """Whitespace-insensitive form, so an echo is not disguised by re-indentation."""
+    return "\n".join(line.strip() for line in text.splitlines() if line.strip())
+
+
+#: How close to a worked example an output may be before it is treated as a copy of it. Below 1.0
+#: because a model reproducing an example rarely does so byte-for-byte -- it renames a variable or
+#: drops a comment. Measured on the observed failure, which was an exact copy.
+_ECHO_RATIO = 0.9
+
+
+def _echoes_worked_example(source: str, new_source: str, rule: MigrationRule | None) -> str | None:
+    """Reject an output that is the rule's demonstration rather than a rewrite of this file.
+
+    The exemption matters: when the file being migrated IS an example's `before` block, returning
+    that example's `after` block is the correct migration, not an echo. Rule-fixture tests do
+    exactly this.
+    """
+    if rule is None:
+        return None
+    candidate = _normalised(new_source)
+    if not candidate:
+        return None
+    given = _normalised(source)
+
+    pairs: list[tuple[str, dict[str, str]]] = []
+    if rule.example:
+        pairs.append(("example", rule.example))
+    pairs.extend(sorted(rule.extra_examples.items()))
+
+    for name, pair in pairs:
+        after = _normalised(str(pair.get("after") or ""))
+        before = _normalised(str(pair.get("before") or ""))
+        if not after:
+            continue
+        if before and SequenceMatcher(None, given, before).ratio() >= _ECHO_RATIO:
+            continue  # this file IS the example; reproducing its `after` is correct
+        if SequenceMatcher(None, candidate, after).ratio() >= _ECHO_RATIO:
+            label = name.replace("example_", "").replace("_", " ") or "example"
+            return (
+                f"the output is the rule's worked {label}, not a rewrite of the file you were "
+                f"given. The examples demonstrate the shape of the change; apply that shape to "
+                f"every line of THIS file and return it in full"
+            )
+    return None
+
+
+def check_rewrite(
+    source: str, new_source: str, language: str | None, rule: MigrationRule | None = None
+) -> str | None:
     """Return a rejection reason for an LLM rewrite, or None if it looks acceptable.
 
     These are the CHEAP local checks: they run before the patch is stored and cost nothing, so a
@@ -439,6 +524,10 @@ def check_rewrite(source: str, new_source: str, language: str | None) -> str | N
         return "the returned file was empty"
     if new_source.strip() == source.strip():
         return "the file came back unchanged — the flagged algorithm was not migrated"
+
+    echoed = _echoes_worked_example(source, new_source, rule)
+    if echoed is not None:
+        return echoed
 
     original_lines = [ln for ln in source.splitlines() if ln.strip()]
     new_lines = [ln for ln in new_source.splitlines() if ln.strip()]
@@ -571,7 +660,7 @@ def generate_llm_source(
 
         # The FILE's language, not the rule's: a cross-language rule says "multi", which
         # matches no grammar and skipped every language-aware check in the guard.
-        reason = check_rewrite(source, new_source, _prompt_language(rule, asset))
+        reason = check_rewrite(source, new_source, _prompt_language(rule, asset), rule)
         if reason is None and verify is not None:
             # The expensive check, and the only one that answers "did the finding go away". It runs
             # here rather than only after generation so its answer can be fed back — the model

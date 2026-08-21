@@ -82,3 +82,51 @@ rules:
         - |
           #include <openssl/evp.h>
           void f(void) { EVP_PKEY *k = EVP_RSA_gen(2048); EVP_PKEY_free(k); }
+
+  # Found by benchmarks/oracles on open-quantum-safe/oqs-provider, where QUBIT reported 24 sites and
+  # every one of them was RUNTIME-SELECTED while pqaudit and cryptoscan both named ML-KEM, ML-DSA
+  # and SLH-DSA. Neither of them was wrong.
+  #
+  # The two rules above anchor on `OQS_KEM_new(...)` / `OQS_SIG_new(...)`, and in a real liboqs
+  # consumer that call takes a VARIABLE — `OQS_KEM_new(oqs_name)` — so RUNTIME-SELECTED is the
+  # honest answer for it. The algorithm names are still right there in the file, in the provider's
+  # registration table:
+  #
+  #     {0, "mlkem768", OQS_KEM_alg_ml_kem_768, KEY_TYPE_KEM, 192, 0},
+  #
+  # A constant naming an algorithm is evidence of that algorithm wherever it appears, which is
+  # exactly the conclusion the JWA identifier rules reached for Go/Python/JS/TS. Anchoring detection
+  # on the call site alone meant the reference implementation of post-quantum cryptography for
+  # OpenSSL registered as having no identifiable post-quantum cryptography in it.
+  #
+  # `dedupe: per-file` because a registration table names the same algorithm on many lines, and an
+  # inventory listing ML-KEM-768 twelve times is a worse inventory, not a more complete one.
+  - id: C-LIBOQS-ALG-CONST
+    title: "liboqs algorithm constant — OQS_KEM_alg_ml_kem_768 / OQS_SIG_alg_ml_dsa_44"
+    match:
+      query: |
+        (identifier) @alg
+      where:
+        - { capture: alg, regex: "^OQS_(KEM|SIG)_alg_[A-Za-z0-9_]+$" }
+    extract:
+      algorithm: { from: alg, resolve: liboqs-alg-const }
+    # `unknown` rather than kex or signature: this is a registration, and the same table lists both
+    # KEMs and signatures. Claiming a usage context the constant does not carry would put a
+    # confident wrong answer where an honest one belongs.
+    asset: { asset_type: algorithm-use, usage_context: unknown }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          #include <oqs/oqs.h>
+          static const struct { const char *name; const char *alg; } table[] = {
+              {"mlkem768", OQS_KEM_alg_ml_kem_768},
+          };
+        - |
+          #include <oqs/oqs.h>
+          static const char *sigs[] = {OQS_SIG_alg_ml_dsa_44, OQS_SIG_alg_falcon_512};
+      negative:
+        - |
+          #include <oqs/oqs.h>
+          void f(void) { OQS_KEM *kem = OQS_KEM_new(oqs_name); OQS_KEM_free(kem); }

@@ -1,0 +1,240 @@
+{
+  "seed": 20260821,
+  "per_stratum": 2,
+  "strata": {
+    "C": [
+      {
+        "full_name": "allinurl/goaccess",
+        "clone_url": "https://github.com/allinurl/goaccess.git",
+        "stars": 20829,
+        "size_kb": 9349,
+        "license": "MIT",
+        "default_branch": "master"
+      },
+      {
+        "full_name": "redis/redis",
+        "clone_url": "https://github.com/redis/redis.git",
+        "stars": 76078,
+        "size_kb": 215660,
+        "license": "NOASSERTION",
+        "default_branch": "unstable"
+      }
+    ],
+    "C#": [
+      {
+        "full_name": "openwrt/openwrt",
+        "clone_url": "https://github.com/openwrt/openwrt.git",
+        "stars": 28057,
+        "size_kb": 304390,
+        "license": "NOASSERTION",
+        "default_branch": "main"
+      },
+      {
+        "full_name": "mpv-player/mpv",
+        "clone_url": "https://github.com/mpv-player/mpv.git",
+        "stars": 36613,
+        "size_kb": 120565,
+        "license": "NOASSERTION",
+        "default_branch": "master"
+      }
+    ],
+    "C++": [
+      {
+        "full_name": "valinet/ExplorerPatcher",
+        "clone_url": "https://github.com/valinet/ExplorerPatcher.git",
+        "stars": 33677,
+        "size_kb": 9196,
+        "license": "GPL-2.0",
+        "default_branch": "master"
+      },
+      {
+        "full_name": "libuv/libuv",
+        "clone_url": "https://github.com/libuv/libuv.git",
+        "stars": 27125,
+        "size_kb": 17868,
+        "license": "MIT",
+        "default_branch": "v1.x"
+      }
+    ],
+    "Go": [
+      {
+        "full_name": "multica-ai/multica",
+        "clone_url": "https://github.com/multica-ai/multica.git",
+        "stars": 47188,
+        "size_kb": 128206,
+        "license": "NOASSERTION",
+        "default_branch": "main"
+      },
+      {
+        "full_name": "usememos/memos",
+        "clone_url": "https://github.com/usememos/memos.git",
+        "stars": 62416,
+        "size_kb": 38881,
+        "license": "MIT",
+        "default_branch": "main"
+      }
+    ],
+    "Java": [
+      {
+        "full_name": "ReactiveX/RxJava",
+        "clone_url": "https://github.com/ReactiveX/RxJava.git",
+        "stars": 48204,
+        "size_kb": 179264,
+        "license": "Apache-2.0",
+        "default_branch": "4.x"
+      },
+      {
+        "full_name": "conductor-oss/conductor",
+        "clone_url": "https://github.com/conductor-oss/conductor.git",
+        "stars": 32102,
+        "size_kb": 55162,
+        "license": "Apache-2.0",
+        "default_branch": "main"
+      }
+    ],
+    "JavaScript": [
+      {
+        "full_name": "react/create-react-app",
+        "clone_url": "https://github.com/react/create-react-app.git",
+        "stars": 103290,
+        "size_kb": 25186,
+        "license": "MIT",
+        "default_branch": "main"
+      },
+      {
+        "full_name": "gatsbyjs/gatsby",
+        "clone_url": "https://github.com/gatsbyjs/gatsby.git",
+        "stars": 55941,
+        "size_kb": 1150836,
+        "license": "MIT",
+        "default_branch": "master"
+      }
+    ],
+    "Kotlin": [
+      {
+        "full_name": "CymChad/BaseRecyclerViewAdapterHelper",
+        "clone_url": "https://github.com/CymChad/BaseRecyclerViewAdapterHelper.git",
+        "stars": 24578,
+        "size_kb": 72172,
+        "license": "MIT",
+        "default_branch": "master"
+      },
+      {
+        "full_name": "JetBrains/compose-multiplatform",
+        "clone_url": "https://github.com/JetBrains/compose-multiplatform.git",
+        "stars": 19309,
+        "size_kb": 287604,
+        "license": "Apache-2.0",
+        "default_branch": "master"
+      }
+    ],
+    "PHP": [
+      {
+        "full_name": "filp/whoops",
+        "clone_url": "https://github.com/filp/whoops.git",
+        "stars": 13234,
+        "size_kb": 1773,
+        "license": "MIT",
+        "default_branch": "master"
+      },
+      {
+        "full_name": "fruitcake/laravel-debugbar",
+        "clone_url": "https://github.com/fruitcake/laravel-debugbar.git",
+        "stars": 19281,
+        "size_kb": 15743,
+        "license": "MIT",
+        "default_branch": "master"
+      }
+    ],
+    "Python": [
+      {
+        "full_name": "anthropics/skills",
+        "clone_url": "https://github.com/anthropics/skills.git",
+        "stars": 170814,
+        "size_kb": 4379,
+        "license": null,
+        "default_branch": "main"
+      },
+      {
+        "full_name": "TheAlgorithms/Python",
+        "clone_url": "https://github.com/TheAlgorithms/Python.git",
+        "stars": 223920,
+        "size_kb": 16587,
+        "license": "MIT",
+        "default_branch": "master"
+      }
+    ],
+    "Ruby": [
+      {
+        "full_name": "activeadmin/activeadmin",
+        "clone_url": "https://github.com/activeadmin/activeadmin.git",
+        "stars": 9703,
+        "size_kb": 16867,
+        "license": "MIT",
+        "default_branch": "master"
+      },
+      {
+        "full_name": "tmuxinator/tmuxinator",
+        "clone_url": "https://github.com/tmuxinator/tmuxinator.git",
+        "stars": 13708,
+        "size_kb": 1020,
+        "license": "MIT",
+        "default_branch": "master"
+      }
+    ],
+    "Rust": [
+      {
+        "full_name": "starship/starship",
+        "clone_url": "https://github.com/starship/starship.git",
+        "stars": 59518,
+        "size_kb": 47201,
+        "license": "ISC",
+        "default_branch": "main"
+      },
+      {
+        "full_name": "lencx/ChatGPT",
+        "clone_url": "https://github.com/lencx/ChatGPT.git",
+        "stars": 54447,
+        "size_kb": 32499,
+        "license": null,
+        "default_branch": "v2-dev"
+      }
+    ],
+    "Swift": [
+      {
+        "full_name": "permissionlesstech/bitchat",
+        "clone_url": "https://github.com/permissionlesstech/bitchat.git",
+        "stars": 35746,
+        "size_kb": 115873,
+        "license": "Unlicense",
+        "default_branch": "main"
+      },
+      {
+        "full_name": "realm/SwiftLint",
+        "clone_url": "https://github.com/realm/SwiftLint.git",
+        "stars": 19702,
+        "size_kb": 976606,
+        "license": "MIT",
+        "default_branch": "main"
+      }
+    ],
+    "TypeScript": [
+      {
+        "full_name": "coder/code-server",
+        "clone_url": "https://github.com/coder/code-server.git",
+        "stars": 78997,
+        "size_kb": 55017,
+        "license": "MIT",
+        "default_branch": "main"
+      },
+      {
+        "full_name": "withastro/astro",
+        "clone_url": "https://github.com/withastro/astro.git",
+        "stars": 61913,
+        "size_kb": 232966,
+        "license": "NOASSERTION",
+        "default_branch": "main"
+      }
+    ]
+  }
+}

@@ -39,7 +39,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-from base import Finding
+from base import SUFFIXES, Finding
 from cryptoscan_oracle import CryptoscanDetector
 from population import (
     agreement_matrix,
@@ -105,6 +105,31 @@ def shared_vocabulary(findings: dict[str, list[Finding]], minimum: int = 2) -> s
     return {fam for fam, detectors in per_family.items() if detectors >= minimum}
 
 
+def restrict_to_source(findings: dict[str, list[Finding]]) -> tuple[dict[str, list[Finding]], int]:
+    """Drop findings in files QUBIT's code scanner does not read as code.
+
+    Detectors disagree about what a source file IS, and comparing them over different file
+    populations measures that disagreement instead of their detection. This was not a hypothetical:
+    on `cryptodeps`, **3 432 of cryptoscan's 3 794 findings are in `data/crypto-database.json`** --
+    a lookup table listing algorithm names, which is exactly what that project is for. QUBIT never
+    opens `.json` as code, so every one of those became a QUBIT "miss" and the corpus reported
+    QUBIT at 23 sites against cryptoscan's 198.
+
+    Filtering to `base.SUFFIXES` puts every detector on the same files. What it does NOT fix is the
+    same error inside source files -- `internal/database/database.go` contributes another 282 --
+    where an algorithm named in a Go string table is indistinguishable, to anything matching text,
+    from an algorithm being called. That one needs adjudication, not a filter, and it is the
+    clearest argument in this whole benchmark for why an AST detector is worth the trouble.
+    """
+    kept: dict[str, list[Finding]] = {}
+    dropped = 0
+    for detector, hits in findings.items():
+        keep = [f for f in hits if Path(f.path).suffix.lower() in SUFFIXES]
+        dropped += len(hits) - len(keep)
+        kept[detector] = keep
+    return kept, dropped
+
+
 def report(
     name: str,
     findings: dict[str, list[Finding]],
@@ -112,6 +137,13 @@ def report(
     *,
     restrict_vocabulary: bool = True,
 ) -> dict:
+    findings, dropped_non_source = restrict_to_source(findings)
+    if dropped_non_source:
+        print(
+            f"\n  dropped {dropped_non_source} findings in files QUBIT does not read as code "
+            "(data files, manifests): every detector is compared over the same file set",
+            file=sys.stderr,
+        )
     vocabulary = shared_vocabulary(findings)
     if restrict_vocabulary:
         findings = {
@@ -143,6 +175,7 @@ def report(
 
     payload: dict = {
         "corpus": name,
+        "dropped_non_source_findings": dropped_non_source,
         "shared_vocabulary": sorted(vocabulary),
         "vocabulary_restricted": restrict_vocabulary,
         "detectors": {

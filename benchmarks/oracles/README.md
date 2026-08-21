@@ -59,6 +59,60 @@ The default restricts comparison to families **≥2 detectors can name**. `--all
 the flattering version. Most of QUBIT's apparent lead was vocabulary, and publishing the 144 would
 have been the same error as the cryptoscan-samples corpus, pointing the other way.
 
+## The finding: detectors cannot tell a use from a mention
+
+Running four detectors over crypto *tooling* — the codebases most likely to be audited during a PQC
+migration — produced a result that no recall number would have shown.
+
+On `tls-analyzer`, QUBIT reports 9 sites and cryptoscan reports 112. Reading the difference:
+
+```go
+pkg/types/policy.go:194        BannedAlgorithms: []string{"3DES", "RC4", "MD5", "SHA1"},
+internal/analyzer/cnsa2.go:75  "RC4":  "Immediately",
+internal/scanner/grade.go:352  if containsAny(cert.SignatureAlgorithm, "SHA1", "MD5") {
+```
+
+A ban list. A remediation-deadline table. A weak-signature check. **A project that bans RC4 is
+reported as using RC4** — the finding is not merely wrong, it is inverted. Publishing "QUBIT recall
+8%" from that comparison would have published a number known to be false.
+
+`adjudicate.py` classifies each detector's exclusive findings by whether the algorithm name appears
+anywhere outside quotes on its line. Findings **no other detector reported**:
+
+| corpus | detector | exclusive | code | mention-only |
+|---|---|---:|---:|---:|
+| tls-analyzer | cryptoscan | 171 | 39 | **132 (77%)** |
+| tls-analyzer | pqaudit | 69 | 14 | **55 (80%)** |
+| tls-analyzer | qubit | 5 | 5 | 0 |
+| cryptodeps | cryptoscan | 406 | 46 | **359 (88%)** |
+| cryptodeps | pqaudit | 133 | 32 | **101 (76%)** |
+| cryptodeps | qubit | 76 | 3 | **73 (96%)** |
+| go-jose | qubit | 252 | 249 | 0 |
+| go-jose | pqaudit | 26 | 21 | 5 |
+
+Two things this says, and the second is the one worth having.
+
+**On a real crypto library, QUBIT's advantage is real.** 249 of its 252 exclusive findings on
+go-jose are code.
+
+**On crypto tooling, QUBIT was committing the same error.** 73 of 76 exclusive findings on
+cryptodeps were mentions, *all* of them from `GO-JWA-WIRE-NAME` — a rule added in the same session
+that built this harness, matching any `"RS256"` string anywhere in a Go file. An AST detector that
+matches a bare string literal has thrown away the only advantage it has. The benchmark caught it in
+its first run against a corpus the rule's author had not thought about.
+
+Fixed by spending the AST advantage instead of asserting it: the string must now be a **call
+argument**, a constraint no regex can express. Measured cost — go-jose 45 → 37 detections,
+cryptodeps 114 → 2, golang-jwt/jwt 31 → 1. That last one was a real recall loss (golang-jwt defines
+its algorithms in composite literals), recovered on precise evidence by a new
+`GO-JWA-SIGNING-METHOD` rule: a ban list contains `"RS256"`, never `jwt.SigningMethodRS256`.
+
+`adjudicate.py` itself had the same class of bug and it is worth recording, because it is the reason
+to distrust a screening heuristic that has not been checked by hand. It classified on the detector's
+`text` field, which adapters truncate to 160 characters — so a long line's closing quote went
+missing and `Description: "RSA key is less than 2048 bits…"` scored as *code*. A mention counted as
+a use, in the direction that flattered the pattern detectors. It now reads the real line from disk.
+
 ## Result on go-jose
 
 Shared vocabulary (AES, EC, HMAC, PBKDF2, RSA, SHA, SHA-1); 75 QUBIT sites, 48 cryptoscan, 56

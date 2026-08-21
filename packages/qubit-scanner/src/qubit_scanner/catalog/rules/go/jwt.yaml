@@ -48,9 +48,34 @@ rules:
 
   - id: GO-JWA-WIRE-NAME
     title: JWA algorithm identifier as a string ("RS256", "RSA-OAEP", "A128CBC-HS256")
+    # The string must be an ARGUMENT to a call, not a bare literal anywhere in the file.
+    #
+    # The first version of this rule matched `(interpreted_string_literal)` unanchored, and
+    # benchmarks/oracles measured what that costs: on csnp/cryptodeps it produced 114 detections,
+    # and 39 of 39 hand-checked were mentions rather than uses --
+    #
+    #     expected := []string{"RS256", "RS384", "ES256", "HS256", "EdDSA"}   // a test fixture
+    #     {Algorithm: "RS512", Type: "signature", QuantumRisk: RiskVulnerable} // a lookup table
+    #     "ps512": "PS512",                                                   // a name map
+    #
+    # -- every one of them a security tool's own vocabulary. That is the same failure that makes a
+    # ban list read as usage, and QUBIT was committing it, so the AST advantage this project claims
+    # has to be spent rather than just asserted: requiring the call position is exactly the
+    # constraint a regex cannot express.
+    #
+    # Cost, measured: go-jose 45 -> 37 detections, golang-jwt/jwt 31 -> 1, cryptodeps 114 -> 2.
+    #
+    # go-jose barely moves because it names algorithms by conversion -- `SignatureAlgorithm("RS256")`
+    # is a call. golang-jwt/jwt falls hard because it names them in composite literals
+    # (`&SigningMethodHMAC{"HS256", crypto.SHA256}`), which ARE real definitions and are now missed;
+    # GO-JWA-IDENTIFIER does not recover them either, since its regex wants a bare `HS256` field and
+    # the constant is spelled `SigningMethodHS256`. That is a real recall cost, taken knowingly: a
+    # composite literal of algorithm names is the exact shape that made cryptodeps' lookup tables
+    # indistinguishable from usage, and a rule cannot match one without matching the other.
     match:
       query: |
-        (interpreted_string_literal) @call
+        (call_expression
+          arguments: (argument_list (interpreted_string_literal) @call))
       where:
         - capture: call
           regex: "^\"(RS256|RS384|RS512|PS256|PS384|PS512|ES256|ES384|ES512|EdDSA|HS256|HS384|HS512|RSA1_5|RSA-OAEP-256|RSA-OAEP|ECDH-ES\\+A128KW|ECDH-ES\\+A192KW|ECDH-ES\\+A256KW|ECDH-ES|A128KW|A192KW|A256KW|A128GCMKW|A192GCMKW|A256GCMKW|A128GCM|A192GCM|A256GCM|A128CBC-HS256|A192CBC-HS384|A256CBC-HS512|PBES2-HS256\\+A128KW|PBES2-HS384\\+A192KW|PBES2-HS512\\+A256KW)\"$"
@@ -72,82 +97,37 @@ rules:
           package main
           func f() { a := "some other string"; _ = a }
 
-  - id: GO-JWT-RS256
-    title: golang-jwt RS256 token signing (jwt.NewWithClaims(jwt.SigningMethodRS256, ...))
+  # NOTE: GO-JWT-RS256 and GO-JWT-ES256 were removed when GO-JWA-SIGNING-METHOD landed. They
+  # matched exactly one call shape -- `jwt.NewWithClaims(jwt.SigningMethodRS256, ...)` -- for
+  # exactly two of the thirteen algorithms, so `jwt.SigningMethodHS512` assigned to a variable was
+  # invisible while `jwt.SigningMethodRS256` was reported twice by two rules at once. The general
+  # rule covers every algorithm in every position, which is what an inventory needs.
+  - id: GO-JWA-SIGNING-METHOD
+    title: golang-jwt SigningMethod constant (jwt.SigningMethodHS256, SigningMethodRS256)
+    # Both spellings. Inside golang-jwt itself the constant is a bare `(identifier)`; every
+    # consumer writes `jwt.SigningMethodHS256`, where Go's grammar makes it a `(field_identifier)`
+    # inside a selector. Matching only the first caught the library's own definitions and none of
+    # the usage that actually matters, which is the reverse of what an inventory needs.
     match:
       query: |
-        (call_expression
-          function: (selector_expression
-            operand: (identifier) @pkg
-            field: (field_identifier) @fn)
-          arguments: (argument_list
-            (selector_expression
-              operand: (identifier) @sm_pkg
-              field: (field_identifier) @sm)
-            (_))) @call
+        [(identifier) (field_identifier)] @alg
       where:
-        - { capture: pkg, equals: jwt }
-        - { capture: fn, equals: NewWithClaims }
-        - { capture: sm_pkg, equals: jwt }
-        - { capture: sm, equals: SigningMethodRS256 }
+        - capture: alg
+          regex: "^SigningMethod(RS256|RS384|RS512|PS256|PS384|PS512|ES256|ES384|ES512|EdDSA|HS256|HS384|HS512)$"
     extract:
-      algorithm: { literal: RS256 }
+      algorithm: { from: alg, resolve: jwa-identifier }
     asset: { asset_type: algorithm-use, usage_context: token }
     confidence: high
+    dedupe: per-file
     examples:
       positive:
         - |
           package main
-          import "github.com/golang-jwt/jwt/v5"
-          func f() {
-            token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.RegisteredClaims{})
-            _ = token
-          }
+          func f() { t := NewWithClaims(SigningMethodHS256, claims); _ = t }
+        - |
+          package main
+          var m = SigningMethodRS512
       negative:
         - |
           package main
-          import "github.com/golang-jwt/jwt/v5"
-          func f() {
-            token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{})
-            _ = token
-          }
-
-  - id: GO-JWT-ES256
-    title: golang-jwt ES256 token signing (jwt.NewWithClaims(jwt.SigningMethodES256, ...))
-    match:
-      query: |
-        (call_expression
-          function: (selector_expression
-            operand: (identifier) @pkg
-            field: (field_identifier) @fn)
-          arguments: (argument_list
-            (selector_expression
-              operand: (identifier) @sm_pkg
-              field: (field_identifier) @sm)
-            (_))) @call
-      where:
-        - { capture: pkg, equals: jwt }
-        - { capture: fn, equals: NewWithClaims }
-        - { capture: sm_pkg, equals: jwt }
-        - { capture: sm, equals: SigningMethodES256 }
-    extract:
-      algorithm: { literal: ES256 }
-    asset: { asset_type: algorithm-use, usage_context: token }
-    confidence: high
-    examples:
-      positive:
-        - |
-          package main
-          import "github.com/golang-jwt/jwt/v5"
-          func f() {
-            token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.RegisteredClaims{})
-            _ = token
-          }
-      negative:
-        - |
-          package main
-          import "github.com/golang-jwt/jwt/v5"
-          func f() {
-            token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{})
-            _ = token
-          }
+          var m = SigningMethodNone

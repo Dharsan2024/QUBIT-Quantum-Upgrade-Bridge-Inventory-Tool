@@ -486,6 +486,38 @@ def _pqc_identifier_algorithm(name: str) -> str:
         # SLH-DSA parameter sets carry a hash and a size (`sha2_128f`); the registry tracks the
         # family, so the parameter set stays in the evidence rather than the algorithm identity.
         return "SLH-DSA"
+    # Falcon is FIPS 206 (FN-DSA), still draft at the time of writing, and HQC is NIST's fifth-round
+    # KEM selection. Both were unmapped here while the registry already knew them, so on
+    # open-quantum-safe/oqs-provider every `OQS_SIG_alg_falcon_512` came back as its own raw name
+    # and resolved to `UNKNOWN(...)` -- a post-quantum signature reported as an unknown algorithm by
+    # a tool whose purpose is tracking post-quantum adoption.
+    # Bare family, not `FN-DSA-512`, for the same reason SLH-DSA is: the registry carries these as
+    # families and has no entry for their parameter sets, so a sized name would resolve to
+    # `UNKNOWN(FN-DSA-512)` -- strictly worse than the family, which resolves and is true. The
+    # parameter set stays in the evidence.
+    if "falcon" in squashed:
+        return "FN-DSA"
+    if "hqc" in squashed:
+        return "HQC"
+    if "bike" in squashed:
+        return "BIKE"
+    # FrodoKEM and Classic-McEliece were already in the registry and simply had no branch here.
+    # liboqs also spells FrodoKEM's ephemeral variant `efrodokem`, which is the same family.
+    if "frodo" in squashed:
+        return "FrodoKEM"
+    if "mceliece" in squashed:
+        return "Classic-McEliece"
+    # NIST additional-signature candidates. Not standardised, and named here only so they are
+    # inventoried as the post-quantum signatures they are rather than as UNKNOWN(...).
+    for token, canonical in (
+        ("snova", "SNOVA"),
+        ("mayo", "MAYO"),
+        ("mqom", "MQOM"),
+        ("cross", "CROSS"),
+        ("uov", "UOV"),
+    ):
+        if token in squashed:
+            return canonical
     # Not a recognised PQC identifier. In real liboqs code the argument is often a VARIABLE —
     # `OQS_SIG_new(oqs_name)` — and returning its name produced findings labelled
     # `UNKNOWN(oqs_name)`, which reports the scanner's own local variable as an algorithm.
@@ -715,6 +747,12 @@ def _jwa_algorithm(text: str) -> str | None:
         return None
     # A selector like `jose.RS256` arrives whole when the query captures the expression.
     token = token.rsplit(".", 1)[-1]
+    # golang-jwt prefixes every one of them: `jwt.SigningMethodHS256`. Without this the algorithm
+    # is reported as `UNKNOWN(SigningMethodHS256)` -- the library's own constant name presented as
+    # an algorithm, which is precisely the failure `_pqc_identifier_algorithm` guards against for
+    # `OQS_SIG_new(oqs_name)`. The prefix is a spelling, not an algorithm.
+    if token.startswith("SigningMethod") and len(token) > len("SigningMethod"):
+        token = token[len("SigningMethod") :]
     return _JWA_CONSTANT_ALIASES.get(token, token)
 
 

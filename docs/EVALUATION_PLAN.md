@@ -81,19 +81,58 @@ That is the paper's spine. G1–G6 are what make it survive review.
 
 ---
 
-## Phase 0 — Stabilise and bank the existing work
+## Phase 0 — Stabilise and bank the existing work ✅
 
-Everything since `c660f30` is uncommitted: the recall harness, the CAMM module, seven rule
-additions, the registry changes, five test files.
-
-- [x] Fix the `test_agility.py` basename collision that blocks whole-suite collection
+- [x] Fix the `test_agility.py` basename collision that blocked whole-suite collection
       (`qubit_risk.agility` → `qubit_risk.camm`, since `qubit_migrate.agility` already means
-      something else).
-- [ ] Full suite green: 0 failed, 0 unexpected skips.
-- [ ] `ruff` + `mypy` clean on touched packages.
-- [ ] Commit and push; verify with `git ls-remote`.
+      something else). The suite had not been running to completion.
+- [x] Close the coverage-guard failure it exposed: `ECDH-ES` was detectable and not migratable
+      (`code-jwe-kex-01`).
+- [x] Full suite green: **1 577 passed, 0 failed, 0 skipped** — the two live-service tests now run
+      for real against nginx-hybrid on 8443 and the seeded demo Vault, so `X25519MLKEM768` is read
+      off an actual handshake rather than skipped.
+- [x] `ruff` + `mypy` clean.
+- [x] Committed and pushed; verified with `git ls-remote` (`6d4cc16`).
 
-**Exit:** working tree clean, suite green, work on GitHub.
+## Phase 1 — Make the oracle plural ✅
+
+Four detectors behind one `Detector` interface, QUBIT among them with no special status. Docker
+turned out to be the answer to the missing Go/Java/semgrep toolchains, with the side benefit that
+every baseline is pinned by digest.
+
+- [x] semgrep (AST + dataflow), rules selected by **semgrep's own CWE metadata**, image pinned.
+- [x] cryptoscan, built from its own Dockerfile at `11f0e46`.
+- [x] pqaudit, adapted from the existing harness without touching the engine.
+- [x] `population.py` — Chapman and Fienberg log-linear estimators, 19 tests against simulated
+      populations of known size.
+
+**Two corrections that moved the result against QUBIT**, both found by reading output:
+
+1. **Vocabulary.** 109 of QUBIT's go-jose findings were the family `JSON WEB TOKEN`, which no other
+   detector can name, so each landed in "found by QUBIT alone" and depressed everyone else's
+   recall. Restricting to families ≥2 detectors can name: 144 sites → 75, agreement with cryptoscan
+   27.8% → 51.9%. Most of the apparent lead was vocabulary.
+2. **File population.** 3 432 of cryptoscan's 3 794 findings on `cryptodeps` were in
+   `data/crypto-database.json`, a lookup table QUBIT never opens as code — every one of them
+   counted as a QUBIT miss. All detectors are now compared over the same file set.
+
+## Phase 1.5 — Use versus mention (unplanned; the data demanded it) ✅
+
+The largest finding so far, and it was not in the original plan. On crypto tooling, 76–96% of every
+detector's exclusive findings are **mentions rather than uses**: ban lists, remediation tables,
+test fixtures. A project that bans RC4 is reported as using RC4.
+
+This cut both ways. QUBIT's own `GO-JWA-WIRE-NAME` — added the same session this harness was built
+— matched any `"RS256"` string anywhere in a Go file and produced 73 mentions out of 76 exclusive
+findings on `cryptodeps`. An AST detector matching a bare string literal has discarded the one
+advantage it has. Fixed by requiring call-argument position, with the resulting recall loss on
+`golang-jwt/jwt` recovered on precise evidence (`GO-JWA-SIGNING-METHOD`).
+
+Full detail and numbers: `benchmarks/oracles/README.md`.
+
+**Consequence for the corpus:** crypto tooling cannot be pooled with ordinary software. It is a
+separate stratum with its own result, which is now one of the paper's findings rather than a
+contaminated denominator.
 
 ---
 

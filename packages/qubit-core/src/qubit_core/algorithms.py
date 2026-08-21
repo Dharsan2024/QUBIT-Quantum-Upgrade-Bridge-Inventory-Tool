@@ -629,6 +629,17 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         kind="pqc-kem",
         aliases=("classicmceliece", "mceliece"),
     ),
+    # NIST's additional-signature "on-ramp" candidates (round 2, 2025). None is standardised and
+    # none should be recommended as a migration target, but liboqs ships all of them and
+    # open-quantum-safe/oqs-provider registers all of them -- so a scanner without these entries
+    # reports 29 of the 57 algorithm constants in the reference PQC provider as UNKNOWN(...).
+    # They are quantum-safe by construction (multivariate, code-based and MPC-in-the-head schemes),
+    # so their presence is inventory evidence and never a risk finding. Found by benchmarks/oracles.
+    _safe(canonical="MAYO", family="MAYO", kind="pqc-sig", aliases=("mayo",)),
+    _safe(canonical="SNOVA", family="SNOVA", kind="pqc-sig", aliases=("snova",)),
+    _safe(canonical="UOV", family="UOV", kind="pqc-sig", aliases=("uov", "ovip")),
+    _safe(canonical="MQOM", family="MQOM", kind="pqc-sig", aliases=("mqom", "mqom2")),
+    _safe(canonical="CROSS", family="CROSS", kind="pqc-sig", aliases=("cross", "crossrsdp")),
     # --- Hybrid TLS groups (safe: at least one PQC component) ---
     _safe(
         canonical="X25519MLKEM768",

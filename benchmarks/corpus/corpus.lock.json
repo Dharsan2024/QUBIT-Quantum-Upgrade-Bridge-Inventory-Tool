@@ -1,0 +1,188 @@
+{
+  "seed": 20260821,
+  "clone_root": "git help/corpus",
+  "repositories": {
+    "allinurl/goaccess": {
+      "language": "C",
+      "commit": "0784e0e7c2812363211bfb334db8cfebaacf97a0",
+      "path": "git help/corpus/allinurl__goaccess",
+      "stars": 20829,
+      "license": "MIT"
+    },
+    "redis/redis": {
+      "language": "C",
+      "commit": "78432ed8e48aba009721a15a88ea8f5c9597b8e5",
+      "path": "git help/corpus/redis__redis",
+      "stars": 76078,
+      "license": "NOASSERTION"
+    },
+    "openwrt/openwrt": {
+      "language": "C#",
+      "commit": "f1bf2d18392ef7b9f5f7bc6773055cfbddde371b",
+      "path": "git help/corpus/openwrt__openwrt",
+      "stars": 28057,
+      "license": "NOASSERTION"
+    },
+    "mpv-player/mpv": {
+      "language": "C#",
+      "commit": "49418246f30a9c24af31ac184aa24f39755db89a",
+      "path": "git help/corpus/mpv-player__mpv",
+      "stars": 36613,
+      "license": "NOASSERTION"
+    },
+    "valinet/ExplorerPatcher": {
+      "language": "C++",
+      "commit": "0a88a6e0ef6b1752fea36e581cffff1097e862b0",
+      "path": "git help/corpus/valinet__ExplorerPatcher",
+      "stars": 33677,
+      "license": "GPL-2.0"
+    },
+    "libuv/libuv": {
+      "language": "C++",
+      "commit": "f87c8e4f70f234b952d9c47b15fb567f78e5f399",
+      "path": "git help/corpus/libuv__libuv",
+      "stars": 27125,
+      "license": "MIT"
+    },
+    "multica-ai/multica": {
+      "language": "Go",
+      "commit": "fbbe697578533be22b0ae591203c159d95878380",
+      "path": "git help/corpus/multica-ai__multica",
+      "stars": 47188,
+      "license": "NOASSERTION"
+    },
+    "usememos/memos": {
+      "language": "Go",
+      "commit": "79baf2eab7de84210b8a0399bedd54bba5e3f9bd",
+      "path": "git help/corpus/usememos__memos",
+      "stars": 62416,
+      "license": "MIT"
+    },
+    "ReactiveX/RxJava": {
+      "language": "Java",
+      "commit": "eed1277349b2f01759e29802b4af098d8e690bdf",
+      "path": "git help/corpus/ReactiveX__RxJava",
+      "stars": 48204,
+      "license": "Apache-2.0"
+    },
+    "conductor-oss/conductor": {
+      "language": "Java",
+      "commit": "9b6e4c08aca486494394261b081e4b122dd93b51",
+      "path": "git help/corpus/conductor-oss__conductor",
+      "stars": 32102,
+      "license": "Apache-2.0"
+    },
+    "react/create-react-app": {
+      "language": "JavaScript",
+      "commit": "6254386531d263688ccfa542d0e628fbc0de0b28",
+      "path": "git help/corpus/react__create-react-app",
+      "stars": 103290,
+      "license": "MIT"
+    },
+    "CymChad/BaseRecyclerViewAdapterHelper": {
+      "language": "Kotlin",
+      "commit": "9948068cd95d5386cdb7f3e03d85fe2aede307cd",
+      "path": "git help/corpus/CymChad__BaseRecyclerViewAdapterHelper",
+      "stars": 24578,
+      "license": "MIT"
+    },
+    "filp/whoops": {
+      "language": "PHP",
+      "commit": "fa1bc9c95a1b392fbdb8a410dbbcb1d6a030fff7",
+      "path": "git help/corpus/filp__whoops",
+      "stars": 13234,
+      "license": "MIT"
+    },
+    "fruitcake/laravel-debugbar": {
+      "language": "PHP",
+      "commit": "a1cbd485509175453c03c82ca55ceac77c258cc0",
+      "path": "git help/corpus/fruitcake__laravel-debugbar",
+      "stars": 19281,
+      "license": "MIT"
+    },
+    "anthropics/skills": {
+      "language": "Python",
+      "commit": "0a64e398ec6bb34a494f0c347e8ccae53a862f8e",
+      "path": "git help/corpus/anthropics__skills",
+      "stars": 170814,
+      "license": null
+    },
+    "TheAlgorithms/Python": {
+      "language": "Python",
+      "commit": "f5988cc09713315817df6a7e327e258013a94440",
+      "path": "git help/corpus/TheAlgorithms__Python",
+      "stars": 223920,
+      "license": "MIT"
+    },
+    "activeadmin/activeadmin": {
+      "language": "Ruby",
+      "commit": "c8e93a8edbb230d359be9aad20f05cb8edb9f68e",
+      "path": "git help/corpus/activeadmin__activeadmin",
+      "stars": 9703,
+      "license": "MIT"
+    },
+    "tmuxinator/tmuxinator": {
+      "language": "Ruby",
+      "commit": "6d021f7befee0278155d16444bb8323008299997",
+      "path": "git help/corpus/tmuxinator__tmuxinator",
+      "stars": 13708,
+      "license": "MIT"
+    },
+    "starship/starship": {
+      "language": "Rust",
+      "commit": "6d38f35391a8e68952a3dd4b9acd40d3d93596f6",
+      "path": "git help/corpus/starship__starship",
+      "stars": 59518,
+      "license": "ISC"
+    },
+    "lencx/ChatGPT": {
+      "language": "Rust",
+      "commit": "a6de9a8b61077fa63ad5c3ecbe2bc12e0cb4b4b9",
+      "path": "git help/corpus/lencx__ChatGPT",
+      "stars": 54447,
+      "license": null
+    },
+    "permissionlesstech/bitchat": {
+      "language": "Swift",
+      "commit": "9b84b361225facd8e623f25d76f889d3dc54a879",
+      "path": "git help/corpus/permissionlesstech__bitchat",
+      "stars": 35746,
+      "license": "Unlicense"
+    },
+    "realm/SwiftLint": {
+      "language": "Swift",
+      "commit": "ea29a5bee7f4e546587d3c4b907c62cff60928ef",
+      "path": "git help/corpus/realm__SwiftLint",
+      "stars": 19702,
+      "license": "MIT"
+    },
+    "coder/code-server": {
+      "language": "TypeScript",
+      "commit": "88c2b7432e938f6918f21ff8d9dbfc641cd933d0",
+      "path": "git help/corpus/coder__code-server",
+      "stars": 78997,
+      "license": "MIT"
+    },
+    "withastro/astro": {
+      "language": "TypeScript",
+      "commit": "3578d45d34226d63cff3d261c971c221de6794d2",
+      "path": "git help/corpus/withastro__astro",
+      "stars": 61913,
+      "license": "NOASSERTION"
+    },
+    "gatsbyjs/gatsby": {
+      "language": "JavaScript",
+      "commit": "e85d62f1779e353eaac1753211629a26d123e26c",
+      "path": "git help/corpus/gatsbyjs__gatsby",
+      "stars": 55941,
+      "license": "MIT"
+    },
+    "JetBrains/compose-multiplatform": {
+      "language": "Kotlin",
+      "commit": "a933da08f5d5fd24098b0e0370983a1104b7bc9b",
+      "path": "git help/corpus/JetBrains__compose-multiplatform",
+      "stars": 19309,
+      "license": "Apache-2.0"
+    }
+  }
+}

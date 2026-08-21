@@ -215,7 +215,14 @@ def clone_sample(*, depth: int = 1) -> dict:
                 print(f"  {full_name:45} cloning...", file=sys.stderr, flush=True)
                 result = subprocess.run(  # noqa: S603
                     [  # noqa: S607
-                        "git", "clone", "--depth", str(depth), "--quiet",
+                        # Windows MAX_PATH is 260 characters and two of the first 26 repositories
+                        # exceeded it -- gatsby nests `node_modules` inside test fixtures, and
+                        # compose-multiplatform has deep `expected-*` resource trees. Both failed
+                        # with "cannot create directory", which is a filesystem limit and not a
+                        # property of the corpus; silently dropping them would have shrunk the
+                        # sample for a reason having nothing to do with the sampling frame.
+                        "git", "-c", "core.longpaths=true",
+                        "clone", "--depth", str(depth), "--quiet",
                         entry["clone_url"], str(target),
                     ],
                     capture_output=True,

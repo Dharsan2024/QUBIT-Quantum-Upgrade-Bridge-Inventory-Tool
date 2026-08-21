@@ -214,7 +214,7 @@ class TestDivergentFits:
             (False, True, True): 0,
             (True, True, True): 0,
         }
-        with pytest.raises(ValueError, match="converge|parameters"):
+        with pytest.raises(ValueError, match=r"converge|parameters"):
             loglinear_estimate(table)
 
     def test_a_healthy_table_still_fits(self) -> None:

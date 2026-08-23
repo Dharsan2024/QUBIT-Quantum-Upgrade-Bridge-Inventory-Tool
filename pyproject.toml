@@ -31,6 +31,10 @@ dev = [
   "httpx>=0.28",
   "testcontainers>=4.5",
   "pip-licenses>=5",
+  # Process and CPU inspection for the performance harness. Without it the harness cannot
+  # tell a quiet machine from a busy one, and a timing number taken under contention is
+  # worse than no timing number at all.
+  "psutil>=6",
   # The XGBoost regressor's tests (doc 02 §6.4) must run in the gate, not skip — the project
   # mandate is zero skips. Only these two of qubit-risk's `ml` extra are needed for that; torch/
   # transformers (the DistilBERT sensitivity classifier) stay opt-in via `--extra ml` since they
@@ -44,12 +48,20 @@ dev = [
   # written. A hand-rolled zlib/regex extraction found nothing in a perfectly valid document, which
   # is exactly the sort of false negative a real parser avoids.
   "pypdf>=5.1",
+  # Every figure in paper_evidence/ is drawn with it. It was previously installed ad hoc,
+  # which meant the pack's "regenerate with one command" claim failed on a fresh checkout --
+  # the one place a reproducibility claim must not be wrong.
+  "matplotlib>=3.9",
+  # CryptoAPI-Bench publishes its ground truth as an .xlsx. It is converted ONCE into a
+  # checked-in CSV so the scoring harness reads an auditable text file rather than
+  # re-parsing a spreadsheet on every run.
+  "openpyxl>=3.1",
 ]
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["knowledge", "docs", ".obsidian", "**/tests/fixtures"]
+extend-exclude = ["unwanted", "docs", "**/tests/fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "S", "PTH", "RUF"]

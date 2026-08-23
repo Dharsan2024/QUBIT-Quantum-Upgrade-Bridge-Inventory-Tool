@@ -56,7 +56,7 @@ demo-lab/certs/
 !demo-lab/**               # demo-lab keys are generated + deliberately weak
 
 # --- Editor / OS ---
-.obsidian/
+unwanted/.obsidian/
 *.base
 *.canvas
 .vscode/
@@ -76,6 +76,10 @@ datasets/
 # Third-party repos cloned for design research (see docs/design/07-ecosystem-factcheck.md).
 # Each contains its own nested .git — never stage this.
 git help/
+
+# Reference material downloaded for authoring, not part of the project.
+unwanted/"design skills"/
+unwanted/design skills/
 
 # ── Local demo-lab scanning targets (not pushed) ──────────────────────────────
 # Ten deliberately-vulnerable sample applications used to exercise QUBIT during the review demo.
@@ -111,3 +115,22 @@ benchmarks/oracles/rulesets/*.yaml
 !benchmarks/oracles/rulesets/MANIFEST.sha256
 # Stray editor build downloaded into the tree.
 *.vsix
+
+# Benchmark oracle binaries: a 50 MB plugin jar, fetched by benchmarks/oracles/sonar_oracle.py
+benchmarks/oracles/vendor/
+
+# Paper evidence pack: regenerated artifacts, not source
+paper_evidence/data/raw/
+
+paper_evidence/scripts/__pycache__/
+
+# Filed out of the working tree: notes, design references and editor/agent config.
+# See unwanted/README.md for what is in there and what was deliberately left in place.
+unwanted/
+
+# Deliberately local: the vulnerable sample apps used for demos and manual testing.
+demo-lab/
+
+# Coverage artifacts
+.coverage
+paper_evidence/coverage.json

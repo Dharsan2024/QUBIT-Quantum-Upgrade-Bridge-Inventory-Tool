@@ -15,7 +15,8 @@
 // `qubit serve`). So it asks, via the `api_base` command below.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::process::{Child, Command};
+use std::fs::OpenOptions;
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -153,6 +154,15 @@ fn repo_root() -> Option<std::path::PathBuf> {
     None
 }
 
+/// `%APPDATA%\QUBIT\api.log`, next to `repo_root.txt` (see `config_path`).
+fn log_path() -> Option<std::path::PathBuf> {
+    let base = std::env::var("APPDATA")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var("HOME").ok().map(std::path::PathBuf::from))?;
+    Some(base.join("QUBIT").join("api.log"))
+}
+
 fn spawn_api(root: &std::path::Path, port: u16) -> std::io::Result<Child> {
     let dist = root.join("dashboard").join("dist");
     let port_str = port.to_string();
@@ -187,11 +197,87 @@ fn spawn_api(root: &std::path::Path, port: u16) -> std::io::Result<Child> {
         // Serve the dashboard from the API too (single origin) + keep the bundle's default token.
         .env("QUBIT_DASHBOARD_DIST", dist)
         .env("QUBIT_API_TOKEN", "dev_token")
-        .spawn()
+        // A release build carries `windows_subsystem = "windows"` (no console), so this process's
+        // own stdio handles are invalid. `Command::spawn` INHERITS by default, and uvicorn writes
+        // its startup banner to stdout before it ever binds a socket -- so the child blocked on
+        // that first write and never got as far as listening. Measured: the child process existed,
+        // held 0 CPU time indefinitely, and no port was ever bound. Explicit stdio, even to a file
+        // that fails to open, is what stops that -- `Stdio::null()` alone would have fixed the
+        // hang with no way to see why a future failure happened, which is what made this one take
+        // a live process inspection to find in the first place.
+        .stdin(Stdio::null());
+    match open_log_file() {
+        Some((out, err)) => {
+            cmd.stdout(Stdio::from(out)).stderr(Stdio::from(err));
+        }
+        None => {
+            cmd.stdout(Stdio::null()).stderr(Stdio::null());
+        }
+    }
+    cmd.spawn()
+}
+
+/// Two independent handles on the same log file (one per stream), or `None` if it could not be
+/// opened -- the caller falls back to `Stdio::null()` rather than failing the whole launch over a
+/// log file.
+fn open_log_file() -> Option<(std::fs::File, std::fs::File)> {
+    let path = log_path()?;
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let out = OpenOptions::new().create(true).append(true).open(&path).ok()?;
+    let err = out.try_clone().ok()?;
+    Some((out, err))
+}
+
+/// Point the window at the API's own copy of the dashboard once the API answers.
+///
+/// The window starts on `frontendDist` -- the copy compiled INTO this exe. That copy is frozen at
+/// build time, which made every dashboard change require a full `tauri build` plus a reinstall
+/// before it could be seen, and a stale window looked identical to a broken one. The API already
+/// serves the dashboard from `dashboard/dist` (that is what `QUBIT_DASHBOARD_DIST` is for, and how
+/// `qubit-desktop.bat` has always run it), so navigating there instead makes `npm run build` the
+/// only step a UI change needs.
+///
+/// Same-origin is the point, not a side effect: the page then comes from the API, so
+/// `_mount_dashboard` injects `__QUBIT_API_BASE__` and the front-end talks to the port it was
+/// actually served from rather than guessing one.
+///
+/// Polls rather than navigating immediately -- uvicorn takes a moment, and a webview pointed at a
+/// dead port renders a browser error page instead of the app's own "starting the engine" state.
+/// Gives up after ~30s and leaves the bundled copy on screen, which still works.
+fn serve_ui_from_api(handle: tauri::AppHandle, port: u16) {
+    std::thread::spawn(move || {
+        let address = format!("http://127.0.0.1:{port}/");
+        for _ in 0..120 {
+            if port_in_use(port) {
+                if let (Some(window), Ok(url)) =
+                    (handle.get_webview_window("main"), address.parse())
+                {
+                    let _ = window.navigate(url);
+                }
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+        eprintln!("QUBIT: the API never came up on {port}; showing the bundled dashboard instead.");
+    });
 }
 
 fn main() {
     tauri::Builder::default()
+        // One instance, always. Each launch spawns its own uvicorn against the SAME SQLite file, so
+        // a second window is not a second workspace -- it is two writers on one database, which
+        // surfaced as `database is locked` mid-migration and as a window whose own API had died on
+        // `WinError 10048` (port already bound) while still showing the last data it had loaded.
+        // A relaunch now raises the window that already exists.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -204,6 +290,7 @@ fn main() {
                 Some(root) => match spawn_api(&root, port) {
                     Ok(child) => {
                         *app.state::<ApiProcess>().0.lock().unwrap() = Some(child);
+                        serve_ui_from_api(app.handle().clone(), port);
                     }
                     Err(e) => {
                         eprintln!(

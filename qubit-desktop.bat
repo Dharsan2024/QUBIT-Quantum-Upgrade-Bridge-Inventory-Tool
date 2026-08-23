@@ -9,7 +9,7 @@ REM  API for the migration sandbox and the LLM patch tier.
 REM
 REM  Double-click this file. It will:
 REM    1. install Python deps (first run only),
-REM    2. build the dashboard (first run only),
+REM    2. build the dashboard fresh, every run,
 REM    3. start the native API serving the dashboard at http://127.0.0.1:8787,
 REM    4. open it in an app window.
 REM  Close the console window to stop it.
@@ -53,17 +53,18 @@ if not exist ".venv" (
 )
 
 REM --- 2. Dashboard build ------------------------------------------------------
-if not exist "%DIST%\index.html" (
-  echo   [2/4] Building the dashboard (first run)...
-  pushd dashboard
-  if not exist "node_modules" ( call npm install )
-  set "VITE_API_BASE=/api/v1"
-  set "VITE_API_TOKEN=dev_token"
-  call npm run build
-  popd
-) else (
-  echo   [2/4] Dashboard build present.
-)
+REM  Always rebuilds. It used to run only when dist\index.html was missing, which meant the
+REM  very first build was the LAST one -- every dashboard/backend-contract change after that sat
+REM  in dist untouched, launch after launch, with nothing in this script's own output saying so
+REM  ("Dashboard build present." looked like a confirmation, not a warning). The build itself is a
+REM  few seconds; skipping it saved nothing worth the staleness.
+echo   [2/4] Building the dashboard...
+pushd dashboard
+if not exist "node_modules" ( call npm install )
+set "VITE_API_BASE=/api/v1"
+set "VITE_API_TOKEN=dev_token"
+call npm run build
+popd
 
 REM --- 3. Optional: note Docker/Ollama (used by migration + LLM tiers) ---------
 docker info >nul 2>&1

@@ -113,7 +113,8 @@ export function Timeline() {
               type="checkbox"
               checked={blend}
               onChange={(e) => setBlend(e.target.checked)}
-              className="accent-indigo-500"
+              className="h-4 w-4 accent-indigo-500"
+              style={{ minWidth: 24, minHeight: 24 }}
             />
             Blend survey
           </label>
@@ -132,10 +133,14 @@ export function Timeline() {
               />
             </label>
           )}
+          {/* Named for assistive tech. The visible context is the chart beside it, which a
+              screen reader does not associate with the control -- axe-core reported it as a
+              critical `select-name` failure (WCAG 4.1.2). */}
           <select
             value={algorithm}
             onChange={(e) => setAlgorithm(e.target.value)}
             className="glass-input text-sm"
+            aria-label="Algorithm to model the CRQC timeline for"
           >
             {ALGORITHMS.map((a) => (
               <option key={a} value={a}>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatedPage } from '../components/AnimatedPage';
 import { ProjectGrid } from '../components/ProjectGrid';
@@ -24,22 +24,36 @@ import {
   Clock3,
   Layers,
   Lightbulb,
+  Rocket,
+  PartyPopper,
 } from 'lucide-react';
 import {
   adviseTask,
   createPlan,
+  createScan,
+  fetchJob,
+  runPlan,
   fetchPlanGraph,
   fetchPlanQueue,
   fetchPlans,
+  fetchProjects,
+  fetchScans,
   fetchTaskGovernance,
   fetchTaskPatches,
   generatePatch,
   reviewPatch,
 } from '../api/client';
+import type { JobStatus, MigrationRunResult } from '../api/client';
 import type { MigrationPlan, MigrationTask } from '../api/types';
 import { displayAlgorithm } from '../lib/assetLabels';
 
-function StateChip({ state }: { state: string }) {
+function StateChip({ state, resolution }: { state: string; resolution?: string | null }) {
+  // A task parked because there was nothing left to migrate is finished work, not a warning.
+  // `deferred` is reached both ways — the FSM's terminal states all mean "a patch was applied and
+  // verified" — so the resolution is the only thing that separates them.
+  if (state === 'deferred' && resolution === 'satisfied') {
+    return <span className="chip chip-safe">already compliant</span>;
+  }
   const cls =
     state === 'ready'
       ? 'chip chip-info'
@@ -166,7 +180,7 @@ function TaskRow({ task }: { task: MigrationTask }) {
             : `${task.effort_points} pt`}
         </td>
         <td className="px-4 py-3">
-          <StateChip state={task.state} />
+          <StateChip state={task.state} resolution={task.resolution} />
         </td>
         <td className="px-4 py-3 text-right">
           {task.rule_id && task.state === 'ready' && (
@@ -751,9 +765,93 @@ function ProjectMigration({ projectId }: { projectId: string }) {
     ? projectScans.find((s) => s.id === plan.scan_id)?.seq
     : undefined;
 
+  // ── "Initiate migration": run the whole plan, then report and offer a rescan ──────────────
+  const [runJobId, setRunJobId] = useState<string | null>(null);
+  const [runOutcome, setRunOutcome] = useState<MigrationRunResult | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const migrationRequest = useUiStore((s) => s.migrationRequest);
+  const openScan = useUiStore((s) => s.openScan);
+
+  const startRun = useMutation({
+    mutationFn: () => runPlan(plan!.id, { apply: true }),
+    onSuccess: (r) => {
+      setRunOutcome(null);
+      setRunError(null);
+      setRunJobId(r.job.id);
+    },
+    onError: (e) => setRunError(e instanceof Error ? e.message : 'could not start the migration'),
+  });
+
+  // Poll the job while it runs. The run is dispatched off the request path, so this is how the
+  // page learns it finished — and the only place the per-task outcome is available.
+  const runJobQ = useQuery({
+    queryKey: ['migrate-job', runJobId],
+    queryFn: () => fetchJob(runJobId!),
+    enabled: !!runJobId,
+    refetchInterval: (q) => {
+      const s = (q.state.data as JobStatus | undefined)?.status;
+      return s && !['queued', 'running'].includes(s) ? false : 1200;
+    },
+  });
+
+  useEffect(() => {
+    const job = runJobQ.data;
+    if (!job || ['queued', 'running'].includes(job.status)) return;
+    setRunJobId(null);
+    if (job.status === 'succeeded' && job.result) {
+      setRunOutcome(job.result);
+    } else {
+      setRunError(job.error || `migration ${job.status}`);
+    }
+    qc.invalidateQueries({ queryKey: ['migrate-queue'] });
+    qc.invalidateQueries({ queryKey: ['migrate-plans', projectId] });
+    qc.invalidateQueries({ queryKey: ['projects-overview'] });
+  }, [runJobQ.data, qc, projectId]);
+
+  // The sidebar's "Initiate migration" raises a counter; this is where it lands. Skipped on the
+  // first render so merely opening the hub does not start a migration nobody asked for.
+  const seenRequest = useRef(migrationRequest);
+  useEffect(() => {
+    if (migrationRequest === seenRequest.current) return;
+    seenRequest.current = migrationRequest;
+    if (plan?.status === 'active' && !runJobId && !startRun.isPending) startRun.mutate();
+  }, [migrationRequest, plan?.status, runJobId, startRun]);
+
+  // Rescan the same target the plan was built from — offered right after a run, because a
+  // migration that changed files has invalidated the inventory it was planned from.
+  const rescan = useMutation({
+    mutationFn: async () => {
+      const scan = projectScans.find((s) => s.id === plan?.scan_id) ?? projectScans[0];
+      if (!scan?.targets?.length) throw new Error('no scan target recorded to rescan');
+      return createScan(scan.targets);
+    },
+    onSuccess: (s) => {
+      setRunOutcome(null);
+      if (s?.project_id && s?.id) openScan(s.project_id, s.id);
+      qc.invalidateQueries({ queryKey: ['scans'] });
+      qc.invalidateQueries({ queryKey: ['projects-overview'] });
+    },
+  });
+
+  const running = !!runJobId || startRun.isPending;
+
   return (
     <>
       <ProjectScopeBar>
+        <button
+          onClick={() => startRun.mutate()}
+          disabled={running || plan?.status !== 'active' || tasks.length === 0}
+          className="hud-btn"
+          data-testid="initiate-migration"
+          title="Generate, approve and apply every ready patch in this plan"
+        >
+          {running ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Rocket className="h-3.5 w-3.5" />
+          )}
+          {running ? 'Migrating…' : 'Initiate migration'}
+        </button>
         <button
           onClick={() => build.mutate('scan')}
           disabled={build.isPending || !activeScan}
@@ -781,6 +879,117 @@ function ProjectMigration({ projectId }: { projectId: string }) {
           Whole project
         </button>
       </ProjectScopeBar>
+
+      {/* Live progress while the run is in flight — a bulk migration takes minutes, and a button
+          that only says "Migrating…" gives no way to tell work from a hang. */}
+      {running && (
+        <div
+          className="glass-card flex items-center gap-3 border-[color:var(--color-accent)]/40 bg-[color:var(--color-accent)]/8 p-4 text-sm"
+          data-testid="migration-running"
+        >
+          <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-[color:var(--color-accent)]" />
+          <div>
+            <div className="text-[color:var(--color-ink)]">
+              {runJobQ.data?.message ?? 'Starting migration…'}
+            </div>
+            <div className="metric-label mt-0.5">
+              Each finding is generated, validated and written to the working tree.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {runError && (
+        <div
+          className="glass-card border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200"
+          data-testid="migration-failed"
+        >
+          Migration did not complete: {runError}
+        </div>
+      )}
+
+      {/* The result notification, and the rescan the user is most likely to want next: the files
+          just changed, so the inventory this plan was built from now describes the old code. */}
+      {runOutcome && (
+        <div
+          className="glass-card flex flex-col gap-3 border-[color:var(--color-safe)]/40 bg-[color:var(--color-safe)]/8 p-5"
+          data-testid="migration-complete"
+        >
+          <div className="flex items-start gap-3">
+            <PartyPopper className="mt-0.5 h-5 w-5 flex-shrink-0 text-[color:var(--color-safe)]" />
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-[color:var(--color-safe)]">
+                {runOutcome.applied > 0
+                  ? `Migration successful — ${runOutcome.applied + (runOutcome.covered ?? 0)} of ${runOutcome.total} finding${runOutcome.total === 1 ? '' : 's'} migrated and written to disk.`
+                  : `Migration finished — ${runOutcome.generated} patch${runOutcome.generated === 1 ? '' : 'es'} generated, none written.`}
+              </div>
+              <div className="metric-label mt-1 flex flex-wrap gap-x-3">
+                <span>{runOutcome.generated} generated</span>
+                <span>· {runOutcome.applied} applied</span>
+                {(runOutcome.covered ?? 0) > 0 && (
+                  <span title="Covered by a patch to the same file — a rule rewrites the whole file.">
+                    · {runOutcome.covered} already covered
+                  </span>
+                )}
+                {runOutcome.failed > 0 && (
+                  <span className="text-[color:var(--color-danger)]">
+                    · {runOutcome.failed} could not be migrated
+                  </span>
+                )}
+                {runOutcome.repo_root && <span>· {runOutcome.repo_root}</span>}
+              </div>
+              {/* Naming what failed, not just counting it — an unmigratable finding is the thing
+                  that still needs a person, so hiding it behind a number wastes the run. */}
+              {runOutcome.failures.length > 0 && (
+                <ul className="mt-2 flex flex-col gap-1 text-xs text-[color:var(--color-ink-faint)]">
+                  {runOutcome.failures.slice(0, 5).map((f) => (
+                    <li key={f.task_id}>
+                      <span className="font-mono text-[color:var(--color-ink-dim)]">
+                        {f.rule_id || 'finding'}
+                      </span>{' '}
+                      — {f.detail}
+                    </li>
+                  ))}
+                  {runOutcome.failures.length > 5 && (
+                    <li>…and {runOutcome.failures.length - 5} more.</li>
+                  )}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 border-t border-[color:var(--edge)] pt-3">
+            <span className="text-xs text-[color:var(--color-ink-dim)]">
+              The code on disk has changed. Rescan this project to see what is left?
+            </span>
+            <button
+              onClick={() => rescan.mutate()}
+              disabled={rescan.isPending}
+              className="hud-btn"
+              data-testid="rescan-after-migration"
+            >
+              {rescan.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              Rescan project
+            </button>
+            <button
+              onClick={() => setRunOutcome(null)}
+              className="hud-btn hud-btn-ghost"
+              data-testid="dismiss-migration-result"
+            >
+              Not now
+            </button>
+            {rescan.isError && (
+              <span className="text-xs text-[color:var(--color-danger)]">
+                {rescan.error instanceof Error ? rescan.error.message : 'rescan failed'}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {(plansQ.isError || build.isError) && (
         <div className="glass-card border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
@@ -917,6 +1126,81 @@ function ProjectMigration({ projectId }: { projectId: string }) {
   );
 }
 
+/** Recent scans, newest first — the entry point the hub opens on.
+ *
+ *  A migration is always against ONE scan: the plan is built from that scan's findings, and the
+ *  patches are written against the tree it recorded. Landing on a project grid asked the reader to
+ *  pick a project and then work out which of its scans they meant; landing on the scans themselves
+ *  is the same choice with the answer already in it. */
+function RecentScans() {
+  const openScan = useUiStore((s) => s.openScan);
+  const { data: scans, isLoading } = useQuery({ queryKey: ['scans'], queryFn: fetchScans });
+  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
+  const nameOf = (id: string) => projects?.find((p) => p.id === id)?.name ?? id.slice(0, 8);
+
+  const usable = (scans ?? []).filter((s) => s.status === 'succeeded');
+
+  if (isLoading) {
+    return (
+      <div className="glass-card flex items-center justify-center gap-3 p-12 text-[color:var(--color-ink-dim)]">
+        <RefreshCw className="h-4 w-4 animate-spin" /> Loading scans…
+      </div>
+    );
+  }
+  if (!usable.length) {
+    return (
+      <div className="glass-card p-8 text-center text-sm text-[color:var(--color-ink-dim)]">
+        No finished scans yet. Run one from <span className="font-mono">Scans &amp; Jobs</span>, then
+        come back here to migrate what it found.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="flex items-center gap-2">
+        <Layers className="h-5 w-5 text-[color:var(--color-accent)]" />
+        Recent scans
+      </h2>
+      <p className="-mt-1 text-xs text-[color:var(--color-ink-faint)]">
+        Open a scan to see everything it found that needs migrating.
+      </p>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {usable.slice(0, 12).map((scan) => (
+          <button
+            key={scan.id}
+            onClick={() => openScan(scan.project_id, scan.id)}
+            data-testid={`migration-scan-${scan.id}`}
+            className="glass-card flex flex-col gap-2 p-4 text-left transition-colors hover:border-[color:var(--color-accent)]/60"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate font-semibold text-[color:var(--color-accent-soft)]">
+                {nameOf(scan.project_id)}
+              </span>
+              <span className="metric-label flex-shrink-0">#{scan.seq}</span>
+            </div>
+            <div
+              className="truncate font-mono text-[11px] text-[color:var(--color-ink-faint)]"
+              title={(scan.targets ?? []).join(', ')}
+            >
+              {(scan.targets ?? []).join(', ') || 'no target recorded'}
+            </div>
+            <div className="mt-1 flex items-end justify-between">
+              <span className="text-2xl font-bold tabular-nums text-[color:var(--color-ink)]">
+                {scan.stats?.assets ?? 0}
+                <span className="metric-label ml-1.5">assets</span>
+              </span>
+              <span className="metric-label">
+                {scan.finished_at ? new Date(scan.finished_at).toLocaleString() : ''}
+              </span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function Migrations() {
   const projectId = useUiStore((s) => s.projectId);
 
@@ -932,11 +1216,14 @@ export function Migrations() {
       </header>
 
       {!projectId ? (
-        <ProjectGrid
-          metric="migration"
-          title="Migration by project"
-          subtitle="A plan is built automatically when a scan finishes. Projects showing “plan outdated” have been scanned since theirs was built."
-        />
+        <>
+          <RecentScans />
+          <ProjectGrid
+            metric="migration"
+            title="Or browse by project"
+            subtitle="A plan is built automatically when a scan finishes. Projects showing “plan outdated” have been scanned since theirs was built."
+          />
+        </>
       ) : (
         <ProjectMigration projectId={projectId} />
       )}

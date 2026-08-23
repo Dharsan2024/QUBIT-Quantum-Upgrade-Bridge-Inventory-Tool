@@ -198,7 +198,7 @@ export function DepsLeds() {
       <button
         onClick={() => refresh()}
         disabled={checking}
-        className="text-[color:var(--color-ink-faint)] transition-colors hover:text-[color:var(--color-accent)] disabled:opacity-50"
+        className="hit-24 text-[color:var(--color-ink-faint)] transition-colors hover:text-[color:var(--color-accent)] disabled:opacity-50"
         title="Recheck local dependencies"
         aria-label="Recheck local dependencies"
       >

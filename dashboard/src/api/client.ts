@@ -231,6 +231,57 @@ export async function deleteScan(scanId: string): Promise<void> {
   await send<void>(`/scans/${scanId}`, "DELETE");
 }
 
+export async function clearAllScans(): Promise<{ deleted: number }> {
+  return send<{ deleted: number }>("/scans", "DELETE");
+}
+
+/** The "Reset" button: every project, not just every scan. Deleting a project cascades its scans,
+ *  assets, tasks and plans, so this clears everything `clearAllScans` does and the project shells
+ *  it deliberately leaves behind. */
+export async function resetAllProjects(): Promise<{ deleted: number }> {
+  return send<{ deleted: number }>("/projects", "DELETE");
+}
+
+// ── Bulk migration ───────────────────────────────────────────────────────────
+export interface MigrationRunResult {
+  plan_id: string;
+  total: number;
+  generated: number;
+  applied: number;
+  covered: number;
+  failed: number;
+  repo_root: string | null;
+  applied_to_disk: boolean;
+  failures: { task_id: string; rule_id: string; detail: string }[];
+}
+
+export interface JobStatus {
+  id: string;
+  kind: string;
+  status: string;
+  progress?: number | null;
+  stage?: string | null;
+  message?: string | null;
+  error?: string | null;
+  result?: MigrationRunResult | null;
+}
+
+/** "Initiate migration": migrate every ready task in the plan. Returns the job to poll — the run
+ *  happens off the request path because a plan of twenty findings takes minutes. */
+export async function runPlan(
+  planId: string,
+  opts: { apply?: boolean; generator?: "auto" | "llm" | "template" } = {},
+): Promise<{ job: { id: string; kind: string }; tasks: number; warning: string }> {
+  return send(`/migrate/plans/${planId}/run`, "POST", {
+    apply: opts.apply ?? true,
+    generator: opts.generator ?? "auto",
+  });
+}
+
+export async function fetchJob(jobId: string): Promise<JobStatus> {
+  return send<JobStatus>(`/jobs/${jobId}`);
+}
+
 // ── Assets ───────────────────────────────────────────────────────────────────
 /**
  * `offset`/`limit` match the server's actual query params exactly (routers/assets.py:

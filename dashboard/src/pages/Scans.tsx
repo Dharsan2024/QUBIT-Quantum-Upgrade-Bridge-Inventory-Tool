@@ -23,6 +23,7 @@ import {
   createVaultScan,
   deleteScan,
   fetchScans,
+  resetAllProjects,
 } from '../api/client';
 import { useUiStore } from '../stores/ui';
 import { isTauri } from '../lib/tauri';
@@ -157,8 +158,23 @@ export function Scans() {
     onSuccess: () => invalidateAfterScan(qc),
   });
 
+  const clearAll = useMutation({
+    mutationFn: () => resetAllProjects(),
+    onSuccess: () => invalidateAfterScan(qc),
+  });
+
   /** Track which scan ID is in the "pending confirm" state (first-click shows confirm chip). */
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
+
+  const handleClearAllClick = () => {
+    if (confirmClearAll) {
+      setConfirmClearAll(false);
+      clearAll.mutate();
+    } else {
+      setConfirmClearAll(true);
+    }
+  };
 
   const handleDeleteClick = (scan: ScanSummary) => {
     if (confirmId === scan.id) {
@@ -260,6 +276,46 @@ export function Scans() {
               )}
               New scan
             </button>
+
+            {/* Reset: every project, not just every scan -- deleting a project cascades its
+                scans, assets, tasks and plans. Not gated on `scans.length`: a project can be
+                sitting there with zero scans (exactly the state right after a first Reset), and
+                the button needs to stay reachable to clear those too. Always visible next to New
+                scan, same two-step confirm as the per-row delete below. */}
+            {confirmClearAll ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="text-xs text-[color:var(--color-ink-faint)]">
+                  Reset everything? Removes every project, scan and migration plan.
+                </span>
+                <button
+                  onClick={handleClearAllClick}
+                  disabled={clearAll.isPending}
+                  className="hud-btn label-caps flex items-center gap-1 text-[color:var(--color-danger)]"
+                  title="Confirm reset"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Confirm
+                </button>
+                <button
+                  onClick={() => setConfirmClearAll(false)}
+                  className="hit-24 text-[color:var(--color-ink-faint)] transition-colors hover:text-[color:var(--color-ink)]"
+                  title="Cancel"
+                  aria-label="Cancel reset"
+                >
+                  <Ban className="inline h-4 w-4" />
+                </button>
+              </span>
+            ) : (
+              <button
+                onClick={handleClearAllClick}
+                disabled={clearAll.isPending}
+                className="hud-btn hud-btn-ghost label-caps flex items-center gap-1.5 text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-danger)]"
+                title="Reset: remove every project, scan and migration plan"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Reset
+              </button>
+            )}
           </div>
         )}
 
@@ -468,14 +524,14 @@ export function Scans() {
                         <button
                           onClick={() => handleOpenScan(scan)}
                           disabled={scan.status !== 'succeeded'}
-                          className="label-caps mr-4 text-[color:var(--color-accent)] transition-colors hover:text-[color:var(--color-accent-soft)] disabled:opacity-40"
+                          className="hit-24 label-caps mr-4 px-1 text-[color:var(--color-accent)] transition-colors hover:text-[color:var(--color-accent-soft)] disabled:opacity-40"
                         >
                           Open
                         </button>
                         {scan.status === 'succeeded' && (
                           <Link
                             to={`/report/${scan.id}`}
-                            className="label-caps mr-4 text-[color:var(--color-accent-2)] transition-colors hover:text-[color:var(--color-accent)]"
+                            className="hit-24 label-caps mr-4 px-1 text-[color:var(--color-accent-2)] transition-colors hover:text-[color:var(--color-accent)]"
                           >
                             Report
                           </Link>
@@ -487,7 +543,7 @@ export function Scans() {
                             <button
                               onClick={() => handleDeleteClick(scan)}
                               disabled={removeScan.isPending}
-                              className="label-caps flex items-center gap-1 text-[color:var(--color-danger)] transition-colors hover:text-[color:var(--color-danger)]/80"
+                              className="hit-24 label-caps flex items-center gap-1 px-1 text-[color:var(--color-danger)] transition-colors hover:text-[color:var(--color-danger)]/80"
                               title="Confirm deletion"
                             >
                               <AlertTriangle className="inline h-3.5 w-3.5" />
@@ -495,7 +551,7 @@ export function Scans() {
                             </button>
                             <button
                               onClick={cancelConfirm}
-                              className="text-[color:var(--color-ink-faint)] transition-colors hover:text-[color:var(--color-ink)]"
+                              className="hit-24 text-[color:var(--color-ink-faint)] transition-colors hover:text-[color:var(--color-ink)]"
                               title="Cancel"
                               aria-label="Cancel delete"
                             >
@@ -510,7 +566,7 @@ export function Scans() {
                               scan.status === 'running' ||
                               scan.status === 'queued'
                             }
-                            className="text-[color:var(--color-danger)]/70 transition-colors hover:text-[color:var(--color-danger)] disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="hit-24 text-[color:var(--color-danger)]/70 transition-colors hover:text-[color:var(--color-danger)] disabled:opacity-30 disabled:cursor-not-allowed"
                             title={
                               scan.status === 'running' || scan.status === 'queued'
                                 ? 'Cannot delete a running scan'

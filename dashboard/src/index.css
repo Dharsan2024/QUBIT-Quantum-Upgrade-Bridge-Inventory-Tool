@@ -562,3 +562,31 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
   main { overflow: visible !important; height: auto !important; padding: 0 !important; }
   .qubit-print { background: #fff; }
 }
+
+/* --- WCAG 2.2 SC 2.5.8 Target Size (Minimum), Level AA -----------------------
+   Every interactive target must be at least 24x24 CSS px, padding included.
+   Measured against the running app: the scan-row actions were 16x21 (delete),
+   31x18 (Open) and 47x14 (Report), and the dependency recheck was 14x14 — all
+   below the floor, and all small enough to be genuinely hard to hit. `.hit-24`
+   grows the TARGET without growing the icon, so the visual weight is unchanged.
+   ------------------------------------------------------------------------- */
+.hit-24 {
+  min-width: 24px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Plotly draws its modebar buttons 24x22 — one axis short of SC 2.5.8's 24x24 floor. The library
+   exposes no size option and injects its own stylesheet at runtime (so it lands after the bundle
+   in document order); the container-scoped selector outranks it on specificity without needing
+   `!important`. Measured before: `height: 22px`, `min-height: 0px` on the live page. */
+.js-plotly-plot .modebar-btn,
+.modebar .modebar-btn {
+  min-width: 24px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

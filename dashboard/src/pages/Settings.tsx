@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   WifiOff,
   Code2,
+  RefreshCw,
 } from 'lucide-react';
 import { fetchHealth, fetchHealthDeps, fetchLanguages, getToken, setToken, whoami, getApiBase, setApiBase } from '../api/client';
 
@@ -124,8 +125,14 @@ export function Settings() {
           </h2>
 
           <div>
-            <label className="metric-label mb-2 block">API endpoint</label>
+            {/* `htmlFor`/`id`, not just a label ABOVE the field: a visual label is not a
+                programmatic one, and a screen reader announced these two inputs as unlabelled
+                ("edit text, blank"). Flagged by axe-core as a WCAG 3.3.2 / 4.1.2 failure. */}
+            <label htmlFor="settings-api-endpoint" className="metric-label mb-2 block">
+              API endpoint
+            </label>
             <input
+              id="settings-api-endpoint"
               type="text"
               value={apiBase}
               onChange={(e) => setApiBaseInput(e.target.value)}
@@ -138,9 +145,12 @@ export function Settings() {
           </div>
 
           <div>
-            <label className="metric-label mb-2 block">Authentication token</label>
+            <label htmlFor="settings-api-token" className="metric-label mb-2 block">
+              Authentication token
+            </label>
             <div className="flex gap-3">
               <input
+                id="settings-api-token"
                 type="password"
                 value={token}
                 onChange={(e) => setTokenInput(e.target.value)}
@@ -227,6 +237,28 @@ export function Settings() {
                 </span>
               ))}
             </div>
+          </div>
+
+          {/* The window loads the dashboard FROM the API (see src-tauri/main.rs
+              `serve_ui_from_api`), not from a copy compiled into the .exe — so a rebuilt
+              dashboard/dist is picked up by a plain reload. Before that change the bundled copy
+              was frozen at build time and every UI change needed a full reinstall to be seen. */}
+          <div className="glass-card p-6">
+            <h2 className="mb-1 flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-[color:var(--color-accent)]" /> Updates
+            </h2>
+            <p className="mb-3 text-xs text-[color:var(--color-ink-faint)]">
+              The engine runs from source and the interface is served by it, so both pick up changes
+              without reinstalling. Reload to load the current build.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="hud-btn"
+              title="Reload the dashboard from the engine"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Reload interface
+            </button>
           </div>
 
           <div className="glass-card p-6">

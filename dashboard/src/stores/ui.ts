@@ -41,6 +41,15 @@ interface UiState {
   openScan: (projectId: string, scanId: string) => void;
   /** Leave the current project and go back to the project grid. */
   clearProject: () => void;
+  /** Bumped by the sidebar's "Initiate migration" button.
+   *
+   *  The button lives in the layout, but the thing it starts needs the plan the Migration Hub has
+   *  resolved — which project, which scan, which plan id. Rather than duplicating that resolution
+   *  in the sidebar, the button raises this counter and navigates; the hub watches it and runs.
+   *  A counter, not a boolean, so pressing it twice in a row is two requests rather than one
+   *  ignored because the flag was already set. */
+  migrationRequest: number;
+  requestMigration: () => void;
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
@@ -66,4 +75,6 @@ export const useUiStore = create<UiState>((set, get) => ({
     save(SCAN_KEY, undefined);
     set({ projectId: undefined, scanId: undefined });
   },
+  migrationRequest: 0,
+  requestMigration: () => set({ migrationRequest: get().migrationRequest + 1 }),
 }));

@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation } from 'react-router';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router';
 import {
   LayoutDashboard,
   ShieldAlert,
@@ -60,6 +60,8 @@ export function Layout() {
 
   // Resolve the active project + scan for the HUD context chips — reuses the shared React Query
   // cache, so this costs no extra request.
+  const navigate = useNavigate();
+  const requestMigration = useUiStore((s) => s.requestMigration);
   const scanId = useUiStore((s) => s.scanId);
   const projectId = useUiStore((s) => s.projectId);
   const { data: scans } = useQuery({ queryKey: ['scans'], queryFn: fetchScans });
@@ -119,10 +121,21 @@ export function Layout() {
         </nav>
 
         <div className="px-3 pb-3">
-          <Link to="/migrations" className="hud-btn w-full">
+          {/* Starts the migration rather than only navigating to it. The hub owns the plan this
+              runs against, so the click raises a request and goes there; the hub picks it up and
+              runs, which keeps the "which plan?" resolution in one place. */}
+          <button
+            onClick={() => {
+              requestMigration();
+              navigate('/migrations');
+            }}
+            className="hud-btn w-full"
+            data-testid="sidebar-initiate-migration"
+            title="Generate, approve and apply every ready patch in the open plan"
+          >
             <Rocket className="h-3.5 w-3.5" />
             Initiate migration
-          </Link>
+          </button>
         </div>
 
         <div className="glass m-3 mt-0 p-3 text-xs text-[color:var(--color-ink-dim)]">

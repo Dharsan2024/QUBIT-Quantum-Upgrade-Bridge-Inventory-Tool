@@ -35,7 +35,7 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
 
 def _make_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
-    repo.mkdir()
+    repo.mkdir(parents=True)
     (repo / "app.py").write_text(VULN_SOURCE, encoding="utf-8")
     _git(repo, "init")
     _git(repo, "config", "user.email", "test@example.com")
@@ -103,3 +103,65 @@ def test_generate_approve_apply_verify(tmp_path: Path) -> None:
     # verify closes the loop
     report = orch.verify_task(task.id)
     assert report is not None and report.passed
+
+
+def _seed_named(session: Session, repo: Path, name: str):
+    """A second project whose vulnerable file has the SAME repo-relative path as the first."""
+    project = ProjectRow(name=name, slug=name)
+    session.add(project)
+    session.flush()
+    scan = ScanRow(project_id=project.id, seq=1, status="succeeded")
+    session.add(scan)
+    session.flush()
+    asset = CryptoAsset(
+        algorithm="MD5",
+        usage_context=UsageContext.hash,
+        source_scanner=SourceScanner.code,
+        asset_type=AssetType.algorithm_use,
+        location=Location(file_path=str(repo / "app.py"), line=2),
+        quantum_vulnerable=QuantumVulnerability(vulnerable=True, attack=QuantumAttack.grover),
+        discovered_at=utcnow(),
+        risk=RiskAnnotation(
+            score=0.5, ci_low=0.4, ci_high=0.6, mosca_margin_years=-1.0, priority_rank=1
+        ),
+    )
+    session.add(asset_to_row(asset, scan_id=scan.id, project_id=project.id))
+    session.commit()
+    return project.id
+
+
+def test_migrating_one_project_does_not_block_another_with_the_same_relative_path(
+    tmp_path: Path,
+) -> None:
+    """`app.py` is `app.py` in every checkout that has one.
+
+    The "an earlier patch already rewrote this file" guard matched on the repo-RELATIVE path with
+    no plan scoping, so applying a patch to one project's `app.py` made every other project's
+    `app.py` unmigratable — it reported "already migrated by an earlier py-weakhash-01 patch" and
+    refused. Measured on two independent clones of `requests`: the second project could not
+    migrate a single one of its weak-hash findings.
+    """
+    first = _make_repo(tmp_path / "one")
+    second = _make_repo(tmp_path / "two")
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+
+    _seed(session, first)
+    orch = MigrationOrchestrator(session)
+    plan_one = orch.build_plan()
+    task_one = orch.get_queue(plan_one.id)[0]
+    patch_one = orch.generate_patch(task_one.id, repo_root=first)
+    orch.review_patch(patch_one.id, approve=True)
+    assert orch.apply_patch(patch_one.id, repo_root=first).status == "applied"
+
+    # A DIFFERENT project, its own plan, its own checkout — same relative filename.
+    second_project = _seed_named(session, second, "second")
+    plan_two = orch.build_plan(project_id=second_project)
+    task_two = orch.get_queue(plan_two.id)[0]
+
+    patch_two = orch.generate_patch(task_two.id, repo_root=second)
+    assert patch_two.status == "proposed", patch_two.validation_json
+    orch.review_patch(patch_two.id, approve=True)
+    assert orch.apply_patch(patch_two.id, repo_root=second).status == "applied"
+    assert "md5" not in (second / "app.py").read_text(encoding="utf-8")

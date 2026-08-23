@@ -88,6 +88,18 @@ def _flagged_line_untouched(orig: str, new: str, asset: CryptoAsset) -> str | No
     )
 
 
+#: Why a task is parked in `deferred`.
+#:
+#: The FSM has one state for two different outcomes, because its terminal states all mean "a patch
+#: was applied and verified" and no such patch exists in either case. But "I could not migrate this"
+#: and "there was nothing here to migrate" are opposite facts about the codebase, and reporting the
+#: second as the first tells an operator to go and fix something already correct.
+RESOLUTION_UNRESOLVED = "unresolved"
+#: The finding is already handled: an earlier patch in this plan covered it, or the dependency pin
+#: already meets the PQC-capable floor. Not a failure, and counted separately from one.
+RESOLUTION_SATISFIED = "satisfied"
+
+
 class MigrationOrchestrator:
     """Facade wiring all qubit-migrate components (the only import surface for api/cli)."""
 
@@ -473,16 +485,27 @@ class MigrationOrchestrator:
         # covers LLM-only rules, which have no codemod to probe with: two RSA/kex findings in one
         # seal.go used to send the second one to the model, which correctly returned the
         # already-migrated file unchanged — and that was then reported as three failed attempts.
+        # Scoped to THIS PLAN. `file_path` is repo-relative, so without the plan filter the check
+        # matched any project that happened to share a relative path — and `src/requests/auth.py`,
+        # `app.py` or `main.py` are the same string in every checkout that has one. Measured: a
+        # freshly cloned copy of `requests` in a brand-new project reported all three of its
+        # weak-hash findings as "already migrated" because a DIFFERENT project had migrated its own
+        # `src/requests/auth.py` earlier, so the new project could not be migrated at all.
         already_applied = self.session.scalar(
             select(PatchProposal.id)
             .join(MigrationTask, MigrationTask.id == PatchProposal.task_id)
             .where(PatchProposal.file_path == diff_path)
             .where(PatchProposal.status == "applied")
             .where(MigrationTask.rule_id == rule.id)
+            .where(MigrationTask.plan_id == task.plan_id)
             .limit(1)
         )
         if already_applied is not None:
-            self._fail_task(task, f"already migrated by an earlier {rule.id} patch to this file")
+            self._fail_task(
+                task,
+                f"already migrated by an earlier {rule.id} patch to this file",
+                resolution=RESOLUTION_SATISFIED,
+            )
             raise ValueError(f"already migrated by an earlier {rule.id} patch to this file")
 
         if use_llm:
@@ -498,7 +521,11 @@ class MigrationOrchestrator:
                 with contextlib.suppress(Exception):  # a probe failure must not block generation
                     probe_found_work = run_codemod(rule.codemod, asset, file_path) is not None
                 if not probe_found_work:
-                    self._fail_task(task, "already remediated by an earlier task in this plan")
+                    self._fail_task(
+                        task,
+                        "already remediated by an earlier task in this plan",
+                        resolution=RESOLUTION_SATISFIED,
+                    )
                     raise ValueError("already remediated by an earlier task in this plan")
             try:
                 orig = file_path.read_text(encoding="utf-8")
@@ -534,7 +561,7 @@ class MigrationOrchestrator:
                         "no bump needed - this dependency already pins a version that provides "
                         "PQC primitives"
                     )
-                    self._fail_task(task, detail)
+                    self._fail_task(task, detail, resolution=RESOLUTION_SATISFIED)
                     raise ValueError(detail)
                 if not result:
                     # "Produced no change" is true but unhelpful, and for a dependency bump it is
@@ -547,7 +574,7 @@ class MigrationOrchestrator:
                         f"{Path(diff_path).name} — either this file was already remediated by an "
                         "earlier task in this plan, or it already meets the target."
                     )
-                    self._fail_task(task, detail)
+                    self._fail_task(task, detail, resolution=RESOLUTION_SATISFIED)
                     raise ValueError(detail)
                 orig, new = result
                 untouched = _flagged_line_untouched(orig, new, asset)
@@ -743,8 +770,14 @@ class MigrationOrchestrator:
         self.session.commit()
         return ValidationReport(passed=True)
 
-    def _fail_task(self, task: MigrationTask, reason: str) -> None:
+    def _fail_task(
+        self, task: MigrationTask, reason: str, *, resolution: str = RESOLUTION_UNRESOLVED
+    ) -> None:
         task.last_error = reason
+        # Why the task is parked, not just that it is. `deferred` is reached both by "QUBIT could
+        # not migrate this" and by "there was nothing left to migrate", and conflating them made a
+        # plan report finished work as broken -- 6 of 18 apparent failures on the polyglot corpus.
+        task.resolution = resolution
         # `deferred` only accepts `resume`, so a SECOND failure on an already-deferred task made
         # transition() raise and the real reason was replaced by a confusing FSM error surfacing as
         # "skipped one asset: No transition 'defer' from state 'deferred'". This happens in ordinary
@@ -760,8 +793,33 @@ class MigrationOrchestrator:
                 actor="system",
                 detail={"error": reason, "note": "already deferred"},
             )
+            self._commit_failure()
             return
         self._transition(task, "defer", detail={"error": reason})  # fail -> pending basically
+        self._commit_failure()
+
+    def _commit_failure(self) -> None:
+        """Persist the parking, because every caller of `_fail_task` raises immediately after it.
+
+        Nothing else commits on this path. `_transition` only mutates and writes an event, the API
+        turns the exception into a 422, and `get_session` closes the session in a `finally` with no
+        commit -- so the deferral, `last_error` and `resolution` were all discarded the moment the
+        request ended. Observed against the running app: a task whose asset matched no rule returned
+        422, and came back from the queue still `ready`, with `last_error` null, ready to fail
+        identically forever.
+
+        Why a commit and not a caller-side one: recording WHY a task could not be migrated is a
+        durable fact about the codebase, not part of the work being rolled back. The only pending
+        changes at this point are the task's own state and its event, which is exactly what should
+        survive.
+        """
+        try:
+            self.session.commit()
+        except Exception:
+            # The caller is about to raise the reason this task failed. Losing that behind a
+            # database error would replace a useful message with a confusing one.
+            logger.exception("could not persist the failure state for a migration task")
+            self.session.rollback()
 
     def _transition(
         self,

@@ -527,6 +527,7 @@ def _stage_tests(
     repo_root: Path | None,
     target_rel_path: str | None,
     language: str = "python",
+    original_source: str | None = None,
 ) -> StageResult:
     """Stage 4: copy the repo, overlay the patched file, run pytest inside the sandbox.
 
@@ -571,19 +572,43 @@ def _stage_tests(
                 timeout=300,
             )
 
-        try:
+        def _run_suite() -> tuple[int, str]:
             result = _run_in_sandbox("python -m pytest -x -q 2>&1")
             out = result.stdout.decode("utf-8", errors="replace")
             if "No module named pytest" in out:
                 # base image has no pytest; fall back to the stdlib runner
                 result = _run_in_sandbox("python -m unittest discover -s tests 2>&1")
                 out = result.stdout.decode("utf-8", errors="replace")
+            return result.returncode, out
+
+        try:
+            code, out = _run_suite()
         except subprocess.TimeoutExpired:
             return StageResult("fail", "sandbox tests timed out", time.monotonic() - t0)
-        if result.returncode == 0:
+        if code == 0:
             return StageResult(
                 "pass", out[:2048] or "tests green in sandbox", time.monotonic() - t0
             )
+
+        # A red suite is only evidence against the PATCH if the same suite is green without it.
+        # The sandbox is a bare `python:3.12-slim` with no network, so a third-party project's
+        # tests fail on their own imports long before they reach the patched line: measured on the
+        # real `requests` checkout, every test module failed with ImportError and a perfectly good
+        # SHA-256 patch was rejected for it. Re-running the untouched tree is what tells those
+        # apart, and it costs an extra sandbox run only when something already failed.
+        if original_source is not None:
+            target.write_text(original_source, encoding="utf-8")
+            try:
+                baseline_code, _ = _run_suite()
+            except subprocess.TimeoutExpired:
+                baseline_code = 1
+            if baseline_code != 0:
+                return StageResult(
+                    "skipped",
+                    "this suite does not run in the sandbox even before the patch "
+                    "(missing dependencies, no network), so it says nothing about this change",
+                    time.monotonic() - t0,
+                )
         return StageResult("fail", out[:2048], time.monotonic() - t0)
 
 
@@ -617,7 +642,9 @@ def validate_patch(
         stages["tests"] = StageResult("skipped", "no_docker configured")
     else:
         stages["compiles"] = _stage_compiles(patched_source, language)
-        stages["tests"] = _stage_tests(patched_source, repo_root, target_rel_path, language)
+        stages["tests"] = _stage_tests(
+            patched_source, repo_root, target_rel_path, language, original_source
+        )
     stages["rescan"] = _stage_rescan(
         patched_source,
         rule,

@@ -1,0 +1,144 @@
+{
+  "labelled": 200,
+  "crypto": 149,
+  "hndl": 51,
+  "ambiguous": 0,
+  "kappa": 0.747476236091666,
+  "raw_agreement": 0.8456375838926175,
+  "declined": 0,
+  "confusion": {
+    "USE": {
+      "USE": 35,
+      "MENTION": 9,
+      "ABSENT": 0
+    },
+    "MENTION": {
+      "USE": 9,
+      "MENTION": 17,
+      "ABSENT": 1
+    },
+    "ABSENT": {
+      "USE": 2,
+      "MENTION": 2,
+      "ABSENT": 74
+    }
+  },
+  "scored": 149,
+  "per_class": {
+    "USE": {
+      "predicted": 44,
+      "actual": 46,
+      "correct": 35,
+      "precision": [
+        0.7954545454545454,
+        0.6549913631816677,
+        0.888468721765324
+      ],
+      "recall": [
+        0.7608695652173914,
+        0.6206458383088198,
+        0.860879634388686
+      ]
+    },
+    "MENTION": {
+      "predicted": 27,
+      "actual": 28,
+      "correct": 17,
+      "precision": [
+        0.6296296296296297,
+        0.44228904623446297,
+        0.7846771293206315
+      ],
+      "recall": [
+        0.6071428571428571,
+        0.42408726034906297,
+        0.7643454817241996
+      ]
+    },
+    "ABSENT": {
+      "predicted": 78,
+      "actual": 75,
+      "correct": 74,
+      "precision": [
+        0.9487179487179487,
+        0.8754314334594728,
+        0.9798793131534966
+      ],
+      "recall": [
+        0.9866666666666667,
+        0.9282646257525621,
+        0.997642509566863
+      ]
+    }
+  },
+  "detectors_crypto": {
+    "cryptoscan": {
+      "labelled": 17,
+      "counts": {
+        "USE": 11,
+        "MENTION": 5,
+        "ABSENT": 1
+      },
+      "use_rate": [
+        0.6470588235294118,
+        0.4129996672121182,
+        0.826905138560951
+      ],
+      "bootstrap": {
+        "repositories": 2,
+        "low": 0.6428571428571429,
+        "high": 0.6666666666666666
+      }
+    },
+    "pqaudit": {
+      "labelled": 128,
+      "counts": {
+        "ABSENT": 74,
+        "MENTION": 23,
+        "USE": 31
+      },
+      "use_rate": [
+        0.2421875,
+        0.1761863228611377,
+        0.3232129562738243
+      ],
+      "bootstrap": {
+        "repositories": 11,
+        "low": 0.096,
+        "high": 0.40441176470588236
+      }
+    },
+    "qubit": {
+      "labelled": 4,
+      "counts": {
+        "USE": 4
+      },
+      "use_rate": [
+        1.0,
+        0.5100999795960008,
+        1.0
+      ],
+      "bootstrap": null
+    }
+  },
+  "detectors_hndl": {
+    "qubit": {
+      "labelled": 51,
+      "counts": {
+        "MENTION": 23,
+        "USE": 24,
+        "ABSENT": 4
+      },
+      "use_rate": [
+        0.47058823529411764,
+        0.34052771426416406,
+        0.6047692865527341
+      ],
+      "bootstrap": {
+        "repositories": 6,
+        "low": 0.07272727272727272,
+        "high": 0.851063829787234
+      }
+    }
+  }
+}

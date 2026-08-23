@@ -29,7 +29,7 @@ import argparse
 import json
 import sys
 from collections import Counter
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -39,7 +39,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-from base import SUFFIXES, Finding
+from base import SKIP_DIRS, SUFFIXES, Finding
 from cryptoscan_oracle import CryptoscanDetector
 from population import (
     agreement_matrix,
@@ -50,9 +50,22 @@ from population import (
 from pqaudit_oracle import PqauditDetector
 from qubit_detector import QubitDetector
 from semgrep_oracle import SemgrepDetector
+from sonar_oracle import SonarCryptographyDetector
 
 #: QUBIT first only so its counts read first. The comparison itself is order-independent.
-DETECTORS = [QubitDetector(), PqauditDetector(), SemgrepDetector(), CryptoscanDetector()]
+#:
+#: `sonar` reads Java, Python and Go only, and declines a repository whose analysable files are a
+#: trivial share of it (see `sonar_oracle.coverage`). It therefore contributes to 7 of the 26
+#: repositories and reports nothing for the rest. That is not a miss: `shared_vocabulary` already
+#: restricts every comparison to families at least two detectors are *capable* of reporting, so a
+#: Rust repository sonar cannot read drops out of its column rather than counting against it.
+DETECTORS = [
+    QubitDetector(),
+    PqauditDetector(),
+    SemgrepDetector(),
+    CryptoscanDetector(),
+    SonarCryptographyDetector(),
+]
 
 
 def _pct(interval) -> str:  # type: ignore[no-untyped-def]
@@ -106,25 +119,39 @@ def shared_vocabulary(findings: dict[str, list[Finding]], minimum: int = 2) -> s
 
 
 def restrict_to_source(findings: dict[str, list[Finding]]) -> tuple[dict[str, list[Finding]], int]:
-    """Drop findings in files QUBIT's code scanner does not read as code.
+    """Drop findings that are not about this repository's own source code.
 
-    Detectors disagree about what a source file IS, and comparing them over different file
-    populations measures that disagreement instead of their detection. This was not a hypothetical:
-    on `cryptodeps`, **3 432 of cryptoscan's 3 794 findings are in `data/crypto-database.json`** --
-    a lookup table listing algorithm names, which is exactly what that project is for. QUBIT never
-    opens `.json` as code, so every one of those became a QUBIT "miss" and the corpus reported
-    QUBIT at 23 sites against cryptoscan's 198.
+    Two filters, applied identically to every detector including QUBIT.
 
-    Filtering to `base.SUFFIXES` puts every detector on the same files. What it does NOT fix is the
-    same error inside source files -- `internal/database/database.go` contributes another 282 --
-    where an algorithm named in a Go string table is indistinguishable, to anything matching text,
-    from an algorithm being called. That one needs adjudication, not a filter, and it is the
-    clearest argument in this whole benchmark for why an AST detector is worth the trouble.
+    **Suffix.** Detectors disagree about what a source file IS, and comparing them over different
+    file populations measures that disagreement instead of their detection.
+
+    This was not a hypothetical: on `cryptodeps`, **3 432 of cryptoscan's 3 794 findings are in
+    `data/crypto-database.json`** -- a lookup table listing algorithm names, which is exactly what
+    that project is for. QUBIT never opens `.json` as code, so every one of those became a QUBIT
+    "miss" and the corpus reported QUBIT at 23 sites against cryptoscan's 198.
+
+    **Vendored directories** (`base.SKIP_DIRS`). The corpus samples repositories, and a checked-in
+    copy of somebody else's library is not that repository's cryptography. gatsbyjs/gatsby vendors
+    a 5 MB bundled `yarn-1.21.0.js` under `.yarn/releases/`; cryptoscan correctly reported Blowfish,
+    bcrypt and Poly1305 out of it, and 24 of the 28 exclusive findings sampled from that repository
+    were that one file. True about yarn, and not a fact about gatsby.
+
+    What neither filter fixes is the same error *inside* a source file -- `cryptodeps`'
+    `internal/database/database.go` contributes another 282 -- where an algorithm named in a Go
+    string table is indistinguishable, to anything matching text, from an algorithm being called.
+    That one needs adjudication, not a filter, and it is the clearest argument in this whole
+    benchmark for why an AST detector is worth the trouble.
     """
     kept: dict[str, list[Finding]] = {}
     dropped = 0
     for detector, hits in findings.items():
-        keep = [f for f in hits if Path(f.path).suffix.lower() in SUFFIXES]
+        keep = [
+            f
+            for f in hits
+            if Path(f.path).suffix.lower() in SUFFIXES
+            and not (SKIP_DIRS & set(PurePosixPath(f.path).parts))
+        ]
         dropped += len(hits) - len(keep)
         kept[detector] = keep
     return kept, dropped
@@ -234,9 +261,7 @@ def report(
                 print(f"    qubit recall  {_pct(recall)}   (UPPER bound)")
             for caveat in estimate.caveats:
                 print(f"    ! {caveat}")
-            estimates.append(
-                {"model": label, **_as_dict(estimate, len(sites.get("qubit", set())))}
-            )
+            estimates.append({"model": label, **_as_dict(estimate, len(sites.get("qubit", set())))})
 
     payload["estimates"] = estimates
     print(

@@ -23,7 +23,12 @@ _NEGATIVE = [
     "rule_id,language,src", _POSITIVE, ids=[f"{r}#{i}" for i, (r, _, _) in enumerate(_POSITIVE)]
 )
 def test_positive_examples_detect(rule_id: str, language: str, src: str) -> None:
-    dets = _SCANNER.scan_source(src.encode(), language, file_path="ex")
+    # `collapse=False`: this asserts the rule's QUERY matches, which is upstream of the inventory.
+    # Two rules legitimately describe one site -- `GO-CRYPTO-ECDSA-P256` and
+    # `GO-CRYPTO-ECDSA-GENERATEKEY` both fire on one `ecdsa.GenerateKey(elliptic.P256(), ...)`, and
+    # only the more specific one reaches the asset list. That is correct, and it is not this test's
+    # subject; a rule whose query stopped matching is.
+    dets = _SCANNER.scan_source(src.encode(), language, file_path="ex", collapse=False)
     assert any(d.rule_id == rule_id for d in dets), f"{rule_id} did not match its positive example"
 
 

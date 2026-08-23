@@ -153,7 +153,8 @@ class TestVerifiedTargetShapes:
         assert result.status != "fail", result.detail
 
     def test_a_language_the_scanner_cannot_verify_returns_nothing(self) -> None:
-        assert ts.verified_target_shapes("swift", "ML-KEM") == ()
+        """Was `swift` until Swift gained CryptoKit ML-KEM rules; PHP still has no binding."""
+        assert ts.verified_target_shapes("php", "ML-KEM") == ()
 
     def test_lookup_is_cached_so_a_plan_does_not_re_ask_per_task(self) -> None:
         ts._cache.clear()

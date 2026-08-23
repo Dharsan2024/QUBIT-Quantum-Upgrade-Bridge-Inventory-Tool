@@ -9,7 +9,7 @@ matches:
     [".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".hpp",
     ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart", ".sh", ".bash",
     ".ps1", ".psm1", ".sql"]
-  algorithm: ["MD5", "SHA-1", "MD4", "RIPEMD-160", "SHA-224"]
+  algorithm: ["MD5", "SHA-1", "MD4", "MD2", "RIPEMD-160", "SHA-224"]
   usage_context: ["hash", "unknown", "signature", "token"]
   library_name: [null]
 target:
@@ -23,8 +23,8 @@ target:
 # the code can read both, hence dual_read rather than in_place.
 data_compat: dual_read
 semantic_note: >
-  MD5, SHA-1, MD4 and RIPEMD-160 are classically broken (practical collisions) and additionally
-  Grover-weakened. Replace the digest constructor with SHA-256, keeping the surrounding call shape.
+  MD5, SHA-1, MD4, MD2 and RIPEMD-160 are classically broken (practical collisions) and
+  additionally Grover-weakened. Replace the digest constructor with SHA-256, keeping the surrounding call shape.
   This is a line-scoped token swap rather than a structural rewrite, so the diff is one line per call
   site. Note the output grows from 16/20 to 32 bytes: check fixed-width storage and any wire format
   before applying, and keep a dual-read path for digests already persisted.

@@ -34,7 +34,14 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-from adjudicate import CODE, COMMENT, STRING_LITERAL, adjudicate  # noqa: E402
+from adjudicate import (  # noqa: E402
+    CODE,
+    COMMENT,
+    NOT_APPLICABLE,
+    STRING_LITERAL,
+    SUBSTRING,
+    adjudicate,
+)
 from run_multi import collect, report  # noqa: E402
 
 LOCK_FILE = HERE / "corpus.lock.json"
@@ -59,7 +66,8 @@ def sweep(out_dir: Path, *, only: str | None = None) -> dict:
             continue
         target = REPO_ROOT / meta["path"]
         slug = full_name.replace("/", "__")
-        print(f"\n[{index}/{len(repositories)}] {full_name} ({meta['language']})", flush=True)
+        label = meta.get("primary_language") or meta.get("stratum") or meta.get("language")
+        print(f"\n[{index}/{len(repositories)}] {full_name} ({label})", flush=True)
         if not target.is_dir():
             failed[full_name] = "not cloned"
             print("  MISSING — not cloned", flush=True)
@@ -76,7 +84,10 @@ def sweep(out_dir: Path, *, only: str | None = None) -> dict:
         with_findings = sum(1 for hits in findings.values() if hits)
         record = {
             "repository": full_name,
-            "language": meta["language"],
+            # Which query drew it, and what it actually is. These differ for four repositories in
+            # the corpus and reporting only the first overstated its language coverage.
+            "stratum": meta.get("stratum", meta.get("language")),
+            "primary_language": meta.get("primary_language"),
             "commit": meta["commit"],
             "license": meta["license"],
             "stars": meta["stars"],
@@ -112,13 +123,29 @@ def sweep(out_dir: Path, *, only: str | None = None) -> dict:
                 print(f"  EXCLUDED — {record['exclusion_reason']}", flush=True)
                 continue
 
-            verdicts = adjudicate(target, findings, sample_size=25)
+            # 25 was enough to eyeball a repository; it is not enough to hold anything back.
+            # The first 601 labels exhausted the saved sample, so every figure derived from them --
+            # the classifier's kappa, the scanner's repaired precision -- is IN-SAMPLE: the repairs
+            # were made from the same items they are scored on. A held-out draw needs items nobody
+            # has looked at, and there were none left to draw.
+            #
+            # 60 costs nothing (the findings are already computed; this only decides how many are
+            # written down) and leaves roughly two thirds of each repository's exclusive findings
+            # unlabelled, which is the reserve `pool.py --exclude-labelled` draws the held-out set
+            # from. Sampling stays seeded, so the reserve is reproducible rather than whatever was
+            # left over.
+            verdicts = adjudicate(target, findings, sample_size=60)
             record["adjudication"] = {
                 name: {
                     "exclusive": data["exclusive_findings"],
                     "code": data["classes"].get(CODE, 0),
                     "mention": data["classes"].get(STRING_LITERAL, 0),
                     "comment": data["classes"].get(COMMENT, 0),
+                    # Recorded explicitly rather than left to be recovered by subtraction. The
+                    # first sweep stored only three of the classes, and the fourth -- the one
+                    # that reversed the gatsby result -- was invisible in the saved output.
+                    "absent": data["classes"].get(SUBSTRING, 0),
+                    "not_applicable": data["classes"].get(NOT_APPLICABLE, 0),
                     "sample": data["sample"],
                 }
                 for name, data in verdicts.items()

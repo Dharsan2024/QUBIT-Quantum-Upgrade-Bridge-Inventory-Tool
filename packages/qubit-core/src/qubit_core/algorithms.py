@@ -606,6 +606,117 @@ ALGORITHMS: tuple[CanonicalAlgorithm, ...] = (
         aliases=("dilithium5", "mldsa87"),
     ),
     _safe(canonical="SLH-DSA", family="SLH-DSA", kind="pqc-sig", aliases=("sphincs+", "sphincs")),
+    # The twelve FIPS 205 parameter sets. The bare `SLH-DSA` entry above covers APIs that name
+    # only the family; these cover the ones that name a parameter set, which is most of them --
+    # BouncyCastle, liboqs and OpenSSL 3.5 all spell it out in full. Without them a standardised
+    # signature algorithm resolved to UNKNOWN(...) and was reported as an unrecognised name.
+    _safe(
+        canonical="SLH-DSA-SHA2-128s",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=1,
+        aliases=("sphincs+-sha2-128s-simple", "sphincs+-sha2-128s"),
+    ),
+    _safe(
+        canonical="SLH-DSA-SHA2-128f",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=1,
+        aliases=("sphincs+-sha2-128f-simple", "sphincs+-sha2-128f"),
+    ),
+    _safe(
+        canonical="SLH-DSA-SHA2-192s",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=3,
+        aliases=("sphincs+-sha2-192s-simple", "sphincs+-sha2-192s"),
+    ),
+    _safe(
+        canonical="SLH-DSA-SHA2-192f",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=3,
+        aliases=("sphincs+-sha2-192f-simple", "sphincs+-sha2-192f"),
+    ),
+    _safe(
+        canonical="SLH-DSA-SHA2-256s",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=5,
+        aliases=("sphincs+-sha2-256s-simple", "sphincs+-sha2-256s"),
+    ),
+    _safe(
+        canonical="SLH-DSA-SHA2-256f",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=5,
+        aliases=("sphincs+-sha2-256f-simple", "sphincs+-sha2-256f"),
+    ),
+    _safe(
+        canonical="SLH-DSA-SHAKE-128s",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=1,
+        aliases=("sphincs+-shake-128s-simple", "sphincs+-shake-128s"),
+    ),
+    _safe(
+        canonical="SLH-DSA-SHAKE-128f",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=1,
+        aliases=("sphincs+-shake-128f-simple", "sphincs+-shake-128f"),
+    ),
+    _safe(
+        canonical="SLH-DSA-SHAKE-192s",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=3,
+        aliases=("sphincs+-shake-192s-simple", "sphincs+-shake-192s"),
+    ),
+    _safe(
+        canonical="SLH-DSA-SHAKE-192f",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=3,
+        aliases=("sphincs+-shake-192f-simple", "sphincs+-shake-192f"),
+    ),
+    _safe(
+        canonical="SLH-DSA-SHAKE-256s",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=5,
+        aliases=("sphincs+-shake-256s-simple", "sphincs+-shake-256s"),
+    ),
+    _safe(
+        canonical="SLH-DSA-SHAKE-256f",
+        family="SLH-DSA",
+        kind="pqc-sig",
+        nist_quantum_security_level=5,
+        aliases=("sphincs+-shake-256f-simple", "sphincs+-shake-256f"),
+    ),
+    # HQC parameter sets. NIST selected HQC in March 2025 as the backup KEM to ML-KEM; the bare
+    # `HQC` entry below predates the parameter sets being nameable at a call site.
+    _safe(
+        canonical="HQC-128",
+        family="HQC",
+        kind="pqc-kem",
+        nist_quantum_security_level=1,
+        aliases=("hqc128",),
+    ),
+    _safe(
+        canonical="HQC-192",
+        family="HQC",
+        kind="pqc-kem",
+        nist_quantum_security_level=3,
+        aliases=("hqc192",),
+    ),
+    _safe(
+        canonical="HQC-256",
+        family="HQC",
+        kind="pqc-kem",
+        nist_quantum_security_level=5,
+        aliases=("hqc256",),
+    ),
     # Bare PQC family names, for APIs that do not name a parameter set at the call site
     # (Vault's `ml-dsa` key type, Go's crypto/mlkem, BouncyCastle's "ML-KEM" JCA name).
     _safe(canonical="ML-KEM", family="ML-KEM", kind="pqc-kem", aliases=("mlkem", "kyber")),

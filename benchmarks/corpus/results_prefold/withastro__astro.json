@@ -1,0 +1,880 @@
+{
+  "repository": "withastro/astro",
+  "stratum": "TypeScript",
+  "primary_language": "TypeScript",
+  "commit": "3578d45d34226d63cff3d261c971c221de6794d2",
+  "license": "NOASSERTION",
+  "stars": 61913,
+  "detectors_with_findings": 3,
+  "counts": {
+    "qubit": 22,
+    "pqaudit": 139,
+    "semgrep": 0,
+    "cryptoscan": 3,
+    "sonar": 0
+  },
+  "elapsed_s": 257.8,
+  "comparison": {
+    "corpus": "withastro/astro",
+    "dropped_non_source_findings": 4,
+    "shared_vocabulary": [
+      "AES",
+      "SHA"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 6,
+        "sites": 5
+      },
+      "pqaudit": {
+        "findings": 118,
+        "sites": 21
+      },
+      "semgrep": {
+        "findings": 0,
+        "sites": 0
+      },
+      "cryptoscan": {
+        "findings": 3,
+        "sites": 3
+      },
+      "sonar": {
+        "findings": 0,
+        "sites": 0
+      }
+    },
+    "unavailable": {},
+    "agreement": {
+      "cryptoscan|pqaudit": 0.0,
+      "cryptoscan|qubit": 0.3333333333333333,
+      "cryptoscan|semgrep": 0.0,
+      "cryptoscan|sonar": 0.0,
+      "pqaudit|qubit": 0.13043478260869565,
+      "pqaudit|semgrep": 0.0,
+      "pqaudit|sonar": 0.0,
+      "qubit|semgrep": 0.0,
+      "qubit|sonar": 0.0,
+      "semgrep|sonar": 0.0
+    },
+    "capture_table": {
+      "pqaudit": 18,
+      "cryptoscan+qubit": 2,
+      "cryptoscan": 1,
+      "pqaudit+qubit": 3
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 6,
+        "population": [
+          7.0,
+          6.0,
+          9.771858582251266
+        ],
+        "missed_by_all": 1.0,
+        "qubit_recall_upper_bound": [
+          0.7142857142857143,
+          0.5116733892446577,
+          0.8333333333333334
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 2 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 23,
+        "population": [
+          32.0,
+          23.0,
+          47.10599351251019
+        ],
+        "missed_by_all": 9.0,
+        "qubit_recall_upper_bound": [
+          0.15625,
+          0.1061436056681858,
+          0.21739130434782608
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 3 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 5,
+        "population": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|sonar",
+        "method": "Chapman (2-source)",
+        "observed": 5,
+        "population": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "model": "independence",
+        "method": "log-linear 5-source (independence)",
+        "observed": 24,
+        "population": [
+          34.78908730039354,
+          26.401442601935315,
+          72.47269915246076
+        ],
+        "missed_by_all": 10.78908730039354,
+        "qubit_recall_upper_bound": [
+          0.14372323012749574,
+          0.06899149691501766,
+          0.18938359071460295
+        ],
+        "caveats": [
+          "independence model: assumes detectors succeed and fail independently, which they do not -- this total is an UNDER-estimate",
+          "some capture patterns have zero observed sites; the fit is sparse and the unseen-cell estimate is correspondingly fragile"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 1,
+      "code": 0,
+      "mention": 1,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "packages/astro/src/core/encryption.ts",
+          "line": 14,
+          "algorithm": "AES-GCM",
+          "family": "AES",
+          "rule_id": "SYM-AESGCM-001-14-19",
+          "class": "string-literal",
+          "source": "const ALGORITHM = 'AES-GCM';"
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 135,
+      "code": 2,
+      "mention": 112,
+      "comment": 0,
+      "absent": 21,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "packages/astro/test/units/csp/runtime.test.ts",
+          "line": 21,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "'sha256-AAA',"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 221,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "hashes: ['sha256-abc'],"
+        },
+        {
+          "path": "packages/telemetry/src/project-info.ts",
+          "line": 66,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "const hash = createHash('sha256');"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 290,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "extraScriptHashes: ['sha256-extra'],"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 172,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "extraScriptHashes: ['sha256-dup'],"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 48,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "scriptDirective: { hashes: ['sha256-script'] },"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 210,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "renderCspContent(createCspResult({ scriptDirective: { hashes: ['sha256-default'] } })),"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 595,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "const pipeline = createCspPipeline({ scriptHashes: ['sha256-island'] });"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 439,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "styleHashes: ['sha256-test123'],"
+        },
+        {
+          "path": "packages/astro/test/units/csp/config.test.ts",
+          "line": 59,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "cspHashEntrySchema.safeParse({ hash: 'sha256-abc', kind: 'element' }).success,"
+        },
+        {
+          "path": "packages/astro/src/types/public/config.ts",
+          "line": 70,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "export type ValidRedirectStatus = (typeof REDIRECT_STATUS_CODES)[number];"
+        },
+        {
+          "path": "packages/astro/src/core/csp/config.ts",
+          "line": 30,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": ".default('SHA-256');"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 496,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"'sha256-userElem'\","
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 143,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "hashes: ['sha256-default'],"
+        },
+        {
+          "path": "packages/astro/test/units/csp/config.test.ts",
+          "line": 92,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "hash: 'sha256-abc',"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 88,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "hashes: [{ hash: 'sha256-script', kind: 'element' }],"
+        },
+        {
+          "path": "packages/astro/src/core/errors/handler.ts",
+          "line": 5,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "import { REROUTABLE_STATUS_CODES } from '../constants.js';"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 131,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "scriptDirective: { hashes: [{ hash: 'sha256-attr', kind: 'attribute' }] },"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 307,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"script-src 'self' ; style-src 'self' 'sha256-abc'; style-src-attr 'unsafe-inline';\","
+        },
+        {
+          "path": "packages/astro/test/units/server-islands/encryption.test.ts",
+          "line": 121,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "assert.ok(hash.startsWith('sha256-'), `Expected sha256- prefix, got: ${hash}`);"
+        },
+        {
+          "path": "packages/astro/test/units/csp/speculation-rules.test.ts",
+          "line": 33,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "const hash2 = await generateCspDigest(content2, 'SHA-256');"
+        },
+        {
+          "path": "packages/astro/test/units/csp/config.test.ts",
+          "line": 57,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "assert.equal(cspHashEntrySchema.safeParse('sha256-abc').success, true);"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 278,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "extraStyleHashes: ['sha256-extra'],"
+        },
+        {
+          "path": "packages/astro/src/core/routing/handler.ts",
+          "line": 198,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "REROUTABLE_STATUS_CODES.includes(response.status) &&"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 112,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"script-src 'self' ; style-src 'self' 'sha256-default'; style-src-attr 'unsafe-inline';\","
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 175,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"script-src 'self' 'sha256-dup'; style-src 'self' ;\","
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 61,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "algorithm: config.algorithm || 'SHA-256',"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 579,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "const pipeline = createCspPipeline({ scriptHashes: ['sha256-island'] });"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 512,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "assert.deepEqual(parsed.get('style-src-elem'), [\"'self'\", \"'sha256-css'\"]);"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 679,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "scriptHashes: ['sha256-abc123'],"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 52,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"script-src 'self' 'sha256-script'; style-src 'self' 'sha256-style';\","
+        },
+        {
+          "path": "packages/astro/test/units/csp/warnings.test.ts",
+          "line": 38,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "hashes: [{ hash: 'sha256-abc', kind: 'attribute' }],"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 405,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "scriptHashes: ['sha256-test123'],"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 366,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "Astro.csp.insertStyleHash('sha256-customStyleHash');"
+        },
+        {
+          "path": "packages/astro/src/assets/utils/node.ts",
+          "line": 91,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (code && TRANSIENT_ERROR_CODES.has(code) && attempt < maxRetries) {"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 390,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "assert.ok(content.includes('sha256-customStyleHash'), 'Should include custom style hash');"
+        },
+        {
+          "path": "packages/astro/src/assets/utils/node.ts",
+          "line": 64,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const TRANSIENT_ERROR_CODES = new Set(['EMFILE', 'ENFILE', 'EAGAIN', 'EBUSY']);"
+        },
+        {
+          "path": "packages/astro/test/units/config/config-validate.test.ts",
+          "line": 592,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "hashes: ['sha256-1234567890'],"
+        },
+        {
+          "path": "packages/astro/e2e/fixtures/actions-blog/src/consts.ts",
+          "line": 5,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "export const SITE_DESCRIPTION = 'Welcome to my website!';"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 715,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "scriptSrc!.resources.some((r) => r.includes('sha256-abc123')),"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 158,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "assert.ok(content.includes('sha256-abc123'), 'Should include first style hash');"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 726,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "styleSrc!.resources.some((r) => r.includes('sha256-def456')),"
+        },
+        {
+          "path": "packages/astro/src/core/constants.ts",
+          "line": 26,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "export const REROUTABLE_STATUS_CODES = [404, 500];"
+        },
+        {
+          "path": "packages/astro/test/actions.test.ts",
+          "line": 6,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "import { REDIRECT_STATUS_CODES } from '../dist/core/constants.js';"
+        },
+        {
+          "path": "packages/astro/test/csp.test.ts",
+          "line": 83,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "const styleMatches = cspContent.match(/sha256-[A-Za-z0-9+/=]+/g);"
+        },
+        {
+          "path": "packages/astro/test/units/csp/common.test.ts",
+          "line": 86,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "hashes: ['sha256-AAA', { hash: 'sha256-BBB', kind: 'attribute' }],"
+        },
+        {
+          "path": "packages/language-tools/language-server/test/server.ts",
+          "line": 69,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "const hash = createHash('sha256').update(content).digest('base64url');"
+        },
+        {
+          "path": "packages/astro/test/units/csp/runtime.test.ts",
+          "line": 30,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "assert.deepStrictEqual(groups.default.hashes, ['sha256-AAA']);"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 454,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "assert.ok(header.includes('sha256-test123'), 'Header should include hash');"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 171,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "scriptDirective: { hashes: ['sha256-dup'] },"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 421,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "styleHashes: ['sha256-test123'],"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 170,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "scriptHashes: ['sha256-xyz789', 'sha256-uvw456'],"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 76,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "scriptDirective: { hashes: [{ hash: 'sha256-elem', kind: 'element' }] },"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 613,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "assert.ok(parsed.get('script-src-elem')?.includes(\"'sha256-elemHash'\"));"
+        },
+        {
+          "path": "packages/astro/src/actions/runtime/server.ts",
+          "line": 4,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "import { REDIRECT_STATUS_CODES } from '../../core/constants.js';"
+        },
+        {
+          "path": "packages/astro/test/units/csp/rendering.test.ts",
+          "line": 559,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "scriptHashes: ['sha256-island'],"
+        },
+        {
+          "path": "packages/astro/test/units/csp/render-csp.test.ts",
+          "line": 61,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "hashes: ['sha256-default', { hash: 'sha256-elem', kind: 'element' }],"
+        },
+        {
+          "path": "packages/astro/test/units/csp/speculation-rules.test.ts",
+          "line": 28,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "const hash = await generateCspDigest(content1, 'SHA-256');"
+        },
+        {
+          "path": "packages/astro/test/units/csp/common.test.ts",
+          "line": 47,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "algorithm: 'SHA-256',"
+        },
+        {
+          "path": "packages/astro/src/actions/runtime/server.ts",
+          "line": 511,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "hint = REDIRECT_STATUS_CODES.includes(res.data.status as any)"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 12,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 12,
+      "sample": [
+        {
+          "path": "benchmark/packages/adapter/src/index.ts",
+          "line": 23,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "envGetSecret: 'experimental',"
+        },
+        {
+          "path": "packages/integrations/node/src/index.ts",
+          "line": 27,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "envGetSecret: 'stable',"
+        },
+        {
+          "path": "packages/astro/test/test-adapter.ts",
+          "line": 245,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "envGetSecret: 'stable',"
+        },
+        {
+          "path": "packages/integrations/netlify/src/index.ts",
+          "line": 732,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "envGetSecret: 'stable',"
+        },
+        {
+          "path": "packages/internal-helpers/test/path.test.ts",
+          "line": 223,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "'//%2Fetc%2Fpasswd@evil.com', // Encoded /etc/passwd@evil.com"
+        },
+        {
+          "path": "packages/astro/test/units/actions/actions-app.test.ts",
+          "line": 515,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "currentPassword: 'benisboring',"
+        },
+        {
+          "path": "packages/astro/test/units/actions/actions-app.test.ts",
+          "line": 516,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "newPassword: 'benisawesome',"
+        },
+        {
+          "path": "packages/integrations/vercel/src/index.ts",
+          "line": 139,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "envGetSecret: 'stable',"
+        },
+        {
+          "path": "packages/integrations/cloudflare/src/index.ts",
+          "line": 507,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "envGetSecret: 'stable',"
+        },
+        {
+          "path": "packages/astro/test/env-secret.test.ts",
+          "line": 36,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "KNOWN_SECRET: '123456',"
+        },
+        {
+          "path": "packages/astro/test/test-adapter.ts",
+          "line": 118,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "envGetSecret: 'stable',"
+        },
+        {
+          "path": "packages/astro/test/env-secret.test.ts",
+          "line": 52,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "KNOWN_SECRET: '123456',"
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "sonar": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

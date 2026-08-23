@@ -724,7 +724,13 @@ def rules_examples(
         for example in compiled.rule.examples.positive:
             detections = [
                 d
-                for d in scanner.scan_source(example.encode(), compiled.language, file_path="ex")
+                # `collapse=False`: this asks whether THIS rule recognises the shape. The
+                # reconciled view keeps only the most specific rule per site, so a rule whose
+                # example another rule also matches would silently lose its shape here and the
+                # migrator would be told no confirmable rewrite exists.
+                for d in scanner.scan_source(
+                    example.encode(), compiled.language, file_path="ex", collapse=False
+                )
                 if d.rule_id == compiled.rule.id
             ]
             algorithms = sorted({normalize(d).algorithm for d in detections})

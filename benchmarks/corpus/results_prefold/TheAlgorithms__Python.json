@@ -1,0 +1,636 @@
+{
+  "repository": "TheAlgorithms/Python",
+  "stratum": "Python",
+  "primary_language": "Python",
+  "commit": "f5988cc09713315817df6a7e327e258013a94440",
+  "license": "MIT",
+  "stars": 223920,
+  "detectors_with_findings": 4,
+  "counts": {
+    "qubit": 26,
+    "pqaudit": 53,
+    "semgrep": 1,
+    "cryptoscan": 30,
+    "sonar": 0
+  },
+  "elapsed_s": 85.1,
+  "comparison": {
+    "corpus": "TheAlgorithms/Python",
+    "dropped_non_source_findings": 3,
+    "shared_vocabulary": [
+      "MD5",
+      "SHA",
+      "SHA-1"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 3,
+        "sites": 3
+      },
+      "pqaudit": {
+        "findings": 43,
+        "sites": 7
+      },
+      "semgrep": {
+        "findings": 1,
+        "sites": 1
+      },
+      "cryptoscan": {
+        "findings": 15,
+        "sites": 4
+      },
+      "sonar": {
+        "findings": 0,
+        "sites": 0
+      }
+    },
+    "unavailable": {},
+    "agreement": {
+      "cryptoscan|pqaudit": 0.5714285714285714,
+      "cryptoscan|qubit": 0.16666666666666666,
+      "cryptoscan|semgrep": 0.25,
+      "cryptoscan|sonar": 0.0,
+      "pqaudit|qubit": 0.42857142857142855,
+      "pqaudit|semgrep": 0.14285714285714285,
+      "pqaudit|sonar": 0.0,
+      "qubit|semgrep": 0.3333333333333333,
+      "qubit|sonar": 0.0,
+      "semgrep|sonar": 0.0
+    },
+    "capture_table": {
+      "pqaudit+qubit": 2,
+      "cryptoscan+pqaudit": 3,
+      "pqaudit": 1,
+      "cryptoscan+pqaudit+qubit+semgrep": 1
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 6,
+        "population": [
+          9.0,
+          6.0,
+          15.198064213930024
+        ],
+        "missed_by_all": 3.0,
+        "qubit_recall_upper_bound": [
+          0.3333333333333333,
+          0.19739355998050745,
+          0.5
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 1 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 7,
+        "population": [
+          7.0,
+          7.0,
+          7.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.42857142857142855,
+          0.42857142857142855,
+          0.42857142857142855
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 3 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 3,
+        "population": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 1 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|sonar",
+        "method": "Chapman (2-source)",
+        "observed": 3,
+        "population": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 15,
+      "code": 10,
+      "mention": 4,
+      "comment": 0,
+      "absent": 1,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "ciphers/rsa_key_generator.py",
+          "line": 12,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-12-20",
+          "class": "string-literal",
+          "source": "make_key_files(\"rsa\", 1024)"
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 182,
+          "algorithm": "DH",
+          "family": "DH",
+          "rule_id": "DH-001-182-6",
+          "class": "code",
+          "source": "class DiffieHellman:"
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 258,
+          "algorithm": "DH",
+          "family": "DH",
+          "rule_id": "DH-001-258-15",
+          "class": "code",
+          "source": "if not DiffieHellman.is_valid_public_key_static(remote_public_key, prime):"
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 188,
+          "algorithm": "DH",
+          "family": "DH",
+          "rule_id": "DH-001-188-14",
+          "class": "code",
+          "source": ">>> bob = DiffieHellman()"
+        },
+        {
+          "path": "ciphers/rsa_factorization.py",
+          "line": 4,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-4-35",
+          "class": "code",
+          "source": "The program can efficiently factor RSA prime number given the private key d and"
+        },
+        {
+          "path": "ciphers/rsa_cipher.py",
+          "line": 80,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-80-23",
+          "class": "string-literal",
+          "source": "\"bits. The RSA cipher requires the block size to be equal to or greater \""
+        },
+        {
+          "path": "ciphers/rsa_factorization.py",
+          "line": 2,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-2-3",
+          "class": "code",
+          "source": "An RSA prime factor algorithm."
+        },
+        {
+          "path": "ciphers/rsa_cipher.py",
+          "line": 104,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-104-23",
+          "class": "string-literal",
+          "source": "\"bits. The RSA cipher requires the block size to be equal to or greater \""
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 203,
+          "algorithm": "DH",
+          "family": "DH",
+          "rule_id": "DH-001-203-23",
+          "class": "code",
+          "source": ">>> alice_shared = DiffieHellman.generate_shared_key_static("
+        },
+        {
+          "path": "ciphers/rsa_factorization.py",
+          "line": 25,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-25-18",
+          "class": "code",
+          "source": "We call N the RSA modulus, e the encryption exponent, and d the decryption exponent."
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 184,
+          "algorithm": "DH",
+          "family": "DH",
+          "rule_id": "DH-001-184-27",
+          "class": "code",
+          "source": "Class to represent the Diffie-Hellman key exchange protocol"
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 187,
+          "algorithm": "DH",
+          "family": "DH",
+          "rule_id": "DH-001-187-16",
+          "class": "code",
+          "source": ">>> alice = DiffieHellman()"
+        },
+        {
+          "path": "ciphers/rsa_cipher.py",
+          "line": 126,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-126-32",
+          "class": "string-literal",
+          "source": "rkg.make_key_files(\"rsa\", 1024)"
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 206,
+          "algorithm": "DH",
+          "family": "DH",
+          "rule_id": "DH-001-206-21",
+          "class": "code",
+          "source": ">>> bob_shared = DiffieHellman.generate_shared_key_static("
+        },
+        {
+          "path": "ciphers/rabin_miller.py",
+          "line": 213,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-1024-213-25",
+          "class": "substring",
+          "source": "def generate_large_prime(keysize: int = 1024) -> int:"
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 13,
+      "code": 3,
+      "mention": 0,
+      "comment": 0,
+      "absent": 10,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 182,
+          "algorithm": "ECDH",
+          "family": "EC",
+          "rule_id": "ECDH_KEY_EXCHANGE",
+          "class": "substring",
+          "source": "class DiffieHellman:"
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 258,
+          "algorithm": "ECDH",
+          "family": "EC",
+          "rule_id": "ECDH_KEY_EXCHANGE",
+          "class": "substring",
+          "source": "if not DiffieHellman.is_valid_public_key_static(remote_public_key, prime):"
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 206,
+          "algorithm": "ECDH",
+          "family": "EC",
+          "rule_id": "ECDH_KEY_EXCHANGE",
+          "class": "substring",
+          "source": ">>> bob_shared = DiffieHellman.generate_shared_key_static("
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 241,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "return sha256(str(shared_key).encode()).hexdigest()"
+        },
+        {
+          "path": "sorts/bitonic_sort.py",
+          "line": 15,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DESCENDING(0); if (a[i] > a[j]) agrees with the direction, then a[i] and a[j] are"
+        },
+        {
+          "path": "maths/monte_carlo_dice.py",
+          "line": 34,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "count_of_sum = [0] * (len(dices) * Dice.NUM_SIDES + 1)"
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 203,
+          "algorithm": "ECDH",
+          "family": "EC",
+          "rule_id": "ECDH_KEY_EXCHANGE",
+          "class": "substring",
+          "source": ">>> alice_shared = DiffieHellman.generate_shared_key_static("
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 187,
+          "algorithm": "ECDH",
+          "family": "EC",
+          "rule_id": "ECDH_KEY_EXCHANGE",
+          "class": "substring",
+          "source": ">>> alice = DiffieHellman()"
+        },
+        {
+          "path": "maths/monte_carlo_dice.py",
+          "line": 7,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "NUM_SIDES = 6"
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 261,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "return sha256(str(shared_key).encode()).hexdigest()"
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 188,
+          "algorithm": "ECDH",
+          "family": "EC",
+          "rule_id": "ECDH_KEY_EXCHANGE",
+          "class": "substring",
+          "source": ">>> bob = DiffieHellman()"
+        },
+        {
+          "path": "ciphers/diffie_hellman.py",
+          "line": 2,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "from hashlib import sha256"
+        },
+        {
+          "path": "maths/monte_carlo_dice.py",
+          "line": 11,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "self.sides = list(range(1, Dice.NUM_SIDES + 1))"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 20,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 20,
+      "sample": [
+        {
+          "path": "fractals/sierpinski_triangle.py",
+          "line": 2,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "Author Anurag Kumar | anuragkumarak95@gmail.com | git/anuragkumarak95"
+        },
+        {
+          "path": "digital_image_processing/index_calculation.py",
+          "line": 2,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "# Author email: joaogustavoamorim@gmail.com"
+        },
+        {
+          "path": "conversions/weight_conversion.py",
+          "line": 8,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "__email__ = \"anubhavsolanki0@gmail.com\""
+        },
+        {
+          "path": "machine_learning/k_means_clust.py",
+          "line": 1,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "\"\"\"README, Author - Anurag Kumar(mailto:anuragkumarak95@gmail.com)"
+        },
+        {
+          "path": "cellular_automata/game_of_life.py",
+          "line": 1,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "\"\"\"Conway's Game Of Life, Author Anurag Kumar(mailto:anuragkumarak95@gmail.com)"
+        },
+        {
+          "path": "hashes/hamming_code.py",
+          "line": 2,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "# Author email: joaogustavoamorim@gmail.com and gabriel-kunz@uergs.edu.br"
+        },
+        {
+          "path": "neural_network/convolution_neural_network.py",
+          "line": 12,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "Github: 245885195@qq.com"
+        },
+        {
+          "path": "strings/credit_card_validator.py",
+          "line": 58,
+          "algorithm": "PII: credit-card number",
+          "family": "PII: CREDIT",
+          "rule_id": "PII-CREDIT-CARD",
+          "class": "not-applicable",
+          "source": ">>> validate_credit_card_number('4111111111111111')"
+        },
+        {
+          "path": "strings/credit_card_validator.py",
+          "line": 102,
+          "algorithm": "PII: credit-card number",
+          "family": "PII: CREDIT",
+          "rule_id": "PII-CREDIT-CARD",
+          "class": "not-applicable",
+          "source": "validate_credit_card_number(\"4111111111111111\")"
+        },
+        {
+          "path": "web_programming/emails_from_url.py",
+          "line": 16,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "__email__ = \"contact@muhammadumerfarooq.me\""
+        },
+        {
+          "path": "web_programming/instagram_crawler.py",
+          "line": 130,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "assert instagram_user.email == \"support@github.com\""
+        },
+        {
+          "path": "hashes/hamming_code.py",
+          "line": 2,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "# Author email: joaogustavoamorim@gmail.com and gabriel-kunz@uergs.edu.br"
+        },
+        {
+          "path": "other/bankers_algorithm.py",
+          "line": 4,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "# \"Author: \"Biney Kingsley (bluedistro@github.io), bineykingsley36@gmail.com\","
+        },
+        {
+          "path": "other/bankers_algorithm.py",
+          "line": 4,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "# \"Author: \"Biney Kingsley (bluedistro@github.io), bineykingsley36@gmail.com\","
+        },
+        {
+          "path": "strings/credit_card_validator.py",
+          "line": 59,
+          "algorithm": "PII: credit-card number",
+          "family": "PII: CREDIT",
+          "rule_id": "PII-CREDIT-CARD",
+          "class": "not-applicable",
+          "source": "4111111111111111 is a valid credit card number."
+        },
+        {
+          "path": "machine_learning/dimensionality_reduction.py",
+          "line": 1,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "#  Copyright (c) 2023 Diego Gasco (diego.gasco99@gmail.com), Diegomangasco on GitHub"
+        },
+        {
+          "path": "maths/extended_euclidean_algorithm.py",
+          "line": 12,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "# @Email:  silentcat@protonmail.com"
+        },
+        {
+          "path": "strings/credit_card_validator.py",
+          "line": 11,
+          "algorithm": "PII: credit-card number",
+          "family": "PII: CREDIT",
+          "rule_id": "PII-CREDIT-CARD",
+          "class": "not-applicable",
+          "source": ">>> valid = \"4111111111111111 41111111111111 34 35 37 412345 523456 634567\""
+        },
+        {
+          "path": "machine_learning/automatic_differentiation.py",
+          "line": 7,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "Email: smrtpoojan@gmail.com"
+        },
+        {
+          "path": "strings/credit_card_validator.py",
+          "line": 24,
+          "algorithm": "PII: credit-card number",
+          "family": "PII: CREDIT",
+          "rule_id": "PII-CREDIT-CARD",
+          "class": "not-applicable",
+          "source": ">>> luhn_validation('4111111111111111')"
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "sonar": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

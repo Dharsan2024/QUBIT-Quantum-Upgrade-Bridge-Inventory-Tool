@@ -245,3 +245,55 @@ def test_cipher_suite_resolution_is_unaffected_by_the_x509_path(suite: str, expe
     resolved = algorithms.resolve(suite)
     assert resolved is not None
     assert resolved.canonical == expected
+
+
+class TestStandardisedParameterSets:
+    """A standardised algorithm that resolves to `UNKNOWN(...)` reads as a scanner failure.
+
+    ML-KEM and ML-DSA carried their parameter sets from the start; SLH-DSA and HQC did not, so
+    `Signature.getInstance("SLH-DSA-SHA2-128s")` -- a FIPS 205 name that BouncyCastle, liboqs and
+    OpenSSL 3.5 all emit in full -- inventoried as an unrecognised string. The bare family entries
+    stay, for APIs that name only the family.
+    """
+
+    @pytest.mark.parametrize(
+        "raw,canonical,category",
+        [
+            ("SLH-DSA-SHA2-128s", "SLH-DSA-SHA2-128s", 1),
+            ("SLH-DSA-SHA2-192f", "SLH-DSA-SHA2-192f", 3),
+            ("SLH-DSA-SHAKE-256f", "SLH-DSA-SHAKE-256f", 5),
+            ("HQC-128", "HQC-128", 1),
+            ("HQC-256", "HQC-256", 5),
+        ],
+    )
+    def test_parameter_sets_resolve_with_their_security_category(
+        self, raw: str, canonical: str, category: int
+    ) -> None:
+        entry = algorithms.resolve(raw)
+        assert entry is not None, f"{raw} is a standardised name and must resolve"
+        assert entry.canonical == canonical
+        assert entry.nist_quantum_security_level == category
+
+    @pytest.mark.parametrize(
+        "legacy,canonical",
+        [
+            ("SPHINCS+-SHA2-192f-simple", "SLH-DSA-SHA2-192f"),
+            ("sphincs+-shake-128s", "SLH-DSA-SHAKE-128s"),
+        ],
+    )
+    def test_pre_standard_sphincs_names_map_to_the_standard_one(
+        self, legacy: str, canonical: str
+    ) -> None:
+        """Code written before FIPS 205 spells it SPHINCS+; it is the same algorithm."""
+        entry = algorithms.resolve(legacy)
+        assert entry is not None and entry.canonical == canonical
+
+    @pytest.mark.parametrize("family", ["SLH-DSA", "HQC", "ML-KEM", "ML-DSA"])
+    def test_the_bare_family_still_resolves(self, family: str) -> None:
+        entry = algorithms.resolve(family)
+        assert entry is not None and entry.canonical == family
+
+    @pytest.mark.parametrize("raw", ["SLH-DSA-SHA2-128s", "HQC-192", "SPHINCS+-SHAKE-256s"])
+    def test_none_of_them_are_reported_as_quantum_vulnerable(self, raw: str) -> None:
+        entry = algorithms.resolve(raw)
+        assert entry is not None and not entry.vulnerable

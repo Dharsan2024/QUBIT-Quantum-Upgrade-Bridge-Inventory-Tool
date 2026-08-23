@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 from qubit_core import Location
+from qubit_core.algorithms import resolve as resolve_algorithm
 from tree_sitter import Node, QueryCursor
 from tree_sitter_language_pack import get_parser
 
@@ -34,6 +35,60 @@ _NAME_NODE_TYPES = frozenset(
 
 # A shebang is the first line by definition; this only bounds the read on a huge binary blob.
 _SHEBANG_PROBE_BYTES = 128
+
+
+#: Ranked worst-to-best so a higher index wins a tie between two rules describing the same site.
+_CONFIDENCE_ORDER = ("low", "medium", "high")
+
+
+def _specificity(cr: CompiledRule) -> tuple[int, int, str]:
+    """How narrow a claim a rule is making, for choosing between two that describe one site.
+
+    A rule that constrains the algorithm string (`{capture: algo, regex: '^"ML-DSA-65"$'}`) is
+    saying something more specific than one that matches every `Signature.getInstance(...)` and
+    hands the argument to a resolver, so it wins. Confidence breaks the tie, and the rule id breaks
+    that, because an inventory that changes depending on catalog iteration order is not an
+    inventory.
+    """
+    confidence = getattr(cr.rule, "confidence", "medium")
+    rank = _CONFIDENCE_ORDER.index(confidence) if confidence in _CONFIDENCE_ORDER else 0
+    return (len(cr.rule.match.where), rank, cr.rule.id)
+
+
+def _one_per_site(found: list[tuple[CompiledRule, Detection]]) -> list[Detection]:
+    """Collapse rules that independently reported the same algorithm at the same line.
+
+    Two rules matching one call is normal and useful -- a generic `Signature.getInstance(<alg>)`
+    rule and a specific ML-DSA one both fire on `Signature.getInstance("ML-DSA-65")`, and the
+    catalog wants both, because the specific one carries the migration example while the generic
+    one carries the coverage. What is not wanted is two *assets* out the other end: one call is one
+    cryptographic fact, and reporting it twice inflates every count taken over the inventory.
+
+    The comparison is on the **resolved** algorithm, not the raw string. `Signature.getInstance
+    ("Dilithium3")` is reported by the specific rule as `ML-DSA-65` and by the generic one as
+    `Dilithium3`; those are the same algorithm under its old and new names, and keying on the raw
+    text would let exactly that pair through.
+
+    Unresolvable names fall back to the upper-cased raw text, so two rules disagreeing about an
+    algorithm neither can resolve still collapse -- which is what happened with the FIPS 205
+    parameter sets before the registry knew them.
+    """
+    best: dict[
+        tuple[str | None, int | None, str, str | None], tuple[tuple[int, int, str], Detection]
+    ] = {}
+    order: list[tuple[str | None, int | None, str, str | None]] = []
+    for cr, det in found:
+        raw = det.raw_algorithm or ""
+        canonical = resolve_algorithm(raw)
+        name = canonical.canonical if canonical else raw.upper()
+        key = (det.location.file_path, det.location.line, name, det.usage_context)
+        rank = _specificity(cr)
+        if key not in best:
+            best[key] = (rank, det)
+            order.append(key)
+        elif rank > best[key][0]:
+            best[key] = (rank, det)
+    return [best[key][1] for key in order]
 
 
 class CodeScanner:
@@ -74,7 +129,16 @@ class CodeScanner:
         *,
         file_path: str = "<memory>",
         repo: str | None = None,
+        collapse: bool = True,
     ) -> list[Detection]:
+        """Findings for one source buffer.
+
+        `collapse=False` returns one Detection per *rule match*, before rules describing the same
+        site are reconciled. Only `test_rule_examples.py` wants that: it asserts every rule detects
+        its own positive example, which is a statement about the rule's query, not about what
+        survives into the inventory. Everything else wants the reconciled view -- see
+        `_one_per_site`.
+        """
         rules = self._catalog.for_language(language)
         if not rules:
             return []
@@ -87,7 +151,7 @@ class CodeScanner:
         imports = resolve.extract_imports(root, language)
         shortlist = [r for r in rules if _import_gate(r, imports)]
 
-        detections: list[Detection] = []
+        detections: list[tuple[CompiledRule, Detection]] = []
         # Rules declaring `dedupe: per-file` contribute at most one finding per algorithm per file
         # (see Rule.dedupe). Tracked per scan_source call, i.e. per file.
         collapsed: set[tuple[str, str]] = set()
@@ -103,8 +167,8 @@ class CodeScanner:
                     if key in collapsed:
                         continue
                     collapsed.add(key)
-                detections.append(det)
-        return detections
+                detections.append((cr, det))
+        return _one_per_site(detections) if collapse else [d for _, d in detections]
 
     def _match_to_detection(
         self,
@@ -275,6 +339,28 @@ def _where_ok(w: WhereFilter, caps: dict[str, list[Node]]) -> bool:
     return w.regex is None or re.search(w.regex, text) is not None
 
 
+def _string_value(node: Node, root: Node) -> str | None:
+    """The string a node denotes: its literal value, or the single literal its name was assigned.
+
+    `Cipher.getInstance(crypto)`, with `String crypto = "DES/ECB/PKCS5Padding"` somewhere else in
+    the file, is the ordinary way real Java hides its algorithm from a purely syntactic match. Every
+    resolver that consumes a string value needs the same fold, so it lives here rather than being
+    repeated -- and forgotten -- in each one.
+
+    Measured on CryptoAPI-Bench: without this, recall on the benchmark's interprocedural,
+    field-sensitive, multi-method and multi-class cases is **zero**, while the same misuses written
+    with a literal at the call site are found. The fold is deliberately intra-file and
+    single-assignment (see `resolve.resolve_string_constant`); anything ambiguous stays unresolved
+    rather than being guessed.
+    """
+    literal = resolve.string_literal_value(node)
+    if literal is not None:
+        return literal
+    if node.type in _NAME_NODE_TYPES:
+        return resolve.resolve_string_constant(resolve.node_text(node), root)
+    return None
+
+
 def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | None:
     if ex.literal is not None:
         return ex.literal
@@ -288,18 +374,13 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
         case "capture-text":
             return resolve.node_text(node)
         case "string-literal":
-            return resolve.string_literal_value(node)
+            # Folds a name to its literal too: a rule asking for a string value wants the value,
+            # not a refusal because the author put it in a variable first.
+            return _string_value(node, root)
         case "string-constant":
-            val = resolve.string_literal_value(node)
-            if val is not None:
-                return val
-            # Only "identifier" was folded, which is Python/Java/Go/JS's spelling. PHP names a
-            # variable `variable_name`, Kotlin and Swift use `simple_identifier`, Ruby uses
-            # `constant` for a folded constant — so `$algo = "md5"; hash($algo, ...)` resolved in
-            # some languages and silently gave up in others.
-            if node.type in _NAME_NODE_TYPES:
-                return resolve.resolve_string_constant(resolve.node_text(node), root)
-            return None
+            # Handles both spellings and every grammar's name-node type. PHP names a variable
+            # `variable_name`, Kotlin and Swift use `simple_identifier`, Ruby uses `constant`.
+            return _string_value(node, root)
         case "int-literal":
             iv = resolve.int_literal_value(node)
             return str(iv) if iv is not None else None
@@ -338,7 +419,9 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
         case "jca-signature":
             # `"SHA256withRSA"` -> "RSA": report the KEY algorithm, which is the Shor-relevant half.
             # The digest half is inventoried separately by the MessageDigest rules.
-            value = resolve.string_literal_value(node) or resolve.node_text(node)
+            value = _string_value(node, root)
+            if value is None:
+                return None
             lowered = value.lower()
             for sep in ("withencryption", "with"):
                 if sep in lowered:
@@ -346,8 +429,8 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
             return value
         case "jca-transformation":
             # `"AES/GCM/NoPadding"` -> "AES": the mode and padding are not quantum-relevant.
-            value = resolve.string_literal_value(node) or resolve.node_text(node)
-            return value.split("/", 1)[0]
+            value = _string_value(node, root)
+            return value.split("/", 1)[0] if value is not None else None
         case "go-key-package":
             # `rsa.PrivateKey` -> "RSA", `ed25519.PublicKey` -> "Ed25519". The Go package name is
             # lowercase; the registry is case-insensitive but "ed25519" must not be left to match

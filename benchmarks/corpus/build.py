@@ -105,9 +105,12 @@ def _get(url: str, *, retries: int = 4) -> dict:
             with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            if exc.code in (403, 429) and attempt < retries - 1:
+            # 403/429 is the rate limit; 5xx is GitHub having a moment. Both are worth waiting out,
+            # and a 504 halfway through a 26-repository pass used to lose the whole run.
+            if (exc.code in (403, 429) or exc.code >= 500) and attempt < retries - 1:
                 wait = 20 * (attempt + 1)
-                print(f"    rate limited; waiting {wait}s", file=sys.stderr)
+                reason = "rate limited" if exc.code in (403, 429) else f"HTTP {exc.code}"
+                print(f"    {reason}; waiting {wait}s", file=sys.stderr)
                 time.sleep(wait)
                 continue
             raise
@@ -138,6 +141,10 @@ def build_frame(per_stratum: int = 60) -> dict:
                     "size_kb": item["size"],
                     "license": (item.get("license") or {}).get("spdx_id"),
                     "default_branch": item["default_branch"],
+                    # GitHub's OWN primary language, which is not the stratum. `language:C#`
+                    # returns every repository CONTAINING C#, so the C# stratum was filled with
+                    # C projects. Recording both is what makes that visible instead of silent.
+                    "primary_language": item.get("language"),
                 }
             )
         frame[language] = entries
@@ -221,9 +228,15 @@ def clone_sample(*, depth: int = 1) -> dict:
                         # with "cannot create directory", which is a filesystem limit and not a
                         # property of the corpus; silently dropping them would have shrunk the
                         # sample for a reason having nothing to do with the sampling frame.
-                        "git", "-c", "core.longpaths=true",
-                        "clone", "--depth", str(depth), "--quiet",
-                        entry["clone_url"], str(target),
+                        "git",
+                        "-c",
+                        "core.longpaths=true",
+                        "clone",
+                        "--depth",
+                        str(depth),
+                        "--quiet",
+                        entry["clone_url"],
+                        str(target),
                     ],
                     capture_output=True,
                     timeout=1800,
@@ -253,7 +266,11 @@ def clone_sample(*, depth: int = 1) -> dict:
                     file=sys.stderr,
                 )
             lock[full_name] = {
-                "language": language,
+                # `stratum` is which query drew this repository; `primary_language` is what the
+                # repository actually is. They are not the same field and conflating them
+                # overstated the corpus's language coverage. See `relabel`.
+                "stratum": language,
+                "primary_language": entry.get("primary_language"),
                 "commit": commit,
                 "path": str(target.relative_to(REPO_ROOT)).replace("\\", "/"),
                 "stars": entry["stars"],
@@ -270,6 +287,57 @@ def clone_sample(*, depth: int = 1) -> dict:
     return document
 
 
+def relabel() -> dict:
+    """Backfill each pinned repository's real primary language, WITHOUT redrawing the corpus.
+
+    The lock recorded one field called `language`, and it held the stratum a repository was drawn
+    for rather than what the repository is. GitHub's `language:C#` search returns everything
+    CONTAINING C#, so the C# stratum drew `openwrt/openwrt` and `mpv-player/mpv`, both of which are
+    C projects. Reported as-is the corpus claims thirteen languages at two apiece; in fact it has
+    four C repositories and no C# at all.
+
+    This reads the pinned repositories back from the API and adds `primary_language` beside a
+    renamed `stratum`. It never touches the draw, the seed or the commits -- the corpus is already
+    labelled and re-drawing it would invalidate 801 hand-checked labels.
+    """
+    if not LOCK_FILE.exists():
+        raise SystemExit(f"no lock at {LOCK_FILE}; run `build.py clone` first")
+    document = json.loads(LOCK_FILE.read_text(encoding="utf-8"))
+    repositories = document["repositories"]
+
+    changed = 0
+    for full_name, meta in repositories.items():
+        stratum = meta.pop("language", None) or meta.get("stratum")
+        meta["stratum"] = stratum
+        # Resumable: a 504 halfway through should not cost the calls already made.
+        if meta.get("primary_language") is None:
+            payload = _get(f"https://api.github.com/repos/{full_name}")
+            meta["primary_language"] = payload.get("language")
+            LOCK_FILE.write_text(json.dumps(document, indent=2), encoding="utf-8")
+            time.sleep(2)  # unauthenticated API allows 60/hour; this is 26 calls
+        primary = meta["primary_language"]
+        flag = "" if primary == stratum else "   <- stratum is not the language"
+        print(f"  {full_name:45} stratum={stratum:12} primary={primary}{flag}")
+        if primary != stratum:
+            changed += 1
+
+    # Re-key so the field order in the file matches the field order everywhere else.
+    document["repositories"] = {
+        name: {
+            "stratum": meta["stratum"],
+            "primary_language": meta["primary_language"],
+            "commit": meta["commit"],
+            "path": meta["path"],
+            "stars": meta["stars"],
+            "license": meta["license"],
+        }
+        for name, meta in repositories.items()
+    }
+    LOCK_FILE.write_text(json.dumps(document, indent=2), encoding="utf-8")
+    print(f"\nwrote {LOCK_FILE} — {changed} of {len(repositories)} are not their stratum")
+    return document
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -283,6 +351,8 @@ def main() -> int:
     clone_parser = sub.add_parser("clone", help="clone the sample and pin commits")
     clone_parser.add_argument("--depth", type=int, default=1)
 
+    sub.add_parser("relabel", help="backfill primary_language on the existing lock")
+
     args = parser.parse_args()
     if args.command == "frame":
         build_frame(args.per_stratum)
@@ -290,6 +360,8 @@ def main() -> int:
         draw_sample(args.per_stratum)
     elif args.command == "clone":
         clone_sample(depth=args.depth)
+    elif args.command == "relabel":
+        relabel()
     return 0
 
 

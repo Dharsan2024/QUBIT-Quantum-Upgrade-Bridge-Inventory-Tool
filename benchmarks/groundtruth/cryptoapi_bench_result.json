@@ -1,0 +1,25 @@
+{
+  "skipped_unresolved": 2,
+  "scored": 179,
+  "category_A": {
+    "n": 68,
+    "tp": 29,
+    "fp": 11,
+    "fn": 27,
+    "tn": 1
+  },
+  "category_B": {
+    "n": 6,
+    "tp": 5,
+    "fp": 1,
+    "fn": 0,
+    "tn": 0
+  },
+  "category_C": {
+    "n": 105,
+    "tp": 16,
+    "fp": 6,
+    "fn": 65,
+    "tn": 18
+  }
+}

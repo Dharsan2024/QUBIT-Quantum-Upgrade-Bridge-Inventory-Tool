@@ -84,9 +84,32 @@ SUFFIXES: dict[str, str] = {
     ".sql": "sql",
 }
 
-#: Directories no detector should descend into. `vendor` and `node_modules` are the important two:
-#: a repository that vendors a crypto library would otherwise be scored on its dependencies.
-SKIP_DIRS = frozenset({".git", "node_modules", ".venv", "vendor", "dist", "build", "target"})
+#: Directories no detector should descend into, because the corpus samples REPOSITORIES and a
+#: repository's vendored copy of somebody else's library is not that repository's cryptography.
+#:
+#: This list existed from the first commit and, until the 26-repository sweep was read by hand, was
+#: enforced nowhere -- `iter_source_files` applied it and nothing called `iter_source_files`. What
+#: it was written to prevent is exactly what happened: gatsbyjs/gatsby vendors a 5 MB bundled
+#: `yarn-1.21.0.js` under `.yarn/releases/`, and cryptoscan reported Blowfish, bcrypt, Poly1305 and
+#: `ssh-dss` out of it -- 24 of the 28 exclusive findings sampled from that repository. Every one is
+#: a true positive about *yarn*, and none is a fact about gatsby.
+#:
+#: The rule is now applied in `run_multi.restrict_to_source`, identically to every detector
+#: including QUBIT, and the count it drops is reported rather than absorbed.
+SKIP_DIRS = frozenset(
+    {
+        ".git",
+        ".venv",
+        ".yarn",  # yarn's own bundled releases and its Plug'n'Play dependency cache
+        ".pnp",
+        "build",
+        "dist",
+        "node_modules",
+        "target",
+        "third_party",
+        "vendor",
+    }
+)
 
 
 def family(algorithm: str) -> str:

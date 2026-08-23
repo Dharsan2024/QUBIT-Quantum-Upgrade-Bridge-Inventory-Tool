@@ -1,0 +1,219 @@
+{
+  "repository": "fruitcake/laravel-debugbar",
+  "stratum": "PHP",
+  "primary_language": "PHP",
+  "commit": "a1cbd485509175453c03c82ca55ceac77c258cc0",
+  "license": "MIT",
+  "stars": 19281,
+  "detectors_with_findings": 3,
+  "counts": {
+    "qubit": 9,
+    "pqaudit": 4,
+    "semgrep": 0,
+    "cryptoscan": 3
+  },
+  "elapsed_s": 27.5,
+  "comparison": {
+    "corpus": "fruitcake/laravel-debugbar",
+    "dropped_non_source_findings": 2,
+    "shared_vocabulary": [
+      "SHA",
+      "SHA-1"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 3,
+        "sites": 3
+      },
+      "pqaudit": {
+        "findings": 4,
+        "sites": 4
+      },
+      "semgrep": {
+        "findings": 0,
+        "sites": 0
+      },
+      "cryptoscan": {
+        "findings": 2,
+        "sites": 2
+      }
+    },
+    "unavailable": {
+      "sonar": "SonarQube at http://127.0.0.1:9000 is DOWN: uv run python sonar_oracle.py --setup"
+    },
+    "agreement": {
+      "cryptoscan|pqaudit": 0.5,
+      "cryptoscan|qubit": 0.6666666666666666,
+      "cryptoscan|semgrep": 0.0,
+      "pqaudit|qubit": 0.75,
+      "pqaudit|semgrep": 0.0,
+      "qubit|semgrep": 0.0
+    },
+    "capture_table": {
+      "cryptoscan+pqaudit+qubit": 2,
+      "pqaudit": 1,
+      "pqaudit+qubit": 1
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 3,
+        "population": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 2 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 4,
+        "population": [
+          4.0,
+          4.0,
+          4.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.75,
+          0.75,
+          0.75
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 3 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 3,
+        "population": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 1,
+      "code": 1,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "tests/DebugbarDocsTest.php",
+          "line": 57,
+          "algorithm": "bcrypt",
+          "family": "BCRYPT",
+          "rule_id": "KDF-BCRYPT-001-57-90",
+          "class": "code",
+          "source": "User::create(['email' => 'demo@example.com', 'name' => 'Barry', 'password' => bcrypt('secret')]);"
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 1,
+      "code": 0,
+      "mention": 1,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "src/Support/Explain.php",
+          "line": 67,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "return hash_hmac('sha256', \"{$connection}::{$sql}::{$bindings}\", config('app.key'));"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 4,
+      "code": 2,
+      "mention": 0,
+      "comment": 0,
+      "absent": 1,
+      "not_applicable": 1,
+      "sample": [
+        {
+          "path": "src/Support/Explain.php",
+          "line": 67,
+          "algorithm": "HS256",
+          "family": "HS256",
+          "rule_id": "PHP-HASH-HMAC",
+          "class": "substring",
+          "source": "return hash_hmac('sha256', \"{$connection}::{$sql}::{$bindings}\", config('app.key'));"
+        },
+        {
+          "path": "src/DataCollector/QueryCollector.php",
+          "line": 377,
+          "algorithm": "UNKNOWN(xxh128)",
+          "family": "UNKNOWN(XXH128)",
+          "rule_id": "PHP-HASH-BY-NAME",
+          "class": "code",
+          "source": "if (($xxh128Exists && hash('xxh128', 'v2' . $path) === $hash) || sha1('v2' . $path) === $hash) {"
+        },
+        {
+          "path": "tests/Console/AnalyzesQueriesTest.php",
+          "line": 32,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "$this->normalizeSql(\"select * from users where email = 'a@b.com'\")"
+        },
+        {
+          "path": "src/DataCollector/GateCollector.php",
+          "line": 132,
+          "algorithm": "UNKNOWN(xxh128)",
+          "family": "UNKNOWN(XXH128)",
+          "rule_id": "PHP-HASH-BY-NAME",
+          "class": "code",
+          "source": "if (($xxh128Exists && hash('xxh128', 'v2' . $path) === $hash) || sha1('v2' . $path) === $hash) {"
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

@@ -1,0 +1,1326 @@
+{
+  "repository": "openwrt/openwrt",
+  "stratum": "C#",
+  "primary_language": "C",
+  "commit": "f1bf2d18392ef7b9f5f7bc6773055cfbddde371b",
+  "license": "NOASSERTION",
+  "stars": 28057,
+  "detectors_with_findings": 4,
+  "counts": {
+    "qubit": 40,
+    "pqaudit": 1662,
+    "semgrep": 4,
+    "cryptoscan": 948,
+    "sonar": 0
+  },
+  "elapsed_s": 672.9,
+  "comparison": {
+    "corpus": "openwrt/openwrt",
+    "dropped_non_source_findings": 1580,
+    "shared_vocabulary": [
+      "3DES",
+      "AES",
+      "EC",
+      "MD5",
+      "SHA",
+      "SHA-1",
+      "TLS"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 27,
+        "sites": 17
+      },
+      "pqaudit": {
+        "findings": 891,
+        "sites": 102
+      },
+      "semgrep": {
+        "findings": 4,
+        "sites": 3
+      },
+      "cryptoscan": {
+        "findings": 90,
+        "sites": 37
+      },
+      "sonar": {
+        "findings": 0,
+        "sites": 0
+      }
+    },
+    "unavailable": {},
+    "agreement": {
+      "cryptoscan|pqaudit": 0.33653846153846156,
+      "cryptoscan|qubit": 0.22727272727272727,
+      "cryptoscan|semgrep": 0.08108108108108109,
+      "cryptoscan|sonar": 0.0,
+      "pqaudit|qubit": 0.16666666666666666,
+      "pqaudit|semgrep": 0.029411764705882353,
+      "pqaudit|sonar": 0.0,
+      "qubit|semgrep": 0.17647058823529413,
+      "qubit|sonar": 0.0,
+      "semgrep|sonar": 0.0
+    },
+    "capture_table": {
+      "pqaudit": 60,
+      "pqaudit+qubit": 7,
+      "cryptoscan+pqaudit+qubit": 7,
+      "cryptoscan+pqaudit": 25,
+      "cryptoscan": 2,
+      "cryptoscan+pqaudit+qubit+semgrep": 3
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 44,
+        "population": [
+          61.18181818181818,
+          44.0,
+          79.67585492454481
+        ],
+        "missed_by_all": 17.18181818181818,
+        "qubit_recall_upper_bound": [
+          0.27786032689450224,
+          0.21336451320289515,
+          0.38636363636363635
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 102,
+        "population": [
+          102.0,
+          102.0,
+          102.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.16666666666666666,
+          0.16666666666666666,
+          0.16666666666666666
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 17,
+        "population": [
+          17.0,
+          17.0,
+          17.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 3 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|sonar",
+        "method": "Chapman (2-source)",
+        "observed": 17,
+        "population": [
+          17.0,
+          17.0,
+          17.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "model": "independence",
+        "method": "log-linear 5-source (independence)",
+        "observed": 104,
+        "population": [
+          106.27457067823245,
+          104.54341738760769,
+          113.52062243177585
+        ],
+        "missed_by_all": 2.2745706782324557,
+        "qubit_recall_upper_bound": [
+          0.1599630080037764,
+          0.14975252633253255,
+          0.16261186428381608
+        ],
+        "caveats": [
+          "independence model: assumes detectors succeed and fail independently, which they do not -- this total is an UNDER-estimate",
+          "some capture patterns have zero observed sites; the fit is sparse and the unseen-cell estimate is correspondingly fragile"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 62,
+      "code": 39,
+      "mention": 15,
+      "comment": 5,
+      "absent": 3,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "package/network/config/wifi-scripts/files/lib/netifd/hostapd.sh",
+          "line": 1033,
+          "algorithm": "GMAC",
+          "family": "GMAC",
+          "rule_id": "MAC-GMAC-001-1033-45",
+          "class": "string-literal",
+          "source": "append bss_conf \"group_mgmt_cipher=BIP-GMAC-256\" \"$N\""
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 118,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-118-8",
+          "class": "code",
+          "source": "arc4->IDLEN = nbytes;"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_aes.c",
+          "line": 1922,
+          "algorithm": "AES-GCM",
+          "family": "AES",
+          "rule_id": "SYM-AESGCM-001-1922-26",
+          "class": "string-literal",
+          "source": "printk (KERN_ERR \"IFX gcm_aes initialization failed!\\n\");"
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 142,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-142-5",
+          "class": "code",
+          "source": "if (rsa) {"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 192,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-192-8",
+          "class": "code",
+          "source": "arc4->K2R = *((u32 *) in_key + 1);"
+        },
+        {
+          "path": "package/kernel/lantiq/vrx518_ep/src/aca.c",
+          "line": 47,
+          "algorithm": "FN-DSA",
+          "family": "FN",
+          "rule_id": "PQC-FNDSA-001-47-2",
+          "class": "substring",
+          "source": "\"falcon-mx\","
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 229,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-229-4",
+          "class": "code",
+          "source": "rsa = true;"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 194,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-194-8",
+          "class": "code",
+          "source": "arc4->K0R = *((u32 *) in_key + 3);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 191,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-191-8",
+          "class": "code",
+          "source": "arc4->K3R = *((u32 *) in_key + 0);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 33,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-33-10",
+          "class": "code",
+          "source": "\\brief \tARC4 encryption DEU driver file"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 135,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-135-33",
+          "class": "code",
+          "source": "tmp_array32[0] = arc4->OD3R;"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 207,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-207-16",
+          "class": "code",
+          "source": "\\brief sets ARC4 key"
+        },
+        {
+          "path": "package/network/config/wifi-scripts/files/lib/netifd/hostapd.sh",
+          "line": 1035,
+          "algorithm": "CMAC",
+          "family": "CMAC",
+          "rule_id": "MAC-CMAC-001-1035-75",
+          "class": "string-literal",
+          "source": "append bss_conf \"group_mgmt_cipher=${ieee80211w_mgmt_cipher:-AES-128-CMAC}\" \"$N\""
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_deu.c",
+          "line": 109,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-109-30",
+          "class": "string-literal",
+          "source": "printk (KERN_ERR \"IFX ARC4 initialization failed!\\n\");"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 220,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-220-16",
+          "class": "code",
+          "source": "\\brief sets ARC4 hardware to ECB mode"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 256,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-256-48",
+          "class": "string-literal",
+          "source": ".cra_driver_name        =       \"ifxdeu-arc4\","
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_aes.c",
+          "line": 1558,
+          "algorithm": "CBC-MAC",
+          "family": "CBC",
+          "rule_id": "MAC-CBCMAC-001-1558-33",
+          "class": "substring",
+          "source": ".cra_name       =       \"cbcmac(aes)\","
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 123,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-123-16",
+          "class": "code",
+          "source": "arc4->ID2R = *((u32 *) in_arg + (i>>2) + 1);"
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 178,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-178-13",
+          "class": "code",
+          "source": "if (*arg && rsa) {"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 328,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-328-45",
+          "class": "string-literal",
+          "source": ".base.cra_name          =       \"ecb(arc4)\","
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 138,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-138-50",
+          "class": "code",
+          "source": "static void gen_key(mbedtls_pk_context *key, bool rsa, int ksize, int exp,"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 124,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-124-16",
+          "class": "code",
+          "source": "arc4->ID1R = *((u32 *) in_arg + (i>>2) + 2);"
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 157,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-157-15",
+          "class": "code",
+          "source": "int dokey(bool rsa, char **arg)"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 255,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-255-41",
+          "class": "string-literal",
+          "source": ".cra_name               =       \"arc4\","
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 336,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-336-15",
+          "class": "code",
+          "source": "gen_key(&key, rsa, ksize, exp, curve, pem);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 127,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-127-16",
+          "class": "code",
+          "source": "arc4->controlr.GO = 1;"
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 143,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-143-30",
+          "class": "string-literal",
+          "source": "fprintf(stderr, \"Generating RSA private key, %i bit long modulus\\n\", ksize);"
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 228,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-228-25",
+          "class": "string-literal",
+          "source": "if (!strncmp(arg[1], \"rsa:\", 4)) {"
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 232,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-232-4",
+          "class": "code",
+          "source": "rsa = false;"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 362,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-362-37",
+          "class": "string-literal",
+          "source": "printk (KERN_NOTICE \"IFX DEU ARC4 initialized%s%s.\\n\", disable_multiblock ? \"\" : \" (multiblock)\", disable_deudma ? \"\" : \" (DMA)\");"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 174,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-174-16",
+          "class": "code",
+          "source": "\\brief sets ARC4 key"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_aes.c",
+          "line": 1559,
+          "algorithm": "CBC-MAC",
+          "family": "CBC",
+          "rule_id": "MAC-CBCMAC-001-1559-40",
+          "class": "substring",
+          "source": ".cra_driver_name=       \"ifxdeu-cbcmac(aes)\","
+        },
+        {
+          "path": "package/utils/px5g-wolfssl/px5g-wolfssl.c",
+          "line": 161,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-161-28",
+          "class": "string-literal",
+          "source": "if (!strncmp(arg[1], \"rsa:\", 4)) {"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 93,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-93-29",
+          "class": "code",
+          "source": "\\brief main interface to ARC4 hardware"
+        },
+        {
+          "path": "package/utils/ucode-mod-pkgen/src/pkcs12.c",
+          "line": 8,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-8-18",
+          "class": "comment",
+          "source": "#include <mbedtls/rsa.h>"
+        },
+        {
+          "path": "package/base-files/files/lib/functions/system.sh",
+          "line": 134,
+          "algorithm": "DES",
+          "family": "DES",
+          "rule_id": "DES-001-134-28",
+          "class": "code",
+          "source": "uencrypt -n -d -k $key -c des-ecb | hexdump -v -n 6 -e '5/1 \"%02x:\" 1/1 \"%02x\"')"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 125,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-125-16",
+          "class": "code",
+          "source": "arc4->ID0R = *((u32 *) in_arg + (i>>2) + 3);"
+        },
+        {
+          "path": "package/base-files/files/lib/functions/system.sh",
+          "line": 131,
+          "algorithm": "DES",
+          "family": "DES",
+          "rule_id": "DES-001-131-35",
+          "class": "code",
+          "source": "uencrypt -n -d -k $tplink_key -c des-ecb | hexdump -v -n 8 -e '1/1 \"%02x\"')"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 129,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-129-23",
+          "class": "code",
+          "source": "while (arc4->controlr.BUS) {"
+        },
+        {
+          "path": "package/utils/px5g-wolfssl/px5g-wolfssl.c",
+          "line": 116,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-116-32",
+          "class": "string-literal",
+          "source": "fprintf(stderr, \"Generating RSA private key, %i bit long modulus\\n\", keySz);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 301,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-301-15",
+          "class": "code",
+          "source": "\\brief ECB ARC4 decrypt using linux crypto skcipher"
+        },
+        {
+          "path": "package/utils/ucode-mod-pkgen/src/ucode.c",
+          "line": 15,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-15-18",
+          "class": "comment",
+          "source": "#include <mbedtls/rsa.h>"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 122,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-122-16",
+          "class": "code",
+          "source": "arc4->ID3R = *((u32 *) in_arg + (i>>2) + 0);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 165,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-165-22",
+          "class": "code",
+          "source": "\\brief initialize arc4 hardware"
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 221,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-221-6",
+          "class": "code",
+          "source": "bool rsa = true;"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 105,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-105-32",
+          "class": "code",
+          "source": "volatile struct arc4_t *arc4 = (struct arc4_t *) ARC4_START;"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 276,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-276-15",
+          "class": "code",
+          "source": "\\brief ECB ARC4 encrypt using linux crypto skcipher"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 137,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-137-33",
+          "class": "code",
+          "source": "tmp_array32[2] = arc4->OD1R;"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 367,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-367-29",
+          "class": "string-literal",
+          "source": "printk(KERN_ERR \"IFX arc4 initialization failed!\\n\");"
+        },
+        {
+          "path": "package/utils/uencrypt/src/uencrypt-mbedtls.c",
+          "line": 12,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-001-12-8",
+          "class": "comment",
+          "source": "#if MBEDTLS_VERSION_NUMBER < 0x03010000 /* mbedtls 3.1.0 */"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 329,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-329-52",
+          "class": "string-literal",
+          "source": ".base.cra_driver_name   =       \"ifxdeu-ecb(arc4)\","
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 193,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-193-8",
+          "class": "code",
+          "source": "arc4->K1R = *((u32 *) in_key + 2);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 138,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-138-33",
+          "class": "code",
+          "source": "tmp_array32[3] = arc4->OD0R;"
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 188,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-188-15",
+          "class": "code",
+          "source": "gen_key(&key, rsa, ksize, exp, curve, pem);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 378,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-378-22",
+          "class": "code",
+          "source": "\\brief unregister arc4 driver"
+        },
+        {
+          "path": "package/utils/px5g-wolfssl/px5g-wolfssl.c",
+          "line": 17,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-17-28",
+          "class": "comment",
+          "source": "#include <wolfssl/wolfcrypt/rsa.h>"
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 39,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-39-18",
+          "class": "comment",
+          "source": "#include <mbedtls/rsa.h>"
+        },
+        {
+          "path": "package/utils/ucode-mod-pkgen/src/ucode.c",
+          "line": 160,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-160-20",
+          "class": "string-literal",
+          "source": "if (!strcmp(type, \"rsa\"))"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 136,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-136-33",
+          "class": "code",
+          "source": "tmp_array32[1] = arc4->OD2R;"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+          "line": 345,
+          "algorithm": "RC4",
+          "family": "RC4",
+          "rule_id": "RC4-001-345-22",
+          "class": "code",
+          "source": "\\brief initialize arc4 driver"
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 438,
+      "code": 259,
+      "mention": 7,
+      "comment": 1,
+      "absent": 171,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "package/kernel/lantiq/ltq-atm/src/ltq_atm.c",
+          "line": 120,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "MODULE_PARM_DESC(write_descriptor_delay, \"PPE core clock cycles between descriptor write and effectiveness in external RAM\");"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_client.c",
+          "line": 253,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Update(&tc->ckhash, tc->session_key, sizeof(tc->session_key));"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_server.c",
+          "line": 86,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Final(buf1, &ctxt);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-ptm/src/ifxmips_ptm_vdsl.c",
+          "line": 724,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "for ( i = 0; i < WAN_RX_DESC_NUM; i++ ) {"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_client.c",
+          "line": 88,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Init(&ctxt);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-atm/src/ltq_atm.c",
+          "line": 129,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "MODULE_PARM_DESC(aal5s_max_packet_size, \"Max packet size in byte for upstream AAL5 frames\");"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_server.c",
+          "line": 236,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Update(&ts->hash, expected, sizeof(expected));"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/tphrase.c",
+          "line": 234,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Update(&ctxt, \":\", 1);"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/tphrase.c",
+          "line": 238,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Init(&ctxt);"
+        },
+        {
+          "path": "scripts/config/nconf.gui.c",
+          "line": 261,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "menu_opts_off(menu, O_SHOWDESC);"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_client.c",
+          "line": 171,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Update(&ctxt, \":\", 1);"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_server.c",
+          "line": 84,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Init(&ctxt);"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_misc.c",
+          "line": 328,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Init(&ctxt);"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_misc.c",
+          "line": 133,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Update(&ctxt, (unsigned char *) &st, sizeof(st));"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_async_des.c",
+          "line": 775,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": ".ivsize = DES_BLOCK_SIZE,"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-ptm/src/ifxmips_ptm_vdsl.c",
+          "line": 899,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "for ( i = 0; i < WAN_RX_DESC_NUM; i++ ) {"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_async_des.c",
+          "line": 34,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\\brief DES Encryption Driver main file"
+        },
+        {
+          "path": "package/network/services/ead/src/ead-client.c",
+          "line": 56,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "static char pw_md5[MD5_OUT_BUFSIZE];"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_misc.c",
+          "line": 62,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1_CTX randctxt;"
+        },
+        {
+          "path": "package/network/services/ead/src/pw_encrypt_md5.c",
+          "line": 581,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "__md5_Init(&ctx1);"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_server.c",
+          "line": 163,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Final(dig, &ctxt);"
+        },
+        {
+          "path": "package/kernel/lantiq/vrx518_ep/src/test/ep_test.c",
+          "line": 792,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": ".soc_desc_num = RXOUT_SOC_DES_NUM,"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-ptm/src/ifxmips_ptm_vdsl.c",
+          "line": 622,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "desc = &WAN_SWAP_DESC_BASE[g_ptm_priv_data.itf[0].tx_swap_desc_pos];"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-ptm/src/ifxmips_ptm_adsl.c",
+          "line": 97,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "MODULE_PARM_DESC(dma_tx_descriptor_length, \"Number of descriptor assigned to DMA TX channel (>16)\");"
+        },
+        {
+          "path": "package/utils/ucode-mod-pkgen/src/pkcs12.c",
+          "line": 156,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "ret = mbedtls_pkcs5_pbkdf2_hmac_ext(MBEDTLS_MD_SHA256,"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_server.c",
+          "line": 85,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Update(&ctxt, ent->name, strlen(ent->name));"
+        },
+        {
+          "path": "scripts/mkits-zyxel-fit-filogic.sh",
+          "line": 36,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "algo = \\\"sha256\\\";"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_misc.c",
+          "line": 148,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Final(out, &ctxt);"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_misc.c",
+          "line": 280,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Update(&randctxt, randpool, sizeof(randpool));"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-ptm/src/ifxmips_ptm_vdsl.c",
+          "line": 591,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "volatile struct rx_descriptor *desc = &WAN_RX_DESC_BASE[g_ptm_priv_data.itf[0].rx_desc_pos];"
+        },
+        {
+          "path": "package/network/services/ead/src/pw_encrypt_md5.c",
+          "line": 309,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "__md5_Decode(x, block, 64);"
+        },
+        {
+          "path": "package/network/services/ead/src/pw_encrypt_md5.c",
+          "line": 594,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "__md5_Update(&ctx1, final, 16);"
+        },
+        {
+          "path": "package/network/services/ead/src/pw_encrypt_md5.c",
+          "line": 94,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "static const unsigned char __md5__magic[] = MD5_MAGIC_STR;"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_client.c",
+          "line": 151,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Update(&tc->hash, tc->A.data, tc->A.len);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_deu_vr9.h",
+          "line": 112,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "code",
+          "source": "volatile struct des_t *des = (struct des_t *) DES_3DES_START; \\"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-ptm/src/ifxmips_ptm_vdsl.c",
+          "line": 918,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "for ( i = 0; i < WAN_SWAP_DESC_NUM; i++ ) {"
+        },
+        {
+          "path": "package/network/services/ead/src/pw_encrypt_md5.c",
+          "line": 229,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "__md5_Encode(bits, context->count, 8);"
+        },
+        {
+          "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+          "line": 352,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "mbedtls_x509write_crt_set_md_alg(&cert, MBEDTLS_MD_SHA256);"
+        },
+        {
+          "path": "package/utils/ucode-mod-pkgen/src/pkcs12.c",
+          "line": 259,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "uc_p12_add_algo(ctx, OID_TAG(HMAC_SHA256), 0);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_deu.h",
+          "line": 126,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "void ifxdeu_fini_sha1_hmac (void);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_async_des.c",
+          "line": 864,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": ".cra_blocksize   = DES_BLOCK_SIZE,"
+        },
+        {
+          "path": "package/system/mtd/src/md5.h",
+          "line": 58,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "} MD5_CTX;"
+        },
+        {
+          "path": "scripts/mkhash.c",
+          "line": 603,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "SHA256_Init(SHA256_CTX * ctx)"
+        },
+        {
+          "path": "package/network/services/ead/src/tinysrp/t_client.c",
+          "line": 249,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "SHA1Update(&tc->hash, tc->session_key, sizeof(tc->session_key));"
+        },
+        {
+          "path": "package/kernel/lantiq/vrx518_ep/src/test/ep_test.c",
+          "line": 781,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": ".soc_desc_num = TXOUT_SOC_DES_NUM,"
+        },
+        {
+          "path": "scripts/nand-fwupgradecfg-gen.sh",
+          "line": 48,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "filesha256sum=$KERNEL_SHA256"
+        },
+        {
+          "path": "package/network/services/hostapd/src/src/utils/ucode.h",
+          "line": 27,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "uc_value_t *uc_wpa_sha1(uc_vm_t *vm, size_t nargs);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-ptm/src/ifxmips_ptm_vdsl.c",
+          "line": 912,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "for ( i = 0; i < WAN_TX_DESC_NUM; i++ ) {"
+        },
+        {
+          "path": "scripts/mkhash.c",
+          "line": 406,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "} SHA256_CTX;"
+        },
+        {
+          "path": "package/network/services/ead/src/pw_encrypt_md5.c",
+          "line": 596,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "__md5_Update(&ctx1, pw, pw_len);"
+        },
+        {
+          "path": "package/kernel/lantiq/vrx518_ep/src/ep.c",
+          "line": 739,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "MODULE_DESCRIPTION(\"Intel(R) SmartPHY PCIe EP/ACA Driver\");"
+        },
+        {
+          "path": "package/network/services/ead/src/pw_encrypt_md5.c",
+          "line": 250,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "__md5_Encode(digest, context->state, 16);"
+        },
+        {
+          "path": "package/network/config/wifi-scripts/files/lib/netifd/hostapd.sh",
+          "line": 1035,
+          "algorithm": "AES-128",
+          "family": "AES",
+          "rule_id": "AES_128",
+          "class": "string-literal",
+          "source": "append bss_conf \"group_mgmt_cipher=${ieee80211w_mgmt_cipher:-AES-128-CMAC}\" \"$N\""
+        },
+        {
+          "path": "package/kernel/lantiq/vrx518_ep/src/test/ep_test.c",
+          "line": 674,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "size = TXIN_SOC_DES_NUM * TXIN_HD_DES_SIZE * 4;"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_async_des.c",
+          "line": 549,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "des_queue->hw_status = DES_IDLE;"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-atm/src/ltq_atm.c",
+          "line": 1402,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "dma_cache_wback_inv((unsigned long)p, dma_rx_descriptor_length * sizeof(struct rx_descriptor) + DESC_ALIGNMENT);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_async_des.c",
+          "line": 505,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "des_queue->hw_status = DES_IDLE;"
+        },
+        {
+          "path": "package/kernel/lantiq/vrx518_ep/src/test/ep_test.c",
+          "line": 360,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "MODULE_PARM_DESC(dma_pkt_size, \"Single packet length\");"
+        },
+        {
+          "path": "package/network/services/ead/src/pw_encrypt_md5.c",
+          "line": 540,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "__md5_Update(&ctx, pw, pw_len);"
+        },
+        {
+          "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_async_des.c",
+          "line": 876,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "code",
+          "source": ".ivsize = DES3_EDE_BLOCK_SIZE,"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 2,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 2,
+      "sample": [
+        {
+          "path": "package/utils/ct-bugcheck/src/bugcheck.sh",
+          "line": 87,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "echo \"greearb@candelatech.com\" >> $CRASHDIR/report_to.txt"
+        },
+        {
+          "path": "scripts/flashing/jungo-image.py",
+          "line": 44,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "password = \"password1\""
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "sonar": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

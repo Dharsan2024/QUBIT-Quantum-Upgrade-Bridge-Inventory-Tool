@@ -1,0 +1,858 @@
+{
+  "repository": "redis/redis",
+  "stratum": "C",
+  "primary_language": "C",
+  "commit": "78432ed8e48aba009721a15a88ea8f5c9597b8e5",
+  "license": "NOASSERTION",
+  "stars": 76078,
+  "detectors_with_findings": 4,
+  "counts": {
+    "qubit": 26,
+    "pqaudit": 214,
+    "semgrep": 10,
+    "cryptoscan": 104
+  },
+  "elapsed_s": 178.6,
+  "comparison": {
+    "corpus": "redis/redis",
+    "dropped_non_source_findings": 68,
+    "shared_vocabulary": [
+      "SHA",
+      "SHA-1"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 18,
+        "sites": 6
+      },
+      "pqaudit": {
+        "findings": 127,
+        "sites": 24
+      },
+      "semgrep": {
+        "findings": 10,
+        "sites": 3
+      },
+      "cryptoscan": {
+        "findings": 27,
+        "sites": 11
+      }
+    },
+    "unavailable": {
+      "sonar": "SonarQube at http://127.0.0.1:9000 is DOWN: uv run python sonar_oracle.py --setup"
+    },
+    "agreement": {
+      "cryptoscan|pqaudit": 0.4583333333333333,
+      "cryptoscan|qubit": 0.21428571428571427,
+      "cryptoscan|semgrep": 0.2727272727272727,
+      "pqaudit|qubit": 0.25,
+      "pqaudit|semgrep": 0.125,
+      "qubit|semgrep": 0.5
+    },
+    "capture_table": {
+      "pqaudit": 10,
+      "cryptoscan+pqaudit": 8,
+      "cryptoscan+pqaudit+qubit+semgrep": 3,
+      "pqaudit+qubit": 3
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 14,
+        "population": [
+          20.0,
+          14.0,
+          29.839121912040728
+        ],
+        "missed_by_all": 6.0,
+        "qubit_recall_upper_bound": [
+          0.3,
+          0.20107830309774868,
+          0.42857142857142855
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 3 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 24,
+        "population": [
+          24.0,
+          24.0,
+          24.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.25,
+          0.25,
+          0.25
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 6,
+        "population": [
+          6.0,
+          6.0,
+          6.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 3 sites; the interval is wide and the point unstable"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 12,
+      "code": 2,
+      "mention": 10,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "src/tls.c",
+          "line": 107,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-001-107-52",
+          "class": "string-literal",
+          "source": "\"Use a combination of 'TLSv1', 'TLSv1.1', 'TLSv1.2' and 'TLSv1.3'.\");"
+        },
+        {
+          "path": "src/redis-cli.c",
+          "line": 3198,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-3198-43",
+          "class": "string-literal",
+          "source": "\"                     and specifically for TLSv1.3 ciphersuites.\\n\""
+        },
+        {
+          "path": "src/redis-benchmark.c",
+          "line": 1580,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-1580-42",
+          "class": "string-literal",
+          "source": "\"                    and specifically for TLSv1.3 ciphersuites.\\n\""
+        },
+        {
+          "path": "src/tls.c",
+          "line": 101,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-101-35",
+          "class": "string-literal",
+          "source": "serverLog(LL_WARNING, \"TLSv1.3 is specified in tls-protocols but not supported by OpenSSL.\");"
+        },
+        {
+          "path": "src/tls.c",
+          "line": 97,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-97-41",
+          "class": "string-literal",
+          "source": "else if (!strcasecmp(tokens[i], \"tlsv1.3\")) {"
+        },
+        {
+          "path": "src/redis-benchmark.c",
+          "line": 1573,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-1573-59",
+          "class": "string-literal",
+          "source": "\" --tls-ciphers <list> Sets the list of preferred ciphers (TLSv1.2 and below)\\n\""
+        },
+        {
+          "path": "src/redis-cli.c",
+          "line": 3191,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-3191-60",
+          "class": "string-literal",
+          "source": "\"  --tls-ciphers <list> Sets the list of preferred ciphers (TLSv1.2 and below)\\n\""
+        },
+        {
+          "path": "src/tls.c",
+          "line": 107,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-107-63",
+          "class": "string-literal",
+          "source": "\"Use a combination of 'TLSv1', 'TLSv1.1', 'TLSv1.2' and 'TLSv1.3'.\");"
+        },
+        {
+          "path": "src/redis-cli.c",
+          "line": 3195,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-3195-70",
+          "class": "string-literal",
+          "source": "\"  --tls-ciphersuites <list> Sets the list of preferred ciphersuites (TLSv1.3)\\n\""
+        },
+        {
+          "path": "src/tls.c",
+          "line": 96,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-96-41",
+          "class": "code",
+          "source": "else if (!strcasecmp(tokens[i], \"tlsv1.2\")) protocols |= REDIS_TLS_PROTO_TLSv1_2;"
+        },
+        {
+          "path": "src/redis-benchmark.c",
+          "line": 1577,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-1577-69",
+          "class": "string-literal",
+          "source": "\" --tls-ciphersuites <list> Sets the list of preferred ciphersuites (TLSv1.3)\\n\""
+        },
+        {
+          "path": "src/tls.c",
+          "line": 95,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-001-95-41",
+          "class": "code",
+          "source": "else if (!strcasecmp(tokens[i], \"tlsv1.1\")) protocols |= REDIS_TLS_PROTO_TLSv1_1;"
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 130,
+      "code": 40,
+      "mention": 1,
+      "comment": 2,
+      "absent": 87,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "deps/jemalloc/test/unit/rb.c",
+          "line": 367,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "bag[j] = NNODES - j - 1;"
+        },
+        {
+          "path": "utils/install_server.sh",
+          "line": 270,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "cp $TMP_FILE $INIT_SCRIPT_DEST && \\"
+        },
+        {
+          "path": "src/redis-cli.c",
+          "line": 7296,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"nodes (check with CLUSTER NODES) or contains some \""
+        },
+        {
+          "path": "src/cli_common.c",
+          "line": 414,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "if (strtoll(redisGitSHA1(),NULL,16)) {"
+        },
+        {
+          "path": "deps/jemalloc/test/unit/ph.c",
+          "line": 189,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "uint64_t bag[NNODES];"
+        },
+        {
+          "path": "src/geo.c",
+          "line": 588,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "sort = SORT_DESC;"
+        },
+        {
+          "path": "src/quicklist.c",
+          "line": 3184,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TEST_DESC(\"ltrim test B at compress %d\", options[_i]) {"
+        },
+        {
+          "path": "src/sha256.c",
+          "line": 149,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "sha256_transform(ctx, ctx->data);"
+        },
+        {
+          "path": "src/server.c",
+          "line": 8340,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "redisGitSHA1(),"
+        },
+        {
+          "path": "deps/lua/src/lua_cmsgpack.c",
+          "line": 922,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "lua_pushliteral(L, LUACMSGPACK_DESCRIPTION);"
+        },
+        {
+          "path": "src/quicklist.c",
+          "line": 3087,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TEST_DESC(\"iterate reverse + delete at compress %d\", options[_i]) {"
+        },
+        {
+          "path": "src/util.c",
+          "line": 996,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "sha256_update(&ctx,kxor,sizeof(kxor));"
+        },
+        {
+          "path": "deps/jemalloc/test/unit/ph.c",
+          "line": 206,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "bag[j] = NNODES - j - 1;"
+        },
+        {
+          "path": "src/debug.c",
+          "line": 2277,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "infostring = sdscatprintf(infostring, \"\\n------ CLUSTER NODES OUTPUT ------\\n\");"
+        },
+        {
+          "path": "src/quicklist.c",
+          "line": 2677,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TEST_DESC(\"insert [before] 250 new in middle of 500 elements at compress %d\","
+        },
+        {
+          "path": "src/quicklist.c",
+          "line": 3235,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TEST_DESC(\"ltrim test C at compress %d\", options[_i]) {"
+        },
+        {
+          "path": "src/sha256.c",
+          "line": 135,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "sha256_transform(ctx, ctx->data);"
+        },
+        {
+          "path": "src/sha256.c",
+          "line": 44,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "void sha256_transform(SHA256_CTX *ctx, const BYTE data[])"
+        },
+        {
+          "path": "src/util.c",
+          "line": 997,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "sha256_update(&ctx,(unsigned char*)&counter,sizeof(counter));"
+        },
+        {
+          "path": "src/acl.c",
+          "line": 216,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "sha256_init(&ctx);"
+        },
+        {
+          "path": "deps/jemalloc/test/unit/arena_reset.c",
+          "line": 345,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "expect_true(arena_i_initialized(MALLCTL_ARENAS_DESTROYED, false),"
+        },
+        {
+          "path": "src/release.c",
+          "line": 20,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "char *redisGitSHA1(void) {"
+        },
+        {
+          "path": "src/redis-cli.c",
+          "line": 6186,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "redisReply *reply = CLUSTER_MANAGER_COMMAND(node, \"CLUSTER NODES\");"
+        },
+        {
+          "path": "deps/jemalloc/src/ctl.c",
+          "line": 2986,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "case MALLCTL_ARENAS_DESTROYED:"
+        },
+        {
+          "path": "utils/install_server.sh",
+          "line": 272,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "echo \"Copied $TMP_FILE => $INIT_SCRIPT_DEST\""
+        },
+        {
+          "path": "deps/jemalloc/src/ctl.c",
+          "line": 2707,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ctl_darena = arenas_i(MALLCTL_ARENAS_DESTROYED);"
+        },
+        {
+          "path": "deps/jemalloc/test/unit/rb.c",
+          "line": 503,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "node_t nodes[FILTER_NODES];"
+        },
+        {
+          "path": "src/sha256.c",
+          "line": 90,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "void sha256_init(SHA256_CTX *ctx)"
+        },
+        {
+          "path": "deps/jemalloc/src/arena.c",
+          "line": 734,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (n == ARENA_DESTROY_MAX_DELAYED_MTX) {"
+        },
+        {
+          "path": "src/util.c",
+          "line": 1005,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "sha256_init(&ctx);"
+        },
+        {
+          "path": "src/quicklist.c",
+          "line": 3291,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TEST_DESC(\"verify specific compression of interior nodes with %d list \","
+        },
+        {
+          "path": "src/sha256.c",
+          "line": 119,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "void sha256_final(SHA256_CTX *ctx, BYTE hash[])"
+        },
+        {
+          "path": "deps/jemalloc/src/stats.c",
+          "line": 1827,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "stats_arena_print(emitter, MALLCTL_ARENAS_DESTROYED,"
+        },
+        {
+          "path": "deps/jemalloc/test/unit/rb.c",
+          "line": 350,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "uint64_t bag[NNODES];"
+        },
+        {
+          "path": "deps/jemalloc/test/unit/rb.c",
+          "line": 366,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "for (j = 0; j < NNODES; j++) {"
+        },
+        {
+          "path": "deps/lua/src/lopcodes.c",
+          "line": 61,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const lu_byte luaP_opmodes[NUM_OPCODES] = {"
+        },
+        {
+          "path": "src/quicklist.c",
+          "line": 2768,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TEST_DESC(\"index -1,-2 from 500 list at fill %d at compress %d\","
+        },
+        {
+          "path": "utils/releasetools/02_upload_tarball.sh",
+          "line": 22,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "shasum -a 256 redis-stable.tar.gz > redis-stable.tar.gz.SHA256SUM;"
+        },
+        {
+          "path": "src/util.c",
+          "line": 1006,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "sha256_update(&ctx,kxor,sizeof(kxor));"
+        },
+        {
+          "path": "src/quicklist.c",
+          "line": 2359,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TEST_DESC(\"rotate 500 val 5000 times at compress %d\", options[_i]) {"
+        },
+        {
+          "path": "src/server.c",
+          "line": 7347,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "redisGitSHA1(),"
+        },
+        {
+          "path": "src/redis-benchmark.c",
+          "line": 1140,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "fprintf(stderr, \"Invalid CLUSTER NODES reply: missing flags.\\n\");"
+        },
+        {
+          "path": "src/acl.c",
+          "line": 220,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "for (int j = 0; j < SHA256_BLOCK_SIZE; j++) {"
+        },
+        {
+          "path": "src/util.c",
+          "line": 994,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "SHA256_CTX ctx;"
+        },
+        {
+          "path": "src/sha256.c",
+          "line": 7,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "SHA-256 is one of the three algorithms in the SHA2"
+        },
+        {
+          "path": "deps/jemalloc/src/ctl.c",
+          "line": 946,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "case MALLCTL_ARENAS_DESTROYED:"
+        },
+        {
+          "path": "src/sha256.h",
+          "line": 33,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "void sha256_final(SHA256_CTX *ctx, BYTE hash[]);"
+        },
+        {
+          "path": "src/acl.c",
+          "line": 217,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "sha256_update(&ctx,(unsigned char*)cleartext,len);"
+        },
+        {
+          "path": "src/quicklist.c",
+          "line": 2197,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TEST_DESC(\"add to tail 5x at compress %d\", options[_i]) {"
+        },
+        {
+          "path": "deps/jemalloc/test/unit/rb.c",
+          "line": 504,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "for (unsigned i = 0; i < FILTER_NODES; i++) {"
+        },
+        {
+          "path": "deps/jemalloc/src/ctl.c",
+          "line": 1430,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if ((ctl_darena = arenas_i_impl(tsd, MALLCTL_ARENAS_DESTROYED,"
+        },
+        {
+          "path": "deps/jemalloc/src/arena.c",
+          "line": 730,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "assert(n < ARENA_DESTROY_MAX_DELAYED_MTX);"
+        },
+        {
+          "path": "src/quicklist.c",
+          "line": 3004,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TEST_DESC(\"lrem test at compress %d\", options[_i]) {"
+        },
+        {
+          "path": "deps/jemalloc/test/unit/rb.c",
+          "line": 502,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "enum {FILTER_NODES = 10};"
+        },
+        {
+          "path": "src/sha256.h",
+          "line": 31,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "void sha256_init(SHA256_CTX *ctx);"
+        },
+        {
+          "path": "src/sha256.c",
+          "line": 104,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "void sha256_update(SHA256_CTX *ctx, const BYTE data[], size_t len)"
+        },
+        {
+          "path": "src/sentinel.c",
+          "line": 5000,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "master->failover_start_time = mstime()+rand()%SENTINEL_MAX_DESYNC;"
+        },
+        {
+          "path": "deps/jemalloc/test/unit/ph.c",
+          "line": 191,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "node_t nodes[NNODES];"
+        },
+        {
+          "path": "deps/jemalloc/test/unit/rb.c",
+          "line": 529,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "for (int i = 1; i < FILTER_NODES; i += 2) {"
+        },
+        {
+          "path": "src/util.c",
+          "line": 1007,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "sha256_update(&ctx,digest,SHA256_BLOCK_SIZE);"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 5,
+      "code": 5,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "utils/gen-test-certs.sh",
+          "line": 39,
+          "algorithm": "RSA-4096",
+          "family": "RSA",
+          "rule_id": "SHELL-OPENSSL-KEYGEN",
+          "class": "code",
+          "source": "[ -f tests/tls/ca.key ] || openssl genrsa -out tests/tls/ca.key 4096"
+        },
+        {
+          "path": "utils/gen-test-certs.sh",
+          "line": 66,
+          "algorithm": "DH-2048",
+          "family": "DH",
+          "rule_id": "SHELL-OPENSSL-KEYGEN",
+          "class": "code",
+          "source": "[ -f tests/tls/redis.dh ] || openssl dhparam -out tests/tls/redis.dh 2048"
+        },
+        {
+          "path": "utils/gen-test-certs.sh",
+          "line": 22,
+          "algorithm": "RSA-2048",
+          "family": "RSA",
+          "rule_id": "SHELL-OPENSSL-KEYGEN",
+          "class": "code",
+          "source": "[ -f $keyfile ] || openssl genrsa -out $keyfile 2048"
+        },
+        {
+          "path": "deps/hiredis/test.sh",
+          "line": 36,
+          "algorithm": "RSA-2048",
+          "family": "RSA",
+          "rule_id": "SHELL-OPENSSL-KEYGEN",
+          "class": "code",
+          "source": "openssl genrsa -out ${SSL_KEY} 2048"
+        },
+        {
+          "path": "deps/hiredis/test.sh",
+          "line": 29,
+          "algorithm": "RSA-4096",
+          "family": "RSA",
+          "rule_id": "SHELL-OPENSSL-KEYGEN",
+          "class": "code",
+          "source": "openssl genrsa -out ${tmpdir}/ca.key 4096"
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

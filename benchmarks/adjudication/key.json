@@ -1,0 +1,1802 @@
+[
+ {
+  "id": "30241fd91af4",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "68f4d6896856",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "8c69325f9c6d",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "22f10923c0f8",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "254fb1685f55",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "948253da2c0e",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "98e6dadde107",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "1244a8862fd3",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "04873279be32",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "66f6ca27f6ea",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "KDF-ARGON2-001-250-10",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "01622274ac42",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "4b6a5965a33f",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "RC4-001-93-29",
+  "heuristic": "code"
+ },
+ {
+  "id": "e36bdcc70f83",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "0d1ee4dcde45",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "712dfa190c3e",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "4f5aeac71df1",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "RC4-001-105-32",
+  "heuristic": "code"
+ },
+ {
+  "id": "ca050d16e489",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "9b004681c5bb",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "1a0fd48cb4c3",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "becd197715b9",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "ed86fda1baf9",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "8da9c7eef34b",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "63fe0137f2f3",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "d5e3a292cd8e",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "9b346f953841",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "GO-CRYPTO-HMAC-NEW",
+  "heuristic": "code"
+ },
+ {
+  "id": "15e435f9d209",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "08d0451b8ac7",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "c2fffb148b41",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "54ad7515e2f3",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "20dc37f28f5b",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "9bc75e0861b5",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "dd2ac088b714",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "3bbce9e74686",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "7ed00772dd3e",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "bac30bf3654a",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "4d1c14e72d76",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "RC4-001-136-33",
+  "heuristic": "code"
+ },
+ {
+  "id": "cbd14cb20149",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "MAC-CBCMAC-001-1559-40",
+  "heuristic": "substring"
+ },
+ {
+  "id": "97174ef6cc0c",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "0f2bf221a523",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "6c6426f57395",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "4dd48d24d5a8",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "9c73df69c56f",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "86253355748e",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "7c6e6fc0b40a",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "76958cb8c5dd",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "24f3a31fc224",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "MD5_USAGE",
+  "heuristic": "code"
+ },
+ {
+  "id": "4c361ada3e46",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "a046041d89d0",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "aff745bd44b2",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "599cc152fbf7",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "736b823aa817",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "721f55ae27c5",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "f365f657ca6c",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "9a9666162819",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "2d0034b36ccc",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "CHACHA20",
+  "heuristic": "code"
+ },
+ {
+  "id": "720dac64f515",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "f6f32e38f9f7",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA1_USAGE",
+  "heuristic": "code"
+ },
+ {
+  "id": "6db2c04ff919",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "e91ce9ebca29",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "cdb8e550fb40",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "db9247c6b431",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "5ec68ff86d51",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "0664fdef7f46",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "32ff5b971c75",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "5eff30b74018",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "0c00f9cb8b3e",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "RC4-001-165-22",
+  "heuristic": "code"
+ },
+ {
+  "id": "33f991c54fb5",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "c155fbe6c14c",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "dee2f1ac7edb",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "5a64a169413b",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "56cf57c5ec48",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "09542419e1df",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "d0ca14d169f0",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "CHACHA20",
+  "heuristic": "code"
+ },
+ {
+  "id": "ccc3ba21620b",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "74f65691c2f5",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "3447c7e991ab",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "a0923a0257ff",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "MD5_USAGE",
+  "heuristic": "code"
+ },
+ {
+  "id": "cf9d44bb0aa1",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "RSA-001-39-18",
+  "heuristic": "comment"
+ },
+ {
+  "id": "372fd674051c",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "a891e3de5c28",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "RC4-001-137-33",
+  "heuristic": "code"
+ },
+ {
+  "id": "dd40265e5679",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "GO-CRYPTO-HMAC-NEW",
+  "heuristic": "code"
+ },
+ {
+  "id": "c4a6c3eb3b4d",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "RSA_SIGN",
+  "heuristic": "substring"
+ },
+ {
+  "id": "67255130df87",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "11d98ce6e80c",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "ee87cab196c2",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "4a0c8a27d121",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "bf6a74eeb43c",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "dfc500fa2561",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "f6735178acf9",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "b5383d9454e0",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "645e37b26e03",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "811502a7b96e",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "188eab54c693",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "84d9a28c4226",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "TLS-001-12-8",
+  "heuristic": "comment"
+ },
+ {
+  "id": "b377e9cbc5f7",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "1ae8f0f36f76",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "6b74efa42d10",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-GITHUB-PAT",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "7bda5d7cdc2b",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "461ebc74e055",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "f387028abc48",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "58b032938cf1",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "6907cb625ff9",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-CREDIT-CARD",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "b5ab91870484",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "773c5e5ac0f5",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "d0cfe2e74eaf",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "4b6d2fa13b4a",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "KDF-ARGON2-001-347-19",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "4918ee46406f",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "4f6f22e3f193",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "9a840afd7d4b",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "049c5ea9125b",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "79211112bb3f",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "DES-001-134-28",
+  "heuristic": "code"
+ },
+ {
+  "id": "5d308e2b715c",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "c2dad09cb0ed",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "8fe8a01b8793",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "5493eb5d82e9",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "GO-CRYPTO-HMAC-NEW",
+  "heuristic": "code"
+ },
+ {
+  "id": "9c279d268fc5",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "6d5bc061c7b0",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "c5da2a6f9180",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "5edfffa9b9d3",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "7abea6d08fc7",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "9ad1c12748e7",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "57573ed4be49",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "c079d3de9c50",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "e11280b0ed95",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "d5be7d552a81",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "5fbd5112e1e8",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "5ba768b60d1c",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "RSA-001-116-32",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "add342201916",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "ea297304d0a9",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "d714a479b300",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "RSA-001-221-6",
+  "heuristic": "code"
+ },
+ {
+  "id": "39604a51970f",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "0c8332fa1d95",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "0a46dc5f6d3b",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "5f59deba7eab",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA1_USAGE",
+  "heuristic": "code"
+ },
+ {
+  "id": "9406bcb72995",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "45e64772d717",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "1e7e7709506f",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "24ade05f5409",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "GO-CRYPTO-HMAC-NEW",
+  "heuristic": "code"
+ },
+ {
+  "id": "efc3d80b5145",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "93033c42bfd9",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "947e89e26876",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "e00b86ebf43b",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "18d2ef002d05",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "d1345ca6b8f2",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "c45f7e0e24b3",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "fd11949c1b6e",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "0e4ccc40c6a1",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "a6d5fd65841e",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "171137a6b159",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "KDF-ARGON2-001-1-12",
+  "heuristic": "code"
+ },
+ {
+  "id": "669b1c6ad282",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "aa8762e7cd82",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "f7f57774cd5e",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "2d567d06537c",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "eaeca97fc491",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "75882fc7e3c6",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "93e96d69dc0b",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA1_USAGE",
+  "heuristic": "code"
+ },
+ {
+  "id": "c591ef9b47dd",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "ad8abb9dc756",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA1_USAGE",
+  "heuristic": "code"
+ },
+ {
+  "id": "a9d2778f3721",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "RC4-001-193-8",
+  "heuristic": "code"
+ },
+ {
+  "id": "f91563ebbf13",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-GITHUB-PAT",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "35170a92768c",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "889511f5683d",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "6e77f762213a",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "29afaeece9cb",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "RC4-001-329-52",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "c7439eafe5e0",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "ed244a3aa662",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "c0bf86f01f95",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA1_USAGE",
+  "heuristic": "code"
+ },
+ {
+  "id": "bdc5ea056063",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "1886aebc5d15",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "f2bc9120d12a",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA1_USAGE",
+  "heuristic": "code"
+ },
+ {
+  "id": "978c30cef804",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "8844b842b281",
+  "stratum": "exclusive",
+  "detectors": [
+   "cryptoscan"
+  ],
+  "rule_id": "RSA-001-143-30",
+  "heuristic": "string-literal"
+ },
+ {
+  "id": "ee09e7bfaa36",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "bb889207d80d",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "02d8b97252cb",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "c6b6900f6a8c",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "321e8501a9f3",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "786815bed6ef",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA1_USAGE",
+  "heuristic": "code"
+ },
+ {
+  "id": "1e2f952b5e9c",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "99da933aed5b",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "ae05af63bab4",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "dadd9533e909",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "bbabb83a2582",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "ca3d8d9b008b",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "b282e5e8c3ab",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "76ce7fa80bc4",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "2a577e4b1248",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "c570bc2decff",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "3504ac7234b3",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "2ddd41f3f9e6",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "code"
+ },
+ {
+  "id": "267a05a54340",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "42fc68d23472",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "08da83349247",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "735732ae08eb",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "9e8b4aa33b14",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "SECRET-HARDCODED-PW",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "d6f86dc99ff9",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "e03bb2dd1a95",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "ce97311ee7c2",
+  "stratum": "exclusive",
+  "detectors": [
+   "qubit"
+  ],
+  "rule_id": "PII-EMAIL",
+  "heuristic": "not-applicable"
+ },
+ {
+  "id": "78fa462ea5ae",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "DES_3DES",
+  "heuristic": "substring"
+ },
+ {
+  "id": "b0cf51b85e6d",
+  "stratum": "exclusive",
+  "detectors": [
+   "pqaudit"
+  ],
+  "rule_id": "SHA256_SAFE",
+  "heuristic": "string-literal"
+ }
+]

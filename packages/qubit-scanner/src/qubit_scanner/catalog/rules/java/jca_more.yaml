@@ -170,3 +170,71 @@ rules:
         - |
           import javax.crypto.Cipher;
           class A { void f() throws Exception { Cipher.getInstance("AES/GCM/NoPadding"); } }
+
+  # ── Generic getInstance, for algorithms the call site does not spell out ──────────────────────
+  # Every Cipher/MessageDigest rule above constrains the argument with a regex on the literal text,
+  # which is precise and cannot, by construction, match `Cipher.getInstance(crypto)`. Measured on
+  # CryptoAPI-Bench, that is not a corner case: recall on its interprocedural, field-sensitive,
+  # multi-method and multi-class cases was **zero**, while the identical misuse written with a
+  # literal was found every time. These two rules take the argument as either a literal or a name
+  # and let `_string_value` fold a single intra-file assignment, so `String crypto = "DES/ECB/..."`
+  # followed by `Cipher.getInstance(crypto)` resolves to DES.
+  #
+  # They are deliberately LAST in specificity: `_one_per_site` prefers the rule with more `where`
+  # clauses, so a literal call still reports through the precise rule that carries the migration
+  # example, and these only supply the sites those cannot reach.
+  - id: JAVA-JCA-CIPHER
+    title: Cipher.getInstance(<transformation>) — literal or folded constant
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list [(string_literal) (identifier)] @algo)) @call
+      where:
+        - { capture: obj, equals: Cipher }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: jca-transformation }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { String c = "DES/ECB/PKCS5Padding"; Cipher.getInstance(c); } }
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("AES/GCM/NoPadding"); } }
+      negative:
+        - |
+          import javax.crypto.Mac;
+          class A { void f() throws Exception { Mac.getInstance("HmacSHA256"); } }
+
+  - id: JAVA-JCA-MESSAGEDIGEST
+    title: MessageDigest.getInstance(<alg>) — literal or folded constant
+    match:
+      query: |
+        (method_invocation
+          object: (identifier) @obj
+          name: (identifier) @meth
+          arguments: (argument_list [(string_literal) (identifier)] @algo)) @call
+      where:
+        - { capture: obj, equals: MessageDigest }
+        - { capture: meth, equals: getInstance }
+    extract:
+      algorithm: { from: algo, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: hash }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          import java.security.MessageDigest;
+          class A { void f() throws Exception { String h = "MD4"; MessageDigest.getInstance(h); } }
+        - |
+          import java.security.MessageDigest;
+          class A { void f() throws Exception { MessageDigest.getInstance("MD2"); } }
+      negative:
+        - |
+          import javax.crypto.Cipher;
+          class A { void f() throws Exception { Cipher.getInstance("AES/GCM/NoPadding"); } }

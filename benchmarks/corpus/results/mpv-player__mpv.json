@@ -1,0 +1,701 @@
+{
+  "repository": "mpv-player/mpv",
+  "stratum": "C#",
+  "primary_language": "C",
+  "commit": "49418246f30a9c24af31ac184aa24f39755db89a",
+  "license": "NOASSERTION",
+  "stars": 36613,
+  "detectors_with_findings": 3,
+  "counts": {
+    "qubit": 1,
+    "pqaudit": 132,
+    "semgrep": 0,
+    "cryptoscan": 2
+  },
+  "elapsed_s": 89.6,
+  "comparison": {
+    "corpus": "mpv-player/mpv",
+    "dropped_non_source_findings": 0,
+    "shared_vocabulary": [
+      "MD5"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 1,
+        "sites": 1
+      },
+      "pqaudit": {
+        "findings": 2,
+        "sites": 2
+      },
+      "semgrep": {
+        "findings": 0,
+        "sites": 0
+      },
+      "cryptoscan": {
+        "findings": 2,
+        "sites": 1
+      }
+    },
+    "unavailable": {
+      "sonar": "SonarQube at http://127.0.0.1:9000 is DOWN: uv run python sonar_oracle.py --setup"
+    },
+    "agreement": {
+      "cryptoscan|pqaudit": 0.5,
+      "cryptoscan|qubit": 0.0,
+      "cryptoscan|semgrep": 0.0,
+      "pqaudit|qubit": 0.5,
+      "pqaudit|semgrep": 0.0,
+      "qubit|semgrep": 0.0
+    },
+    "capture_table": {
+      "cryptoscan+pqaudit": 1,
+      "pqaudit+qubit": 1
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 2,
+        "population": [
+          3.0,
+          2.0,
+          5.771858582251266
+        ],
+        "missed_by_all": 1.0,
+        "qubit_recall_upper_bound": [
+          0.3333333333333333,
+          0.17325441809593994,
+          0.5
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 2,
+        "population": [
+          2.0,
+          2.0,
+          2.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 1 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 1,
+        "population": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "pqaudit": {
+      "exclusive": 130,
+      "code": 0,
+      "mention": 3,
+      "comment": 0,
+      "absent": 127,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "misc/thread_pool.c",
+          "line": 74,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "destroy_deadline = mp_time_ns() + MP_TIME_S_TO_NS(DESTROY_TIMEOUT);"
+        },
+        {
+          "path": "video/out/vulkan/context.c",
+          "line": 200,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,"
+        },
+        {
+          "path": "video/out/gpu/d3d11_helpers.c",
+          "line": 592,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DXGI_ADAPTER_DESC1 desc;"
+        },
+        {
+          "path": "video/out/vulkan/context_win.c",
+          "line": 48,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DXGI_OUTPUT_DESC1 desc;"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 1703,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "in_descs[i] = (D3D11_INPUT_ELEMENT_DESC) {"
+        },
+        {
+          "path": "video/out/x11_common.c",
+          "line": 1865,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "XA(x11, _NET_CURRENT_DESKTOP),"
+        },
+        {
+          "path": "video/out/d3d11/hwdec_dxva2dxgi.c",
+          "line": 249,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "&(D3D11_QUERY_DESC) { D3D11_QUERY_EVENT }, &surf->idle11);"
+        },
+        {
+          "path": "video/out/d3d11/context.c",
+          "line": 307,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DXGI_SWAP_CHAIN_DESC desc;"
+        },
+        {
+          "path": "video/out/gpu/d3d11_helpers.h",
+          "line": 89,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "struct pl_color_space mp_dxgi_desc_to_color_space(const DXGI_OUTPUT_DESC1 *desc);"
+        },
+        {
+          "path": "video/d3d.c",
+          "line": 118,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DXGI_ADAPTER_DESC desc;"
+        },
+        {
+          "path": "video/out/gpu/video.h",
+          "line": 111,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "GAMUT_DESATURATE,"
+        },
+        {
+          "path": "video/out/d3d11/hwdec_d3d11va.c",
+          "line": 214,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3D11_TEXTURE2D_DESC copy_desc = {"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 1168,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3D11_SAMPLER_DESC sdesc = {"
+        },
+        {
+          "path": "video/out/gpu/video_shaders.c",
+          "line": 895,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (!opts->gamut_mode || opts->gamut_mode == GAMUT_DESATURATE) {"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 474,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3D11_TEXTURE2D_DESC desc2d = {"
+        },
+        {
+          "path": "test/img_format.c",
+          "line": 76,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "fprintf(f, \"  [NODESC]\\n\");"
+        },
+        {
+          "path": "audio/out/ao_wasapi_utils.c",
+          "line": 1128,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "SAFE_DESTROY(state->hTask, AvRevertMmThreadCharacteristics(state->hTask));"
+        },
+        {
+          "path": "video/out/opengl/context_dxinterop.c",
+          "line": 253,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3DSURFACE_DESC bb_desc = { 0 };"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 2140,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "case D3D11_MESSAGE_ID_DESTROY_ ## obj"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 565,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3D11_TEXTURE2D_DESC desc2d;"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 1470,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3D11_BUFFER_DESC vbuf_desc = {"
+        },
+        {
+          "path": "ci/build-mingw64.sh",
+          "line": 97,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DESTDIR=\"$prefix_dir\" ninja install"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 2029,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "&(D3D11_QUERY_DESC) { D3D11_QUERY_TIMESTAMP }, &timer->ts_end);"
+        },
+        {
+          "path": "video/out/gpu/d3d11_helpers.c",
+          "line": 1066,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DXGI_OUTPUT_DESC1 *desc)"
+        },
+        {
+          "path": "video/out/vo_sdl.c",
+          "line": 414,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "fs_flag = SDL_WINDOW_FULLSCREEN_DESKTOP;"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 457,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3D11_TEXTURE1D_DESC desc1d = {"
+        },
+        {
+          "path": "video/out/gpu/d3d11_helpers.c",
+          "line": 966,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DXGI_SWAP_CHAIN_DESC scd = {0};"
+        },
+        {
+          "path": "input/ipc-win.c",
+          "line": 128,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "PSECURITY_DESCRIPTOR sd = NULL;"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 2022,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "&(D3D11_QUERY_DESC) { D3D11_QUERY_TIMESTAMP }, &timer->ts_start);"
+        },
+        {
+          "path": "video/out/drm_common.c",
+          "line": 525,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "int ret = drmModeAtomicCommit(drm->fd, atomic_ctx->request, DRM_MODE_ATOMIC_ALLOW_MODESET, drm);"
+        },
+        {
+          "path": "video/out/gpu/d3d11_helpers.c",
+          "line": 1068,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DXGI_SWAP_CHAIN_DESC swap_desc;"
+        },
+        {
+          "path": "video/out/placebo/ra_pl.c",
+          "line": 353,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[RA_VARTYPE_IMG_W]  = PL_DESC_STORAGE_IMG,"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 992,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3D11_BUFFER_DESC vdesc = {"
+        },
+        {
+          "path": "video/out/vo_vaapi.c",
+          "line": 503,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "flags |= VA_SUBPICTURE_DESTINATION_IS_SCREEN_COORD;"
+        },
+        {
+          "path": "video/out/gpu/video.c",
+          "line": 2883,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "case GAMUT_DESATURATE:"
+        },
+        {
+          "path": "video/out/gpu/user_shaders.c",
+          "line": 434,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (bstr_eatstart0(&line, \"DESC\")) {"
+        },
+        {
+          "path": "audio/out/ao_wasapi.c",
+          "line": 291,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "SAFE_DESTROY(state->hUserWake,   CloseHandle(state->hUserWake));"
+        },
+        {
+          "path": "video/out/gpu/video.c",
+          "line": 482,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{\"desaturate\",  GAMUT_DESATURATE},"
+        },
+        {
+          "path": "audio/out/ao_wasapi.c",
+          "line": 290,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "SAFE_DESTROY(state->hWake,       CloseHandle(state->hWake));"
+        },
+        {
+          "path": "video/out/wayland_common.c",
+          "line": 5056,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"SHA256\");"
+        },
+        {
+          "path": "audio/out/ao_opensles.c",
+          "line": 58,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DESTROY(sl);"
+        },
+        {
+          "path": "video/out/placebo/ra_pl.c",
+          "line": 355,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[RA_VARTYPE_BUF_RW] = PL_DESC_BUF_STORAGE,"
+        },
+        {
+          "path": "video/out/gpu/d3d11_helpers.c",
+          "line": 1105,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "struct pl_color_space mp_dxgi_desc_to_color_space(const DXGI_OUTPUT_DESC1 *desc)"
+        },
+        {
+          "path": "video/out/w32_common.c",
+          "line": 1488,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "case WM_NCDESTROY: // Sometimes only WM_NCDESTROY is received in --wid mode"
+        },
+        {
+          "path": "audio/out/ao_wasapi.c",
+          "line": 344,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "SAFE_DESTROY(state->hInitDone,CloseHandle(state->hInitDone));"
+        },
+        {
+          "path": "video/out/w32_common.c",
+          "line": 1489,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "case WM_DESTROY:"
+        },
+        {
+          "path": "video/filter/vf_d3d11vpp.c",
+          "line": 279,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3D11_VIDEO_PROCESSOR_CONTENT_DESC vpdesc = {"
+        },
+        {
+          "path": "video/out/x11_common.c",
+          "line": 1200,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (x11_get_property_copy(x11, x11->window, XA(x11, _NET_WM_DESKTOP),"
+        },
+        {
+          "path": "video/out/x11_common.c",
+          "line": 1371,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "} else if (Event.xproperty.atom == XA(x11, _NET_WM_DESKTOP)) {"
+        },
+        {
+          "path": "video/out/vo.h",
+          "line": 175,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "char desc[VO_PASS_PERF_MAX][VO_PASS_DESC_MAX_LEN];"
+        },
+        {
+          "path": "video/out/gpu/shader_cache.c",
+          "line": 597,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "bstr hashstr = mp_hash_to_bstr(tmp, entry->total.start, entry->total.len, \"SHA256\");"
+        },
+        {
+          "path": "video/out/drm_common.c",
+          "line": 399,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (drmModeAtomicCommit(drm->fd, request, DRM_MODE_ATOMIC_ALLOW_MODESET, NULL)) {"
+        },
+        {
+          "path": "video/out/wayland_common.c",
+          "line": 5047,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "char *xdg_current_desktop = getenv(\"XDG_CURRENT_DESKTOP\");"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 1155,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3D11_BUFFER_DESC vdesc = {"
+        },
+        {
+          "path": "video/out/opengl/hwdec_d3d11egl.c",
+          "line": 315,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3D11_TEXTURE2D_DESC texdesc;"
+        },
+        {
+          "path": "audio/out/ao_pipewire.c",
+          "line": 781,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const char *description = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);"
+        },
+        {
+          "path": "video/out/opengl/context_dxinterop.c",
+          "line": 114,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "PIXELFORMATDESCRIPTOR pfd = {"
+        },
+        {
+          "path": "video/out/d3d11/ra_d3d11.c",
+          "line": 1007,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "D3D11_BUFFER_DESC cdesc = {"
+        },
+        {
+          "path": "video/out/vo_gpu_next.c",
+          "line": 2802,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[GAMUT_DESATURATE]      = &pl_gamut_map_desaturate,"
+        },
+        {
+          "path": "video/out/vulkan/context_win.c",
+          "line": 59,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DXGI_OUTPUT_DESC1 desc;"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

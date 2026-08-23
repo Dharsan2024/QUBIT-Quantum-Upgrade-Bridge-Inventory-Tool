@@ -1,0 +1,604 @@
+{
+  "repository": "starship/starship",
+  "stratum": "Rust",
+  "primary_language": "Rust",
+  "commit": "6d38f35391a8e68952a3dd4b9acd40d3d93596f6",
+  "license": "ISC",
+  "stars": 59518,
+  "detectors_with_findings": 3,
+  "counts": {
+    "qubit": 6,
+    "pqaudit": 55,
+    "semgrep": 0,
+    "cryptoscan": 4
+  },
+  "elapsed_s": 90.1,
+  "comparison": {
+    "corpus": "starship/starship",
+    "dropped_non_source_findings": 0,
+    "shared_vocabulary": [
+      "SHA",
+      "SHA-1"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 6,
+        "sites": 3
+      },
+      "pqaudit": {
+        "findings": 29,
+        "sites": 10
+      },
+      "semgrep": {
+        "findings": 0,
+        "sites": 0
+      },
+      "cryptoscan": {
+        "findings": 4,
+        "sites": 2
+      }
+    },
+    "unavailable": {
+      "sonar": "SonarQube at http://127.0.0.1:9000 is DOWN: uv run python sonar_oracle.py --setup"
+    },
+    "agreement": {
+      "cryptoscan|pqaudit": 0.2,
+      "cryptoscan|qubit": 0.6666666666666666,
+      "cryptoscan|semgrep": 0.0,
+      "pqaudit|qubit": 0.3,
+      "pqaudit|semgrep": 0.0,
+      "qubit|semgrep": 0.0
+    },
+    "capture_table": {
+      "pqaudit": 7,
+      "cryptoscan+pqaudit+qubit": 2,
+      "pqaudit+qubit": 1
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 3,
+        "population": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 2 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 10,
+        "population": [
+          10.0,
+          10.0,
+          10.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.3,
+          0.3,
+          0.3
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 3 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 3,
+        "population": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "pqaudit": {
+      "exclusive": 49,
+      "code": 19,
+      "mention": 4,
+      "comment": 0,
+      "absent": 26,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "src/modules/git_branch.rs",
+          "line": 588,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let remote_dir = fixture_repo_with_hash(mode, sha256)?;"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 582,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "test_settings.lookup_override(OVERRIDES_CWD_B.as_ref()),"
+        },
+        {
+          "path": "src/modules/haskell.rs",
+          "line": 171,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "- network-3.1.2.1@sha256:188d6daea8cd91bc3553efd5a90a1e7c6d0425fa66a53baa74db5b6d9fd75c8b,4968"
+        },
+        {
+          "path": "src/test/mod.rs",
+          "line": 282,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "&GIT_SHA256_FIXTURE"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 620,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "static OVERRIDES_CWD_C: &str = r\"\\\\?\\C:\\src2\";"
+        },
+        {
+          "path": "src/modules/package.rs",
+          "line": 1665,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "let config_name = \"DESCRIPTION\";"
+        },
+        {
+          "path": "src/modules/haskell.rs",
+          "line": 170,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "- hashable-1.3.0.0@sha256:4c70f1407881059e93550d3742191254296b2737b793a742bd901348fb3e1fb1,5206"
+        },
+        {
+          "path": "src/modules/haskell.rs",
+          "line": 165,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "- earcut-0.1.0.4@sha256:d5118b3eecf24d130263d81fb30f1ff56b1db43036582bfd1d8cc9ba3adae8be,1010"
+        },
+        {
+          "path": "src/test/mod.rs",
+          "line": 281,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let fixture = if sha256 {"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 571,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "static OVERRIDES_CWD_F: &str = \"/home/user/src/b\";"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 566,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "static OVERRIDES_CWD_A: &str = \"/home/user/src/a/src\";"
+        },
+        {
+          "path": "src/modules/utils/directory_win.rs",
+          "line": 9,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "OWNER_SECURITY_INFORMATION, PRIVILEGE_SET, PSECURITY_DESCRIPTOR, SecurityImpersonation,"
+        },
+        {
+          "path": "src/modules/git_metrics.rs",
+          "line": 843,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": ".chain(rand::random::<bool>().then_some(\"--object-format=sha256\"))"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 594,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "test_settings.lookup_override(OVERRIDES_CWD_E.as_ref()),"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 567,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "static OVERRIDES_CWD_B: &str = \"/home/user/src/b/tests\";"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 578,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "test_settings.lookup_override(OVERRIDES_CWD_A.as_ref()),"
+        },
+        {
+          "path": "src/modules/haskell.rs",
+          "line": 161,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "- cubicbezier-0.6.0.6@sha256:2191ff47144d9a13a2784651a33d340cd31be1926a6c188925143103eb3c8db3"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 590,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "test_settings.lookup_override(OVERRIDES_CWD_D.as_ref()),"
+        },
+        {
+          "path": "src/test/mod.rs",
+          "line": 20,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "static GIT_SHA256_FIXTURE: LazyLock<PathBuf> ="
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 634,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "test_settings.lookup_override(OVERRIDES_CWD_C.as_ref()),"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 569,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "static OVERRIDES_CWD_D: &str = \"/home/user/src/b/d c/spaces\";"
+        },
+        {
+          "path": "src/modules/haskell.rs",
+          "line": 164,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "- hmatrix-0.20.0.0@sha256:d79a9218e314f1a2344457c3851bd1d2536518ecb5f1a2fcd81daa45e46cd025,4870"
+        },
+        {
+          "path": "src/modules/package.rs",
+          "line": 393,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "let file_contents = context.read_file_from_pwd(\"DESCRIPTION\")?;"
+        },
+        {
+          "path": "src/utils/mod.rs",
+          "line": 1096,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "fn sha1_hex() {"
+        },
+        {
+          "path": "src/modules/haskell.rs",
+          "line": 168,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "- hgeometry-combinatorial-0.11.0.0@sha256:03176f235a1c49a415fe1266274dafca84deb917cbcbf9a654452686b4cd2bfe,8286"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 638,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "test_settings.lookup_override(OVERRIDES_CWD_D.as_ref()),"
+        },
+        {
+          "path": "src/test/mod.rs",
+          "line": 21,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "LazyLock::new(|| FIXTURE_DIR.join(\"git-repo-sha256.bundle\"));"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 570,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "static OVERRIDES_CWD_E: &str = \"/home/user/src/b_and_more\";"
+        },
+        {
+          "path": "src/modules/haskell.rs",
+          "line": 166,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "- tasty-rerun-1.1.17@sha256:d4a3ccb0f63f499f36edc71b33c0f91c850eddb22dd92b928aa33b8459f3734a,1373"
+        },
+        {
+          "path": "src/modules/git_branch.rs",
+          "line": 587,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let sha256 = rand::random();"
+        },
+        {
+          "path": "src/configs/rlang.rs",
+          "line": 30,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "detect_files: vec![\"DESCRIPTION\"],"
+        },
+        {
+          "path": "install/windows/choco/chocolateyInstall.portable.ps1",
+          "line": 18,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "checksumType  = 'sha256'"
+        },
+        {
+          "path": "src/modules/haskell.rs",
+          "line": 162,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "- fast-math-1.0.2@sha256:91181eb836e54413cc5a841e797c42b2264954e893ea530b6fc4da0dccf6a8b7"
+        },
+        {
+          "path": "install/windows/choco/chocolateyInstall.install.ps1",
+          "line": 17,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "checksumType   = 'sha256'"
+        },
+        {
+          "path": "src/modules/git_branch.rs",
+          "line": 589,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let repo_dir = fixture_repo_with_hash(mode, sha256)?;"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 618,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "static OVERRIDES_CWD_A: &str = r\"\\\\?\\C:\\src1\";"
+        },
+        {
+          "path": "src/modules/haskell.rs",
+          "line": 169,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "- vinyl-0.13.0@sha256:0f247cd3f8682b30881a07de18e6fec52d540646fbcb328420049cc8d63cd407,3724"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 568,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "static OVERRIDES_CWD_C: &str = \"/home/user/src/c/examples\";"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 586,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "test_settings.lookup_override(OVERRIDES_CWD_C.as_ref()),"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 619,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "static OVERRIDES_CWD_B: &str = r\"C:\\src1\";"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 630,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "test_settings.lookup_override(OVERRIDES_CWD_B.as_ref()),"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 626,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "test_settings.lookup_override(OVERRIDES_CWD_A.as_ref()),"
+        },
+        {
+          "path": "src/modules/rlang.rs",
+          "line": 138,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "File::create(dir.path().join(\"DESCRIPTION\"))?.sync_all()?;"
+        },
+        {
+          "path": "src/modules/utils/directory_win.rs",
+          "line": 71,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "let psecurity_descriptor = PSECURITY_DESCRIPTOR(buf.as_mut_ptr().cast::<std::ffi::c_void>());"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 598,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "test_settings.lookup_override(OVERRIDES_CWD_F.as_ref()),"
+        },
+        {
+          "path": "src/modules/haskell.rs",
+          "line": 163,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "- matrices-0.5.0@sha256:b2761813f6a61c84224559619cc60a16a858ac671c8436bbac8ec89e85473058"
+        },
+        {
+          "path": "src/modules/haskell.rs",
+          "line": 167,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "- hgeometry-0.11.0.0@sha256:09ead201a6ac3492c0be8dda5a6b32792b9ae87cab730b8362d46ee8d5c2acb4,11714"
+        },
+        {
+          "path": "src/modules/rust.rs",
+          "line": 621,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "static OVERRIDES_CWD_D: &str = r\"C:\\src2\";"
+        },
+        {
+          "path": "src/test/mod.rs",
+          "line": 260,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "pub fn fixture_repo_with_hash(provider: FixtureProvider, sha256: bool) -> io::Result<TempDir> {"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

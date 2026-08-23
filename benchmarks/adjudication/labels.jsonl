@@ -1,0 +1,801 @@
+{"id": "8c3736acc17f", "label": "ABSENT", "reason": "x-access-token:v1.6...@github.com is URL userinfo, not an email address", "annotator": "claude-opus-5"}
+{"id": "cefb141df18a", "label": "USE", "reason": "hmac.New(sha256.New, ...) computes a real SHA-256 HMAC", "annotator": "claude-opus-5"}
+{"id": "5751ad666d64", "label": "MENTION", "reason": "me@x.com is a placeholder in an example site config", "annotator": "claude-opus-5"}
+{"id": "36752213d93b", "label": "ABSENT", "reason": "'package@1.0.0.tgz' is an npm version spec, not an address", "annotator": "claude-opus-5"}
+{"id": "51cf06d91cc8", "label": "ABSENT", "reason": "DES inside SQL ORDER BY ... DESC", "annotator": "claude-opus-5"}
+{"id": "a7b5caddca7e", "label": "ABSENT", "reason": "'/path/to/file@2x.png' is a retina asset filename", "annotator": "claude-opus-5"}
+{"id": "e5851ef3c572", "label": "ABSENT", "reason": "DES inside END_KEYCODES", "annotator": "claude-opus-5"}
+{"id": "654ca242a0e5", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "ec8055ea43f2", "label": "USE", "reason": "openssl genrsa generates a real 2048-bit RSA key", "annotator": "claude-opus-5"}
+{"id": "06e321a6d427", "label": "MENTION", "reason": "4111111111111111 is the universal Visa test PAN in a validator demo", "annotator": "claude-opus-5"}
+{"id": "4a71630893c9", "label": "MENTION", "reason": "APIKey: \"test-key\" is a placeholder in a Go test", "annotator": "claude-opus-5"}
+{"id": "720b7e25ef0c", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "5e55e92804e4", "label": "ABSENT", "reason": "matched inside a protobuf descriptor byte string", "annotator": "claude-opus-5"}
+{"id": "05b28c421df2", "label": "MENTION", "reason": "\"sha256:facets\" is a cache-key prefix in a test, no hashing here", "annotator": "claude-opus-5"}
+{"id": "131a20c20df1", "label": "ABSENT", "reason": "DES inside Build.VERSION_CODES.S", "annotator": "claude-opus-5"}
+{"id": "0ed9f4c352fe", "label": "ABSENT", "reason": "a float in a doctest, not a card number", "annotator": "claude-opus-5"}
+{"id": "8c5839cdc199", "label": "MENTION", "reason": "ai-e2e@conductor.test uses the reserved .test TLD", "annotator": "claude-opus-5"}
+{"id": "4a9b18829eb9", "label": "USE", "reason": "Diffie-Hellman public-key validation in a DH implementation", "annotator": "claude-opus-5"}
+{"id": "3ba298b639e4", "label": "ABSENT", "reason": "DES inside a SQL string, ORDER BY ... DESC", "annotator": "claude-opus-5"}
+{"id": "ffe0990dc4b9", "label": "ABSENT", "reason": "DES inside ORDER BY end_time DESC", "annotator": "claude-opus-5"}
+{"id": "de3a1029c9eb", "label": "MENTION", "reason": "Password: \"password123\" is a sign-in test fixture", "annotator": "claude-opus-5"}
+{"id": "ad98704a46ef", "label": "ABSENT", "reason": "DES inside rx_desc / PDRAM_TX_DESC_OFFSET", "annotator": "claude-opus-5"}
+{"id": "e4d432dd05e7", "label": "USE", "reason": "registers a real AES-GCM driver in the DEU crypto module", "annotator": "claude-opus-5"}
+{"id": "e72591f3ac94", "label": "MENTION", "reason": "an argon2i hash literal asserted on in a CLI arg test", "annotator": "claude-opus-5"}
+{"id": "b55677113f08", "label": "ABSENT", "reason": "DES inside ORDER BY scheduled_time DESC", "annotator": "claude-opus-5"}
+{"id": "f4951d1473a7", "label": "ABSENT", "reason": "DES inside CODES.Timeout", "annotator": "claude-opus-5"}
+{"id": "71ad98052879", "label": "MENTION", "reason": "module docstring describing an RSA factorisation exercise", "annotator": "claude-opus-5"}
+{"id": "0a2b73cda713", "label": "ABSENT", "reason": "DES inside END_KEYCODES", "annotator": "claude-opus-5"}
+{"id": "c84dc9aad171", "label": "USE", "reason": "XChaCha20Poly1305Compat.seal encrypts", "annotator": "claude-opus-5"}
+{"id": "ffb6d63b3af7", "label": "ABSENT", "reason": "DES inside D3D11_BUFFER_DESC", "annotator": "claude-opus-5"}
+{"id": "674f45598889", "label": "USE", "reason": "ifxdeu_init_arc4() registers the ARC4 hardware driver", "annotator": "claude-opus-5"}
+{"id": "0ab0cdd81c00", "label": "ABSENT", "reason": "floats in a rotation-matrix docstring", "annotator": "claude-opus-5"}
+{"id": "df10f86b637d", "label": "MENTION", "reason": "--tls-ciphersuites help text in redis-cli usage output", "annotator": "claude-opus-5"}
+{"id": "baaeae47ca74", "label": "MENTION", "reason": "doxygen comment describing the ARC4 ECB helper", "annotator": "claude-opus-5"}
+{"id": "150714c0dd67", "label": "ABSENT", "reason": "finite-field Diffie-Hellman mod p; no elliptic curve here", "annotator": "claude-opus-5"}
+{"id": "73cb964ef374", "label": "AMBIGUOUS", "reason": "no SHA token visible in the shown line or its context", "annotator": "claude-opus-5"}
+{"id": "b67a6c7acaae", "label": "ABSENT", "reason": "'http://google.com@evil.com' is a URL authority-confusion vector", "annotator": "claude-opus-5"}
+{"id": "a61be157e270", "label": "ABSENT", "reason": "DES inside 'sort=<field>:ASC|DESC' in an OpenAPI description", "annotator": "claude-opus-5"}
+{"id": "89d9e3fa8a9b", "label": "USE", "reason": "parses and selects TLS protocol versions for the server context", "annotator": "claude-opus-5"}
+{"id": "df49518477c1", "label": "ABSENT", "reason": "'logo@dark@2x.png' is a filename, not an address", "annotator": "claude-opus-5"}
+{"id": "66d2a2eb0d72", "label": "MENTION", "reason": "noreply@yourdomain.com is a placeholder in a doc comment", "annotator": "claude-opus-5"}
+{"id": "7eca8f93fa01", "label": "USE", "reason": "passwordMethod: \"SHA256\" is passed to handlePasswordValidation as the selection", "annotator": "claude-opus-5"}
+{"id": "d1ba9f62e59a", "label": "ABSENT", "reason": "DES inside SQL created_at DESC", "annotator": "claude-opus-5"}
+{"id": "78b2a0d2ea35", "label": "USE", "reason": "ARC4 key-schedule register setup in the hardware driver", "annotator": "claude-opus-5"}
+{"id": "f02ab2e4c1e8", "label": "MENTION", "reason": "'sha256-script' is a stand-in CSP hash value in a test", "annotator": "claude-opus-5"}
+{"id": "e94d6146de72", "label": "MENTION", "reason": "secret: \"secret-1\" is a Go test fixture", "annotator": "claude-opus-5"}
+{"id": "e3979f7e514e", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "3ab80acc6720", "label": "USE", "reason": "sha256Fingerprint() hashes the key", "annotator": "claude-opus-5"}
+{"id": "fc307462a238", "label": "ABSENT", "reason": "DES inside CODES.BadResponse", "annotator": "claude-opus-5"}
+{"id": "5d8f53411107", "label": "USE", "reason": "passwordMethod: \"SHA256\" is passed to handlePasswordValidation as the selection", "annotator": "claude-opus-5"}
+{"id": "5d9803297abb", "label": "ABSENT", "reason": "'//root:22@server.com' is a URL userinfo vector", "annotator": "claude-opus-5"}
+{"id": "6cbab9575447", "label": "USE", "reason": "SHA1Final finalises a real SHA-1 digest in tinysrp", "annotator": "claude-opus-5"}
+{"id": "cff60bae66d8", "label": "ABSENT", "reason": "finite-field Diffie-Hellman doctest; no elliptic curve", "annotator": "claude-opus-5"}
+{"id": "c78fa7689642", "label": "ABSENT", "reason": "DES inside SAFE_DESTROY", "annotator": "claude-opus-5"}
+{"id": "245c67c69b8b", "label": "ABSENT", "reason": "DES inside GraphQL order: DESC", "annotator": "claude-opus-5"}
+{"id": "a8addee4a336", "label": "ABSENT", "reason": "DES inside DESKTOP", "annotator": "claude-opus-5"}
+{"id": "ed2685640a3d", "label": "ABSENT", "reason": "DES inside sort: \"scheduledTime:DESC\"", "annotator": "claude-opus-5"}
+{"id": "7d154cebb2a1", "label": "USE", "reason": "an Ed25519 signing key passed to buildAnnounceSignature", "annotator": "claude-opus-5"}
+{"id": "b0f80d08fec6", "label": "MENTION", "reason": "asserts the string \"sha256=\" appears in metadata; no hashing here", "annotator": "claude-opus-5"}
+{"id": "8076d7d97660", "label": "ABSENT", "reason": "DES inside `pinned` DESC", "annotator": "claude-opus-5"}
+{"id": "3b8724e52068", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_C", "annotator": "claude-opus-5"}
+{"id": "c1c988354770", "label": "USE", "reason": "selects RSA key generation from the -newkey rsa: argument", "annotator": "claude-opus-5"}
+{"id": "0508616b548c", "label": "USE", "reason": "hash_hmac('sha256', ...) computes a real HMAC-SHA256, though not a JOSE header", "annotator": "claude-opus-5"}
+{"id": "3552eff7d449", "label": "USE", "reason": "sha256Fingerprint() and sha256Hash() over the serialised event", "annotator": "claude-opus-5"}
+{"id": "ad0342b889b8", "label": "ABSENT", "reason": "DES inside D3D11_QUERY_DESC", "annotator": "claude-opus-5"}
+{"id": "ebf63cb36678", "label": "USE", "reason": "doctest that constructs DiffieHellman and runs under pytest", "annotator": "claude-opus-5"}
+{"id": "024b96677952", "label": "ABSENT", "reason": "DES inside WAN_SWAP_DESC_NUM", "annotator": "claude-opus-5"}
+{"id": "f8c146ec12a6", "label": "ABSENT", "reason": "DES inside GAMUT_DESATURATE", "annotator": "claude-opus-5"}
+{"id": "d8ac822ddb80", "label": "USE", "reason": "passwordMethod: \"SHA256\" selects the hash for isCookieValid", "annotator": "claude-opus-5"}
+{"id": "1a62e5265c9f", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_A", "annotator": "claude-opus-5"}
+{"id": "9bd4884459b1", "label": "ABSENT", "reason": "DES inside ORDER BY atq.priority DESC", "annotator": "claude-opus-5"}
+{"id": "1e2b9d7dd94f", "label": "ABSENT", "reason": "DES inside created_at DESC", "annotator": "claude-opus-5"}
+{"id": "2377f144bc0c", "label": "MENTION", "reason": "mika-second-member@multica.test uses the reserved .test TLD", "annotator": "claude-opus-5"}
+{"id": "4da15ed22650", "label": "USE", "reason": "a real personal address in a Javadoc @author tag", "annotator": "claude-opus-5"}
+{"id": "d5d4663e1b71", "label": "USE", "reason": "Mac.getInstance(HMAC_SHA_256) and mac.doFinal sign the URL", "annotator": "claude-opus-5"}
+{"id": "228934457143", "label": "ABSENT", "reason": "DES inside NNODES", "annotator": "claude-opus-5"}
+{"id": "4bcb2f6de3ea", "label": "MENTION", "reason": "'sha256-attr' is a stand-in CSP hash value in a test", "annotator": "claude-opus-5"}
+{"id": "6f2b81c22474", "label": "ABSENT", "reason": "DES inside a GraphQL SortOrderEnum DESC member", "annotator": "claude-opus-5"}
+{"id": "a21f75ed772b", "label": "ABSENT", "reason": "DES inside \"startTime:DESC\"", "annotator": "claude-opus-5"}
+{"id": "64bfaa41b232", "label": "ABSENT", "reason": "DES inside CLUSTER NODES in an error message", "annotator": "claude-opus-5"}
+{"id": "c6c40359d5f6", "label": "ABSENT", "reason": "DES inside AGENT_DESCRIPTION_MAX_LENGTH", "annotator": "claude-opus-5"}
+{"id": "3ed9f4800123", "label": "USE", "reason": "ChaChaPoly.seal encrypts the group message", "annotator": "claude-opus-5"}
+{"id": "a5ef3af8b23b", "label": "ABSENT", "reason": "DES inside rx_desc / DESC_ALIGNMENT", "annotator": "claude-opus-5"}
+{"id": "a2491a0f8844", "label": "ABSENT", "reason": "DES inside COLOR_PANEL_DESC", "annotator": "claude-opus-5"}
+{"id": "9e98ca4f3721", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "6a5ef70a4a58", "label": "USE", "reason": "make_key_files(\"rsa\", 1024) generates an RSA keypair", "annotator": "claude-opus-5"}
+{"id": "b0d19226f88a", "label": "USE", "reason": "sha256_update in redis's own SHA-256 implementation", "annotator": "claude-opus-5"}
+{"id": "533f0f41347c", "label": "MENTION", "reason": "a@b.co and c@d.io are synthetic vectors in an email-parser test", "annotator": "claude-opus-5"}
+{"id": "d648053a5657", "label": "USE", "reason": "selects TLS 1.3 for the server protocol mask", "annotator": "claude-opus-5"}
+{"id": "7eac8aac39dd", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_A", "annotator": "claude-opus-5"}
+{"id": "2e73f8346aa0", "label": "ABSENT", "reason": "'sprite@mobile.css' is a responsive asset filename", "annotator": "claude-opus-5"}
+{"id": "2028406f46a5", "label": "USE", "reason": "openssl genrsa generates a real 4096-bit CA key", "annotator": "claude-opus-5"}
+{"id": "24a575b2c59e", "label": "MENTION", "reason": "a rejection test case, not a live webhook secret", "annotator": "claude-opus-5"}
+{"id": "f260f57e1956", "label": "ABSENT", "reason": "DES inside an inline-snapshot GraphQL date: DESC", "annotator": "claude-opus-5"}
+{"id": "41297c3c8759", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "9bad7f9175b4", "label": "MENTION", "reason": "API_KEY = \"secret\" inside an expected-config assertion", "annotator": "claude-opus-5"}
+{"id": "a76ba73c8cce", "label": "USE", "reason": "openssl genrsa generates the test CA key", "annotator": "claude-opus-5"}
+{"id": "439c61765ea3", "label": "MENTION", "reason": "doxygen file header describing the ARC4 driver", "annotator": "claude-opus-5"}
+{"id": "e3a7ed2d45dd", "label": "MENTION", "reason": "const password = \"hellowpasssword\" is a unit-test input", "annotator": "claude-opus-5"}
+{"id": "1b74ebf8dc94", "label": "MENTION", "reason": "an error message describing the RSA block-size constraint", "annotator": "claude-opus-5"}
+{"id": "d8833d280c95", "label": "MENTION", "reason": "'sha256-default' is a stand-in CSP hash value in a test", "annotator": "claude-opus-5"}
+{"id": "29add4414f65", "label": "ABSENT", "reason": "DES inside DXGI_OUTPUT_DESC1", "annotator": "claude-opus-5"}
+{"id": "203096a07263", "label": "USE", "reason": "hmac.New(sha256.New, key) signs the webhook payload", "annotator": "claude-opus-5"}
+{"id": "df3a1a709927", "label": "ABSENT", "reason": "DES inside DESTDIR", "annotator": "claude-opus-5"}
+{"id": "3b18d131d0de", "label": "MENTION", "reason": "sha256: digests inside a stack.yaml lock fixture; no hashing here", "annotator": "claude-opus-5"}
+{"id": "129ed7258754", "label": "MENTION", "reason": "--tls-ciphersuites help text in redis-benchmark usage output", "annotator": "claude-opus-5"}
+{"id": "f4ad9ca2c5b1", "label": "ABSENT", "reason": "finite-field Diffie-Hellman doctest; no elliptic curve", "annotator": "claude-opus-5"}
+{"id": "9f7831232685", "label": "MENTION", "reason": "class docstring prose naming the Diffie-Hellman protocol", "annotator": "claude-opus-5"}
+{"id": "9097b33772de", "label": "ABSENT", "reason": "DES inside DXGI_SWAP_CHAIN_DESC", "annotator": "claude-opus-5"}
+{"id": "59a5eef63bea", "label": "ABSENT", "reason": "DES inside \"endTime:DESC\"", "annotator": "claude-opus-5"}
+{"id": "74a5730332aa", "label": "MENTION", "reason": "updated@test.com is a store-test fixture on the reserved .test TLD", "annotator": "claude-opus-5"}
+{"id": "8e3825710270", "label": "MENTION", "reason": "a warning string listing the accepted tls-protocols values", "annotator": "claude-opus-5"}
+{"id": "7aee2047f055", "label": "ABSENT", "reason": "DES inside head.priority DESC", "annotator": "claude-opus-5"}
+{"id": "a516e184576d", "label": "USE", "reason": "a real author contact address in a module docstring", "annotator": "claude-opus-5"}
+{"id": "a0248f9b89d3", "label": "ABSENT", "reason": "DES inside SORT_DESC and cmp_mthd_desc", "annotator": "claude-opus-5"}
+{"id": "e852499a6d05", "label": "MENTION", "reason": "a truncated PEM header inside a redaction-test input string", "annotator": "claude-opus-5"}
+{"id": "83c9e8288b46", "label": "ABSENT", "reason": "DES inside \"created_ts DESC\"", "annotator": "claude-opus-5"}
+{"id": "9eaf35715475", "label": "MENTION", "reason": "sha256: digests inside a stack.yaml lock fixture; no hashing here", "annotator": "claude-opus-5"}
+{"id": "888f1b59db6a", "label": "ABSENT", "reason": "DES inside \"workflowId:DESC\"", "annotator": "claude-opus-5"}
+{"id": "b43e1abe913a", "label": "MENTION", "reason": "an argon2i hash passed as a CLI string in an argument-parsing test", "annotator": "claude-opus-5"}
+{"id": "dd217a4e9b4a", "label": "USE", "reason": "SHA1Update over the SRP session key", "annotator": "claude-opus-5"}
+{"id": "d6f4f08514a0", "label": "ABSENT", "reason": "DES inside head.priority DESC", "annotator": "claude-opus-5"}
+{"id": "fa6facbfcb23", "label": "MENTION", "reason": "delegated-concurrent-revoke@multica.test uses the reserved .test TLD", "annotator": "claude-opus-5"}
+{"id": "9beb58ae783d", "label": "USE", "reason": "HKDF<SHA256>.deriveKey derives the NIP-44 envelope key", "annotator": "claude-opus-5"}
+{"id": "79b93ae903fe", "label": "ABSENT", "reason": "DES inside Dice.NUM_SIDES", "annotator": "claude-opus-5"}
+{"id": "29476d23bddf", "label": "ABSENT", "reason": "a similarity score in a doctest, not a card number", "annotator": "claude-opus-5"}
+{"id": "5d94f2c3f1fe", "label": "ABSENT", "reason": "'http://user:pass@good.com@evil.com' is a URL authority vector", "annotator": "claude-opus-5"}
+{"id": "c8c11ea4cb6b", "label": "USE", "reason": "import \"crypto/sha256\" selects the primitive this file uses", "annotator": "claude-opus-5"}
+{"id": "a1e9fe7883d1", "label": "USE", "reason": "openssl genrsa generates a real 2048-bit key per certificate", "annotator": "claude-opus-5"}
+{"id": "5c75625c6ee0", "label": "ABSENT", "reason": "DES inside END_KEYCODES", "annotator": "claude-opus-5"}
+{"id": "2f7af199cdae", "label": "MENTION", "reason": "doc comment describing the HMAC-SHA256 derivation", "annotator": "claude-opus-5"}
+{"id": "d4bbd0a41b3f", "label": "MENTION", "reason": "ghp_ABCDEFGHIJ... is a synthetic token in a redaction test", "annotator": "claude-opus-5"}
+{"id": "1d321216fcda", "label": "ABSENT", "reason": "timing numbers in a trailing comment", "annotator": "claude-opus-5"}
+{"id": "3ba3521e21c6", "label": "USE", "reason": "doctest that runs generate_shared_key_static", "annotator": "claude-opus-5"}
+{"id": "92a904ecc891", "label": "ABSENT", "reason": "DES inside GAMUT_DESATURATE", "annotator": "claude-opus-5"}
+{"id": "7b290fa513fb", "label": "MENTION", "reason": "cra@email.com is a synthetic git identity in a CI script", "annotator": "claude-opus-5"}
+{"id": "ea8077c05ed8", "label": "ABSENT", "reason": "DES inside \"FORCIBLY DESTROYING\"", "annotator": "claude-opus-5"}
+{"id": "2d33a2e5d987", "label": "ABSENT", "reason": "DES inside linkedNodesQueryFields", "annotator": "claude-opus-5"}
+{"id": "84e202be8ee5", "label": "USE", "reason": "HMAC<SHA256>.authenticationCode computes the recipient tag", "annotator": "claude-opus-5"}
+{"id": "a9f40a75519c", "label": "ABSENT", "reason": "DES inside `created_ts` DESC", "annotator": "claude-opus-5"}
+{"id": "d0f0f603fe17", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "df258a66efba", "label": "USE", "reason": "MessageDigest.getInstance(algorithm) selects a digest at runtime", "annotator": "claude-opus-5"}
+{"id": "01e76fef47c5", "label": "MENTION", "reason": "SECRET = \"test-secret\" is a JUnit fixture constant", "annotator": "claude-opus-5"}
+{"id": "a486ef4f82c1", "label": "USE", "reason": "SHA256_Final and SHA256_DIGEST_LENGTH in mkhash", "annotator": "claude-opus-5"}
+{"id": "d3d866bb1bdb", "label": "MENTION", "reason": "'sha256-abc' is a stand-in CSP hash in a schema test", "annotator": "claude-opus-5"}
+{"id": "a996c5a09ec4", "label": "ABSENT", "reason": "DES inside GraphQL order: DESC", "annotator": "claude-opus-5"}
+{"id": "93f4b051c319", "label": "ABSENT", "reason": "DES inside NUM_NODES", "annotator": "claude-opus-5"}
+{"id": "43a44c39ed0a", "label": "USE", "reason": "ChaChaPoly.open decrypts the stored outbox", "annotator": "claude-opus-5"}
+{"id": "584d3ed915fc", "label": "ABSENT", "reason": "DES inside Platform.DESKTOP", "annotator": "claude-opus-5"}
+{"id": "ce1e41611760", "label": "ABSENT", "reason": "DES inside MALLCTL_ARENAS_DESTROYED", "annotator": "claude-opus-5"}
+{"id": "d64a8b41ddf5", "label": "ABSENT", "reason": "\"falcon-mx\" is a Lantiq SoC image name, not the FN-DSA signature scheme", "annotator": "claude-opus-5"}
+{"id": "95b8be319490", "label": "USE", "reason": "core-team@gatsbyjs.com is a real team address in a CI script", "annotator": "claude-opus-5"}
+{"id": "11cc82147a0d", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "90643bbe6c12", "label": "USE", "reason": "doctest constructing a second DiffieHellman party", "annotator": "claude-opus-5"}
+{"id": "90192986b33f", "label": "ABSENT", "reason": "DES inside a generated DESC = 2 enum member", "annotator": "claude-opus-5"}
+{"id": "2158c2de443d", "label": "ABSENT", "reason": "DES inside $INIT_SCRIPT_DEST", "annotator": "claude-opus-5"}
+{"id": "9247015b6bb2", "label": "USE", "reason": "a real address used as ownerEmail in a test fixture", "annotator": "claude-opus-5"}
+{"id": "daacd7cbe867", "label": "MENTION", "reason": "an argon2i hash passed as cookieKey in a PLAIN_TEXT test", "annotator": "claude-opus-5"}
+{"id": "fee19c0d9e0c", "label": "USE", "reason": "sha256Fingerprint() over the remote static key", "annotator": "claude-opus-5"}
+{"id": "2468911d835f", "label": "MENTION", "reason": "a rejection test case, not a live webhook secret", "annotator": "claude-opus-5"}
+{"id": "51910c8f73ed", "label": "USE", "reason": "the class definition implementing Diffie-Hellman", "annotator": "claude-opus-5"}
+{"id": "949dba604f5b", "label": "ABSENT", "reason": "DES inside WF_DESCRIPTION", "annotator": "claude-opus-5"}
+{"id": "358cca0464a7", "label": "USE", "reason": "configures the ARC4 hardware block inside the driver", "annotator": "claude-opus-5"}
+{"id": "e4e68ec4b95c", "label": "ABSENT", "reason": "ubuntu@host.redis.io is an ssh user@host, not an address", "annotator": "claude-opus-5"}
+{"id": "0052af1a5017", "label": "USE", "reason": "ARC4 key-schedule register setup in the hardware driver", "annotator": "claude-opus-5"}
+{"id": "0b7a5ef3d31c", "label": "MENTION", "reason": "string-matches TLS version tokens while parsing access logs", "annotator": "claude-opus-5"}
+{"id": "9d9ffed4c60d", "label": "ABSENT", "reason": "'backup@2024.sql' is a backup filename", "annotator": "claude-opus-5"}
+{"id": "a11a6f9b24ac", "label": "ABSENT", "reason": "DES inside CODES.GatsbyPluginMissing", "annotator": "claude-opus-5"}
+{"id": "28f7771b0520", "label": "MENTION", "reason": "'sha256-abc' is a stand-in CSP hash in a schema test", "annotator": "claude-opus-5"}
+{"id": "f54be12ccfce", "label": "MENTION", "reason": "an argon2i hash literal; the verification call is the next line", "annotator": "claude-opus-5"}
+{"id": "c7472a1295c7", "label": "MENTION", "reason": "perm-allowed-member@multica.test uses the reserved .test TLD", "annotator": "claude-opus-5"}
+{"id": "8104e01f8b89", "label": "ABSENT", "reason": "DES inside NNODES", "annotator": "claude-opus-5"}
+{"id": "0a88b5b8da91", "label": "ABSENT", "reason": "DES inside ORDER BY priority DESC", "annotator": "claude-opus-5"}
+{"id": "eeac79c9a93d", "label": "USE", "reason": "Mac.getInstance(HMAC_SHA_256) initialises the signer", "annotator": "claude-opus-5"}
+{"id": "86285ab4f52f", "label": "ABSENT", "reason": "DES inside a SQL ORDER BY ... DESC string", "annotator": "claude-opus-5"}
+{"id": "1b3aad41f497", "label": "USE", "reason": "the Noise protocol's own HKDF implementation", "annotator": "claude-opus-5"}
+{"id": "b1f6a243912b", "label": "MENTION", "reason": "reads a .sha256 checksum file; no hashing at this site", "annotator": "claude-opus-5"}
+{"id": "230837d3a27e", "label": "ABSENT", "reason": "DES inside D3D11_TEXTURE2D_DESC", "annotator": "claude-opus-5"}
+{"id": "6600b074cdfc", "label": "USE", "reason": "sha256_transform inside redis's SHA-256 implementation", "annotator": "claude-opus-5"}
+{"id": "a84ec7a8029f", "label": "MENTION", "reason": "'sha256-dup' is a stand-in CSP hash in a test", "annotator": "claude-opus-5"}
+{"id": "a568ebf5b69e", "label": "USE", "reason": "HMAC(EVP_sha256(), ...) signs the websocket auth token", "annotator": "claude-opus-5"}
+{"id": "bb36d1ca0088", "label": "ABSENT", "reason": "DES inside D3D11_INPUT_ELEMENT_DESC", "annotator": "claude-opus-5"}
+{"id": "0b12a06b5bd0", "label": "ABSENT", "reason": "'snapshot@latest.json' is a version-tagged filename", "annotator": "claude-opus-5"}
+{"id": "8a85328f6e5a", "label": "USE", "reason": "hchacha20 derives the subkey for XChaCha20-Poly1305", "annotator": "claude-opus-5"}
+{"id": "463864263776", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "90d84c724d78", "label": "MENTION", "reason": "Password: \"password123\" is a registration-test fixture", "annotator": "claude-opus-5"}
+{"id": "cd2c9dd96379", "label": "ABSENT", "reason": "rotation results in a doctest, not a card number", "annotator": "claude-opus-5"}
+{"id": "1d0748cba0b6", "label": "USE", "reason": "hmac.New(sha256.New, secret) verifies the Forgejo webhook", "annotator": "claude-opus-5"}
+{"id": "68a70ef1c022", "label": "USE", "reason": "hash('xxh128', ...) and sha1(...) are both computed here", "annotator": "claude-opus-5"}
+{"id": "cb4526821a8f", "label": "MENTION", "reason": "interface doc comment naming HMAC-SHA256 as Forgejo's scheme", "annotator": "claude-opus-5"}
+{"id": "2cffd66da3ab", "label": "MENTION", "reason": "--tls-ciphers help text in redis-cli usage output", "annotator": "claude-opus-5"}
+{"id": "d43ecf57e0ff", "label": "USE", "reason": "const ALGORITHM = 'AES-GCM' configures this module's SubtleCrypto calls", "annotator": "claude-opus-5"}
+{"id": "4c7830026a99", "label": "MENTION", "reason": "--tls-ciphersuites help text in redis-cli usage output", "annotator": "claude-opus-5"}
+{"id": "24fafcab8e49", "label": "MENTION", "reason": "module docstring describing an RSA factorisation exercise", "annotator": "claude-opus-5"}
+{"id": "89d9f9cc2574", "label": "ABSENT", "reason": "DES inside REFERRERS_DESC", "annotator": "claude-opus-5"}
+{"id": "172307ace920", "label": "ABSENT", "reason": "DES inside STATUS_CODES", "annotator": "claude-opus-5"}
+{"id": "33304c954227", "label": "ABSENT", "reason": "DES inside a Text(\"DESC\") sort-direction button label", "annotator": "claude-opus-5"}
+{"id": "e0161011689c", "label": "USE", "reason": "make_key_files(\"rsa\", 1024) generates an RSA keypair", "annotator": "claude-opus-5"}
+{"id": "117ef156e6cb", "label": "MENTION", "reason": "a boolean selecting the SHA-256-format git fixture; no hashing here", "annotator": "claude-opus-5"}
+{"id": "60f210a97752", "label": "USE", "reason": "bcrypt('secret') hashes the seeded user's password", "annotator": "claude-opus-5"}
+{"id": "fccd0747b393", "label": "MENTION", "reason": "batch-foreign@multica.test is a SQL test fixture", "annotator": "claude-opus-5"}
+{"id": "ca4d4863a6fc", "label": "MENTION", "reason": "the algorithm name appears inside the test's plaintext string", "annotator": "claude-opus-5"}
+{"id": "a9cd98f08b43", "label": "MENTION", "reason": "other-renew@multica.ai is a synthetic test user", "annotator": "claude-opus-5"}
+{"id": "ce5e0b3e9903", "label": "USE", "reason": "passwordMethod: \"ARGON2\" selects the hash for isCookieValid", "annotator": "claude-opus-5"}
+{"id": "25ad26da3dba", "label": "MENTION", "reason": "a struct field named fixtureSHA256 in a test-vector type", "annotator": "claude-opus-5"}
+{"id": "58941f5885cb", "label": "ABSENT", "reason": "'icon@2x.png' is a retina asset filename", "annotator": "claude-opus-5"}
+{"id": "cc503cf3c5fc", "label": "ABSENT", "reason": "DES inside SORT_DESC / STATUS_CODES", "annotator": "claude-opus-5"}
+{"id": "d569e20f8aa0", "label": "ABSENT", "reason": "DES inside GraphQL order: DESC", "annotator": "claude-opus-5"}
+{"id": "c4a550ffd3ec", "label": "ABSENT", "reason": "DES inside _NET_CURRENT_DESKTOP", "annotator": "claude-opus-5"}
+{"id": "ab313061ad76", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "f5ab46aa6324", "label": "ABSENT", "reason": "DES inside AGENT_DESCRIPTION_MAX_LENGTH", "annotator": "claude-opus-5"}
+{"id": "9d03b6d65be9", "label": "ABSENT", "reason": "DES inside \"created_ts DESC\"", "annotator": "claude-opus-5"}
+{"id": "d60746dc1a4b", "label": "MENTION", "reason": "ARGON2 named in a test title string", "annotator": "claude-opus-5"}
+{"id": "02ea9ac7d586", "label": "USE", "reason": "feeds data into the ARC4 hardware registers", "annotator": "claude-opus-5"}
+{"id": "002ecc1f65b1", "label": "MENTION", "reason": "an argon2i hash literal in a method-detection test", "annotator": "claude-opus-5"}
+{"id": "f6154fbd24aa", "label": "ABSENT", "reason": "a doctest float, not a card number", "annotator": "claude-opus-5"}
+{"id": "d74b15923fc7", "label": "ABSENT", "reason": "DES inside the SORT_DESC enum member", "annotator": "claude-opus-5"}
+{"id": "c762697321cc", "label": "USE", "reason": "sha256Fingerprint() over a peer key", "annotator": "claude-opus-5"}
+{"id": "ae7f55dac3b3", "label": "ABSENT", "reason": "DES inside D3D11_TEXTURE2D_DESC", "annotator": "claude-opus-5"}
+{"id": "f41b0aedffe9", "label": "ABSENT", "reason": "DES inside GraphQL order: DESC", "annotator": "claude-opus-5"}
+{"id": "c6a1cb76ada6", "label": "MENTION", "reason": "'sha256-script' is a stand-in CSP hash in a test", "annotator": "claude-opus-5"}
+{"id": "628ef6d03d93", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "751f36cefedd", "label": "ABSENT", "reason": "DES inside the TEST_DESC macro", "annotator": "claude-opus-5"}
+{"id": "ccfe51c51307", "label": "USE", "reason": "sha256_update inside redis's HMAC construction", "annotator": "claude-opus-5"}
+{"id": "31a5f61ffc9a", "label": "MENTION", "reason": "john@doe.com in a Contentful fixture", "annotator": "claude-opus-5"}
+{"id": "4a8054b8e029", "label": "USE", "reason": "passwordMethod: \"ARGON2\" selects the hash for handlePasswordValidation", "annotator": "claude-opus-5"}
+{"id": "e5525e0198f6", "label": "ABSENT", "reason": "$GITHUB_API_TOKEN@github.com is URL userinfo, not an address", "annotator": "claude-opus-5"}
+{"id": "693a225472ae", "label": "ABSENT", "reason": "DES inside a generated \"DESC\": 2 enum map", "annotator": "claude-opus-5"}
+{"id": "8f8d2e0dd025", "label": "USE", "reason": "a real author contact address in a module docstring", "annotator": "claude-opus-5"}
+{"id": "1109ec295f7c", "label": "ABSENT", "reason": "DES inside SCROLL_SENSITIVITY_DESKTOP", "annotator": "claude-opus-5"}
+{"id": "e7fe2c97a5b9", "label": "MENTION", "reason": "'a@b.com' inside a SQL-normalisation test string", "annotator": "claude-opus-5"}
+{"id": "f94c3bddf6d8", "label": "MENTION", "reason": "SHA256 named in a test title string", "annotator": "claude-opus-5"}
+{"id": "60db0912b18d", "label": "ABSENT", "reason": "assigns password from a shell variable; no literal secret here", "annotator": "claude-opus-5"}
+{"id": "e7c4ae15bdde", "label": "ABSENT", "reason": "DES inside CODES.WordPressFilters", "annotator": "claude-opus-5"}
+{"id": "4a49a295823d", "label": "ABSENT", "reason": "DES inside ORDER BY created_at DESC", "annotator": "claude-opus-5"}
+{"id": "cfac15f68dec", "label": "MENTION", "reason": "the universal Visa test PAN in a doctest", "annotator": "claude-opus-5"}
+{"id": "3db6a3c29f51", "label": "USE", "reason": "registers the cbcmac(aes) algorithm with the kernel crypto API", "annotator": "claude-opus-5"}
+{"id": "f9b6376e2d2b", "label": "MENTION", "reason": "sha256: digests inside a stack.yaml lock fixture", "annotator": "claude-opus-5"}
+{"id": "71b1e0ea1b52", "label": "ABSENT", "reason": "DES inside COLOR_PANEL_DESC", "annotator": "claude-opus-5"}
+{"id": "e869a43d317e", "label": "MENTION", "reason": "sha256 = \"BAZEL_SHA\" is a placeholder substituted later", "annotator": "claude-opus-5"}
+{"id": "40cd82802f22", "label": "USE", "reason": "argon2.verify(hash, password) checks the password", "annotator": "claude-opus-5"}
+{"id": "fe0e6e4eda26", "label": "ABSENT", "reason": "DES inside REFERRING_SITES_DESC", "annotator": "claude-opus-5"}
+{"id": "959e2feaa71d", "label": "MENTION", "reason": "ARGON2 named in a test title string", "annotator": "claude-opus-5"}
+{"id": "5711449afecf", "label": "ABSENT", "reason": "'sprite@mobile.css' is a responsive asset filename", "annotator": "claude-opus-5"}
+{"id": "2f8487784ac1", "label": "ABSENT", "reason": "DES inside ORDER BY 1 DESC", "annotator": "claude-opus-5"}
+{"id": "0ce4af460721", "label": "MENTION", "reason": "a boolean selecting the SHA-256-format git fixture", "annotator": "claude-opus-5"}
+{"id": "d57fed7e65e0", "label": "USE", "reason": "HKDF<SHA256>.deriveKey derives the recognition key", "annotator": "claude-opus-5"}
+{"id": "e1cd2c9f45b0", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "ab26559db694", "label": "MENTION", "reason": "perm-sys-failclosed@multica.test uses the reserved .test TLD", "annotator": "claude-opus-5"}
+{"id": "c042f46e71fd", "label": "ABSENT", "reason": "DES inside ORDER BY `updated_ts` DESC", "annotator": "claude-opus-5"}
+{"id": "6f075e770b28", "label": "USE", "reason": "AES.GCM.open decrypts the identity cache", "annotator": "claude-opus-5"}
+{"id": "5c631024a67c", "label": "USE", "reason": "selects RS256 as the JWT signing algorithm for the task", "annotator": "claude-opus-5"}
+{"id": "deb3604fffdb", "label": "USE", "reason": "re-exports sha1/sha256/md5 from hash-wasm as this module's API", "annotator": "claude-opus-5"}
+{"id": "243739fdace9", "label": "MENTION", "reason": "Password: \"password123\" is a registration-test fixture", "annotator": "claude-opus-5"}
+{"id": "a694a4aa4b20", "label": "ABSENT", "reason": "DES inside SORT_DESC", "annotator": "claude-opus-5"}
+{"id": "282ad85da302", "label": "ABSENT", "reason": "DES inside GOOGLE_SLIDES", "annotator": "claude-opus-5"}
+{"id": "05c8bcd7f8e9", "label": "MENTION", "reason": "a generated grouped-N@multica.ai fixture address", "annotator": "claude-opus-5"}
+{"id": "fcf460ad5cb9", "label": "MENTION", "reason": "const password = \"hellowpasssword\" is a unit-test input", "annotator": "claude-opus-5"}
+{"id": "95588ca27f06", "label": "MENTION", "reason": "redisGitSHA1() returns the stored git commit id; no hashing here", "annotator": "claude-opus-5"}
+{"id": "7fe52dd56215", "label": "ABSENT", "reason": "DES inside HTML_CODES", "annotator": "claude-opus-5"}
+{"id": "0851643d79ee", "label": "MENTION", "reason": "string-matches TLS version tokens while parsing access logs", "annotator": "claude-opus-5"}
+{"id": "e5341f01c361", "label": "USE", "reason": "HKDF<SHA256>.deriveKey derives the recognition key", "annotator": "claude-opus-5"}
+{"id": "96f79a128989", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_D", "annotator": "claude-opus-5"}
+{"id": "5e6a519a53b7", "label": "USE", "reason": "__md5_to64 inside the MD5 password-hash implementation", "annotator": "claude-opus-5"}
+{"id": "049bfaee6e6d", "label": "ABSENT", "reason": "DES inside DESKTOP_WIDTH", "annotator": "claude-opus-5"}
+{"id": "326a2274ae82", "label": "ABSENT", "reason": "DES inside ORDER BY priority DESC", "annotator": "claude-opus-5"}
+{"id": "74e63e824962", "label": "ABSENT", "reason": "DES inside a generated 2: \"DESC\" enum map", "annotator": "claude-opus-5"}
+{"id": "82472d393d11", "label": "MENTION", "reason": "an argon2i hash literal in a cookie-validation test", "annotator": "claude-opus-5"}
+{"id": "5338d5306ab6", "label": "USE", "reason": "a real SHA-256 integrity digest pinning a Bazel http_archive", "annotator": "claude-opus-5"}
+{"id": "2dd45ca87295", "label": "ABSENT", "reason": "DES inside AGENTSDLG_DESC", "annotator": "claude-opus-5"}
+{"id": "2d041e490ec6", "label": "MENTION", "reason": "'sha256-default' is a stand-in CSP hash in a test", "annotator": "claude-opus-5"}
+{"id": "b7dc1a06d120", "label": "ABSENT", "reason": "DES inside \"CLUSTER NODES OUTPUT\"", "annotator": "claude-opus-5"}
+{"id": "b3e596d6a9e8", "label": "MENTION", "reason": "an argon2i hash passed as a CLI string in an argument-parsing test", "annotator": "claude-opus-5"}
+{"id": "6a2525183754", "label": "ABSENT", "reason": "DES inside URL_PREFIX_OPAQUE_NODES", "annotator": "claude-opus-5"}
+{"id": "605eaa1ed14c", "label": "ABSENT", "reason": "DES inside ORDER BY created_at DESC", "annotator": "claude-opus-5"}
+{"id": "7bde2d30aee8", "label": "ABSENT", "reason": "DES inside \"id DESC\"", "annotator": "claude-opus-5"}
+{"id": "cfb3085b928d", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_E", "annotator": "claude-opus-5"}
+{"id": "eaad4b122d09", "label": "USE", "reason": "builds the tls.Config used for the SMTP connection", "annotator": "claude-opus-5"}
+{"id": "135725b7a3e9", "label": "ABSENT", "reason": "DES inside ORDER BY i.created_at DESC", "annotator": "claude-opus-5"}
+{"id": "49a58f68029e", "label": "USE", "reason": "registers the arc4 driver with the kernel crypto API", "annotator": "claude-opus-5"}
+{"id": "4b0658f44992", "label": "USE", "reason": "hmac.New(sha256.New, key) recomputes the webhook signature", "annotator": "claude-opus-5"}
+{"id": "b8f29cdea875", "label": "ABSENT", "reason": "DES inside GraphQL order: [DESC]", "annotator": "claude-opus-5"}
+{"id": "bfaa821c6fe4", "label": "ABSENT", "reason": "'ssh://user@host.com' is a URL, not an address", "annotator": "claude-opus-5"}
+{"id": "1d0cdcefe462", "label": "USE", "reason": "sha256Fingerprint() over the peer's noise key", "annotator": "claude-opus-5"}
+{"id": "de7723f013ee", "label": "ABSENT", "reason": "DES inside TASK_DESCRIPTION", "annotator": "claude-opus-5"}
+{"id": "b2bc044276d2", "label": "ABSENT", "reason": "DES inside ORDER BY cm.created_at DESC", "annotator": "claude-opus-5"}
+{"id": "29e53c0e127e", "label": "USE", "reason": "hkdf() splits the Noise chaining key into two cipher states", "annotator": "claude-opus-5"}
+{"id": "b8a0b12ccae9", "label": "USE", "reason": "import \"crypto/sha256\" selects the primitive this file uses", "annotator": "claude-opus-5"}
+{"id": "c903e341b592", "label": "MENTION", "reason": "a generated revocation-<slug>@multica.ai fixture address", "annotator": "claude-opus-5"}
+{"id": "5fb34efccc1e", "label": "MENTION", "reason": "testutil-fixture@multica.ai is a test-fixture constant", "annotator": "claude-opus-5"}
+{"id": "63c17117fbd6", "label": "ABSENT", "reason": "DES inside ColumnSortOrder.DESC", "annotator": "claude-opus-5"}
+{"id": "9c78d0e0bfa5", "label": "USE", "reason": "XChaCha20Poly1305Compat.open decrypts the NIP-44 envelope", "annotator": "claude-opus-5"}
+{"id": "da546255e41e", "label": "MENTION", "reason": "sha256: digests inside a stack.yaml lock fixture", "annotator": "claude-opus-5"}
+{"id": "586cde34c015", "label": "ABSENT", "reason": "git@github.com:... is an SSH clone URL, not an address", "annotator": "claude-opus-5"}
+{"id": "28e3e9d454d6", "label": "ABSENT", "reason": "DES inside a \"DESC\" sort-direction literal", "annotator": "claude-opus-5"}
+{"id": "36d1d8adeba8", "label": "USE", "reason": "registers the arc4 algorithm name with the kernel crypto API", "annotator": "claude-opus-5"}
+{"id": "73873a1043c5", "label": "ABSENT", "reason": "DES inside SDL_WINDOW_FULLSCREEN_DESKTOP", "annotator": "claude-opus-5"}
+{"id": "5192a89ef48b", "label": "MENTION", "reason": "a warning string about TLSv1.3 support", "annotator": "claude-opus-5"}
+{"id": "839a07a46349", "label": "MENTION", "reason": "--tls-ciphers help text in redis-benchmark usage output", "annotator": "claude-opus-5"}
+{"id": "9f77d79f191e", "label": "ABSENT", "reason": "DES inside the R DESCRIPTION filename", "annotator": "claude-opus-5"}
+{"id": "9a97ff2d0a18", "label": "ABSENT", "reason": "DES inside LUACMSGPACK_DESCRIPTION", "annotator": "claude-opus-5"}
+{"id": "e5098657d654", "label": "USE", "reason": "joined().sha256() hashes the violation fingerprint", "annotator": "claude-opus-5"}
+{"id": "207ec84bd799", "label": "ABSENT", "reason": "'//google.com@evil.com' is a URL authority vector", "annotator": "claude-opus-5"}
+{"id": "00a96be40d8b", "label": "MENTION", "reason": "\"sha256:initial-sort\" is a cache-key prefix in a test", "annotator": "claude-opus-5"}
+{"id": "2d56b8a9a6f4", "label": "MENTION", "reason": "the test PAN echoed in expected doctest output", "annotator": "claude-opus-5"}
+{"id": "d5adf5d1374b", "label": "USE", "reason": "a real author contact address in a module docstring", "annotator": "claude-opus-5"}
+{"id": "f336456b51b3", "label": "ABSENT", "reason": "DES inside ORDER BY ... priority DESC", "annotator": "claude-opus-5"}
+{"id": "bbf6ecb51877", "label": "USE", "reason": "jsonData.sha256() hashes the configuration for the cache key", "annotator": "claude-opus-5"}
+{"id": "4a273c06a7e9", "label": "USE", "reason": "XChaCha20Poly1305Compat.open is invoked in the round-trip test", "annotator": "claude-opus-5"}
+{"id": "3134a1fc0948", "label": "MENTION", "reason": "'ben@test.test' is form-data in an actions test", "annotator": "claude-opus-5"}
+{"id": "1b358dbd227e", "label": "MENTION", "reason": "an argon2i hash literal passed as hashedPasswordFromArgs", "annotator": "claude-opus-5"}
+{"id": "3ebb96acc52a", "label": "ABSENT", "reason": "'icon@3x.png' is an iOS asset filename", "annotator": "claude-opus-5"}
+{"id": "341335761a97", "label": "USE", "reason": "feeds data into the ARC4 hardware registers", "annotator": "claude-opus-5"}
+{"id": "6f4eab4c9d37", "label": "USE", "reason": "openssl dhparam generates real 2048-bit DH parameters", "annotator": "claude-opus-5"}
+{"id": "054237ed1cb2", "label": "ABSENT", "reason": "DES inside MIME_TYPE_DESC", "annotator": "claude-opus-5"}
+{"id": "313ead4c8808", "label": "MENTION", "reason": "'sha256-abc' inside an expected CSP header string", "annotator": "claude-opus-5"}
+{"id": "35392fbcb6b7", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_A", "annotator": "claude-opus-5"}
+{"id": "c2468f9381b6", "label": "ABSENT", "reason": "DES inside the imported CODES symbol", "annotator": "claude-opus-5"}
+{"id": "eaeda1d06704", "label": "ABSENT", "reason": "torus volumes in a doctest, not a card number", "annotator": "claude-opus-5"}
+{"id": "1f3e96f78600", "label": "USE", "reason": "a real author contact address in a file header comment", "annotator": "claude-opus-5"}
+{"id": "5d07294d2386", "label": "ABSENT", "reason": "DES inside VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME", "annotator": "claude-opus-5"}
+{"id": "41f601becdfd", "label": "ABSENT", "reason": "'user@2x.png' is a retina asset filename", "annotator": "claude-opus-5"}
+{"id": "303f7c57d619", "label": "ABSENT", "reason": "DES inside WAN_SWAP_DESC_BASE", "annotator": "claude-opus-5"}
+{"id": "67e84225681a", "label": "USE", "reason": "selects TLS 1.2 for the server protocol mask", "annotator": "claude-opus-5"}
+{"id": "1596010b37da", "label": "ABSENT", "reason": "DES inside a SQL ORDER BY ... DESC string", "annotator": "claude-opus-5"}
+{"id": "abdb1c9084ce", "label": "MENTION", "reason": "an argon2i hash set as an env var in a CLI test", "annotator": "claude-opus-5"}
+{"id": "f5bf4af7894b", "label": "ABSENT", "reason": "git@github.com:user/repo.git is a mocked SSH remote", "annotator": "claude-opus-5"}
+{"id": "1ab84f9a30ee", "label": "ABSENT", "reason": "DES inside HTML_CODES", "annotator": "claude-opus-5"}
+{"id": "899c27589933", "label": "ABSENT", "reason": "'package@1.0.0.tgz' is an npm package filename", "annotator": "claude-opus-5"}
+{"id": "65ae04e7f178", "label": "USE", "reason": "crypto.publicEncrypt(cert, ...) performs RSA encryption to validate the cert", "annotator": "claude-opus-5"}
+{"id": "c6fc3c786243", "label": "ABSENT", "reason": "DES inside CODES.FileSystemAdd", "annotator": "claude-opus-5"}
+{"id": "dec4fd409d9c", "label": "ABSENT", "reason": "DES inside NUM_SIDES", "annotator": "claude-opus-5"}
+{"id": "8ea8bc66a775", "label": "ABSENT", "reason": "an AuthType enum member named Password; no secret value here", "annotator": "claude-opus-5"}
+{"id": "e6fc72fa152e", "label": "ABSENT", "reason": "DES inside SORT_DESC and cmp_data_desc", "annotator": "claude-opus-5"}
+{"id": "362bce133eea", "label": "USE", "reason": "crypto.privateDecrypt(key, ...) performs RSA decryption to validate the key", "annotator": "claude-opus-5"}
+{"id": "804b81cc8cdb", "label": "USE", "reason": "sha256_init/update hashing an ACL password", "annotator": "claude-opus-5"}
+{"id": "92555cf6631e", "label": "ABSENT", "reason": "gaussian samples in a doctest, not a card number", "annotator": "claude-opus-5"}
+{"id": "1ce0d845fa4b", "label": "ABSENT", "reason": "DES inside plan_time DESC", "annotator": "claude-opus-5"}
+{"id": "b6887496c11b", "label": "ABSENT", "reason": "rotation matrix values in a doctest, not a card number", "annotator": "claude-opus-5"}
+{"id": "58adf9ddefd6", "label": "MENTION", "reason": "the algorithm name appears in the test struct's name", "annotator": "claude-opus-5"}
+{"id": "8229d16e73e4", "label": "USE", "reason": "registers the ecb(arc4) skcipher with the kernel crypto API", "annotator": "claude-opus-5"}
+{"id": "b670df428441", "label": "USE", "reason": "tls.Config{InsecureSkipVerify: true} configures X.509 chain verification", "annotator": "claude-opus-5"}
+{"id": "f0c1c14a68d3", "label": "MENTION", "reason": "an argon2i hash literal in an empty-password test", "annotator": "claude-opus-5"}
+{"id": "204ff2f964bd", "label": "MENTION", "reason": "'ben@test.test' asserted on in an actions test", "annotator": "claude-opus-5"}
+{"id": "8cc25cf9f479", "label": "MENTION", "reason": "ARGON2 named in a test title string", "annotator": "claude-opus-5"}
+{"id": "65dcb9197be7", "label": "ABSENT", "reason": "DES inside the \"CLUSTER NODES\" command string", "annotator": "claude-opus-5"}
+{"id": "681969cb904d", "label": "USE", "reason": "hash('xxh128', ...) and sha1(...) are both computed here", "annotator": "claude-opus-5"}
+{"id": "5f3962ea37eb", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "d4cc25a34ef4", "label": "USE", "reason": "hkdf() mixes key material into the Noise chaining key", "annotator": "claude-opus-5"}
+{"id": "130d8d4e74ec", "label": "ABSENT", "reason": "DES inside D3D11_SAMPLER_DESC", "annotator": "claude-opus-5"}
+{"id": "dcb57e6f8946", "label": "MENTION", "reason": "const password = \"password123\" is a unit-test input", "annotator": "claude-opus-5"}
+{"id": "7c0f80290200", "label": "ABSENT", "reason": "DES inside HELPDLG_DESC", "annotator": "claude-opus-5"}
+{"id": "42d879fa488c", "label": "MENTION", "reason": "a CodingKeys case naming a SHA-256 field in a test vector", "annotator": "claude-opus-5"}
+{"id": "3d4f076382d4", "label": "MENTION", "reason": "sha256 is a column name in a generated SELECT", "annotator": "claude-opus-5"}
+{"id": "57d66ec3030e", "label": "MENTION", "reason": "Password: \"password123\" is a registration-test fixture", "annotator": "claude-opus-5"}
+{"id": "b05a893eb53d", "label": "MENTION", "reason": "a synthetic PEM assembled from a repeated chunk in a test", "annotator": "claude-opus-5"}
+{"id": "8b9f202c3dd2", "label": "USE", "reason": "sha256(...).hexdigest() derives the DH shared key", "annotator": "claude-opus-5"}
+{"id": "5f64be9b703b", "label": "ABSENT", "reason": "DES inside END_KEYCODES", "annotator": "claude-opus-5"}
+{"id": "7704a53c14e0", "label": "ABSENT", "reason": "DES inside HTML_CODES", "annotator": "claude-opus-5"}
+{"id": "fa5002049ecd", "label": "MENTION", "reason": "a random bool choosing the git fixture's hash format", "annotator": "claude-opus-5"}
+{"id": "6be9d4616580", "label": "ABSENT", "reason": "DES inside $INIT_SCRIPT_DEST", "annotator": "claude-opus-5"}
+{"id": "31a7bcd294a3", "label": "USE", "reason": "sha256Hash() advances the Noise handshake hash", "annotator": "claude-opus-5"}
+{"id": "60ce53a2524f", "label": "ABSENT", "reason": "'logo@2x@dark.png' is a filename with multiple @", "annotator": "claude-opus-5"}
+{"id": "ac8a9bcb2117", "label": "ABSENT", "reason": "Maclaurin series values in a doctest, not a card number", "annotator": "claude-opus-5"}
+{"id": "20adb2124fad", "label": "MENTION", "reason": "me@x.com is a placeholder in an example site config", "annotator": "claude-opus-5"}
+{"id": "a0bbad42d795", "label": "USE", "reason": "XChaCha20Poly1305Compat.seal is invoked in the nonce-length test", "annotator": "claude-opus-5"}
+{"id": "ef3ed432adeb", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_C", "annotator": "claude-opus-5"}
+{"id": "daf6f80b9b70", "label": "MENTION", "reason": "Secret: \"the-callers-guess\" is a probe-test fixture", "annotator": "claude-opus-5"}
+{"id": "c4453e212fba", "label": "MENTION", "reason": "encode_admin@test.com in UI test data", "annotator": "claude-opus-5"}
+{"id": "6591620b5397", "label": "ABSENT", "reason": "--password=\"$password\" passes a shell variable; no literal secret", "annotator": "claude-opus-5"}
+{"id": "d3faed296c45", "label": "USE", "reason": "doctest that runs generate_shared_key_static", "annotator": "claude-opus-5"}
+{"id": "fc97eb124a02", "label": "MENTION", "reason": "a generated check-b-<ns>@multica.test fixture address", "annotator": "claude-opus-5"}
+{"id": "5988ed5fbdf2", "label": "MENTION", "reason": "'sha256-abc' is a stand-in CSP hash in a schema test", "annotator": "claude-opus-5"}
+{"id": "b20ae84a7d20", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "3e626250dbd5", "label": "USE", "reason": "HMAC(EVP_sha256(), ...) signs the JWT header and payload", "annotator": "claude-opus-5"}
+{"id": "a86b4e79579f", "label": "MENTION", "reason": "string-matches TLS version tokens while parsing access logs", "annotator": "claude-opus-5"}
+{"id": "e80ccfbc4412", "label": "ABSENT", "reason": "DES inside CODES.FetchTags", "annotator": "claude-opus-5"}
+{"id": "05449f07f430", "label": "ABSENT", "reason": "DES inside D3D11_QUERY_DESC", "annotator": "claude-opus-5"}
+{"id": "f828694eafd5", "label": "MENTION", "reason": "SHA256 named in a test title string", "annotator": "claude-opus-5"}
+{"id": "cbbf5c17cc21", "label": "MENTION", "reason": "a regex that matches a printed SHA-256 line; no hashing here", "annotator": "claude-opus-5"}
+{"id": "58cf48dc1a86", "label": "ABSENT", "reason": "DES inside \"sqlInjection:DESC\"", "annotator": "claude-opus-5"}
+{"id": "9a955ccd7577", "label": "MENTION", "reason": "string-matches TLS version tokens while parsing access logs", "annotator": "claude-opus-5"}
+{"id": "d9bc23039490", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_B", "annotator": "claude-opus-5"}
+{"id": "fa813a62b400", "label": "MENTION", "reason": "Microsoft@Microsoft.com inside a fake /proc/version fixture", "annotator": "claude-opus-5"}
+{"id": "5dec8305721d", "label": "MENTION", "reason": "bazel.tar.gz.sha256 is a release asset filename", "annotator": "claude-opus-5"}
+{"id": "4c7aeec34b5e", "label": "MENTION", "reason": "const password = \"password123\" is a unit-test input", "annotator": "claude-opus-5"}
+{"id": "55e38c554928", "label": "USE", "reason": "gen_key generates an RSA or EC key depending on the rsa flag", "annotator": "claude-opus-5"}
+{"id": "e211363b910a", "label": "ABSENT", "reason": "DES inside REROUTABLE_STATUS_CODES", "annotator": "claude-opus-5"}
+{"id": "6da3ae472d30", "label": "MENTION", "reason": "doc comment describing the Curve25519 public-key field", "annotator": "claude-opus-5"}
+{"id": "398169a16314", "label": "ABSENT", "reason": "DES inside SORT_DESC / SORT_DESC_SEL", "annotator": "claude-opus-5"}
+{"id": "f5a39ddfc62f", "label": "MENTION", "reason": "Microsoft@Microsoft.com inside a fake /proc/version fixture", "annotator": "claude-opus-5"}
+{"id": "326215b27251", "label": "MENTION", "reason": "ApiKey: \"sk-test\" is an instance-settings test fixture", "annotator": "claude-opus-5"}
+{"id": "1c3ed60ed67e", "label": "ABSENT", "reason": "DES inside HTML_CODES", "annotator": "claude-opus-5"}
+{"id": "96e2bc9d77b6", "label": "MENTION", "reason": "'sha256-test123' is a stand-in CSP hash in a test", "annotator": "claude-opus-5"}
+{"id": "b5f81f7b542a", "label": "USE", "reason": "DigestUtils.sha256Hex hashes the payload to form its storage path", "annotator": "claude-opus-5"}
+{"id": "0d028ca12f48", "label": "USE", "reason": "hash_hmac('sha256', ...) computes the query signature", "annotator": "claude-opus-5"}
+{"id": "c8085281cd6a", "label": "MENTION", "reason": "ApiKey: \"sk-test\" is an instance-settings test fixture", "annotator": "claude-opus-5"}
+{"id": "76f5bddd86ac", "label": "ABSENT", "reason": "DES inside \"taskId:DESC\"", "annotator": "claude-opus-5"}
+{"id": "5944619f016c", "label": "MENTION", "reason": "a PEM header inside a redaction-test input string", "annotator": "claude-opus-5"}
+{"id": "0d2d40c11d4f", "label": "MENTION", "reason": "'sha256-extra' is a stand-in CSP hash in a test", "annotator": "claude-opus-5"}
+{"id": "395021713496", "label": "ABSENT", "reason": "DES inside the imported CODES symbol", "annotator": "claude-opus-5"}
+{"id": "74f032c84dca", "label": "ABSENT", "reason": "DES inside GraphQL order: DESC", "annotator": "claude-opus-5"}
+{"id": "14e8450dbe54", "label": "MENTION", "reason": "an argon2i hash literal passed as cookieKey", "annotator": "claude-opus-5"}
+{"id": "9aa058f47518", "label": "ABSENT", "reason": "DES inside D3DSURFACE_DESC", "annotator": "claude-opus-5"}
+{"id": "e49fd9c0adcf", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "b3d32c4dcb2c", "label": "MENTION", "reason": "email: \"t@t.co\" in a mocked auth store", "annotator": "claude-opus-5"}
+{"id": "bb88991b8244", "label": "MENTION", "reason": "--tls-ciphersuites help text in redis-benchmark usage output", "annotator": "claude-opus-5"}
+{"id": "58b9f21850d6", "label": "ABSENT", "reason": "DES inside SORT_DESC and cmp_bw_desc", "annotator": "claude-opus-5"}
+{"id": "0d6e02219dbc", "label": "ABSENT", "reason": "DES inside the \"DESC\" sort-direction literal", "annotator": "claude-opus-5"}
+{"id": "41da08c992de", "label": "ABSENT", "reason": "DES inside an inline-snapshot GraphQL date: DESC", "annotator": "claude-opus-5"}
+{"id": "be4fd4c097cd", "label": "ABSENT", "reason": "collinearity coordinates in a doctest, not a card number", "annotator": "claude-opus-5"}
+{"id": "149d0ef8b887", "label": "ABSENT", "reason": "DES inside DESCENDING in a docstring", "annotator": "claude-opus-5"}
+{"id": "21101291549b", "label": "MENTION", "reason": "agentspan-e2e@conductor.test uses the reserved .test TLD", "annotator": "claude-opus-5"}
+{"id": "a1eb4521d4d2", "label": "USE", "reason": "the sha256_transform definition in redis's SHA-256 implementation", "annotator": "claude-opus-5"}
+{"id": "4e49f2610bef", "label": "USE", "reason": "sha256(...).hexdigest() derives the DH shared key", "annotator": "claude-opus-5"}
+{"id": "787428896083", "label": "USE", "reason": "a real author contact address in a module docstring", "annotator": "claude-opus-5"}
+{"id": "73eab912f385", "label": "ABSENT", "reason": "DES inside the \"desc\" GEO sort argument", "annotator": "claude-opus-5"}
+{"id": "c50c5051d4be", "label": "ABSENT", "reason": "DES inside OrderDirection.DESC", "annotator": "claude-opus-5"}
+{"id": "01c69d6c146e", "label": "MENTION", "reason": "sha256: digests inside a stack.yaml lock fixture", "annotator": "claude-opus-5"}
+{"id": "64e7b844208e", "label": "USE", "reason": "greearb@candelatech.com is a real maintainer address written to a report", "annotator": "claude-opus-5"}
+{"id": "7d061c52d23e", "label": "MENTION", "reason": "an argon2i hash literal passed as hashedPasswordFromArgs", "annotator": "claude-opus-5"}
+{"id": "8ec03b800240", "label": "USE", "reason": "HKDF<SHA256>.deriveKey derives the peer-ID rotation secret", "annotator": "claude-opus-5"}
+{"id": "1904ab30390a", "label": "USE", "reason": "a live Algolia DocSearch API key committed in the site config", "annotator": "claude-opus-5"}
+{"id": "b786759cc20d", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "51f6b9e62449", "label": "MENTION", "reason": "'ben@test.test' asserted on in a form-data test", "annotator": "claude-opus-5"}
+{"id": "0f9f3829fa48", "label": "MENTION", "reason": "string-matches TLS version tokens while parsing access logs", "annotator": "claude-opus-5"}
+{"id": "50476f4d74d0", "label": "ABSENT", "reason": "DES inside REDIRECT_STATUS_CODES", "annotator": "claude-opus-5"}
+{"id": "34f68250cfcf", "label": "ABSENT", "reason": "DES inside D3D11_TEXTURE2D_DESC", "annotator": "claude-opus-5"}
+{"id": "a722afa59ef1", "label": "MENTION", "reason": "const password = \"password123\" is a unit-test input", "annotator": "claude-opus-5"}
+{"id": "b024cd6f35c6", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_A", "annotator": "claude-opus-5"}
+{"id": "2a1fd143a816", "label": "MENTION", "reason": "string-matches TLS version tokens while parsing access logs", "annotator": "claude-opus-5"}
+{"id": "5f6cf5ea7c4b", "label": "USE", "reason": "argon2.hash(password) is code-server's password hashing", "annotator": "claude-opus-5"}
+{"id": "4a8a43d9cdda", "label": "MENTION", "reason": "'sha256-AAA' is a stand-in CSP hash in a runtime test", "annotator": "claude-opus-5"}
+{"id": "38ac0943d2c7", "label": "USE", "reason": "sha256_transform on the final padded block", "annotator": "claude-opus-5"}
+{"id": "4e83091983d9", "label": "ABSENT", "reason": "DES inside codesandbox / OPTION_DEFAULT_CODESANDBOX", "annotator": "claude-opus-5"}
+{"id": "12276f792130", "label": "MENTION", "reason": "asserts on the x-amz-content-sha256 header value; no hashing here", "annotator": "claude-opus-5"}
+{"id": "960478ab26e0", "label": "USE", "reason": "a real author contact address in a module docstring", "annotator": "claude-opus-5"}
+{"id": "508e70156089", "label": "USE", "reason": "hmac_sha256_kdf derives the FT key", "annotator": "claude-opus-5"}
+{"id": "8218433d15a4", "label": "USE", "reason": "SHA1Final over username:password in the EAD SRP exchange", "annotator": "claude-opus-5"}
+{"id": "8bd5911f99e8", "label": "MENTION", "reason": "Password: \"password123\" is a registration-test fixture", "annotator": "claude-opus-5"}
+{"id": "886bac75737d", "label": "MENTION", "reason": "an argon2i hash literal in an expected-args assertion", "annotator": "claude-opus-5"}
+{"id": "204037568129", "label": "ABSENT", "reason": "DES inside `created_ts` DESC", "annotator": "claude-opus-5"}
+{"id": "0eff32ce3220", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_F", "annotator": "claude-opus-5"}
+{"id": "64b957064dd8", "label": "ABSENT", "reason": "DES inside `row_status` DESC", "annotator": "claude-opus-5"}
+{"id": "cf91da4d582d", "label": "ABSENT", "reason": "DES inside created_at DESC", "annotator": "claude-opus-5"}
+{"id": "c729fb870314", "label": "MENTION", "reason": "const password = \"codeserver1234\" is a unit-test input", "annotator": "claude-opus-5"}
+{"id": "1c409d5e861b", "label": "ABSENT", "reason": "DES inside OrderDirection.DESC", "annotator": "claude-opus-5"}
+{"id": "5d891342b0c2", "label": "ABSENT", "reason": "DES inside CODES.SourcePluginCodeError", "annotator": "claude-opus-5"}
+{"id": "c4abd1272ed4", "label": "ABSENT", "reason": "git@github.com: in a git insteadOf rewrite rule", "annotator": "claude-opus-5"}
+{"id": "2990a61f8103", "label": "USE", "reason": "a real author contact address in a file header comment", "annotator": "claude-opus-5"}
+{"id": "1a0467ace50f", "label": "MENTION", "reason": "an error message string; the surrounding driver is single DES, not 3DES", "annotator": "claude-opus-5"}
+{"id": "0bc2213a0781", "label": "ABSENT", "reason": "DES inside CODES.RemoteGraphQLError", "annotator": "claude-opus-5"}
+{"id": "e2a7432ccf8a", "label": "ABSENT", "reason": "DES inside SORT_DESC", "annotator": "claude-opus-5"}
+{"id": "e66b9926bd71", "label": "MENTION", "reason": "redisGitSHA1() returns the stored git commit id; no hashing here", "annotator": "claude-opus-5"}
+{"id": "9f1a5be4e2f0", "label": "ABSENT", "reason": "DES inside SORT_DESC", "annotator": "claude-opus-5"}
+{"id": "140916e70490", "label": "MENTION", "reason": "a path to a SHA-256-format git bundle fixture", "annotator": "claude-opus-5"}
+{"id": "3ca15192a556", "label": "ABSENT", "reason": "DES inside DXGI_ADAPTER_DESC", "annotator": "claude-opus-5"}
+{"id": "b49ec50dc670", "label": "MENTION", "reason": "const password = \"hellowpasssword\" is a unit-test input", "annotator": "claude-opus-5"}
+{"id": "7e66a4eb23a6", "label": "USE", "reason": "ChaChaPoly.seal encrypts in a Noise coverage test", "annotator": "claude-opus-5"}
+{"id": "24e9f8f20c34", "label": "MENTION", "reason": "docstring prose explaining the RSA modulus and exponents", "annotator": "claude-opus-5"}
+{"id": "efd321f5b960", "label": "MENTION", "reason": "an error message describing the RSA block-size constraint", "annotator": "claude-opus-5"}
+{"id": "5c583644b018", "label": "MENTION", "reason": "a whsec_ validation test case, not a live secret", "annotator": "claude-opus-5"}
+{"id": "2c3e49e6a252", "label": "ABSENT", "reason": "git@github.com:user/repo.git is a test URL", "annotator": "claude-opus-5"}
+{"id": "9a7b932ef614", "label": "ABSENT", "reason": "DES inside NNODES", "annotator": "claude-opus-5"}
+{"id": "548a4f330b4b", "label": "ABSENT", "reason": "'//%252Fhome%252Fuser@evil.com' is a URL-encoding bypass vector", "annotator": "claude-opus-5"}
+{"id": "5a3dedec77ab", "label": "MENTION", "reason": "ApiKey: \"gemini-test\" is a store-test fixture", "annotator": "claude-opus-5"}
+{"id": "16c23fcc4967", "label": "MENTION", "reason": "owner@test.com is a validator-test fixture", "annotator": "claude-opus-5"}
+{"id": "a73b7935ddda", "label": "ABSENT", "reason": "DES inside STATUS_CODES", "annotator": "claude-opus-5"}
+{"id": "b5e225bda7b3", "label": "ABSENT", "reason": "DES inside ORDER BY updated_at DESC", "annotator": "claude-opus-5"}
+{"id": "960877bc353a", "label": "MENTION", "reason": "a comment giving the HMAC-SHA256 test vector", "annotator": "claude-opus-5"}
+{"id": "64e755c16a35", "label": "MENTION", "reason": "'sha256-abc' is a stand-in CSP hash in a test", "annotator": "claude-opus-5"}
+{"id": "395f858ef8d8", "label": "MENTION", "reason": "dingtalk-settings-view-non-member@multica.test uses the reserved .test TLD", "annotator": "claude-opus-5"}
+{"id": "9c0060b176e6", "label": "ABSENT", "reason": "DES inside MALLCTL_ARENAS_DESTROYED", "annotator": "claude-opus-5"}
+{"id": "231b100f5c0d", "label": "MENTION", "reason": "test PANs listed in a doctest", "annotator": "claude-opus-5"}
+{"id": "e3ac2132e985", "label": "ABSENT", "reason": "'root:toor@evil.com/payload' is a URL credential vector", "annotator": "claude-opus-5"}
+{"id": "c075a418f01b", "label": "ABSENT", "reason": "'backup@2023-12-01.sql' is a backup filename", "annotator": "claude-opus-5"}
+{"id": "774357f2842d", "label": "ABSENT", "reason": "DES inside DXGI_OUTPUT_DESC1", "annotator": "claude-opus-5"}
+{"id": "bdc4759d4828", "label": "MENTION", "reason": "'sha256-extra' is a stand-in CSP hash in a test", "annotator": "claude-opus-5"}
+{"id": "698896ba434f", "label": "USE", "reason": "ChaChaPoly.seal encrypts inside the XChaCha20 compat shim", "annotator": "claude-opus-5"}
+{"id": "e697a8ad3f66", "label": "ABSENT", "reason": "DES inside STATUS_CODES_LABEL", "annotator": "claude-opus-5"}
+{"id": "8483f850648b", "label": "ABSENT", "reason": "DES inside ORDER BY t.priority DESC", "annotator": "claude-opus-5"}
+{"id": "86a8fe3a1f96", "label": "ABSENT", "reason": "DES inside PSECURITY_DESCRIPTOR", "annotator": "claude-opus-5"}
+{"id": "0f1057fbd1cd", "label": "ABSENT", "reason": "DES inside DXGI_ADAPTER_DESC1", "annotator": "claude-opus-5"}
+{"id": "bfb4721108b2", "label": "MENTION", "reason": "SHA256 named in a test title string", "annotator": "claude-opus-5"}
+{"id": "1c1adfc38f6a", "label": "USE", "reason": "sets group_mgmt_cipher to AES-128-CMAC in the hostapd config", "annotator": "claude-opus-5"}
+{"id": "46bb3118632e", "label": "ABSENT", "reason": "'\\google.com@evil.com' is a UNC/URL bypass vector", "annotator": "claude-opus-5"}
+{"id": "1d5f7d5376a5", "label": "ABSENT", "reason": "DES inside REQUESTS_STATIC_DESC", "annotator": "claude-opus-5"}
+{"id": "3af24b406e0c", "label": "ABSENT", "reason": "DES inside DELIMITER_NODES", "annotator": "claude-opus-5"}
+{"id": "e1bfb0871f32", "label": "USE", "reason": "declares the HmacSHA256 JCA name this class signs with", "annotator": "claude-opus-5"}
+{"id": "9c3721af28b7", "label": "ABSENT", "reason": "DES inside REROUTABLE_STATUS_CODES", "annotator": "claude-opus-5"}
+{"id": "fddbab6a15eb", "label": "USE", "reason": "from hashlib import sha256 selects the primitive this module uses", "annotator": "claude-opus-5"}
+{"id": "71f0886a30b1", "label": "USE", "reason": "defaults the CSP hash algorithm to SHA-256", "annotator": "claude-opus-5"}
+{"id": "5b96fa783991", "label": "ABSENT", "reason": "ubuntu@host.redis.io is an scp target, not an address", "annotator": "claude-opus-5"}
+{"id": "db0125a3783e", "label": "USE", "reason": "hkdf() mixes key material into the Noise chaining key", "annotator": "claude-opus-5"}
+{"id": "9b43e56c1c69", "label": "USE", "reason": "a hardcoded default device password in a flashing utility", "annotator": "claude-opus-5"}
+{"id": "7bf6d2477bc7", "label": "MENTION", "reason": "\"SHA256\" as an expected PasswordMethod value in a test", "annotator": "claude-opus-5"}
+{"id": "8d670e5fdcc7", "label": "ABSENT", "reason": "%Lms is a Traefik log-format specifier, not the LMS signature scheme", "annotator": "claude-opus-5"}
+{"id": "cb5bd7db94a7", "label": "ABSENT", "reason": "DES inside \"sqlInjection:DESC\"", "annotator": "claude-opus-5"}
+{"id": "a2cf435686c8", "label": "USE", "reason": "argon2.verify(hash, password) checks the password", "annotator": "claude-opus-5"}
+{"id": "a656fe64cc68", "label": "MENTION", "reason": "const password = \"password123\" is a unit-test input", "annotator": "claude-opus-5"}
+{"id": "133fcb926884", "label": "MENTION", "reason": "'sha256-userElem' is a stand-in CSP hash in a test", "annotator": "claude-opus-5"}
+{"id": "406011ada0eb", "label": "MENTION", "reason": "string-matches TLS version tokens while parsing access logs", "annotator": "claude-opus-5"}
+{"id": "bf6827a959a2", "label": "ABSENT", "reason": "DES inside KEYPHRASES_DESC", "annotator": "claude-opus-5"}
+{"id": "da0205be1a0d", "label": "USE", "reason": "sha256Fingerprint() derives the short peer id", "annotator": "claude-opus-5"}
+{"id": "704ab4fbab78", "label": "MENTION", "reason": "a union type listing the supported password methods", "annotator": "claude-opus-5"}
+{"id": "0d30cb539c6b", "label": "USE", "reason": "ARC4 key-schedule register setup in the hardware driver", "annotator": "claude-opus-5"}
+{"id": "e44968e1c01e", "label": "MENTION", "reason": "APIKey: \"test-key\" is a PostHog client test fixture", "annotator": "claude-opus-5"}
+{"id": "bfbb83320dfb", "label": "USE", "reason": "HMAC<SHA256>.authenticationCode is the HKDF-extract step", "annotator": "claude-opus-5"}
+{"id": "90db62b6ec37", "label": "MENTION", "reason": "an argon2i hash literal in an expected-args assertion", "annotator": "claude-opus-5"}
+{"id": "ff41bd71bde5", "label": "ABSENT", "reason": "DES inside \"sort=<field>:ASC|DESC\" in an OpenAPI description", "annotator": "claude-opus-5"}
+{"id": "ccb5a66eeaf8", "label": "ABSENT", "reason": "DES inside the \"DESC\" sort-direction literal", "annotator": "claude-opus-5"}
+{"id": "e236d7150693", "label": "USE", "reason": "gen_key(&key, rsa, ksize, ...) generates the RSA key", "annotator": "claude-opus-5"}
+{"id": "888e3bfa3dc4", "label": "MENTION", "reason": "testutil-quoted@multica.ai is a fixture address", "annotator": "claude-opus-5"}
+{"id": "8cdc9c390a52", "label": "ABSENT", "reason": "DES inside DESTROY_TIMEOUT / destroy_deadline", "annotator": "claude-opus-5"}
+{"id": "717777d17b7b", "label": "ABSENT", "reason": "DES inside SORT_DESC", "annotator": "claude-opus-5"}
+{"id": "2c7bad3672d6", "label": "ABSENT", "reason": "DES inside SCROLL_SENSITIVITY_DESKTOP", "annotator": "claude-opus-5"}
+{"id": "009b19f31098", "label": "ABSENT", "reason": "DES inside a \"DESC\" sort-order comparison", "annotator": "claude-opus-5"}
+{"id": "677a0c3c4817", "label": "ABSENT", "reason": "LDA sample values in a doctest, not a card number", "annotator": "claude-opus-5"}
+{"id": "e34820313e42", "label": "MENTION", "reason": "doc comment describing the HMAC-SHA256 recipient tag", "annotator": "claude-opus-5"}
+{"id": "42beb52c00b6", "label": "ABSENT", "reason": "DES inside ORDER BY scheduled_time DESC", "annotator": "claude-opus-5"}
+{"id": "81f9ed56ac8b", "label": "MENTION", "reason": "an argon2i hash literal passed as cookieKey", "annotator": "claude-opus-5"}
+{"id": "32bc4078197c", "label": "ABSENT", "reason": "DES inside a SQL ORDER BY ... DESC string", "annotator": "claude-opus-5"}
+{"id": "09f315a19e90", "label": "USE", "reason": "generateCspDigest(content, 'SHA-256') hashes the content", "annotator": "claude-opus-5"}
+{"id": "f1acc2237bb1", "label": "MENTION", "reason": "redisGitSHA1() returns the stored git commit id; no hashing here", "annotator": "claude-opus-5"}
+{"id": "b64e1939d6d1", "label": "ABSENT", "reason": "finite-field Diffie-Hellman doctest; no elliptic curve", "annotator": "claude-opus-5"}
+{"id": "5c31b1c8ed18", "label": "MENTION", "reason": "your-email@gmail.com is a placeholder in a doc comment", "annotator": "claude-opus-5"}
+{"id": "71d25e97504a", "label": "MENTION", "reason": "the algorithm name appears inside the test's plaintext string", "annotator": "claude-opus-5"}
+{"id": "377fed29c076", "label": "MENTION", "reason": "SHA-256 named in an assertion message", "annotator": "claude-opus-5"}
+{"id": "01fc786c3768", "label": "MENTION", "reason": "Password: \"password123\" is a registration-test fixture", "annotator": "claude-opus-5"}
+{"id": "a80f2a12f0e0", "label": "USE", "reason": "sets the RSA key size from the command-line argument", "annotator": "claude-opus-5"}
+{"id": "d118e985c9ab", "label": "MENTION", "reason": "the algorithm name appears inside the test's plaintext string", "annotator": "claude-opus-5"}
+{"id": "066789ad4891", "label": "ABSENT", "reason": "DES inside BUILD_NUM_NODES", "annotator": "claude-opus-5"}
+{"id": "909091541307", "label": "MENTION", "reason": "strips a .sha256 suffix from a filename", "annotator": "claude-opus-5"}
+{"id": "fac113df733d", "label": "ABSENT", "reason": "the Diffie-Hellman class is finite-field, not elliptic curve", "annotator": "claude-opus-5"}
+{"id": "018ae53cff71", "label": "USE", "reason": "dokey(bool rsa, ...) is the RSA/EC key-generation entry point", "annotator": "claude-opus-5"}
+{"id": "473259c4d63f", "label": "MENTION", "reason": "your-email@gmail.com is a placeholder in a doc comment", "annotator": "claude-opus-5"}
+{"id": "5fb76f2d4c7a", "label": "ABSENT", "reason": "DES inside DXGI_OUTPUT_DESC1", "annotator": "claude-opus-5"}
+{"id": "97de83e96c51", "label": "USE", "reason": "createHash('sha256') hashes the telemetry project payload", "annotator": "claude-opus-5"}
+{"id": "cf1d918c3d5c", "label": "MENTION", "reason": "a test named sha1_hex that only exercises hex encoding", "annotator": "claude-opus-5"}
+{"id": "c8507bae56e2", "label": "USE", "reason": "createHash(\"sha256\") digests the generated Unicode tables", "annotator": "claude-opus-5"}
+{"id": "2c30c5cb93a0", "label": "USE", "reason": "real author contact addresses in a file header comment", "annotator": "claude-opus-5"}
+{"id": "bf49cf0a9fdd", "label": "ABSENT", "reason": "DES inside DESKTOP_APP_SUFFIX", "annotator": "claude-opus-5"}
+{"id": "b8b216138b0a", "label": "ABSENT", "reason": "DES inside the [NODESC] marker", "annotator": "claude-opus-5"}
+{"id": "ce417d45ddf9", "label": "MENTION", "reason": "notif-muted-status@multica.ai is a fixture address", "annotator": "claude-opus-5"}
+{"id": "03b927472082", "label": "USE", "reason": "sha256Fingerprint() looks up the peer's signing key", "annotator": "claude-opus-5"}
+{"id": "15c85648467f", "label": "ABSENT", "reason": "DES inside \"created_ts DESC\"", "annotator": "claude-opus-5"}
+{"id": "e6f75fc41c34", "label": "MENTION", "reason": "'sha256-island' is a stand-in CSP hash in a test", "annotator": "claude-opus-5"}
+{"id": "1aee83730c55", "label": "MENTION", "reason": "SHA256 named in a test title string", "annotator": "claude-opus-5"}
+{"id": "5a427742e3d2", "label": "MENTION", "reason": "doxygen comment describing the ARC4 set-key helper", "annotator": "claude-opus-5"}
+{"id": "03e315c3e9b7", "label": "MENTION", "reason": "ai-e2e@conductor.test uses the reserved .test TLD", "annotator": "claude-opus-5"}
+{"id": "533c2f5c86f1", "label": "ABSENT", "reason": "DES inside COLOR_PANEL_DESC", "annotator": "claude-opus-5"}
+{"id": "bf1a9ac18431", "label": "MENTION", "reason": "Password: \"password123\" is a registration-test fixture", "annotator": "claude-opus-5"}
+{"id": "223930159994", "label": "MENTION", "reason": "env-role-check-owner@multica.test uses the reserved .test TLD", "annotator": "claude-opus-5"}
+{"id": "9b27b6dc7d35", "label": "ABSENT", "reason": "DES inside NOT_FOUND_DESC", "annotator": "claude-opus-5"}
+{"id": "a490debe493d", "label": "USE", "reason": "passwordMethod: \"ARGON2\" selects the hash for handlePasswordValidation", "annotator": "claude-opus-5"}
+{"id": "49ebcd14cdc4", "label": "USE", "reason": "sets group_mgmt_cipher to BIP-GMAC-256 for WPA3-Enterprise 192", "annotator": "claude-opus-5"}
+{"id": "4c535c9fa497", "label": "MENTION", "reason": "doc comment describing the HMACSHA256 token signature", "annotator": "claude-opus-5"}
+{"id": "3f958989c502", "label": "ABSENT", "reason": "DES inside the TEST_DESC macro", "annotator": "claude-opus-5"}
+{"id": "d72562c22b87", "label": "ABSENT", "reason": "DES inside the TEST_DESC macro", "annotator": "claude-opus-5"}
+{"id": "b77e1b3b3ae6", "label": "USE", "reason": "detects the argon2 hash format and selects the ARGON2 method", "annotator": "claude-opus-5"}
+{"id": "1a2509de504e", "label": "MENTION", "reason": "\"alice@gmail.com\" asserted on as a linked-identity fixture", "annotator": "claude-opus-5"}
+{"id": "3619d0c0cd3c", "label": "MENTION", "reason": "sha256: digests inside a stack.yaml lock fixture", "annotator": "claude-opus-5"}
+{"id": "6f0a67314eaa", "label": "ABSENT", "reason": "DES inside BufferOverflow.DROP_OLDEST", "annotator": "claude-opus-5"}
+{"id": "2a47b0a2c9ef", "label": "MENTION", "reason": "test-access-token is an OAuth2 test constant", "annotator": "claude-opus-5"}
+{"id": "cbae23a6ca3f", "label": "MENTION", "reason": "asserts the digest carries a sha256- prefix", "annotator": "claude-opus-5"}
+{"id": "3d180383a3d7", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "043cfeb397c4", "label": "USE", "reason": "the SHA1_CTX type and SHA1Init/Update declarations in tinysrp's SHA-1 header", "annotator": "claude-opus-5"}
+{"id": "e0a86d2c19af", "label": "ABSENT", "reason": "DES inside D3D11_MESSAGE_ID_DESTROY_", "annotator": "claude-opus-5"}
+{"id": "bf5d4386249a", "label": "ABSENT", "reason": "DES inside OrderDirection.DESC", "annotator": "claude-opus-5"}
+{"id": "fa7f5cecbef9", "label": "MENTION", "reason": "a shared test password constant", "annotator": "claude-opus-5"}
+{"id": "72d79be0699f", "label": "USE", "reason": "passwordMethod: \"SHA256\" selects the hash for isCookieValid", "annotator": "claude-opus-5"}
+{"id": "73c64ea5c2bc", "label": "MENTION", "reason": "\"ed25519SigningKey\" is a keychain item name; the data is dummy bytes", "annotator": "claude-opus-5"}
+{"id": "742d7646a6d3", "label": "ABSENT", "reason": "DES inside COLOR_PANEL_DESC", "annotator": "claude-opus-5"}
+{"id": "825e52b6adef", "label": "USE", "reason": "hmac.New(sha256.New, secret) verifies the autopilot webhook", "annotator": "claude-opus-5"}
+{"id": "f0cadb04fa39", "label": "USE", "reason": "passwordMethod: \"ARGON2\" selects the hash for isCookieValid", "annotator": "claude-opus-5"}
+{"id": "e911de124106", "label": "MENTION", "reason": "SHA256 named in a test title string", "annotator": "claude-opus-5"}
+{"id": "1c7afdb96513", "label": "ABSENT", "reason": "DES inside \"agentHierarchy:DESC\"", "annotator": "claude-opus-5"}
+{"id": "2758793365fc", "label": "ABSENT", "reason": "DES inside the TEST_DESC macro", "annotator": "claude-opus-5"}
+{"id": "44f3fdc6ccda", "label": "MENTION", "reason": "'ben@test.test' is form-data in a unit test", "annotator": "claude-opus-5"}
+{"id": "90227b46e0c2", "label": "USE", "reason": "tls.Config{InsecureSkipVerify: true} configures the S3 client's TLS", "annotator": "claude-opus-5"}
+{"id": "5d8100af1e5e", "label": "ABSENT", "reason": "DES inside Dice.NUM_SIDES", "annotator": "claude-opus-5"}
+{"id": "1b991146aa75", "label": "ABSENT", "reason": "DES inside orderBy: createdAt_DESC", "annotator": "claude-opus-5"}
+{"id": "6f18d7dde730", "label": "USE", "reason": "sha256Fingerprint() over the impostor and peer keys", "annotator": "claude-opus-5"}
+{"id": "b4f0f063ce44", "label": "ABSENT", "reason": "euclidean distances in a doctest, not a card number", "annotator": "claude-opus-5"}
+{"id": "0aba149f7220", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5"}
+{"id": "5a01df8dc21a", "label": "USE", "reason": "passes --object-format=sha256 to git, selecting the repository hash", "annotator": "claude-opus-5"}
+{"id": "1b39f7baef13", "label": "USE", "reason": "ChaChaPoly.seal encrypts the Noise transport message", "annotator": "claude-opus-5"}
+{"id": "be09619aac17", "label": "ABSENT", "reason": "DES inside \"row_status DESC\"", "annotator": "claude-opus-5"}
+{"id": "713a8743ceae", "label": "ABSENT", "reason": "DES inside DEFAULT_DESCRIPTION", "annotator": "claude-opus-5"}
+{"id": "1db64fa0366c", "label": "ABSENT", "reason": "DES inside Build.VERSION_CODES.S", "annotator": "claude-opus-5"}
+{"id": "3cde5143d41e", "label": "MENTION", "reason": "a required output fragment naming the SHA-256 line", "annotator": "claude-opus-5"}
+{"id": "6555dfa87829", "label": "ABSENT", "reason": "DES inside the R DESCRIPTION filename", "annotator": "claude-opus-5"}
+{"id": "0e59041aba3d", "label": "USE", "reason": "mbedtls_rsa_gen_key generates the RSA key", "annotator": "claude-opus-5"}
+{"id": "05cd5f69f804", "label": "USE", "reason": "registers SHA-256 as one of the publishing checksums", "annotator": "claude-opus-5"}
+{"id": "f6cf74941835", "label": "ABSENT", "reason": "git@github.com:octocat/... is an scp-style clone URL", "annotator": "claude-opus-5"}
+{"id": "e18ebf02613e", "label": "USE", "reason": "DES engine queue state in the DEU async DES/3DES driver", "annotator": "claude-opus-5"}
+{"id": "4ff17d9b8a31", "label": "MENTION", "reason": "'sha256-default' inside an expected CSP header string", "annotator": "claude-opus-5"}
+{"id": "d2dd99622a63", "label": "ABSENT", "reason": "generate_large_prime in a Rabin-Miller module; RSA is not named here", "annotator": "claude-opus-5"}
+{"id": "f41f9a53782b", "label": "USE", "reason": "reads the ARC4 output data registers", "annotator": "claude-opus-5"}
+{"id": "e11a63c7df96", "label": "ABSENT", "reason": "finite-field Diffie-Hellman doctest; no elliptic curve", "annotator": "claude-opus-5"}
+{"id": "7b58a5ea393d", "label": "MENTION", "reason": "const password = \"password123\" is a unit-test input", "annotator": "claude-opus-5"}
+{"id": "30241fd91af4", "label": "ABSENT", "reason": "DES inside DESKTOP_APP_SUFFIX; no 3DES anywhere in this dev-env test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "68f4d6896856", "label": "MENTION", "reason": "sha256: is a package-hash label in embedded stack.yaml fixture text, not a digest computation", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "8c69325f9c6d", "label": "MENTION", "reason": "AccessKeySecret: \"secret-b-new\" in storage_test.go; shape is right but the value is a test placeholder", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "22f10923c0f8", "label": "ABSENT", "reason": "DES inside #workflow-description-field; a Playwright selector, no cipher", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "254fb1685f55", "label": "ABSENT", "reason": "DES inside CODES.SourcePluginCodeError; an error-code enum", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "948253da2c0e", "label": "ABSENT", "reason": "DES inside STATUS_CODES_ID; a UI panel enum", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "98e6dadde107", "label": "ABSENT", "reason": "DES inside GAMUT_DESATURATE; a gamut-mapping mode", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "1244a8862fd3", "label": "ABSENT", "reason": "DES inside TERMINAL_RPC_CODES; a JSON-RPC error-code set", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "04873279be32", "label": "ABSENT", "reason": "DES inside CODES imported from utils/report", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "66f6ca27f6ea", "label": "USE", "reason": "case \"ARGON2\" selects the Argon2 verification branch and calls isHashMatch; a real algorithm selection", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "01622274ac42", "label": "ABSENT", "reason": "DES inside SITE_DESCRIPTION; a blog fixture constant", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "4b6a5965a33f", "label": "MENTION", "reason": "\\brief main interface to ARC4 hardware is a doxygen comment; the file implements ARC4 but this line is prose", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "e36bdcc70f83", "label": "MENTION", "reason": "let sha256 = rand::random() names the family but performs no hashing; the format choice happens in fixture_repo_with_hash", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "0d1ee4dcde45", "label": "ABSENT", "reason": "DES inside FILTER_NODES in a jemalloc red-black tree test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "712dfa190c3e", "label": "USE", "reason": "filesha256sum=$KERNEL_SHA256 configures a SHA-256 integrity field in a generated firmware upgrade config", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "4f5aeac71df1", "label": "USE", "reason": "maps the ARC4 hardware register block inside the ARC4 cipher driver", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "ca050d16e489", "label": "ABSENT", "reason": "DES inside ORDER BY ... DESC in generated SQL", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "9b004681c5bb", "label": "USE", "reason": "real addresses in a production ban-list map of temporarily disabled users", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "1a0fd48cb4c3", "label": "USE", "reason": "algorithm: 'SHA-256' is consumed by buildSettings/getDirectives to select the CSP hash function", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "becd197715b9", "label": "USE", "reason": "sha256_init in redis's own SHA-256 implementation", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "ed86fda1baf9", "label": "MENTION", "reason": "ClientSecret: \"test-client-secret\" is a placeholder in an OAuth2 table test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "8da9c7eef34b", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "63fe0137f2f3", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "d5e3a292cd8e", "label": "ABSENT", "reason": "DES inside AGENT_DESCRIPTION_MAX_LENGTH", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "9b346f953841", "label": "USE", "reason": "hmac.New(sha256.New, ...) computes a real HMAC over the auth cookie nonce", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "15e435f9d209", "label": "MENTION", "reason": "scriptHashes: ['sha256-test123'] is a stub CSP hash token; no hash function is selected or computed", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "08d0451b8ac7", "label": "USE", "reason": "DES_BLOCK_SIZE in the crypto_alg registration for cbc(des3_ede); registers a real 3DES transform", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c2fffb148b41", "label": "MENTION", "reason": "assertion that a header string contains 'sha256-abc123'; the token is test data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "54ad7515e2f3", "label": "ABSENT", "reason": "DES inside SORT_DESC in goaccess's sort dispatch", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "20dc37f28f5b", "label": "USE", "reason": "support@github.com is a real deliverable address asserted as expected crawler output", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "9bc75e0861b5", "label": "MENTION", "reason": "plainTextPassword = \"mySecretPassword123\" is a fixture value in a hashLegacy unit test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "dd2ac088b714", "label": "MENTION", "reason": "'sha256-elemHash' is a stub token inside a CSP assertion", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "3bbce9e74686", "label": "MENTION", "reason": "fmt.Sprintf(\"head-sha-dedup-%d@multica.ai\") builds a throwaway test address; not a live mailbox", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "7ed00772dd3e", "label": "MENTION", "reason": "\\brief DES Encryption Driver main file is a doxygen header comment", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "bac30bf3654a", "label": "USE", "reason": "noreply@multica.ai is the product's real sender address, passed as the from-address", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "4d1c14e72d76", "label": "USE", "reason": "reads the ARC4 hardware output registers OD2R inside the ARC4 cipher path", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "cbd14cb20149", "label": "USE", "reason": "registers the ifxdeu-cbcmac(aes) transform; CBC mode is genuinely configured here", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "97174ef6cc0c", "label": "MENTION", "reason": "secret: \"s3cr3t\" is a fixture value in a credential-trimming assertion", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "0f2bf221a523", "label": "USE", "reason": "mp_hash_to_bstr(..., \"SHA256\") selects SHA-256 and hashes the shader cache key", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "6c6426f57395", "label": "ABSENT", "reason": "DES inside PL_DESC_STORAGE_IMG in a placebo descriptor-type table", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "4dd48d24d5a8", "label": "ABSENT", "reason": "DES inside ERROR_CODES imported from error-utils", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "9c73df69c56f", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "86253355748e", "label": "MENTION", "reason": "insertStyleHash('sha256-customStyleHash') passes a stub token; no digest is computed", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "7c6e6fc0b40a", "label": "USE", "reason": "real addresses in a production ban-list map of temporarily disabled users", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "76958cb8c5dd", "label": "USE", "reason": "sha256_init/update/final computing the outer HMAC-SHA256 pass", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "24f3a31fc224", "label": "USE", "reason": "md5File calls createMD5() and hashes the file; a real MD5 use", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "4c361ada3e46", "label": "ABSENT", "reason": "DES inside NUM_OPCODES in the bundled Lua opcode table", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "a046041d89d0", "label": "ABSENT", "reason": "DES inside DEV_DESCRIBE_RE, a semver-describe regex", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "aff745bd44b2", "label": "ABSENT", "reason": "DES inside D3D11_TEXTURE2D_DESC", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "599cc152fbf7", "label": "MENTION", "reason": "hashes: ['sha256-AAA', 'sha256-BBB'] are stub CSP tokens in a fixture", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "736b823aa817", "label": "USE", "reason": "publicKey.sha256Fingerprint() actually computes the SHA-256 fingerprint", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "721f55ae27c5", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "f365f657ca6c", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "9a9666162819", "label": "ABSENT", "reason": "DES inside CODES.GeneratePath in a plugin error map", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "2d0034b36ccc", "label": "USE", "reason": "XChaCha20Poly1305Compat.seal actually encrypts under XChaCha20-Poly1305", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "720dac64f515", "label": "ABSENT", "reason": "DES inside MODULE_DESCRIPTION in a PCIe driver's module metadata", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "f6f32e38f9f7", "label": "USE", "reason": "SHA1Final finalises a real SHA-1 digest in tinysrp's entropy mixing", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "6db2c04ff919", "label": "USE", "reason": "noiseStaticPublicKeyData().sha256Fingerprint() computes the SHA-256 fingerprint", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "e91ce9ebca29", "label": "ABSENT", "reason": "DES inside ORDER BY created_at DESC, id DESC", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "cdb8e550fb40", "label": "MENTION", "reason": "sha256: package-hash labels in embedded stack.yaml fixture text", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "db9247c6b431", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "5eff30b74018", "label": "ABSENT", "reason": "DES inside SENTINEL_MAX_DESYNC", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "0c00f9cb8b3e", "label": "MENTION", "reason": "\\brief initialize arc4 hardware is a doxygen comment above the function", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "33f991c54fb5", "label": "ABSENT", "reason": "DES inside CODES.Generic in a transformer error map", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c155fbe6c14c", "label": "ABSENT", "reason": "DES inside D3D11_BUFFER_DESC", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "dee2f1ac7edb", "label": "USE", "reason": "noiseStaticPublicKeyData().sha256Fingerprint() computes the SHA-256 fingerprint", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "5a64a169413b", "label": "ABSENT", "reason": "DES inside DEFAULT_DESCRIPTION in a TaskDef constructor", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "56cf57c5ec48", "label": "ABSENT", "reason": "DES inside the TEST_DESC macro in quicklist's test block", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "09542419e1df", "label": "ABSENT", "reason": "DES inside ORDER BY memo_id DESC", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "32ff5b971c75", "label": "MENTION", "reason": "the file header comment describing the SHA-2 family; prose, not code", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "5ec68ff86d51", "label": "ABSENT", "reason": "DES inside the \"desaturate\" gamut-mapping option name", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "0664fdef7f46", "label": "ABSENT", "reason": "DES inside DELIMITER_NODES in the editor's syntax-tree helper", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "d0ca14d169f0", "label": "USE", "reason": "cipher = \"ChaChaPoly\" selects the Noise suite's AEAD; the field is consumed to build the protocol name", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "ccc3ba21620b", "label": "ABSENT", "reason": "DES inside REQUESTS_DESC in goaccess's module description table", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "74f65691c2f5", "label": "MENTION", "reason": "\"sha256-checksum\" is a literal placeholder passed as a checksum argument in a test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "3447c7e991ab", "label": "ABSENT", "reason": "envGetSecret: 'stable' is an adapter feature-flag name, not a credential", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "a0923a0257ff", "label": "USE", "reason": "MD5_CTX is the context type of this MD5 implementation's own header", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "cf9d44bb0aa1", "label": "USE", "reason": "#include <mbedtls/rsa.h> selects the primitive this key generator uses", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "372fd674051c", "label": "ABSENT", "reason": "DES inside MAX_PROFILE_DESCRIPTION_LEN", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "a891e3de5c28", "label": "USE", "reason": "reads the ARC4 hardware output register OD1R inside the ARC4 cipher path", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "dd40265e5679", "label": "USE", "reason": "hmac.New(sha256.New, secret) signs the GitHub OAuth return-to state", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c4a6c3eb3b4d", "label": "MENTION", "reason": "an enum type declaration listing RS256 as a vocabulary; no signer selects it here", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "67255130df87", "label": "MENTION", "reason": "ClientSecret: \"test-client-secret\" is a placeholder in an OAuth2 provider test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "11d98ce6e80c", "label": "USE", "reason": "hmac.New(sha256.New, secret) recomputes the state signature for verification", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "ee87cab196c2", "label": "MENTION", "reason": "ClientSecret: \"test-client-secret\" is a placeholder in an OAuth2 provider test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "4a0c8a27d121", "label": "MENTION", "reason": "scriptHashes: ['sha256-island'] is a stub CSP token in a fixture", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "bf6a74eeb43c", "label": "ABSENT", "reason": "DES inside the \"DESC\" sort-order string in an OpenSearch DAO", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "dfc500fa2561", "label": "MENTION", "reason": "'sha256-script' inside an expected CSP header string in an assertion", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "f6735178acf9", "label": "ABSENT", "reason": "DES inside ORDER BY ... DESC in a SQL query file", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "b5383d9454e0", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "645e37b26e03", "label": "USE", "reason": "hmac.New(sha256.New, secret) computes the webhook signature in a test helper", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "811502a7b96e", "label": "ABSENT", "reason": "DES inside CODES.BadResponse", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "188eab54c693", "label": "ABSENT", "reason": "DES inside the \"DESC\" sort-order string in an ES8 search helper", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "84d9a28c4226", "label": "ABSENT", "reason": "TLS inside MBEDTLS_VERSION_NUMBER; a library-name substring, not a protocol use", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "b377e9cbc5f7", "label": "ABSENT", "reason": "DES inside CODES.FileSystemRemove", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "1ae8f0f36f76", "label": "MENTION", "reason": "Password: \"password123\" is a fixture value in a registration test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "6b74efa42d10", "label": "MENTION", "reason": "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn is a sequential dummy token in test fixture content", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "7bda5d7cdc2b", "label": "ABSENT", "reason": "DES inside DRM_MODE_ATOMIC_ALLOW_MODESET", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "461ebc74e055", "label": "ABSENT", "reason": "DES inside REDIRECT_STATUS_CODES", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "f387028abc48", "label": "MENTION", "reason": "notif-parent-sub-status@multica.ai is a synthetic address built for one test user", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "58b032938cf1", "label": "ABSENT", "reason": "DES inside ORDER BY ... DESC in a SQL query file", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "6907cb625ff9", "label": "MENTION", "reason": "4111111111111111 is the canonical Visa test number in a doctest, not a live card", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "b5ab91870484", "label": "ABSENT", "reason": "DES inside the GraphQL sort order: DESC in a schema test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "773c5e5ac0f5", "label": "ABSENT", "reason": "DES inside MALLCTL_ARENAS_DESTROYED in bundled jemalloc", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "d0cfe2e74eaf", "label": "ABSENT", "reason": "DES inside MODULE_PARM_DESC in an ATM driver", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "4b6d2fa13b4a", "label": "MENTION", "reason": "an $argon2i$ encoded hash used as a literal cookieKey fixture; the test exercises PLAIN_TEXT", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "4918ee46406f", "label": "ABSENT", "reason": "DES inside SORT_DESC in goaccess's default sort table", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "4f6f22e3f193", "label": "ABSENT", "reason": "DES abbreviates descriptor in TXIN_SOC_DES_NUM / TXIN_HD_DES_SIZE", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "9a840afd7d4b", "label": "ABSENT", "reason": "DES inside TOGGLE_SHOW_DESCRIPTION", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "049c5ea9125b", "label": "ABSENT", "reason": "DES inside the \"pinned DESC\" order-by fragment", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "79211112bb3f", "label": "USE", "reason": "uencrypt -c des-ecb actually decrypts the MAC address block under single DES", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "5d308e2b715c", "label": "MENTION", "reason": "ClientSecret: \"original-secret\" is a placeholder in an IdP service test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c2dad09cb0ed", "label": "ABSENT", "reason": "DES inside PSECURITY_DESCRIPTOR in a Windows ACL helper", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "8fe8a01b8793", "label": "ABSENT", "reason": "DES inside ARENA_DESTROY_MAX_DELAYED_MTX in bundled jemalloc", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "5493eb5d82e9", "label": "USE", "reason": "hmac.New(sha256.New, secret) computes the webhook signature in a test helper", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "9c279d268fc5", "label": "ABSENT", "reason": "DES inside TLS_TYPE_DESC in goaccess's module description table", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "6d5bc061c7b0", "label": "MENTION", "reason": "assertion that the header contains 'sha256-customStyleHash'; a stub token", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c5da2a6f9180", "label": "MENTION", "reason": "ClientSecret: \"client_secret\" is a literal placeholder in a store test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "5edfffa9b9d3", "label": "USE", "reason": "packet.payload.sha256Hex() hashes the payload to derive a transfer id", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "7abea6d08fc7", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "9ad1c12748e7", "label": "USE", "reason": "sha256_final declared in redis's own SHA-256 header", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "57573ed4be49", "label": "USE", "reason": "import \"crypto/sha256\" selects the primitive this webhook signer uses", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c079d3de9c50", "label": "USE", "reason": "announcement.noisePublicKey.sha256Fingerprint() computes the identity fingerprint", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "e11280b0ed95", "label": "ABSENT", "reason": "DES inside description: DESCRIPTION in a workflow fixture", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "d5be7d552a81", "label": "ABSENT", "reason": "DES inside MODULE_PARM_DESC in a DMA test module", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "5fbd5112e1e8", "label": "ABSENT", "reason": "DES inside AGENT_DESCRIPTION_MAX_LENGTH", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "5ba768b60d1c", "label": "MENTION", "reason": "a status message printed before the keygen call; the wc_MakeRsaKey use is the next line", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "add342201916", "label": "ABSENT", "reason": "DES inside DESKTOP_RENDERER_PORT / DESKTOP_APP_SUFFIX", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "ea297304d0a9", "label": "MENTION", "reason": "scriptHashes: ['sha256-xyz789', 'sha256-uvw456'] are stub CSP tokens", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "d714a479b300", "label": "USE", "reason": "bool rsa = true sets RSA as the default key type this generator will produce", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "39604a51970f", "label": "ABSENT", "reason": "DES inside the O_SHOWDESC ncurses menu option", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "0c8332fa1d95", "label": "ABSENT", "reason": "DES inside the \"i.updated_at DESC\" order-by fragment asserted in a test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "0a46dc5f6d3b", "label": "MENTION", "reason": "Password: \"password123\" is a fixture value in a registration test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "5f59deba7eab", "label": "USE", "reason": "SHA1Init begins a real SHA-1 digest in the tinysrp client", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "9406bcb72995", "label": "USE", "reason": "a real author contact address in a module copyright header", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "45e64772d717", "label": "ABSENT", "reason": "DES inside SORT_DESC in goaccess's sort dispatch", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "1e7e7709506f", "label": "MENTION", "reason": "APIKey: \"test-key\" is a placeholder against an httptest server", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "24ade05f5409", "label": "USE", "reason": "hmac.New(sha256.New, secret) signs the webhook body in a test helper", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "efc3d80b5145", "label": "ABSENT", "reason": "the secret is generated from crypto.getRandomValues at runtime; nothing is hardcoded here", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "93033c42bfd9", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "947e89e26876", "label": "USE", "reason": "mac.Sum(nil) finalises the HMAC-SHA256 and formats it as the signature header", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "e00b86ebf43b", "label": "MENTION", "reason": "lang-preserve@multica.ai is a synthetic address for one test user", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "18d2ef002d05", "label": "ABSENT", "reason": "DES inside TRANSIENT_ERROR_CODES", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "d1345ca6b8f2", "label": "ABSENT", "reason": "DES inside DEFAULT_DESCRIPTION", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c45f7e0e24b3", "label": "ABSENT", "reason": "DES inside the WM_DESTROY window message constant", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "fd11949c1b6e", "label": "ABSENT", "reason": "DES inside \"DESCRIPTION\", the R package manifest filename", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "0e4ccc40c6a1", "label": "ABSENT", "reason": "DES abbreviates descriptor in WAN_TX_DESC_NUM", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "a6d5fd65841e", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "171137a6b159", "label": "USE", "reason": "import * as argon2 selects the primitive this module hashes with", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "669b1c6ad282", "label": "ABSENT", "reason": "DES inside LONG_DESCRIPTION in a UI test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "aa8762e7cd82", "label": "MENTION", "reason": "\"sha256-prefixed signature rejected\" is a t.Error failure message", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "f7f57774cd5e", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_A; a Windows path fixture", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "2d567d06537c", "label": "ABSENT", "reason": "DES abbreviates descriptor in WAN_SWAP_DESC_BASE", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "eaeca97fc491", "label": "MENTION", "reason": "APIKey: \"test-key\" is a placeholder against an httptest server", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "75882fc7e3c6", "label": "USE", "reason": "a real author contact address in an @Email header comment", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "93e96d69dc0b", "label": "USE", "reason": "SHA1Update feeds the SRP client's running SHA-1 digest", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c591ef9b47dd", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "ad8abb9dc756", "label": "USE", "reason": "SHA1Update mixes stat data into the entropy pool's SHA-1 state", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "a9d2778f3721", "label": "USE", "reason": "loads the ARC4 key register K1R from the caller's key material", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "f91563ebbf13", "label": "MENTION", "reason": "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn is a sequential dummy token in a redaction test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "35170a92768c", "label": "MENTION", "reason": "the sha256: bool parameter names the family; the format choice is applied in the body", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "889511f5683d", "label": "ABSENT", "reason": "DES inside OVERRIDES_CWD_F", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "6e77f762213a", "label": "MENTION", "reason": "scriptHashes: ['sha256-abc123'] is a stub CSP token in a fixture", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "29afaeece9cb", "label": "USE", "reason": "registers the ifxdeu-ecb(arc4) skcipher; a real ARC4 transform", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c7439eafe5e0", "label": "MENTION", "reason": "ada@multica.ai is a fabricated address in an email-normalisation table test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "ed244a3aa662", "label": "USE", "reason": "import \"crypto/sha256\" selects the primitive this plugin hook signs with", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c0bf86f01f95", "label": "USE", "reason": "SHA1Update folds the session key into the SRP client's checksum hash", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "bdc5ea056063", "label": "USE", "reason": "SHA256_CTX declared and initialised for the inner HMAC-SHA256 pass", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "1886aebc5d15", "label": "MENTION", "reason": "sha256: package-hash labels in embedded stack.yaml fixture text", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "f2bc9120d12a", "label": "USE", "reason": "SHA1Update hashing username:password in the SRP client", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "978c30cef804", "label": "MENTION", "reason": "'sha256-css' is a stub token inside a CSP assertion", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "8844b842b281", "label": "MENTION", "reason": "a status message printed before mbedtls_rsa_gen_key; the use is the next lines", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "ee09e7bfaa36", "label": "ABSENT", "reason": "DES inside PW_KEY_NODE_DESCRIPTION in a PipeWire device listing", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "bb889207d80d", "label": "ABSENT", "reason": "DES inside DXGI_SWAP_CHAIN_DESC", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "02d8b97252cb", "label": "USE", "reason": "a real author contact address in a Javadoc @author tag", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c6b6900f6a8c", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "321e8501a9f3", "label": "USE", "reason": "rosterBlob.sha256Hash() hashes the group roster into the transcript", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "786815bed6ef", "label": "USE", "reason": "SHA1Final produces the SRP server's u parameter digest", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "1e2f952b5e9c", "label": "USE", "reason": "\"noreply@multica.ai\" is the production default sender address", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "99da933aed5b", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "ae05af63bab4", "label": "ABSENT", "reason": "DES inside SORT_DESC in goaccess's default sort table", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "dadd9533e909", "label": "ABSENT", "reason": "DES inside CODES.GatsbyPluginMissing", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "bbabb83a2582", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "ca3d8d9b008b", "label": "MENTION", "reason": "AccessKeySecret: \"old-secret-key\" is a fixture value in an S3 migration test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "b282e5e8c3ab", "label": "ABSENT", "reason": "DES inside SORT_DESC in goaccess's sort dispatch", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "76ce7fa80bc4", "label": "ABSENT", "reason": "DES inside the \"row_status DESC\" order-by fragment", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "2a577e4b1248", "label": "USE", "reason": "shasum -a 256 computes the release tarball's SHA-256 checksum", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "c570bc2decff", "label": "ABSENT", "reason": "'//%2Fetc%2Fpasswd@evil.com' is a path-traversal test vector, not an address", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "3504ac7234b3", "label": "MENTION", "reason": "OPENAI_API_KEY=\"your-openai-api-key\" is a documented placeholder in a sample env file", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "2ddd41f3f9e6", "label": "MENTION", "reason": "sha256 is a column name in an INSERT; no digest is computed here", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "267a05a54340", "label": "MENTION", "reason": "quickcreate-foreign@multica.ai is a synthetic address for one test user", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "42fc68d23472", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "08da83349247", "label": "ABSENT", "reason": "DES inside FILTER_NODES in a jemalloc red-black tree test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "735732ae08eb", "label": "MENTION", "reason": "Password: \"password123\" is a fixture value in a registration test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "9e8b4aa33b14", "label": "ABSENT", "reason": "the whsec_ secret is built from base64(rawKey) at runtime; nothing is hardcoded on this line", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "d6f86dc99ff9", "label": "ABSENT", "reason": "DES inside ORDER BY atq.priority DESC in generated SQL", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "e03bb2dd1a95", "label": "ABSENT", "reason": "DES inside STATUS_CODES in goaccess's panel capability table", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "ce97311ee7c2", "label": "USE", "reason": "a real address in checked-in sample execution data", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "78fa462ea5ae", "label": "ABSENT", "reason": "DES inside the FILTER_NODES enum in a jemalloc test", "annotator": "claude-opus-5", "cohort": "holdout"}
+{"id": "b0cf51b85e6d", "label": "MENTION", "reason": "'sha256-elem' is a stub CSP token in a rendering fixture", "annotator": "claude-opus-5", "cohort": "holdout"}

@@ -43,6 +43,48 @@ class OllamaError(Exception):
     """Raised when the local Ollama server fails or returns unusable output."""
 
 
+class ModelOutputError(OllamaError):
+    """The server answered, but the answer is not a usable file.
+
+    Separated from its parent because the two need opposite handling. A server that is not running,
+    a model that is not pulled and a request that timed out are all fatal -- retrying three times
+    just makes the user wait three times as long for the same message. An answer that was truncated
+    or came back unfenced is the model getting it wrong, which is exactly what the repair loop
+    exists for, and it gets another attempt with the reason fed back.
+
+    Subclasses OllamaError so every existing `except OllamaError` still catches it.
+    """
+
+
+#: Decoding seed, pinned so a run is reproducible rather than merely near-deterministic. Greedy
+#: decoding at `temperature=0.0` is not the same guarantee: sampling is still seeded, ties are
+#: broken by it, and a result nobody can reproduce exactly is not a result anyone can check.
+GENERATION_SEED = 20260822
+
+#: Floor for the output budget. Enough for a small file plus the fences around it.
+_MIN_PREDICT = 4096
+#: Ceiling. Beyond this a local 7B model is slower than the timeout allows, and a file needing more
+#: than this is past what a whole-file rewrite should be attempting anyway.
+_MAX_PREDICT = 16384
+
+
+def _output_budget(prompt: str) -> int:
+    """How many tokens the answer is allowed, scaled to the file being rewritten.
+
+    `num_predict` was a fixed 4096 regardless of input. The task is to return a WHOLE FILE with one
+    algorithm replaced, so the answer is about as long as the input -- meaning any file whose prompt
+    exceeded the budget got a truncated answer, and the truncation surfaced as the baffling
+    "the returned file has only 9 non-blank lines vs the original's 47". Three of the twelve LLM
+    failures on the polyglot corpus were this, and none of them were the model being wrong.
+
+    ~3 characters per token is a deliberate under-estimate for code (real tokenizers do better on
+    ASCII), so the budget errs high. The prompt carries instructions and an example as well as the
+    file, so budgeting from the whole prompt leaves headroom rather than needing a separate margin.
+    """
+    estimated_tokens = len(prompt) // 3
+    return max(_MIN_PREDICT, min(_MAX_PREDICT, estimated_tokens))
+
+
 def _ollama_generate(
     prompt: str, *, model: str, base_url: str = DEFAULT_BASE_URL, timeout: float = 180.0
 ) -> str:
@@ -59,7 +101,11 @@ def _ollama_generate(
             # entirely and Ollama returned an empty response, which surfaced as a failed task.
             # Ollama ignores this field for models that do not support it.
             "think": False,
-            "options": {"temperature": 0.0, "num_predict": 4096},
+            "options": {
+                "temperature": 0.0,
+                "num_predict": _output_budget(prompt),
+                "seed": GENERATION_SEED,
+            },
         }
     ).encode("utf-8")
     if not base_url.startswith(("http://", "https://")):
@@ -103,6 +149,16 @@ def _ollama_generate(
     text = data.get("response", "")
     if not text:
         raise OllamaError("Ollama returned an empty response")
+    # Ollama says WHY it stopped. "length" means the answer hit `num_predict` and the file is cut
+    # off mid-rewrite -- which used to reach the validator as a short file and be reported as the
+    # model returning something wrong, sending the repair loop to argue with a model that had been
+    # interrupted. Naming it means the caller can say so, and the operator can raise the budget.
+    if str(data.get("done_reason", "")) == "length":
+        raise ModelOutputError(
+            f"the model {model!r} hit its output limit before finishing the file "
+            f"(num_predict={_output_budget(prompt)}). The rewrite is truncated, not wrong. This "
+            f"file may be too large for a whole-file rewrite by a local model."
+        )
     return text
 
 
@@ -445,12 +501,68 @@ def _repair_feedback(feedback: str | None) -> str:
     )
 
 
+#: An opening fence with no closing one. The usual cause is an answer cut off at `num_predict`:
+#: the model opened ```python, wrote most of the file, and ran out of budget. `_FENCE_RE` needs the
+#: closing fence, so it found nothing and the whole answer was discarded.
+_OPEN_FENCE_RE = re.compile(r"```[a-zA-Z0-9_+-]*\n(.*)\Z", re.DOTALL)
+
+#: Openings that mean the model is talking rather than emitting a file. Checked only on the
+#: last-resort path, where there are no fences to trust.
+_PROSE_OPENERS = (
+    "i ",
+    "i'm",
+    "sure",
+    "certainly",
+    "here is",
+    "here's",
+    "of course",
+    "to migrate",
+    "the file",
+    "this file",
+    "unfortunately",
+    "note that",
+    "okay",
+    "ok,",
+)
+
+
 def extract_code_block(text: str) -> str:
-    """Pull the rewritten file out of the model output (largest fenced block wins)."""
+    """Pull the rewritten file out of the model output.
+
+    Three ways in, in descending order of how much the model told us:
+
+    1. **A closed fenced block.** What the prompt asks for; largest wins when there are several.
+    2. **An unterminated fence.** The model marked where the code starts and then hit its output
+       limit before closing it. The content is still the model's own idea of code, and discarding
+       it loses a rewrite that is merely incomplete -- which the caller's length check will catch
+       and report accurately anyway.
+    3. **Bare output with no fence at all.** Two of the twelve LLM failures on the polyglot corpus
+       were "Model output contained no fenced code block" -- a formatting slip, not a wrong answer.
+
+    Case 3 is the risky one, because accepting an apology as source code would be worse than
+    failing. It is gated on the text not opening like prose, and everything that gets through is
+    parsed by the caller before it can become a patch, so a bad guess is rejected one step later
+    with a better message than "no fenced code block".
+    """
     blocks = _FENCE_RE.findall(text)
-    if not blocks:
-        raise OllamaError("Model output contained no fenced code block")
-    return max(blocks, key=len)
+    if blocks:
+        return max(blocks, key=len)
+
+    unterminated = _OPEN_FENCE_RE.search(text)
+    if unterminated and unterminated.group(1).strip():
+        return unterminated.group(1)
+
+    stripped = text.strip()
+    lowered = stripped.lower()
+    if (
+        stripped
+        and "```" not in stripped
+        and len(stripped.splitlines()) >= 2
+        and not lowered.startswith(_PROSE_OPENERS)
+    ):
+        return stripped
+
+    raise ModelOutputError("Model output contained no fenced code block")
 
 
 # A rewrite that loses this much of the original file is treated as truncation/deletion rather than
@@ -642,17 +754,27 @@ def generate_llm_source(
     feedback: str | None = None
     last_reason = "unknown"
     for _attempt in range(max(1, max_attempts)):
-        raw = _ollama_generate(
-            _build_prompt(source, rule, asset, feedback),
-            model=model,
-            base_url=base_url,
-            timeout=timeout,
-        )
+        # Generation is INSIDE the retry because a truncated or unfenced answer is the model
+        # getting it wrong, and that is what the repair loop is for. It was outside, so a
+        # truncation ended the whole attempt immediately -- measured on Crypto.kt and
+        # Ledger.scala, two ~400-character files the model looped on until it exhausted the
+        # output budget. A transport failure (server down, model not pulled, timeout) is a plain
+        # OllamaError and still propagates on the first try, because retrying it only makes the
+        # user wait three times over for the same message.
         try:
+            raw = _ollama_generate(
+                _build_prompt(source, rule, asset, feedback),
+                model=model,
+                base_url=base_url,
+                timeout=timeout,
+            )
             new_source = extract_code_block(raw)
-        except OllamaError as exc:
+        except ModelOutputError as exc:
             last_reason = str(exc)
-            feedback = f"{last_reason}. Return the whole file inside ONE fenced code block."
+            feedback = (
+                f"{last_reason}. Return ONLY the complete file inside ONE fenced code block, "
+                "with no commentary before or after it."
+            )
             continue
 
         if not new_source.endswith("\n"):

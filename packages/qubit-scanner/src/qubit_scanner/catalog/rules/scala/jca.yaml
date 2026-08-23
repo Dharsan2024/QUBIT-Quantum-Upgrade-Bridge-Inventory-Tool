@@ -86,6 +86,13 @@ rules:
         - |
           import java.security.KeyPairGenerator
           object A { def f(): Unit = { val kg = KeyPairGenerator.getInstance("RSA") } }
+        # The post-quantum target. Scala reaches ML-KEM through the same JCA provider as Java and
+        # Kotlin, so this is the shape a migration must produce; it is an EXAMPLE because that is
+        # what `target_shapes.verified_target_shapes` reads when it tells the generator what the
+        # rescan will accept.
+        - |
+          import java.security.KeyPairGenerator
+          object A { def f(): Unit = { val kg = KeyPairGenerator.getInstance("ML-KEM-768") } }
         - |
           object A { def f(): Unit = { val kg = KeyGenerator.getInstance("DES") } }
       negative:
@@ -113,6 +120,10 @@ rules:
         - |
           import java.security.Signature
           object A { def f(): Unit = { val s = Signature.getInstance("SHA1withRSA") } }
+        # The post-quantum signature target. Same reason as the key-generation example above.
+        - |
+          import java.security.Signature
+          object A { def f(): Unit = { val s = Signature.getInstance("ML-DSA-65") } }
         - |
           object A { def f(): Unit = { val s = Signature.getInstance("SHA256withECDSA") } }
       negative:

@@ -1,0 +1,344 @@
+{
+  "repository": "JetBrains/compose-multiplatform",
+  "stratum": "Kotlin",
+  "primary_language": "Kotlin",
+  "commit": "a933da08f5d5fd24098b0e0370983a1104b7bc9b",
+  "license": "Apache-2.0",
+  "stars": 19309,
+  "detectors_with_findings": 4,
+  "counts": {
+    "qubit": 5,
+    "pqaudit": 21,
+    "semgrep": 1,
+    "cryptoscan": 6,
+    "sonar": 0
+  },
+  "elapsed_s": 154.0,
+  "comparison": {
+    "corpus": "JetBrains/compose-multiplatform",
+    "dropped_non_source_findings": 3,
+    "shared_vocabulary": [
+      "MD5",
+      "SHA-1"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 1,
+        "sites": 1
+      },
+      "pqaudit": {
+        "findings": 6,
+        "sites": 3
+      },
+      "semgrep": {
+        "findings": 1,
+        "sites": 1
+      },
+      "cryptoscan": {
+        "findings": 6,
+        "sites": 3
+      },
+      "sonar": {
+        "findings": 0,
+        "sites": 0
+      }
+    },
+    "unavailable": {},
+    "agreement": {
+      "cryptoscan|pqaudit": 1.0,
+      "cryptoscan|qubit": 0.3333333333333333,
+      "cryptoscan|semgrep": 0.3333333333333333,
+      "cryptoscan|sonar": 0.0,
+      "pqaudit|qubit": 0.3333333333333333,
+      "pqaudit|semgrep": 0.3333333333333333,
+      "pqaudit|sonar": 0.0,
+      "qubit|semgrep": 1.0,
+      "qubit|sonar": 0.0,
+      "semgrep|sonar": 0.0
+    },
+    "capture_table": {
+      "cryptoscan+pqaudit+qubit+semgrep": 1,
+      "cryptoscan+pqaudit": 2
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 3,
+        "population": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.3333333333333333
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 1 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 3,
+        "population": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.3333333333333333
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 1 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 1,
+        "population": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 1 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|sonar",
+        "method": "Chapman (2-source)",
+        "observed": 1,
+        "population": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "pqaudit": {
+      "exclusive": 15,
+      "code": 0,
+      "mention": 2,
+      "comment": 0,
+      "absent": 13,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "gradle-plugins/preview-rpc/src/main/kotlin/org/jetbrains/compose/desktop/ui/tooling/preview/rpc/PreviewManager.kt",
+          "line": 218,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "log { \"FORCIBLY DESTROYING PREVIEW HOST PROCESS\" }"
+        },
+        {
+          "path": "benchmarks/multiplatform/run_benchmarks.main.kts",
+          "line": 139,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "Platform.DESKTOP -> Triple("
+        },
+        {
+          "path": "examples/imageviewer/shared/src/androidMain/kotlin/example/imageviewer/filter/BitmapFilter.android.kt",
+          "line": 44,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "@RequiresApi(Build.VERSION_CODES.S)"
+        },
+        {
+          "path": "examples/imageviewer/mapview-desktop/src/desktopMain/kotlin/example/map/Config.kt",
+          "line": 44,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "val SCROLL_SENSITIVITY_DESKTOP = 0.05"
+        },
+        {
+          "path": "examples/issues/common/src/jvmAndAndroidMain/kotlin/androidx/ui/examples/jetissues/view/JetIssuesView.kt",
+          "line": 229,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "Text(\"DESC\")"
+        },
+        {
+          "path": "examples/imageviewer/shared/src/desktopMain/kotlin/example/imageviewer/view/ImageViewer.desktop.kt",
+          "line": 35,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "onBufferOverflow = BufferOverflow.DROP_OLDEST,"
+        },
+        {
+          "path": "examples/issues/common/src/jvmAndAndroidMain/kotlin/androidx/ui/examples/jetissues/view/JetIssuesView.kt",
+          "line": 224,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "order.value = OrderDirection.DESC"
+        },
+        {
+          "path": "examples/issues/common/src/jvmAndAndroidMain/kotlin/androidx/ui/examples/jetissues/view/JetIssuesView.kt",
+          "line": 184,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "val issuesOrder = remember { mutableStateOf(OrderDirection.DESC) }"
+        },
+        {
+          "path": "examples/imageviewer/mapview-desktop/src/desktopMain/kotlin/example/map/MapView.kt",
+          "line": 153,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "onZoom(current?.toPt(), -scrollY * Config.SCROLL_SENSITIVITY_DESKTOP)"
+        },
+        {
+          "path": "gradle-plugins/compose/src/main/kotlin/org/jetbrains/compose/desktop/application/internal/skikoUtils.kt",
+          "line": 30,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "removeSuffix(\".sha256\").substringAfterLast(\"/\")"
+        },
+        {
+          "path": "ci/build-helpers/publishing/src/main/kotlin/org/jetbrains/compose/internal/publishing/utils/Checksum.kt",
+          "line": 14,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "BasicChecksum(\"SHA-256\", \".sha256\"),"
+        },
+        {
+          "path": "ci/delete-packages-from-space/build.gradle.kts",
+          "line": 118,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "sortOrder = ColumnSortOrder.DESC,"
+        },
+        {
+          "path": "examples/issues/common/src/jvmAndAndroidMain/kotlin/androidx/ui/examples/jetissues/view/JetIssuesView.kt",
+          "line": 213,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "OrderDirection.DESC ->"
+        },
+        {
+          "path": "examples/imageviewer/shared/src/androidMain/kotlin/example/imageviewer/filter/BitmapFilter.android.kt",
+          "line": 37,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {"
+        },
+        {
+          "path": "benchmarks/multiplatform/run_benchmarks.main.kts",
+          "line": 6,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DESKTOP(\"desktop\"),"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 1,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 1,
+      "sample": [
+        {
+          "path": "ci/build-helpers/publishing/src/main/kotlin/org/jetbrains/compose/internal/publishing/utils/Checksum.kt",
+          "line": 52,
+          "algorithm": "RUNTIME-SELECTED",
+          "family": "RUNTIME",
+          "rule_id": "KT-JCA-GETINSTANCE-DIGEST",
+          "class": "not-applicable",
+          "source": "constructor(algorithm: String, extension: String) : this(MessageDigest.getInstance(algorithm), extension)"
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "sonar": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

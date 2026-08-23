@@ -89,6 +89,14 @@ rules:
         - |
           import java.security.KeyPairGenerator
           fun f() { val kg = KeyPairGenerator.getInstance("RSA") }
+        # The post-quantum target, on the same JCA call. Kotlin reaches ML-KEM through the JDK 24+
+        # provider (JEP 496) or BouncyCastle 1.79+, with no Kotlin-specific API of its own -- so the
+        # shape a migration must produce is exactly this. It is here as an EXAMPLE because
+        # `target_shapes.verified_target_shapes` reads examples: without one, the generator is told
+        # no ML-KEM rewrite in Kotlin can be confirmed, and gives up on a migration that would pass.
+        - |
+          import java.security.KeyPairGenerator
+          fun f() { val kg = KeyPairGenerator.getInstance("ML-KEM-768") }
         - |
           fun f() { val kg = KeyGenerator.getInstance("DES") }
         - |
@@ -147,6 +155,10 @@ rules:
         - |
           import java.security.Signature
           fun f() { val s = Signature.getInstance("SHA1withRSA") }
+        # The post-quantum signature target. Same reason as the key-generation example above.
+        - |
+          import java.security.Signature
+          fun f() { val s = Signature.getInstance("ML-DSA-65") }
         - |
           fun f() { val s = Signature.getInstance("SHA256withECDSA") }
       negative:

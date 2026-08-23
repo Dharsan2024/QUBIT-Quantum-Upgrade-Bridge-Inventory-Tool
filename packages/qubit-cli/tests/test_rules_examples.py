@@ -45,8 +45,14 @@ def test_go_shape_is_gos_not_rusts() -> None:
 
 
 def test_a_language_with_no_pqc_rule_publishes_nothing() -> None:
-    """An empty answer is the useful one: it says no rewrite here can ever be confirmed."""
-    assert _examples("--language", "swift", "--algorithm-prefix", "ML-KEM") == []
+    """An empty answer is the useful one: it says no rewrite here can ever be confirmed.
+
+    This was `swift` until Swift gained `SWIFT-CRYPTOKIT-MLKEM`. If PHP ever grows a usable ML-KEM
+    binding and a rule for it, this test will fail the same way -- correctly, and the fix is to move
+    it to whichever language still has none (currently bash, dart, powershell, ruby), not to weaken
+    the assertion.
+    """
+    assert _examples("--language", "php", "--algorithm-prefix", "ML-KEM") == []
 
 
 def test_the_prefix_filter_actually_filters() -> None:

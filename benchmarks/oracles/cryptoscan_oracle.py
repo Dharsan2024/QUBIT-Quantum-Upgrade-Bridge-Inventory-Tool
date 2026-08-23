@@ -69,11 +69,16 @@ class CryptoscanDetector:
         env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
         result = subprocess.run(  # noqa: S603
             [  # noqa: S607
-                "docker", "run", "--rm",
-                "-v", f"{root.as_posix()}:/src:ro",
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{root.as_posix()}:/src:ro",
                 IMAGE,
-                "scan", "/src",
-                "--format", "json",
+                "scan",
+                "/src",
+                "--format",
+                "json",
             ],
             capture_output=True,
             timeout=self.timeout,

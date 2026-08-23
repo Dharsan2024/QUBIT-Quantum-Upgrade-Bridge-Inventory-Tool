@@ -1,0 +1,180 @@
+file,group,type,category,expected_vulnerable,qubit_vulnerable,outcome,algorithms
+PredictableCryptographicKeyBBCase1.java,Basis benchmark,Static/Contant Key,C,True,False,FN,
+CredentialInStringBBCase1.java,Basis benchmark,Credential in String,C,True,True,TP,AES!
+PredictablePBEPasswordBBCase1.java,Basis benchmark,Static/Contant password,C,True,False,FN,
+PredictablePBEPasswordBBCase2.java,Basis benchmark,Static/Constant Password,C,True,False,FN,
+PredictableKeyStorePasswordBBCase1.java,Basis benchmark,Static/Constant Password,C,True,False,FN,
+DummyHostNameVerifierCase1.java,Basis benchmark,Dummy Verifier,C,True,False,FN,
+DummyCertValidationCase1.java,Basis benchmark,Dummy Certificate,C,True,False,FN,
+DummyCertValidationCase2.java,Basis benchmark,Dummy Certificate,C,True,False,FN,
+DummyCertValidationCase3.java,Basis benchmark,Dummy Certificate,C,True,False,FN,
+ImproperSocketManualHostBBCase1.java,Basis benchmark,Socket Hostname w/o verification,C,True,False,FN,
+HttpProtocolBBCase1.java,Basis benchmark,HTTP,C,True,False,FN,
+PredictableSeedsBBCase1.java,Basis benchmark,Constant Seed,C,True,False,FN,
+PredictableSeedsBBCase2.java,Basis benchmark,Constant Seed,C,True,False,FN,
+UntrustedPRNGCase1.java,Basis benchmark,Usage of Random Method from Library,C,True,False,FN,
+StaticSaltsBBCase1.java,Basis benchmark,Static/Constant Salt,C,True,False,FN,
+EcbInSymmCryptoBBCase1.java,Basis benchmark,Usage of ECB,C,True,True,TP,AES!
+StaticInitializationVectorBBCase1.java,Basis benchmark,Static/Constant IV,C,True,True,TP,AES!
+LessThan1000IterationPBEBBCase1.java,Basis benchmark,PBE iteration < 1000,C,True,False,FN,
+BrokenCryptoBBCase1.java,Basis benchmark,DES used,A,True,True,TP,DES!
+BrokenCryptoBBCase2.java,Basis benchmark,Blowfish used,A,True,True,TP,Blowfish!
+BrokenCryptoBBCase3.java,Basis benchmark,RC4 used,A,True,True,TP,RC4!
+BrokenCryptoBBCase4.java,Basis benchmark,RC2 used,A,True,True,TP,RC2!
+BrokenCryptoBBCase5.java,Basis benchmark,IDEA used,A,True,True,TP,IDEA!
+InsecureAsymmetricCipherBBCase1.java,Basis benchmark,RSA keysize 1024 bits,B,True,True,TP,RSA!
+BrokenHashBBCase1.java,Basis benchmark,SHA1 used,A,True,True,TP,SHA-1!
+BrokenHashBBCase2.java,Basis benchmark,MD5 used,A,True,True,TP,MD5!
+BrokenHashBBCase3.java,Basis benchmark,MD4 used,A,True,True,TP,MD4!
+BrokenHashBBCase4.java,Basis benchmark,MD2 used,A,True,True,TP,MD2!
+BrokenMacBBCase1.java,Basis benchmark,HmacMD5,A,True,True,TP,AES! HMAC!
+BrokenMacBBCase2.java,Basis benchmark,HmacSHA1,A,True,True,TP,AES! HMAC!
+BrokenCryptoCorrected.java,Basis benchmark,---,A,False,True,FP,AES!
+BrokenHashCorrected.java,Basis benchmark,---,A,False,False,TN,SHA-256
+EcbInSymmCryptoCorrected.java,Basis benchmark,---,C,False,True,FP,AES!
+DummyHostNameVerifierCorrected.java,Basis benchmark,---,C,False,False,TN,
+HttpProtocolCase1Corrected.java,Basis benchmark,---,C,False,False,TN,
+LessThan1000IterationPBECorrected.java,Basis benchmark,---,C,False,False,TN,
+PredictableCryptographicKeyCorrected.java,Basis benchmark,---,C,False,True,FP,AES!
+PredictableKeyStorePasswordCorrected.java,Basis benchmark,---,C,False,False,TN,
+PredictablePBEPasswordCorrected.java,Basis benchmark,---,C,False,False,TN,
+PredictableSeedsCorrected.java,Basis benchmark,---,C,False,False,TN,
+StaticInitializationVectorCorrected.java,Basis benchmark,---,C,False,True,FP,AES!
+StaticSaltsCorrected.java,Basis benchmark,---,C,False,False,TN,
+UntrustedPRNGCorrected.java,Basis benchmark,---,C,False,False,TN,
+CredentialInStringCorrected.java,Basis benchmark,---,C,False,True,FP,AES!
+BrokenMacCorrected.java,Basis benchmark,HmacSHA256,A,False,True,FP,AES! HMAC!
+PredictableCryptographicKeyABICase1.java,Interprocedural (2 methods),Static/Contant Key,C,True,False,FN,
+CredentialInStringABICase1.java,Interprocedural (2 methods),Credential in String,C,True,False,FN,
+PredictablePBEPasswordABICase1.java,Interprocedural (2 methods),Static/Contant password,C,True,False,FN,
+PredictableKeyStorePasswordABICase1.java,Interprocedural (2 methods),Static/Constant Password,C,True,False,FN,
+HttpProtocolABICase1.java,Interprocedural (2 methods),HTTP,C,True,False,FN,
+PredictableSeedsABICase1.java,Interprocedural (2 methods),Constant Seed,C,True,False,FN,
+PredictableSeedsABICase2.java,Interprocedural (2 methods),Constant Seed,C,True,False,FN,
+StaticSaltsABICase1.java,Interprocedural (2 methods),Static/Constant Salt,C,True,False,FN,
+EcbInSymmCryptoABICase1.java,Interprocedural (2 methods),Usage of ECB,C,True,True,TP,AES!
+StaticInitializationVectorABICase1.java,Interprocedural (2 methods),Static/Constant IV,C,True,True,TP,AES!
+LessThan1000IterationPBEABICase1.java,Interprocedural (2 methods),PBE iteration < 1000,C,True,False,FN,
+BrokenCryptoABICase1.java,Interprocedural (2 methods),DES used,A,True,True,TP,DES!
+BrokenCryptoABICase2.java,Interprocedural (2 methods),Blowfish used,A,True,True,TP,Blowfish!
+BrokenCryptoABICase3.java,Interprocedural (2 methods),RC4 used,A,True,True,TP,RC4!
+BrokenCryptoABICase4.java,Interprocedural (2 methods),RC2 used,A,True,True,TP,RC2!
+BrokenCryptoABICase9.java,Interprocedural (2 methods),IDEA used,A,True,True,TP,IDEA!
+InsecureAsymmetricCipherABICase1.java,Interprocedural (2 methods),RSA keysize 1024 bits,B,True,True,TP,RSA!
+BrokenHashABICase1.java,Interprocedural (2 methods),SHA1 used,A,True,True,TP,SHA-1!
+BrokenHashABICase2.java,Interprocedural (2 methods),MD5 used,A,True,True,TP,MD5!
+BrokenHashABICase3.java,Interprocedural (2 methods),MD4 used,A,True,True,TP,MD4!
+BrokenHashABICase4.java,Interprocedural (2 methods),MD2 used,A,True,True,TP,MD2!
+PredictableCryptographicKeyABICase3.java,pure Interprocedural cases,Static/Contant Key,C,True,False,FN,
+CredentialInStringABICase3.java,pure Interprocedural cases,Credential in String,C,True,False,FN,
+PredictablePBEPasswordABICase3.java,pure Interprocedural cases,Static/Contant password,C,True,False,FN,
+PredictableKeyStorePasswordABICase3.java,pure Interprocedural cases,Static/Constant Password,C,True,False,FN,
+HttpProtocolABICase3.java,pure Interprocedural cases,HTTP,C,True,False,FN,
+PredictableSeedsABICase5.java,pure Interprocedural cases,Constant Seed,C,True,False,FN,
+PredictableSeedsABICase6.java,pure Interprocedural cases,Constant Seed,C,True,False,FN,
+StaticSaltsABICase3.java,pure Interprocedural cases,Static/Constant Salt,C,True,False,FN,
+EcbInSymmCryptoABICase3.java,pure Interprocedural cases,Usage of ECB,C,True,True,TP,AES!
+StaticInitializationVectorABICase3.java,pure Interprocedural cases,Static/Constant IV,C,True,True,TP,AES!
+LessThan1000IterationPBEABICase3.java,pure Interprocedural cases,PBE iteration < 1000,C,True,False,FN,
+BrokenCryptoABICase11.java,pure Interprocedural cases,DES used,A,True,True,TP,DES! RUNTIME-SELECTED
+BrokenCryptoABICase12.java,pure Interprocedural cases,Blowfish used,A,True,True,TP,Blowfish!
+BrokenCryptoABICase13.java,pure Interprocedural cases,RC4 used,A,True,True,TP,RC4!
+BrokenCryptoABICase14.java,pure Interprocedural cases,RC2 used,A,True,True,TP,RC2!
+BrokenCryptoABICase15.java,pure Interprocedural cases,IDEA used,A,True,True,TP,IDEA!
+InsecureAsymmetricCipherABICase3.java,pure Interprocedural cases,RSA keysize 1024 bits,B,True,True,TP,RSA!
+BrokenHashABICase9.java,pure Interprocedural cases,SHA1 used,A,True,True,TP,SHA-1!
+BrokenHashABICase10.java,pure Interprocedural cases,MD5 used,A,True,True,TP,MD5!
+BrokenHashABICase11.java,pure Interprocedural cases,MD4 used,A,True,True,TP,MD4!
+BrokenHashABICase12.java,pure Interprocedural cases,MD2 used,A,True,True,TP,MD2!
+PredictableCryptographicKeyABSCase1.java,Field sensitive,Static/Contant Key,C,True,True,TP,AES!
+PredictablePBEPasswordABSCase1.java,Field sensitive,Static/Contant password,C,True,False,FN,
+PredictableKeyStorePasswordABSCase1.java,Field sensitive,Static/Constant Password,C,True,False,FN,
+HttpProtocolABSCase1.java,Field sensitive,HTTP,C,True,False,FN,
+PredictableSeedsABSCase1.java,Field sensitive,Constant Seed,C,True,False,FN,
+PredictableSeedsABSCase2.java,Field sensitive,Constant Seed,C,True,False,FN,
+StaticSaltsABSCase1.java,Field sensitive,Static/Constant Salt,C,True,False,FN,
+EcbInSymmCryptoABSCase1.java,Field sensitive,Usage of ECB,C,True,True,TP,AES! RUNTIME-SELECTED
+StaticInitializationVectorABSCase1.java,Field sensitive,Static/Constant IV,C,True,True,TP,AES!
+LessThan1000IterationPBEABSCase1.java,Field sensitive,PBE iteration < 1000,C,True,False,FN,
+BrokenCryptoABSCase1.java,Field sensitive,DES used,A,True,False,FN,RUNTIME-SELECTED
+BrokenCryptoABSCase2.java,Field sensitive,Blowfish used,A,True,False,FN,RUNTIME-SELECTED
+BrokenCryptoABSCase3.java,Field sensitive,RC4 used,A,True,False,FN,RUNTIME-SELECTED
+BrokenCryptoABSCase4.java,Field sensitive,RC2 used,A,True,False,FN,RUNTIME-SELECTED
+BrokenCryptoABSCase5.java,Field sensitive,IDEA used,A,True,False,FN,RUNTIME-SELECTED
+BrokenHashABSCase1.java,Field sensitive,SHA1 used,A,True,False,FN,RUNTIME-SELECTED
+BrokenHashABSCase2.java,Field sensitive,MD5 used,A,True,False,FN,RUNTIME-SELECTED
+BrokenHashABSCase3.java,Field sensitive,MD4 used,A,True,False,FN,RUNTIME-SELECTED
+BrokenHashABSCase4.java,Field sensitive,MD2 used,A,True,False,FN,RUNTIME-SELECTED
+CredentialInStringABHCase1.java,Advanced False Positive Test Cases,Credential in String,C,True,False,FN,
+PredictableCryptographicKeyABHCase2.java,Advanced False Positive Test Cases,Static/Contant Key,C,True,False,FN,
+PredictablePBEPasswordABHCase1.java,Advanced False Positive Test Cases,---,C,False,False,TN,
+PredictablePBEPasswordABHCase2.java,Advanced False Positive Test Cases,Static/Contant password,C,True,False,FN,
+PredictableKeyStorePasswordABHCase1.java,Advanced False Positive Test Cases,---,C,False,False,TN,
+PredictableKeyStorePasswordABHCase2.java,Advanced False Positive Test Cases,Static/Constant Password,C,True,False,FN,
+PredictableSeedsABHCase2.java,Advanced False Positive Test Cases,Constant Seed,C,True,False,FN,
+PredictableSeedsABHCase4.java,Advanced False Positive Test Cases,Constant Seed,C,True,False,FN,
+StaticSaltsABHCase1.java,Advanced False Positive Test Cases,Static/Constant Salt,C,True,False,FN,
+StaticInitializationVectorABHCase1.java,Advanced False Positive Test Cases,Static/Constant IV,C,True,True,TP,AES!
+StaticInitializationVectorABHCase2.java,Advanced False Positive Test Cases,Static/Constant IV,C,True,True,TP,AES!
+LessThan1000IterationPBEABHCase1.java,Advanced False Positive Test Cases,PBE iteration < 1000,C,True,False,FN,
+PredictableCryptographicKeyABICase2.java,Interprocedural + Field Sensitive,Static/Contant Key,C,True,False,FN,
+CredentialInStringABICase2.java,Interprocedural + Field Sensitive,Credential in String,C,True,False,FN,
+PredictablePBEPasswordABICase2.java,Interprocedural + Field Sensitive,Static/Contant password,C,True,False,FN,
+PredictableKeyStorePasswordABICase2.java,Interprocedural + Field Sensitive,Static/Constant Password,C,True,False,FN,
+HttpProtocolABICase2.java,Interprocedural + Field Sensitive,HTTP,C,True,False,FN,
+PredictableSeedsABICase3.java,Interprocedural + Field Sensitive,Constant Seed,C,True,False,FN,
+PredictableSeedsABICase4.java,Interprocedural + Field Sensitive,Constant Seed,C,True,False,FN,
+StaticSaltsABICase2.java,Interprocedural + Field Sensitive,Static/Constant Salt,C,True,False,FN,
+EcbInSymmCryptoABICase2.java,Interprocedural + Field Sensitive,Usage of ECB,C,True,True,TP,AES!
+StaticInitializationVectorABICase2.java,Interprocedural + Field Sensitive,Static/Constant IV,C,True,True,TP,AES!
+LessThan1000IterationPBEABICase2.java,Interprocedural + Field Sensitive,PBE iteration < 1000,C,True,False,FN,
+BrokenCryptoABICase5.java,Interprocedural + Field Sensitive,DES used,A,True,False,FN,
+BrokenCryptoABICase6.java,Interprocedural + Field Sensitive,Blowfish used,A,True,False,FN,
+BrokenCryptoABICase7.java,Interprocedural + Field Sensitive,RC4 used,A,True,False,FN,
+BrokenCryptoABICase8.java,Interprocedural + Field Sensitive,RC2 used,A,True,False,FN,
+BrokenCryptoABICase10.java,Interprocedural + Field Sensitive,IDEA used,A,True,False,FN,
+InsecureAsymmetricCipherABICase2.java,Interprocedural + Field Sensitive,RSA keysize 1024 bits,B,True,True,TP,RSA!
+BrokenHashABICase5.java,Interprocedural + Field Sensitive,SHA1 used,A,True,False,FN,
+BrokenHashABICase6.java,Interprocedural + Field Sensitive,MD5 used,A,True,False,FN,
+BrokenHashABICase7.java,Interprocedural + Field Sensitive,MD4 used,A,True,False,FN,
+BrokenHashABICase8.java,Interprocedural + Field Sensitive,MD2 used,A,True,False,FN,
+PredictableCryptographicKeyABPSCase1.java,Path sensitive cases,---,C,False,False,TN,
+PredictablePBEPasswordABPSCase1.java,Path sensitive cases,---,C,False,False,TN,
+PredictableKeyStorePasswordABPSCase1.java,Path sensitive cases,---,C,False,False,TN,
+HttpProtocolABPSCase1.java,Path sensitive cases,---,C,False,False,TN,
+PredictableSeedsABPSCase1.java,Path sensitive cases,---,C,False,False,TN,
+PredictableSeedsABPSCase2.java,Path sensitive cases,---,C,False,False,TN,
+StaticSaltsABPSCase1.java,Path sensitive cases,---,C,False,False,TN,
+EcbInSymmCryptoABPSCase1.java,Path sensitive cases,---,C,False,True,FP,AES!
+StaticInitializationVectorABPSCase1.java,Path sensitive cases,---,C,False,True,FP,AES!
+LessThan1000IterationPBEABPSCase1.java,Path sensitive cases,---,C,False,False,TN,
+BrokenCryptoABPSCase1.java,Path sensitive cases,---,A,False,True,FP,AES! DES!
+BrokenCryptoABPSCase2.java,Path sensitive cases,---,A,False,True,FP,AES! Blowfish!
+BrokenCryptoABPSCase3.java,Path sensitive cases,---,A,False,True,FP,AES! RC4!
+BrokenCryptoABPSCase4.java,Path sensitive cases,---,A,False,True,FP,AES! RC2!
+BrokenCryptoABPSCase5.java,Path sensitive cases,---,A,False,True,FP,AES! IDEA!
+InsecureAsymmetricCipherABPSCase1.java,Path sensitive cases,---,B,False,True,FP,RSA!
+BrokenHashABPSCase1.java,Path sensitive cases,---,A,False,True,FP,SHA-1! SHA-256
+BrokenHashABPSCase2.java,Path sensitive cases,---,A,False,True,FP,MD5! SHA-256
+BrokenHashABPSCase3.java,Path sensitive cases,---,A,False,True,FP,MD4! SHA-256
+BrokenHashABPSCase4.java,Path sensitive cases,---,A,False,True,FP,MD2! SHA-256
+PredictableCryptographicKeyABMCCase1.java;PredictableCryptographicKeyABMC1.java,Multiple java classes,Static/Contant Key,C,True,False,FN,
+CredentialInStringABMCCase1.java;CredentialInStringABMC1.java,Multiple java classes,Credential in String,C,True,False,FN,
+PredictablePBEPasswordABMCCase1.java;PredictablePBEPasswordABMC1.java,Multiple java classes,Static/Contant password,C,True,False,FN,
+PredictableKeyStorePasswordABMCCase1.java;PredictableKeyStorePasswordABMC1.java,Multiple java classes,Static/Constant Password,C,True,False,FN,
+HttpProtocolABMCCase1.java;HttpProtocolABMC1.java,Multiple java classes,HTTP,C,True,False,FN,
+PredictableSeedsABMCCase1.java;PredictableSeedsABMC1.java,Multiple java classes,Constant Seed,C,True,False,FN,
+StaticSaltsABMCCase1.java;StaticSaltsABMC1.java,Multiple java classes,Static/Constant Salt,C,True,False,FN,
+EcbInSymmCryptoABMCCase1.java;EcbInSymmCryptoABMC1.java,Multiple java classes,Usage of ECB,C,True,True,TP,AES! RUNTIME-SELECTED
+StaticInitializationVectorABMCCase1.java;StaticInitializationVectorABMC1.java,Multiple java classes,Static/Constant IV,C,True,True,TP,AES!
+LessThan1000IterationPBEABMCCase1.java;LessThan1000IterationPBEABMC1.java,Multiple java classes,PBE iteration < 1000,C,True,False,FN,
+BrokenCryptoABMCCase1.java;BrokenCryptoABMC1.java,Multiple java classes,DES used,A,True,False,FN,RUNTIME-SELECTED
+BrokenCryptoABMCCase2.java;BrokenCryptoABMC2.java,Multiple java classes,Blowfish used,A,True,False,FN,RUNTIME-SELECTED
+BrokenCryptoABMCCase3.java;BrokenCryptoABMC3.java,Multiple java classes,RC4 used,A,True,False,FN,RUNTIME-SELECTED
+BrokenCryptoABMCCase4.java;BrokenCryptoABMC4.java,Multiple java classes,RC2 used,A,True,False,FN,RUNTIME-SELECTED
+BrokenCryptoABMCCase5.java;BrokenCryptoABMC5.java,Multiple java classes,IDEA used,A,True,False,FN,RUNTIME-SELECTED
+InsecureAsymmetricCipherABMCCase1.java;InsecureAsymmetricCipherABMC1.java,Multiple java classes,RSA keysize 1024 bits,B,True,True,TP,RSA!
+BrokenHashABMCCase1.java;BrokenHashABMC1.java,Multiple java classes,SHA1 used,A,True,False,FN,RUNTIME-SELECTED
+BrokenHashABMCCase2.java;BrokenHashABMC2.java,Multiple java classes,MD5 used,A,True,False,FN,RUNTIME-SELECTED
+BrokenHashABMCCase3.java;BrokenHashABMC3.java,Multiple java classes,MD4 used,A,True,False,FN,RUNTIME-SELECTED
+BrokenHashABMCCase4.java;BrokenHashABMC4.java,Multiple java classes,MD2 used,A,True,False,FN,RUNTIME-SELECTED

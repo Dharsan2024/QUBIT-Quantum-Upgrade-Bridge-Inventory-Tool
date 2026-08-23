@@ -1,0 +1,969 @@
+{
+  "included": 17,
+  "excluded": 9,
+  "failed": 0,
+  "min_detectors_with_findings": 2,
+  "repositories": {
+    "JetBrains/compose-multiplatform": {
+      "repository": "JetBrains/compose-multiplatform",
+      "stratum": "Kotlin",
+      "primary_language": "Kotlin",
+      "commit": "a933da08f5d5fd24098b0e0370983a1104b7bc9b",
+      "license": "Apache-2.0",
+      "stars": 19309,
+      "detectors_with_findings": 4,
+      "counts": {
+        "qubit": 5,
+        "pqaudit": 21,
+        "semgrep": 1,
+        "cryptoscan": 6,
+        "sonar": 0
+      },
+      "elapsed_s": 154.0
+    },
+    "TheAlgorithms/Python": {
+      "repository": "TheAlgorithms/Python",
+      "stratum": "Python",
+      "primary_language": "Python",
+      "commit": "f5988cc09713315817df6a7e327e258013a94440",
+      "license": "MIT",
+      "stars": 223920,
+      "detectors_with_findings": 4,
+      "counts": {
+        "qubit": 26,
+        "pqaudit": 53,
+        "semgrep": 1,
+        "cryptoscan": 30,
+        "sonar": 0
+      },
+      "elapsed_s": 85.1
+    },
+    "allinurl/goaccess": {
+      "repository": "allinurl/goaccess",
+      "stratum": "C",
+      "primary_language": "C",
+      "commit": "0784e0e7c2812363211bfb334db8cfebaacf97a0",
+      "license": "MIT",
+      "stars": 20829,
+      "detectors_with_findings": 3,
+      "counts": {
+        "qubit": 4,
+        "pqaudit": 104,
+        "semgrep": 0,
+        "cryptoscan": 15,
+        "sonar": 0
+      },
+      "elapsed_s": 17.0
+    },
+    "coder/code-server": {
+      "repository": "coder/code-server",
+      "stratum": "TypeScript",
+      "primary_language": "TypeScript",
+      "commit": "88c2b7432e938f6918f21ff8d9dbfc641cd933d0",
+      "license": "MIT",
+      "stars": 78997,
+      "detectors_with_findings": 3,
+      "counts": {
+        "qubit": 24,
+        "pqaudit": 15,
+        "semgrep": 0,
+        "cryptoscan": 37,
+        "sonar": 0
+      },
+      "elapsed_s": 18.5
+    },
+    "conductor-oss/conductor": {
+      "repository": "conductor-oss/conductor",
+      "stratum": "Java",
+      "primary_language": "Java",
+      "commit": "9b6e4c08aca486494394261b081e4b122dd93b51",
+      "license": "Apache-2.0",
+      "stars": 32102,
+      "detectors_with_findings": 3,
+      "counts": {
+        "qubit": 511,
+        "pqaudit": 153,
+        "semgrep": 0,
+        "cryptoscan": 30,
+        "sonar": 0
+      },
+      "elapsed_s": 443.7
+    },
+    "fruitcake/laravel-debugbar": {
+      "repository": "fruitcake/laravel-debugbar",
+      "stratum": "PHP",
+      "primary_language": "PHP",
+      "commit": "a1cbd485509175453c03c82ca55ceac77c258cc0",
+      "license": "MIT",
+      "stars": 19281,
+      "detectors_with_findings": 3,
+      "counts": {
+        "qubit": 9,
+        "pqaudit": 4,
+        "semgrep": 0,
+        "cryptoscan": 3,
+        "sonar": 0
+      },
+      "elapsed_s": 25.2
+    },
+    "gatsbyjs/gatsby": {
+      "repository": "gatsbyjs/gatsby",
+      "stratum": "JavaScript",
+      "primary_language": "JavaScript",
+      "commit": "e85d62f1779e353eaac1753211629a26d123e26c",
+      "license": "MIT",
+      "stars": 55941,
+      "detectors_with_findings": 3,
+      "counts": {
+        "qubit": 211,
+        "pqaudit": 609,
+        "semgrep": 0,
+        "cryptoscan": 364,
+        "sonar": 0
+      },
+      "elapsed_s": 640.2
+    },
+    "mpv-player/mpv": {
+      "repository": "mpv-player/mpv",
+      "stratum": "C#",
+      "primary_language": "C",
+      "commit": "49418246f30a9c24af31ac184aa24f39755db89a",
+      "license": "NOASSERTION",
+      "stars": 36613,
+      "detectors_with_findings": 3,
+      "counts": {
+        "qubit": 1,
+        "pqaudit": 132,
+        "semgrep": 0,
+        "cryptoscan": 2,
+        "sonar": 0
+      },
+      "elapsed_s": 95.3
+    },
+    "multica-ai/multica": {
+      "repository": "multica-ai/multica",
+      "stratum": "Go",
+      "primary_language": "Go",
+      "commit": "fbbe697578533be22b0ae591203c159d95878380",
+      "license": "NOASSERTION",
+      "stars": 47188,
+      "detectors_with_findings": 4,
+      "counts": {
+        "qubit": 295,
+        "pqaudit": 680,
+        "semgrep": 3,
+        "cryptoscan": 43,
+        "sonar": 0
+      },
+      "elapsed_s": 415.2
+    },
+    "openwrt/openwrt": {
+      "repository": "openwrt/openwrt",
+      "stratum": "C#",
+      "primary_language": "C",
+      "commit": "f1bf2d18392ef7b9f5f7bc6773055cfbddde371b",
+      "license": "NOASSERTION",
+      "stars": 28057,
+      "detectors_with_findings": 4,
+      "counts": {
+        "qubit": 40,
+        "pqaudit": 1662,
+        "semgrep": 4,
+        "cryptoscan": 948,
+        "sonar": 0
+      },
+      "elapsed_s": 672.9
+    },
+    "permissionlesstech/bitchat": {
+      "repository": "permissionlesstech/bitchat",
+      "stratum": "Swift",
+      "primary_language": "Swift",
+      "commit": "9b84b361225facd8e623f25d76f889d3dc54a879",
+      "license": "Unlicense",
+      "stars": 35746,
+      "detectors_with_findings": 3,
+      "counts": {
+        "qubit": 11,
+        "pqaudit": 276,
+        "semgrep": 0,
+        "cryptoscan": 148,
+        "sonar": 0
+      },
+      "elapsed_s": 52.9
+    },
+    "react/create-react-app": {
+      "repository": "react/create-react-app",
+      "stratum": "JavaScript",
+      "primary_language": "JavaScript",
+      "commit": "6254386531d263688ccfa542d0e628fbc0de0b28",
+      "license": "MIT",
+      "stars": 103290,
+      "detectors_with_findings": 3,
+      "counts": {
+        "qubit": 3,
+        "pqaudit": 12,
+        "semgrep": 0,
+        "cryptoscan": 2,
+        "sonar": 0
+      },
+      "elapsed_s": 43.2
+    },
+    "realm/SwiftLint": {
+      "repository": "realm/SwiftLint",
+      "stratum": "Swift",
+      "primary_language": "Swift",
+      "commit": "ea29a5bee7f4e546587d3c4b907c62cff60928ef",
+      "license": "MIT",
+      "stars": 19702,
+      "detectors_with_findings": 3,
+      "counts": {
+        "qubit": 7,
+        "pqaudit": 11,
+        "semgrep": 0,
+        "cryptoscan": 1,
+        "sonar": 0
+      },
+      "elapsed_s": 61.0
+    },
+    "redis/redis": {
+      "repository": "redis/redis",
+      "stratum": "C",
+      "primary_language": "C",
+      "commit": "78432ed8e48aba009721a15a88ea8f5c9597b8e5",
+      "license": "NOASSERTION",
+      "stars": 76078,
+      "detectors_with_findings": 4,
+      "counts": {
+        "qubit": 26,
+        "pqaudit": 214,
+        "semgrep": 10,
+        "cryptoscan": 104,
+        "sonar": 0
+      },
+      "elapsed_s": 109.8
+    },
+    "starship/starship": {
+      "repository": "starship/starship",
+      "stratum": "Rust",
+      "primary_language": "Rust",
+      "commit": "6d38f35391a8e68952a3dd4b9acd40d3d93596f6",
+      "license": "ISC",
+      "stars": 59518,
+      "detectors_with_findings": 3,
+      "counts": {
+        "qubit": 6,
+        "pqaudit": 55,
+        "semgrep": 0,
+        "cryptoscan": 4,
+        "sonar": 0
+      },
+      "elapsed_s": 40.1
+    },
+    "usememos/memos": {
+      "repository": "usememos/memos",
+      "stratum": "Go",
+      "primary_language": "Go",
+      "commit": "79baf2eab7de84210b8a0399bedd54bba5e3f9bd",
+      "license": "MIT",
+      "stars": 62416,
+      "detectors_with_findings": 4,
+      "counts": {
+        "qubit": 141,
+        "pqaudit": 65,
+        "semgrep": 1,
+        "cryptoscan": 21,
+        "sonar": 0
+      },
+      "elapsed_s": 91.3
+    },
+    "withastro/astro": {
+      "repository": "withastro/astro",
+      "stratum": "TypeScript",
+      "primary_language": "TypeScript",
+      "commit": "3578d45d34226d63cff3d261c971c221de6794d2",
+      "license": "NOASSERTION",
+      "stars": 61913,
+      "detectors_with_findings": 3,
+      "counts": {
+        "qubit": 22,
+        "pqaudit": 139,
+        "semgrep": 0,
+        "cryptoscan": 3,
+        "sonar": 0
+      },
+      "elapsed_s": 257.8
+    }
+  },
+  "excluded_detail": {
+    "CymChad/BaseRecyclerViewAdapterHelper": {
+      "repository": "CymChad/BaseRecyclerViewAdapterHelper",
+      "stratum": "Kotlin",
+      "primary_language": "Kotlin",
+      "commit": "9948068cd95d5386cdb7f3e03d85fe2aede307cd",
+      "license": "MIT",
+      "stars": 24578,
+      "detectors_with_findings": 2,
+      "counts": {
+        "qubit": 2,
+        "pqaudit": 7,
+        "semgrep": 0,
+        "cryptoscan": 0,
+        "sonar": 0
+      },
+      "elapsed_s": 22.9,
+      "comparison": {
+        "corpus": "CymChad/BaseRecyclerViewAdapterHelper",
+        "dropped_non_source_findings": 1,
+        "shared_vocabulary": [],
+        "vocabulary_restricted": true,
+        "detectors": {
+          "qubit": {
+            "findings": 0,
+            "sites": 0
+          },
+          "pqaudit": {
+            "findings": 0,
+            "sites": 0
+          },
+          "semgrep": {
+            "findings": 0,
+            "sites": 0
+          },
+          "cryptoscan": {
+            "findings": 0,
+            "sites": 0
+          },
+          "sonar": {
+            "findings": 0,
+            "sites": 0
+          }
+        },
+        "unavailable": {},
+        "agreement": {
+          "cryptoscan|pqaudit": 0.0,
+          "cryptoscan|qubit": 0.0,
+          "cryptoscan|semgrep": 0.0,
+          "cryptoscan|sonar": 0.0,
+          "pqaudit|qubit": 0.0,
+          "pqaudit|semgrep": 0.0,
+          "pqaudit|sonar": 0.0,
+          "qubit|semgrep": 0.0,
+          "qubit|sonar": 0.0,
+          "semgrep|sonar": 0.0
+        },
+        "capture_table": {},
+        "estimates": [
+          {
+            "pair": "qubit|cryptoscan",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|pqaudit",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|semgrep",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|sonar",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          }
+        ]
+      },
+      "exclusion_reason": "only 0 detector(s) reported sites in the shared vocabulary []"
+    },
+    "ReactiveX/RxJava": {
+      "repository": "ReactiveX/RxJava",
+      "stratum": "Java",
+      "primary_language": "Java",
+      "commit": "eed1277349b2f01759e29802b4af098d8e690bdf",
+      "license": "Apache-2.0",
+      "stars": 48204,
+      "detectors_with_findings": 2,
+      "counts": {
+        "qubit": 2,
+        "pqaudit": 10,
+        "semgrep": 0,
+        "cryptoscan": 0,
+        "sonar": 0
+      },
+      "elapsed_s": 184.6,
+      "comparison": {
+        "corpus": "ReactiveX/RxJava",
+        "dropped_non_source_findings": 1,
+        "shared_vocabulary": [],
+        "vocabulary_restricted": true,
+        "detectors": {
+          "qubit": {
+            "findings": 0,
+            "sites": 0
+          },
+          "pqaudit": {
+            "findings": 0,
+            "sites": 0
+          },
+          "semgrep": {
+            "findings": 0,
+            "sites": 0
+          },
+          "cryptoscan": {
+            "findings": 0,
+            "sites": 0
+          },
+          "sonar": {
+            "findings": 0,
+            "sites": 0
+          }
+        },
+        "unavailable": {},
+        "agreement": {
+          "cryptoscan|pqaudit": 0.0,
+          "cryptoscan|qubit": 0.0,
+          "cryptoscan|semgrep": 0.0,
+          "cryptoscan|sonar": 0.0,
+          "pqaudit|qubit": 0.0,
+          "pqaudit|semgrep": 0.0,
+          "pqaudit|sonar": 0.0,
+          "qubit|semgrep": 0.0,
+          "qubit|sonar": 0.0,
+          "semgrep|sonar": 0.0
+        },
+        "capture_table": {},
+        "estimates": [
+          {
+            "pair": "qubit|cryptoscan",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|pqaudit",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|semgrep",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|sonar",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          }
+        ]
+      },
+      "exclusion_reason": "only 0 detector(s) reported sites in the shared vocabulary []"
+    },
+    "activeadmin/activeadmin": {
+      "repository": "activeadmin/activeadmin",
+      "stratum": "Ruby",
+      "primary_language": "Ruby",
+      "commit": "c8e93a8edbb230d359be9aad20f05cb8edb9f68e",
+      "license": "MIT",
+      "stars": 9703,
+      "detectors_with_findings": 1,
+      "counts": {
+        "qubit": 0,
+        "pqaudit": 7,
+        "semgrep": 0,
+        "cryptoscan": 0,
+        "sonar": 0
+      },
+      "elapsed_s": 36.4
+    },
+    "anthropics/skills": {
+      "repository": "anthropics/skills",
+      "stratum": "Python",
+      "primary_language": "Python",
+      "commit": "0a64e398ec6bb34a494f0c347e8ccae53a862f8e",
+      "license": null,
+      "stars": 170814,
+      "detectors_with_findings": 2,
+      "counts": {
+        "qubit": 30,
+        "pqaudit": 5,
+        "semgrep": 0,
+        "cryptoscan": 0,
+        "sonar": 0
+      },
+      "elapsed_s": 33.4,
+      "comparison": {
+        "corpus": "anthropics/skills",
+        "dropped_non_source_findings": 30,
+        "shared_vocabulary": [],
+        "vocabulary_restricted": true,
+        "detectors": {
+          "qubit": {
+            "findings": 0,
+            "sites": 0
+          },
+          "pqaudit": {
+            "findings": 0,
+            "sites": 0
+          },
+          "semgrep": {
+            "findings": 0,
+            "sites": 0
+          },
+          "cryptoscan": {
+            "findings": 0,
+            "sites": 0
+          },
+          "sonar": {
+            "findings": 0,
+            "sites": 0
+          }
+        },
+        "unavailable": {},
+        "agreement": {
+          "cryptoscan|pqaudit": 0.0,
+          "cryptoscan|qubit": 0.0,
+          "cryptoscan|semgrep": 0.0,
+          "cryptoscan|sonar": 0.0,
+          "pqaudit|qubit": 0.0,
+          "pqaudit|semgrep": 0.0,
+          "pqaudit|sonar": 0.0,
+          "qubit|semgrep": 0.0,
+          "qubit|sonar": 0.0,
+          "semgrep|sonar": 0.0
+        },
+        "capture_table": {},
+        "estimates": [
+          {
+            "pair": "qubit|cryptoscan",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|pqaudit",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|semgrep",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|sonar",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          }
+        ]
+      },
+      "exclusion_reason": "only 0 detector(s) reported sites in the shared vocabulary []"
+    },
+    "filp/whoops": {
+      "repository": "filp/whoops",
+      "stratum": "PHP",
+      "primary_language": "PHP",
+      "commit": "fa1bc9c95a1b392fbdb8a410dbbcb1d6a030fff7",
+      "license": "MIT",
+      "stars": 13234,
+      "detectors_with_findings": 0,
+      "counts": {
+        "qubit": 0,
+        "pqaudit": 0,
+        "semgrep": 0,
+        "cryptoscan": 0,
+        "sonar": 0
+      },
+      "elapsed_s": 16.9
+    },
+    "lencx/ChatGPT": {
+      "repository": "lencx/ChatGPT",
+      "stratum": "Rust",
+      "primary_language": "Rust",
+      "commit": "a6de9a8b61077fa63ad5c3ecbe2bc12e0cb4b4b9",
+      "license": null,
+      "stars": 54447,
+      "detectors_with_findings": 0,
+      "counts": {
+        "qubit": 0,
+        "pqaudit": 0,
+        "semgrep": 0,
+        "cryptoscan": 0,
+        "sonar": 0
+      },
+      "elapsed_s": 12.7
+    },
+    "libuv/libuv": {
+      "repository": "libuv/libuv",
+      "stratum": "C++",
+      "primary_language": "C",
+      "commit": "f87c8e4f70f234b952d9c47b15fb567f78e5f399",
+      "license": "MIT",
+      "stars": 27125,
+      "detectors_with_findings": 2,
+      "counts": {
+        "qubit": 2,
+        "pqaudit": 14,
+        "semgrep": 0,
+        "cryptoscan": 0,
+        "sonar": 0
+      },
+      "elapsed_s": 33.3,
+      "comparison": {
+        "corpus": "libuv/libuv",
+        "dropped_non_source_findings": 2,
+        "shared_vocabulary": [],
+        "vocabulary_restricted": true,
+        "detectors": {
+          "qubit": {
+            "findings": 0,
+            "sites": 0
+          },
+          "pqaudit": {
+            "findings": 0,
+            "sites": 0
+          },
+          "semgrep": {
+            "findings": 0,
+            "sites": 0
+          },
+          "cryptoscan": {
+            "findings": 0,
+            "sites": 0
+          },
+          "sonar": {
+            "findings": 0,
+            "sites": 0
+          }
+        },
+        "unavailable": {},
+        "agreement": {
+          "cryptoscan|pqaudit": 0.0,
+          "cryptoscan|qubit": 0.0,
+          "cryptoscan|semgrep": 0.0,
+          "cryptoscan|sonar": 0.0,
+          "pqaudit|qubit": 0.0,
+          "pqaudit|semgrep": 0.0,
+          "pqaudit|sonar": 0.0,
+          "qubit|semgrep": 0.0,
+          "qubit|sonar": 0.0,
+          "semgrep|sonar": 0.0
+        },
+        "capture_table": {},
+        "estimates": [
+          {
+            "pair": "qubit|cryptoscan",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|pqaudit",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|semgrep",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          },
+          {
+            "pair": "qubit|sonar",
+            "method": "Chapman (2-source)",
+            "observed": 0,
+            "population": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "missed_by_all": 0.0,
+            "qubit_recall_upper_bound": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "caveats": [
+              "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+              "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+              "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+            ]
+          }
+        ]
+      },
+      "exclusion_reason": "only 0 detector(s) reported sites in the shared vocabulary []"
+    },
+    "tmuxinator/tmuxinator": {
+      "repository": "tmuxinator/tmuxinator",
+      "stratum": "Ruby",
+      "primary_language": "Ruby",
+      "commit": "6d021f7befee0278155d16444bb8323008299997",
+      "license": "MIT",
+      "stars": 13708,
+      "detectors_with_findings": 1,
+      "counts": {
+        "qubit": 1,
+        "pqaudit": 0,
+        "semgrep": 0,
+        "cryptoscan": 0,
+        "sonar": 0
+      },
+      "elapsed_s": 10.0
+    },
+    "valinet/ExplorerPatcher": {
+      "repository": "valinet/ExplorerPatcher",
+      "stratum": "C++",
+      "primary_language": "C",
+      "commit": "0a88a6e0ef6b1752fea36e581cffff1097e862b0",
+      "license": "GPL-2.0",
+      "stars": 33677,
+      "detectors_with_findings": 1,
+      "counts": {
+        "qubit": 0,
+        "pqaudit": 32,
+        "semgrep": 0,
+        "cryptoscan": 0,
+        "sonar": 0
+      },
+      "elapsed_s": 22.5
+    }
+  },
+  "failed_detail": {}
+}

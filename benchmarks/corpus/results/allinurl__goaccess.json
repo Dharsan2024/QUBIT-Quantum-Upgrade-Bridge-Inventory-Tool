@@ -1,0 +1,793 @@
+{
+  "repository": "allinurl/goaccess",
+  "stratum": "C",
+  "primary_language": "C",
+  "commit": "0784e0e7c2812363211bfb334db8cfebaacf97a0",
+  "license": "MIT",
+  "stars": 20829,
+  "detectors_with_findings": 3,
+  "counts": {
+    "qubit": 4,
+    "pqaudit": 104,
+    "semgrep": 0,
+    "cryptoscan": 15
+  },
+  "elapsed_s": 20.8,
+  "comparison": {
+    "corpus": "allinurl/goaccess",
+    "dropped_non_source_findings": 6,
+    "shared_vocabulary": [
+      "SHA-1"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 0,
+        "sites": 0
+      },
+      "pqaudit": {
+        "findings": 22,
+        "sites": 3
+      },
+      "semgrep": {
+        "findings": 0,
+        "sites": 0
+      },
+      "cryptoscan": {
+        "findings": 3,
+        "sites": 2
+      }
+    },
+    "unavailable": {
+      "sonar": "SonarQube at http://127.0.0.1:9000 is DOWN: uv run python sonar_oracle.py --setup"
+    },
+    "agreement": {
+      "cryptoscan|pqaudit": 0.6666666666666666,
+      "cryptoscan|qubit": 0.0,
+      "cryptoscan|semgrep": 0.0,
+      "pqaudit|qubit": 0.0,
+      "pqaudit|semgrep": 0.0,
+      "qubit|semgrep": 0.0
+    },
+    "capture_table": {
+      "pqaudit": 1,
+      "cryptoscan+pqaudit": 2
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 2,
+        "population": [
+          2.0,
+          2.0,
+          2.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 3,
+        "population": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 0,
+        "population": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 8,
+      "code": 0,
+      "mention": 8,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "src/gstorage.c",
+          "line": 1279,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-001-1279-18",
+          "class": "string-literal",
+          "source": "(lookfor = \"TLSv1.1\", !strncmp (token, lookfor, 7)) ||"
+        },
+        {
+          "path": "src/gstorage.c",
+          "line": 1280,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-1280-18",
+          "class": "string-literal",
+          "source": "(lookfor = \"TLSv1.2\", !strncmp (token, lookfor, 7)) ||"
+        },
+        {
+          "path": "src/gstorage.c",
+          "line": 1282,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-001-1282-18",
+          "class": "string-literal",
+          "source": "(lookfor = \"TLS1.1\", !strncmp (token, lookfor, 6)) ||"
+        },
+        {
+          "path": "src/gstorage.c",
+          "line": 1284,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-1284-18",
+          "class": "string-literal",
+          "source": "(lookfor = \"TLS1.3\", !strncmp (token, lookfor, 6)) ||"
+        },
+        {
+          "path": "src/gstorage.c",
+          "line": 1283,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-1283-18",
+          "class": "string-literal",
+          "source": "(lookfor = \"TLS1.2\", !strncmp (token, lookfor, 6)) ||"
+        },
+        {
+          "path": "src/settings.c",
+          "line": 90,
+          "algorithm": "LMS",
+          "family": "LMS",
+          "rule_id": "PQC-LMS-001-90-67",
+          "class": "string-literal",
+          "source": "\"%h - %e [%d:%t %^] \\\"%r\\\" %s %b \\\"%R\\\" \\\"%u\\\" %^ \\\"%v\\\" \\\"%U\\\" %Lms\" /* Traefik's CLF flavor with header */"
+        },
+        {
+          "path": "src/gstorage.c",
+          "line": 1278,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-001-1278-18",
+          "class": "string-literal",
+          "source": "if ((lookfor = \"SSLv3\", !strncmp (token, lookfor, 5)) ||"
+        },
+        {
+          "path": "src/gstorage.c",
+          "line": 1281,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "TLS-002-1281-18",
+          "class": "string-literal",
+          "source": "(lookfor = \"TLSv1.3\", !strncmp (token, lookfor, 7)) ||"
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 86,
+      "code": 6,
+      "mention": 0,
+      "comment": 0,
+      "absent": 80,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "src/sort.c",
+          "line": 504,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (sort.sort == SORT_DESC)"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 116,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{REFERRING_SITES     , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/gholder.c",
+          "line": 80,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{STATUS_CODES    , add_root_to_holder , NULL},"
+        },
+        {
+          "path": "src/dialogs.c",
+          "line": 163,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "mvwprintw (win, 2, 2, AGENTSDLG_DESC);"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 264,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "STATUS_CODES_LABEL,"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 118,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{STATUS_CODES        , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 510,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (sort.sort == SORT_DESC)"
+        },
+        {
+          "path": "src/dialogs.c",
+          "line": 268,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "mvwprintw (win, 2, 2, HELPDLG_DESC);"
+        },
+        {
+          "path": "src/sort.h",
+          "line": 63,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "SORT_DESC"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 115,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{REFERRERS           , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 358,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "REFERRING_SITES_DESC,"
+        },
+        {
+          "path": "src/dialogs.c",
+          "line": 421,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "mvwprintw (win, SORT_WIN_H - 2, 1, \" %s\", SORT_DESC_SEL);"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 540,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (sort.sort == SORT_DESC)"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 351,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "NOT_FOUND_DESC,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 357,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "REFERRERS_DESC,"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 125,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{MIME_TYPE           , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 367,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "MIME_TYPE_DESC,"
+        },
+        {
+          "path": "src/color.h",
+          "line": 62,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "COLOR_PANEL_DESC,"
+        },
+        {
+          "path": "src/color.c",
+          "line": 417,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "return get_color (COLOR_PANEL_DESC);"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 106,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{VISITORS            , SORT_BY_DATA , SORT_DESC } ,"
+        },
+        {
+          "path": "src/color.c",
+          "line": 206,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"COLOR_PANEL_DESC             color242:color-1\","
+        },
+        {
+          "path": "src/ui.c",
+          "line": 359,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "KEYPHRASES_DESC,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 350,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "REQUESTS_STATIC_DESC,"
+        },
+        {
+          "path": "src/color.c",
+          "line": 292,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"COLOR_PANEL_DESC             color7:color-1\","
+        },
+        {
+          "path": "src/commons.h",
+          "line": 109,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "STATUS_CODES,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 352,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "HOSTS_DESC,"
+        },
+        {
+          "path": "src/dialogs.c",
+          "line": 585,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "mvwprintw (win, 2, 2, CONFDLG_DESC);"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 528,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (sort.sort == SORT_DESC)"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 108,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{REQUESTS_STATIC     , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 295,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "STATUS_CODES_ID,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 348,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "VISITORS_DESC,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 349,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "REQUESTS_DESC,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 83,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{STATUS_CODES    , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 0 , 0 , 1 , 0 , 0} ,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 326,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "STATUS_CODES_HEAD,"
+        },
+        {
+          "path": "src/output.c",
+          "line": 122,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{STATUS_CODES, 1, 0, print_metrics, {"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 107,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{REQUESTS            , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 114,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{VIRTUAL_HOSTS       , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/color.c",
+          "line": 163,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"COLOR_PANEL_DESC             color7:color-1\","
+        },
+        {
+          "path": "src/gstorage.c",
+          "line": 395,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "STATUS_CODES,"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 498,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (sort.sort == SORT_DESC)"
+        },
+        {
+          "path": "src/json.c",
+          "line": 86,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{STATUS_CODES        , print_json_data , print_json_sub_items } ,"
+        },
+        {
+          "path": "src/sha1.h",
+          "line": 17,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1_USAGE",
+          "class": "code",
+          "source": "extern void SHA1Final (uint8_t digest[20], SHA1_CTX * context);"
+        },
+        {
+          "path": "src/dialogs.c",
+          "line": 420,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "sort->sort = SORT_DESC;"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 516,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (sort.sort == SORT_DESC)"
+        },
+        {
+          "path": "src/color.c",
+          "line": 120,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"COLOR_PANEL_DESC             color7:color-1\","
+        },
+        {
+          "path": "src/sort.c",
+          "line": 110,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{HOSTS               , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/dialogs.c",
+          "line": 405,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "mvwprintw (win, SORT_WIN_H - 2, 1, \" %s\", SORT_DESC_SEL);"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 362,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "CACHE_STATUS_DESC,"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 120,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{CACHE_STATUS        , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 534,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (sort.sort == SORT_DESC)"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 522,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (sort.sort == SORT_DESC)"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 117,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{KEYPHRASES          , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/color.c",
+          "line": 249,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"COLOR_PANEL_DESC             color7:color-1\","
+        },
+        {
+          "path": "src/sort.c",
+          "line": 122,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{GEO_LOCATION        , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 364,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "GEO_LOCATION_DESC,"
+        },
+        {
+          "path": "src/ui.c",
+          "line": 368,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TLS_TYPE_DESC,"
+        },
+        {
+          "path": "src/wsauth.c",
+          "line": 593,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "HMAC (EVP_sha256 (), secret, strlen (secret), (unsigned char *) signing_input,"
+        },
+        {
+          "path": "src/sort.c",
+          "line": 109,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{NOT_FOUND           , SORT_BY_HITS , SORT_DESC } ,"
+        },
+        {
+          "path": "src/color.c",
+          "line": 327,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"COLOR_PANEL_DESC             color0:color-1\","
+        },
+        {
+          "path": "src/sort.c",
+          "line": 102,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "{\"DESC\" , SORT_DESC } ,"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 2,
+      "code": 2,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "src/wsauth.c",
+          "line": 225,
+          "algorithm": "HMAC",
+          "family": "HMAC",
+          "rule_id": "C-OPENSSL-HMAC",
+          "class": "code",
+          "source": "HMAC (EVP_sha256 (), secret, strlen (secret), (unsigned char *) signing_input,"
+        },
+        {
+          "path": "src/wsauth.c",
+          "line": 593,
+          "algorithm": "HMAC",
+          "family": "HMAC",
+          "rule_id": "C-OPENSSL-HMAC",
+          "class": "code",
+          "source": "HMAC (EVP_sha256 (), secret, strlen (secret), (unsigned char *) signing_input,"
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

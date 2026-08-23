@@ -1,0 +1,1312 @@
+{
+  "repository": "conductor-oss/conductor",
+  "stratum": "Java",
+  "primary_language": "Java",
+  "commit": "9b6e4c08aca486494394261b081e4b122dd93b51",
+  "license": "Apache-2.0",
+  "stars": 32102,
+  "detectors_with_findings": 3,
+  "counts": {
+    "qubit": 511,
+    "pqaudit": 153,
+    "semgrep": 0,
+    "cryptoscan": 30,
+    "sonar": 0
+  },
+  "elapsed_s": 443.7,
+  "comparison": {
+    "corpus": "conductor-oss/conductor",
+    "dropped_non_source_findings": 56,
+    "shared_vocabulary": [
+      "MD5",
+      "RSA",
+      "SHA",
+      "SHA-1"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 4,
+        "sites": 3
+      },
+      "pqaudit": {
+        "findings": 43,
+        "sites": 22
+      },
+      "semgrep": {
+        "findings": 0,
+        "sites": 0
+      },
+      "cryptoscan": {
+        "findings": 26,
+        "sites": 11
+      },
+      "sonar": {
+        "findings": 0,
+        "sites": 0
+      }
+    },
+    "unavailable": {},
+    "agreement": {
+      "cryptoscan|pqaudit": 0.5,
+      "cryptoscan|qubit": 0.07692307692307693,
+      "cryptoscan|semgrep": 0.0,
+      "cryptoscan|sonar": 0.0,
+      "pqaudit|qubit": 0.13636363636363635,
+      "pqaudit|semgrep": 0.0,
+      "pqaudit|sonar": 0.0,
+      "qubit|semgrep": 0.0,
+      "qubit|sonar": 0.0,
+      "semgrep|sonar": 0.0
+    },
+    "capture_table": {
+      "cryptoscan+pqaudit": 10,
+      "cryptoscan+pqaudit+qubit": 1,
+      "pqaudit": 9,
+      "pqaudit+qubit": 2
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 13,
+        "population": [
+          23.0,
+          13.0,
+          40.53077294359835
+        ],
+        "missed_by_all": 10.0,
+        "qubit_recall_upper_bound": [
+          0.13043478260869565,
+          0.07401783341696266,
+          0.23076923076923078
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 1 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 22,
+        "population": [
+          22.0,
+          22.0,
+          22.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.13636363636363635,
+          0.13636363636363635,
+          0.13636363636363635
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 3 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 3,
+        "population": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|sonar",
+        "method": "Chapman (2-source)",
+        "observed": 3,
+        "population": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 3,
+      "code": 3,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "core/src/main/java/org/conductoross/conductor/core/storage/FileStorageUrlSigner.java",
+          "line": 32,
+          "algorithm": "HMAC-SHA2",
+          "family": "HMAC",
+          "rule_id": "MAC-HMAC-SHA2-001-32-32",
+          "class": "code",
+          "source": "private static final String HMAC_SHA_256 = \"HmacSHA256\";"
+        },
+        {
+          "path": "core/src/main/java/org/conductoross/conductor/core/storage/FileStorageUrlSigner.java",
+          "line": 162,
+          "algorithm": "HMAC-SHA2",
+          "family": "HMAC",
+          "rule_id": "MAC-HMAC-SHA2-001-162-38",
+          "class": "code",
+          "source": "Mac mac = Mac.getInstance(HMAC_SHA_256);"
+        },
+        {
+          "path": "core/src/main/java/org/conductoross/conductor/core/storage/FileStorageUrlSigner.java",
+          "line": 165,
+          "algorithm": "HMAC-SHA2",
+          "family": "HMAC",
+          "rule_id": "MAC-HMAC-SHA2-001-165-78",
+          "class": "code",
+          "source": "key.getSecret().getBytes(StandardCharsets.UTF_8), HMAC_SHA_256));"
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 120,
+      "code": 3,
+      "mention": 3,
+      "comment": 0,
+      "absent": 114,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "ui-next/src/types/Integrations.ts",
+          "line": 40,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "GOOGLE_SLIDES = \"google-slides\","
+        },
+        {
+          "path": "scheduler/postgres-persistence/src/main/java/org/conductoross/conductor/scheduler/postgres/dao/PostgresSchedulerArchivalDAO.java",
+          "line": 239,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY scheduled_time DESC"
+        },
+        {
+          "path": "sqlite-persistence/src/test/java/com/netflix/conductor/sqlite/dao/SqliteIndexDAOTest.java",
+          "line": 800,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "List<String> orderBy = Arrays.asList(new String[] {\"taskId:DESC\"});"
+        },
+        {
+          "path": "postgres-persistence/src/test/java/com/netflix/conductor/postgres/util/PostgresIndexQueryBuilderTest.java",
+          "line": 743,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"task_index\", \"\", \"\", 0, 15, List.of(\"endTime:DESC\"), properties);"
+        },
+        {
+          "path": "postgres-persistence/src/test/java/com/netflix/conductor/postgres/util/PostgresIndexQueryBuilderTest.java",
+          "line": 499,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "String[] query = {\"sqlInjection:DESC\"};"
+        },
+        {
+          "path": "ui-next/e2e/integration/api-client.ts",
+          "line": 471,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "sort: \"scheduledTime:DESC\","
+        },
+        {
+          "path": "postgres-persistence/src/test/java/com/netflix/conductor/postgres/dao/PostgresIndexDAOTest.java",
+          "line": 511,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "List<String> orderBy = Arrays.asList(new String[] {\"workflowId:DESC\"});"
+        },
+        {
+          "path": "ui-next/e2e/integration/task-crud.spec.ts",
+          "line": 31,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "await page.locator(\"#task-description-field\").fill(TASK_DESCRIPTION);"
+        },
+        {
+          "path": "postgres-persistence/src/test/java/com/netflix/conductor/postgres/util/PostgresIndexQueryBuilderTest.java",
+          "line": 511,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "String[] query = {\"sqlInjection:DESC\"};"
+        },
+        {
+          "path": "scheduler/mysql-persistence/src/main/java/org/conductoross/conductor/scheduler/mysql/dao/MySQLSchedulerArchivalDAO.java",
+          "line": 171,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "parts.length > 1 && \"ASC\".equalsIgnoreCase(parts[1].trim()) ? \"ASC\" : \"DESC\";"
+        },
+        {
+          "path": "ui-next/e2e/integration/workflow-crud.spec.ts",
+          "line": 14,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const WF_DESCRIPTION = \"Created by Playwright E2E test \u2014 safe to delete\";"
+        },
+        {
+          "path": "rest/src/main/java/com/netflix/conductor/rest/controllers/WorkflowResource.java",
+          "line": 336,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"use sort options as sort=<field>:ASC|DESC e.g. sort=name&sort=workflowId:DESC.\""
+        },
+        {
+          "path": "postgres-persistence/src/main/java/org/conductoross/conductor/postgres/dao/PostgresSkillMetadataDAO.java",
+          "line": 68,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "+ \"ORDER BY updated_at DESC NULLS LAST LIMIT 1\";"
+        },
+        {
+          "path": "mysql-persistence/src/main/java/com/netflix/conductor/mysql/dao/MySQLQueueDAO.java",
+          "line": 103,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "+ \"ORDER BY deliver_on, priority DESC, created_on LIMIT ?\";"
+        },
+        {
+          "path": "ui-next/src/components/features/flow/components/RichAddTaskMenu/taskGenerator.ts",
+          "line": 645,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA_SIGN",
+          "class": "substring",
+          "source": "algorithm: GetSignedJWTAlgorithmType.RS256,"
+        },
+        {
+          "path": "sqlite-persistence/src/main/java/com/netflix/conductor/sqlite/dao/SqliteQueueDAO.java",
+          "line": 465,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "+ \"ORDER BY priority DESC, deliver_on, created_on LIMIT ?\""
+        },
+        {
+          "path": "rest/src/main/java/com/netflix/conductor/rest/controllers/WorkflowResource.java",
+          "line": 427,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "? \"agentHierarchy:DESC\""
+        },
+        {
+          "path": "scheduler/mysql-persistence/src/main/java/org/conductoross/conductor/scheduler/mysql/dao/MySQLSchedulerArchivalDAO.java",
+          "line": 242,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "+ \" ORDER BY scheduled_time DESC LIMIT ?\";"
+        },
+        {
+          "path": "mysql-persistence/src/main/java/com/netflix/conductor/mysql/dao/MySQLQueueDAO.java",
+          "line": 355,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"SELECT message_id, priority, payload FROM queue_message use index(combo_queue_message) WHERE queue_name = ? AND popped = false AND deliver_on <= TIMESTAMPADD(MICROSECOND, 1000, CURRENT_TIMESTAMP) ORD"
+        },
+        {
+          "path": "scheduler/sqlite-persistence/src/main/java/org/conductoross/conductor/scheduler/sqlite/dao/SqliteSchedulerArchivalDAO.java",
+          "line": 217,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "+ \"  ORDER BY scheduled_time DESC \""
+        },
+        {
+          "path": "test-harness/src/test/java/com/netflix/conductor/test/integration/TestHarnessAbstractEndToEndTest.java",
+          "line": 66,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "private static final String DEFAULT_DESCRIPTION = \"description\";"
+        },
+        {
+          "path": "ui-next/src/pages/agent/executions/workflowSearchComponents/AdvancedSearch.tsx",
+          "line": 42,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const DEFAULT_SORT = \"startTime:DESC\";"
+        },
+        {
+          "path": "rest/src/main/java/com/netflix/conductor/rest/controllers/TaskResource.java",
+          "line": 287,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"use sort options as sort=<field>:ASC|DESC e.g. sort=name&sort=workflowId:DESC.\""
+        },
+        {
+          "path": "sqlite-persistence/src/test/java/com/netflix/conductor/sqlite/util/SqliteIndexQueryBuilderTest.java",
+          "line": 267,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"SELECT json_data FROM workflow_index ORDER BY end_time DESC LIMIT ? OFFSET ?\","
+        },
+        {
+          "path": "postgres-external-storage/src/main/java/com/netflix/conductor/postgres/storage/PostgresPayloadStorage.java",
+          "line": 86,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "path, () -> DigestUtils.sha256Hex(payloadBytes) + URI_SUFFIX_HASHED);"
+        },
+        {
+          "path": "scheduler/sqlite-persistence/src/main/java/org/conductoross/conductor/scheduler/sqlite/dao/SqliteSchedulerArchivalDAO.java",
+          "line": 153,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "parts.length > 1 && \"ASC\".equalsIgnoreCase(parts[1].trim()) ? \"ASC\" : \"DESC\";"
+        },
+        {
+          "path": "sqlite-persistence/src/test/java/com/netflix/conductor/sqlite/dao/SqliteIndexDAOTest.java",
+          "line": 617,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "List<String> orderBy = Arrays.asList(new String[] {\"workflowId:DESC\"});"
+        },
+        {
+          "path": "test-harness/src/test/java/com/netflix/conductor/test/integration/TestHarnessAbstractEndToEndTest.java",
+          "line": 278,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"task \" + i + DEFAULT_DESCRIPTION,"
+        },
+        {
+          "path": "ui-next/src/components/features/flow/components/graphs/PanAndZoomWrapper/state/types.ts",
+          "line": 59,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TOGGLE_SHOW_DESCRIPTION_EVT = \"TOGGLE_SHOW_DESCRIPTION_EVT\","
+        },
+        {
+          "path": "rest/src/test/java/com/netflix/conductor/rest/controllers/WorkflowResourceTest.java",
+          "line": 314,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": ".searchWorkflowsV2(0, 100, \"agentHierarchy:DESC|asc\", \"*\", \"classifier IN (agent)\");"
+        },
+        {
+          "path": "ui-next/src/pages/agent/executions/workflowSearchComponents/BasicSearch.tsx",
+          "line": 37,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const DEFAULT_SORT = \"startTime:DESC\";"
+        },
+        {
+          "path": "ui-next/e2e/integration/scheduler-definitions.spec.ts",
+          "line": 115,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DESCRIPTION,"
+        },
+        {
+          "path": "common/src/main/java/org/conductoross/conductor/common/metadata/agent/SkillFileEntry.java",
+          "line": 27,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "private String sha256;"
+        },
+        {
+          "path": "ai/src/main/java/org/conductoross/conductor/ai/document/DocumentAccessPolicy.java",
+          "line": 206,
+          "algorithm": "Ed25519",
+          "family": "EC",
+          "rule_id": "ED25519_USAGE",
+          "class": "string-literal",
+          "source": "\"id_ed25519\","
+        },
+        {
+          "path": "ui-next/src/pages/executions/workflowSearchComponents/AdvancedSearch.tsx",
+          "line": 42,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const DEFAULT_SORT = \"startTime:DESC\";"
+        },
+        {
+          "path": "agentspan/src/test/java/org/conductoross/conductor/ai/agentspan/ConductorAgentSpanConfigurationIntegrationTest.java",
+          "line": 120,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"sha256-checksum\","
+        },
+        {
+          "path": "ui-next/src/components/features/flow/components/graphs/PanAndZoomWrapper/ZoomControls.tsx",
+          "line": 135,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "flowActor.send({ type: FlowActionTypes.TOGGLE_SHOW_DESCRIPTION });"
+        },
+        {
+          "path": "test-util/src/test/java/com/netflix/conductor/test/integration/AbstractEndToEndTest.java",
+          "line": 57,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "private static final String DEFAULT_DESCRIPTION = \"description\";"
+        },
+        {
+          "path": "ui-next/e2e/integration/scheduler-definitions.spec.ts",
+          "line": 33,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "description: DESCRIPTION,"
+        },
+        {
+          "path": "es8-persistence/src/main/java/org/conductoross/conductor/es8/dao/index/Es8SearchSupport.java",
+          "line": 282,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (\"DESC\".equals(orderValue)) {"
+        },
+        {
+          "path": "ui-next/src/pages/executions/SchedulerExecutions.tsx",
+          "line": 29,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const DEFAULT_SORT = \"startTime:DESC\";"
+        },
+        {
+          "path": "postgres-persistence/src/test/java/com/netflix/conductor/postgres/util/PostgresIndexQueryBuilderTest.java",
+          "line": 419,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "String[] query = {\"updateTime:DESC\"};"
+        },
+        {
+          "path": "ui-next/src/pages/executions/workflowSearchComponents/BasicSearch.tsx",
+          "line": 37,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const DEFAULT_SORT = \"startTime:DESC\";"
+        },
+        {
+          "path": "ui-next/src/types/TaskType.ts",
+          "line": 340,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA_SIGN",
+          "class": "substring",
+          "source": "RS256 = \"RS256\","
+        },
+        {
+          "path": "ui-next/src/components/features/flow/state/types.ts",
+          "line": 36,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "TOGGLE_SHOW_DESCRIPTION = \"TOGGLE_SHOW_DESCRIPTION\","
+        },
+        {
+          "path": "test-util/src/test/java/com/netflix/conductor/test/integration/AbstractEndToEndTest.java",
+          "line": 256,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"task \" + i + DEFAULT_DESCRIPTION,"
+        },
+        {
+          "path": "sqlite-persistence/src/test/java/com/netflix/conductor/sqlite/dao/SqliteIndexDAOTest.java",
+          "line": 417,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "searchEndTimeFixture(\"endTime:DESC\"));"
+        },
+        {
+          "path": "ui-next/src/pages/executions/cliSearch.test.ts",
+          "line": 13,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "sort: \"startTime:DESC\","
+        },
+        {
+          "path": "scheduler/mysql-persistence/src/main/java/org/conductoross/conductor/scheduler/mysql/dao/MySQLSchedulerArchivalDAO.java",
+          "line": 164,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "return \" ORDER BY scheduled_time DESC\";"
+        },
+        {
+          "path": "ui-next/e2e/integration/workflow-crud.spec.ts",
+          "line": 30,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "await page.locator(\"#workflow-description-field\").fill(WF_DESCRIPTION);"
+        },
+        {
+          "path": "ai/src/main/java/org/conductoross/conductor/ai/a2a/A2AService.java",
+          "line": 102,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "private static final Set<Integer> TERMINAL_RPC_CODES ="
+        },
+        {
+          "path": "ui-next/e2e/integration/task-crud.spec.ts",
+          "line": 14,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const TASK_DESCRIPTION = \"Created by Playwright E2E test \u2014 safe to delete\";"
+        },
+        {
+          "path": "scheduler/cassandra-persistence/src/main/java/org/conductoross/conductor/scheduler/cassandra/dao/CassandraSchedulerArchivalDAO.java",
+          "line": 98,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "+ \") WITH CLUSTERING ORDER BY (scheduled_time DESC, execution_id ASC)\");"
+        },
+        {
+          "path": "ui-next/src/pages/agent/executions/ApiSearchModalIntegration.test.ts",
+          "line": 16,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "`${window.location.origin}/api/workflow/search?start=20&size=10&sort=startTime%3ADESC&freeText=*&query=status%3DRUNNING&classifier=agent&topLevelOnly=true`,"
+        },
+        {
+          "path": "ui-next/src/pages/executions/cliSearch.ts",
+          "line": 60,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"startTime:DESC\","
+        },
+        {
+          "path": "ai/src/main/java/org/conductoross/conductor/ai/a2a/A2AService.java",
+          "line": 530,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "boolean terminal = TERMINAL_RPC_CODES.contains(code);"
+        },
+        {
+          "path": "agentspan/src/main/java/org/conductoross/conductor/ai/agentspan/runtime/service/AgentService.java",
+          "line": 919,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "workflowService.searchWorkflows(0, 1, \"startTime:DESC\", idempotencyKey, query);"
+        },
+        {
+          "path": "postgres-persistence/src/test/java/com/netflix/conductor/postgres/util/PostgresIndexQueryBuilderTest.java",
+          "line": 735,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"SELECT json_data::TEXT FROM workflow_index ORDER BY end_time DESC LIMIT ? OFFSET ?\","
+        },
+        {
+          "path": "ui-next/src/pages/definition/state/action.ts",
+          "line": 1096,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "type: FlowActionTypes.TOGGLE_SHOW_DESCRIPTION,"
+        },
+        {
+          "path": "os-persistence-v3/src/main/java/org/conductoross/conductor/os3/dao/index/OpenSearchRestDAO.java",
+          "line": 1067,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "order = \"DESC\".equalsIgnoreCase(orderStr) ? SortOrder.Desc : SortOrder.Asc;"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 452,
+      "code": 1,
+      "mention": 1,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 450,
+      "sample": [
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 30280,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ai/src/test/resources/ai-test-env.sh",
+          "line": 55,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "export GROK_API_KEY=\"your-grok-api-key\""
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 42636,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 43789,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/testData/diagramTests.js",
+          "line": 1129,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "ownerEmail: \"builds@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 44215,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 47107,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 32384,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 39363,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 38283,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 36072,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 2867,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "ownerEmail: \"bob@bobswidgets.com\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 14080,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "nats/src/main/java/com/netflix/conductor/contribs/queue/nats/config/JetStreamEventQueueProvider.java",
+          "line": 31,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "* @author andrey.stelmashenko@gmail.com"
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 21258,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 35592,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 28062,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 40626,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 19188,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 11819,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 9211,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 45580,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 39453,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 50668,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 36334,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 37745,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 11537,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 26527,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 29860,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 25125,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 31881,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ai/src/test/resources/ai-test-env.sh",
+          "line": 14,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "export OPENAI_API_KEY=\"your-openai-api-key\""
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 8308,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 15044,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 25897,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 45400,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 45760,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 7474,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 5505,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 45042,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 48668,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 33734,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 33464,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 18775,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 50938,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 44860,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 14927,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "ownerEmail: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 48368,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 29920,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 17114,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 26347,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 20988,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 17781,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/definition/EditorPanel/TaskFormTab/helpers.test.ts",
+          "line": 70,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "ownerEmail: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "common/src/test/java/com/netflix/conductor/common/workflow/WorkflowDefValidatorTest.java",
+          "line": 113,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "workflowDef.setOwnerEmail(\"owner@test.com\");"
+        },
+        {
+          "path": "ui-next/src/components/features/search/state/helpers.test.ts",
+          "line": 77,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "ownerEmail: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 17174,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 27067,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 5878,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        },
+        {
+          "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+          "line": 7384,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "_createdBy: \"najeeb.thangal@orkes.io\","
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "sonar": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

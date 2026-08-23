@@ -1,0 +1,16 @@
+{
+  "judgements": 120,
+  "items": 100,
+  "annotators": [
+    "dharsan"
+  ],
+  "repeated": 20,
+  "inter_rater": {
+    "n": 50,
+    "kappa": 0.39853556485355657,
+    "raw_agreement": 0.54,
+    "second_annotators": [
+      "akshay"
+    ]
+  }
+}

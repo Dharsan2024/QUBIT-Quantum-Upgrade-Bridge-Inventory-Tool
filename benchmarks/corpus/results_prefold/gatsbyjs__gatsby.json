@@ -1,0 +1,807 @@
+{
+  "repository": "gatsbyjs/gatsby",
+  "stratum": "JavaScript",
+  "primary_language": "JavaScript",
+  "commit": "e85d62f1779e353eaac1753211629a26d123e26c",
+  "license": "MIT",
+  "stars": 55941,
+  "detectors_with_findings": 3,
+  "counts": {
+    "qubit": 211,
+    "pqaudit": 609,
+    "semgrep": 0,
+    "cryptoscan": 364,
+    "sonar": 0
+  },
+  "elapsed_s": 640.2,
+  "comparison": {
+    "corpus": "gatsbyjs/gatsby",
+    "dropped_non_source_findings": 858,
+    "shared_vocabulary": [
+      "MD5",
+      "SHA-1"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 0,
+        "sites": 0
+      },
+      "pqaudit": {
+        "findings": 60,
+        "sites": 25
+      },
+      "semgrep": {
+        "findings": 0,
+        "sites": 0
+      },
+      "cryptoscan": {
+        "findings": 31,
+        "sites": 20
+      },
+      "sonar": {
+        "findings": 0,
+        "sites": 0
+      }
+    },
+    "unavailable": {},
+    "agreement": {
+      "cryptoscan|pqaudit": 0.7307692307692307,
+      "cryptoscan|qubit": 0.0,
+      "cryptoscan|semgrep": 0.0,
+      "cryptoscan|sonar": 0.0,
+      "pqaudit|qubit": 0.0,
+      "pqaudit|semgrep": 0.0,
+      "pqaudit|sonar": 0.0,
+      "qubit|semgrep": 0.0,
+      "qubit|sonar": 0.0,
+      "semgrep|sonar": 0.0
+    },
+    "capture_table": {
+      "pqaudit": 6,
+      "cryptoscan": 1,
+      "cryptoscan+pqaudit": 19
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 20,
+        "population": [
+          20.0,
+          20.0,
+          20.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 25,
+        "population": [
+          25.0,
+          25.0,
+          25.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 0,
+        "population": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|sonar",
+        "method": "Chapman (2-source)",
+        "observed": 0,
+        "population": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "model": "independence",
+        "method": "log-linear 5-source (independence)",
+        "observed": 26,
+        "population": [
+          26.315789473684223,
+          26.03626335513745,
+          28.74996594528494
+        ],
+        "missed_by_all": 0.3157894736842222,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "independence model: assumes detectors succeed and fail independently, which they do not -- this total is an UNDER-estimate",
+          "some capture patterns have zero observed sites; the fit is sparse and the unseen-cell estimate is correspondingly fragile"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 1,
+      "code": 1,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "packages/gatsby-core-utils/src/hash.ts",
+          "line": 1,
+          "algorithm": "SHA-1",
+          "family": "SHA-1",
+          "rule_id": "SHA1-001-1-33",
+          "class": "code",
+          "source": "export { md5, createMD5, sha256, sha1 } from \"hash-wasm\""
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 244,
+      "code": 10,
+      "mention": 4,
+      "comment": 0,
+      "absent": 230,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "packages/gatsby-source-wordpress/src/utils/report.ts",
+          "line": 92,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.SelfSignedCert]: {"
+        },
+        {
+          "path": "packages/gatsby-plugin-mdx/src/compile-mdx.ts",
+          "line": 6,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "import { ERROR_CODES } from \"./error-utils\""
+        },
+        {
+          "path": "packages/gatsby/src/schema/__tests__/queries.js",
+          "line": 2014,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "allMarkdown(sort: { fields: [frontmatter___title], order: DESC}) {"
+        },
+        {
+          "path": "packages/gatsby-transformer-sharp/src/error-utils.js",
+          "line": 20,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.MissingResource]: {"
+        },
+        {
+          "path": "starters/gatsby-starter-wordpress-blog/gatsby-node.js",
+          "line": 151,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "allWpPage(sort: {date: DESC}) {"
+        },
+        {
+          "path": "packages/gatsby-plugin-page-creator/src/error-utils.ts",
+          "line": 80,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.FileSystemRemove]: {"
+        },
+        {
+          "path": "packages/gatsby/src/schema/node-model.js",
+          "line": 990,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "type: `SET_RESOLVED_NODES`,"
+        },
+        {
+          "path": "packages/gatsby/src/schema/__tests__/queries.js",
+          "line": 354,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "sort: { fields: [id], order: [DESC] }"
+        },
+        {
+          "path": "packages/gatsby-source-contentful/src/gatsby-node.js",
+          "line": 55,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "id: CODES.GatsbyPluginMissing,"
+        },
+        {
+          "path": "packages/gatsby/src/datastore/lmdb/query/common.ts",
+          "line": 8,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "return sortOrder === `desc` || sortOrder === `DESC` || sortOrder === false"
+        },
+        {
+          "path": "packages/gatsby-source-filesystem/src/create-file-node.js",
+          "line": 48,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "contentDigest = await md5File(slashedFile.absolutePath)"
+        },
+        {
+          "path": "packages/gatsby/src/schema/__tests__/queries.js",
+          "line": 612,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "sort: { fields: [frontmatter___title], order: [DESC] }"
+        },
+        {
+          "path": "packages/gatsby-core-utils/src/md5-file.ts",
+          "line": 10,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "const md5hasher = await createMD5()"
+        },
+        {
+          "path": "packages/gatsby-source-filesystem/src/error-utils.js",
+          "line": 15,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.Generic]: {"
+        },
+        {
+          "path": "packages/gatsby-codemods/src/transforms/__tests__/sort-and-aggr-graphql.ts",
+          "line": 120,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "order: [DESC]"
+        },
+        {
+          "path": "packages/gatsby/src/datastore/lmdb/query/__tests__/suggest-index.ts",
+          "line": 131,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "order: [`desc`, `DESC`, `asc`],"
+        },
+        {
+          "path": "benchmarks/query-filters-sort/gatsby-node.js",
+          "line": 56,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "random: Math.round(Math.random() * NUM_NODES),"
+        },
+        {
+          "path": "packages/gatsby-source-wordpress/src/steps/create-schema-customization/index.js",
+          "line": 9,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "import { CODES } from \"../../utils/report\""
+        },
+        {
+          "path": "packages/gatsby-plugin-mdx/src/gatsby-layout-loader.ts",
+          "line": 72,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "id: ERROR_CODES.InvalidAcornAST,"
+        },
+        {
+          "path": "packages/gatsby-codemods/src/transforms/__tests__/sort-and-aggr-graphql.ts",
+          "line": 162,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "allMarkdownRemark(sort: {frontmatter: {date: DESC}})"
+        },
+        {
+          "path": "packages/gatsby-core-utils/src/md5-file.ts",
+          "line": 22,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "substring",
+          "source": "md5hasher.update(data)"
+        },
+        {
+          "path": "benchmarks/source-wordpress/scripts/updater.js",
+          "line": 61,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "posts(first: 1, where: { orderby: { field: DATE, order: DESC } }) {"
+        },
+        {
+          "path": "packages/gatsby-plugin-mdx/src/error-utils.ts",
+          "line": 34,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[ERROR_CODES.NonDeterminableExportName]: {"
+        },
+        {
+          "path": "packages/gatsby-remark-code-repls/src/constants.js",
+          "line": 26,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "OPTION_DEFAULT_CODESANDBOX: {"
+        },
+        {
+          "path": "packages/gatsby-source-wordpress/src/utils/fetch-graphql.ts",
+          "line": 617,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "id: CODES.BadResponse,"
+        },
+        {
+          "path": "packages/gatsby-source-wordpress/src/steps/create-schema-customization/index.js",
+          "line": 117,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "id: CODES.SourcePluginCodeError,"
+        },
+        {
+          "path": "packages/gatsby-codemods/src/transforms/__tests__/sort-and-aggr-graphql.ts",
+          "line": 83,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "allMarkdownRemark(sort: {frontmatter: {date: DESC}})"
+        },
+        {
+          "path": "packages/gatsby-plugin-page-creator/src/gatsby-node.ts",
+          "line": 446,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "id: prefixId(CODES.Generic),"
+        },
+        {
+          "path": "examples/using-gatsby-source-graphql/src/pages/index.js",
+          "line": 27,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "blogPosts(where: { status: PUBLISHED }, orderBy: createdAt_DESC) {"
+        },
+        {
+          "path": "packages/gatsby-plugin-mdx/src/error-utils.ts",
+          "line": 10,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[ERROR_CODES.MdxCompilation]: {"
+        },
+        {
+          "path": "packages/gatsby-plugin-page-creator/src/error-utils.ts",
+          "line": 42,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.GeneratePath]: {"
+        },
+        {
+          "path": "packages/gatsby-remark-code-repls/src/index.js",
+          "line": 50,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "codesandbox = { ...OPTION_DEFAULT_CODESANDBOX, ...codesandbox }"
+        },
+        {
+          "path": "packages/gatsby-source-wordpress/src/utils/fetch-graphql.ts",
+          "line": 558,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "id: CODES.BadResponse,"
+        },
+        {
+          "path": "packages/gatsby-source-wordpress/src/utils/fetch-graphql.ts",
+          "line": 183,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "id: CODES.RemoteGraphQLError,"
+        },
+        {
+          "path": "packages/gatsby-source-wordpress/src/utils/fetch-graphql.ts",
+          "line": 644,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "id: CODES.BadResponse,"
+        },
+        {
+          "path": "packages/gatsby-codemods/src/transforms/__tests__/sort-and-aggr-graphql.ts",
+          "line": 329,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "allMarkdownRemark(sort: {frontmatter: {date: DESC}}) {"
+        },
+        {
+          "path": "benchmarks/query-filters-sort/gatsby-node.js",
+          "line": 41,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "for (let nodeNum = 0; nodeNum < NUM_NODES; nodeNum++) {"
+        },
+        {
+          "path": "packages/gatsby-source-contentful/src/source-nodes.js",
+          "line": 21,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "import { CODES } from \"./report\""
+        },
+        {
+          "path": "packages/gatsby-source-contentful/src/report.js",
+          "line": 39,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.FetchTags]: {"
+        },
+        {
+          "path": "benchmarks/markdown_id/src/pages/index.js",
+          "line": 59,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "allMarkdownRemark(sort: { fields: [frontmatter___date], order: DESC }) {"
+        },
+        {
+          "path": "packages/gatsby-source-contentful/src/report.js",
+          "line": 49,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.GatsbyPluginMissing]: {"
+        },
+        {
+          "path": "benchmarks/gabe-json-text/src/pages/index.js",
+          "line": 47,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "allGendataJson(limit: 100, sort: { fields: date, order: DESC }) {"
+        },
+        {
+          "path": "packages/gatsby-transformer-sqip/src/extend-node-type.js",
+          "line": 24,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const SUPPORTED_NODES = [`ImageSharp`, `ContentfulAsset`]"
+        },
+        {
+          "path": "benchmarks/docker-runner/scripts/test.js",
+          "line": 66,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "BUILD_NUM_NODES: args.numNodes,"
+        },
+        {
+          "path": "packages/gatsby-codemods/src/transforms/__tests__/sort-and-aggr-graphql.ts",
+          "line": 76,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "order: DESC"
+        },
+        {
+          "path": "packages/gatsby-source-contentful/src/fetch.js",
+          "line": 6,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "import { CODES } from \"./report\""
+        },
+        {
+          "path": "benchmarks/gabe-yaml-text/src/pages/index.js",
+          "line": 47,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "allGendataYaml(limit: 100, sort: { fields: date, order: DESC }) {"
+        },
+        {
+          "path": "benchmarks/query/gatsby-node.js",
+          "line": 90,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "${process.env.QUERY_LINKED_NODES ? linkedNodesQueryFields : ``}"
+        },
+        {
+          "path": "packages/gatsby-transformer-sharp/src/error-utils.js",
+          "line": 15,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.Generic]: {"
+        },
+        {
+          "path": "packages/gatsby/src/query/__tests__/transform-documents.ts",
+          "line": 108,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "allMarkdownRemark(sort: {frontmatter: {date: DESC}})"
+        },
+        {
+          "path": "packages/gatsby/src/schema/types/sort.ts",
+          "line": 45,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DESC: { value: `DESC` },"
+        },
+        {
+          "path": "packages/gatsby-plugin-page-creator/src/error-utils.ts",
+          "line": 74,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.FileSystemAdd]: {"
+        },
+        {
+          "path": "packages/gatsby-source-wordpress/src/utils/report.ts",
+          "line": 56,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.Timeout]: {"
+        },
+        {
+          "path": "packages/gatsby-source-wordpress/src/utils/report.ts",
+          "line": 32,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.WordPressFilters]: {"
+        },
+        {
+          "path": "packages/gatsby-plugin-page-creator/src/create-pages-from-collection-builder.ts",
+          "line": 124,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "id: prefixId(CODES.GeneratePath),"
+        },
+        {
+          "path": "packages/gatsby/src/datastore/lmdb/query/common.ts",
+          "line": 6,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "sortOrder: \"asc\" | \"desc\" | \"ASC\" | \"DESC\" | boolean | void"
+        },
+        {
+          "path": "packages/gatsby-source-contentful/src/fetch.js",
+          "line": 400,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "id: CODES.FetchContentTypes,"
+        },
+        {
+          "path": "packages/gatsby-core-utils/src/md5-file.ts",
+          "line": 9,
+          "algorithm": "MD5",
+          "family": "MD5",
+          "rule_id": "MD5_USAGE",
+          "class": "code",
+          "source": "export const md5File = async (filePath: string): Promise<string> => {"
+        },
+        {
+          "path": "packages/gatsby-plugin-page-creator/src/error-utils.ts",
+          "line": 36,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "[CODES.CollectionBuilder]: {"
+        },
+        {
+          "path": "packages/gatsby-source-wordpress/src/steps/preview/index.ts",
+          "line": 381,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "orderby: { field: MODIFIED, order: DESC }"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 4,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 4,
+      "sample": [
+        {
+          "path": "examples/using-javascript-transforms/gatsby-config.js",
+          "line": 7,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "siteEmailUrl: `me@x.com`,"
+        },
+        {
+          "path": "examples/using-javascript-transforms/gatsby-config.js",
+          "line": 8,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "siteEmailPretty: `me@x.com`,"
+        },
+        {
+          "path": "packages/gatsby-source-contentful/src/__fixtures__/starter-blog-data.js",
+          "line": 449,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "email: { \"en-US\": `john@doe.com` },"
+        },
+        {
+          "path": "scripts/assert-changed-files.sh",
+          "line": 9,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "git config --local user.email \"core-team@gatsbyjs.com\""
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "sonar": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

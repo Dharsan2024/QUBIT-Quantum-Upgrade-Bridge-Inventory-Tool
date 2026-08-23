@@ -1,0 +1,1363 @@
+{
+  "repository": "multica-ai/multica",
+  "stratum": "Go",
+  "primary_language": "Go",
+  "commit": "fbbe697578533be22b0ae591203c159d95878380",
+  "license": "NOASSERTION",
+  "stars": 47188,
+  "detectors_with_findings": 4,
+  "counts": {
+    "qubit": 295,
+    "pqaudit": 680,
+    "semgrep": 3,
+    "cryptoscan": 43,
+    "sonar": 0
+  },
+  "elapsed_s": 415.2,
+  "comparison": {
+    "corpus": "multica-ai/multica",
+    "dropped_non_source_findings": 6,
+    "shared_vocabulary": [
+      "HMAC",
+      "RSA",
+      "SHA",
+      "SHA-1"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 83,
+        "sites": 56
+      },
+      "pqaudit": {
+        "findings": 248,
+        "sites": 89
+      },
+      "semgrep": {
+        "findings": 2,
+        "sites": 1
+      },
+      "cryptoscan": {
+        "findings": 41,
+        "sites": 14
+      },
+      "sonar": {
+        "findings": 0,
+        "sites": 0
+      }
+    },
+    "unavailable": {},
+    "agreement": {
+      "cryptoscan|pqaudit": 0.10752688172043011,
+      "cryptoscan|qubit": 0.14754098360655737,
+      "cryptoscan|semgrep": 0.07142857142857142,
+      "cryptoscan|sonar": 0.0,
+      "pqaudit|qubit": 0.3942307692307692,
+      "pqaudit|semgrep": 0.011235955056179775,
+      "pqaudit|sonar": 0.0,
+      "qubit|semgrep": 0.017857142857142856,
+      "qubit|sonar": 0.0,
+      "semgrep|sonar": 0.0
+    },
+    "capture_table": {
+      "pqaudit+qubit": 33,
+      "pqaudit": 46,
+      "cryptoscan": 3,
+      "cryptoscan+pqaudit+qubit": 7,
+      "qubit": 14,
+      "cryptoscan+pqaudit": 2,
+      "cryptoscan+qubit": 1,
+      "cryptoscan+pqaudit+qubit+semgrep": 1
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 61,
+        "population": [
+          84.5,
+          61.0,
+          110.98968032340828
+        ],
+        "missed_by_all": 23.5,
+        "qubit_recall_upper_bound": [
+          0.6627218934911243,
+          0.504551412679304,
+          0.9180327868852459
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 104,
+        "population": [
+          121.14285714285714,
+          107.46564812523853,
+          134.82006616047576
+        ],
+        "missed_by_all": 17.14285714285714,
+        "qubit_recall_upper_bound": [
+          0.46226415094339623,
+          0.4153684358331603,
+          0.5210967502353739
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 56,
+        "population": [
+          56.0,
+          56.0,
+          56.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 1 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|sonar",
+        "method": "Chapman (2-source)",
+        "observed": 56,
+        "population": [
+          56.0,
+          56.0,
+          56.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "model": "independence",
+        "method": "log-linear 5-source (independence)",
+        "observed": 107,
+        "population": [
+          123.7142323453529,
+          116.15885913418906,
+          137.50222290804746
+        ],
+        "missed_by_all": 16.7142323453529,
+        "qubit_recall_upper_bound": [
+          0.45265608441617217,
+          0.4072661431622757,
+          0.4820983988428095
+        ],
+        "caveats": [
+          "independence model: assumes detectors succeed and fail independently, which they do not -- this total is an UNDER-estimate",
+          "some capture patterns have zero observed sites; the fit is sparse and the unseen-cell estimate is correspondingly fragile"
+        ]
+      },
+      {
+        "model": "one interaction",
+        "method": "log-linear 5-source (interactions [(0, 1)])",
+        "observed": 107,
+        "population": [
+          123.60150208682259,
+          115.55805677170133,
+          139.20472577958654
+        ],
+        "missed_by_all": 16.60150208682259,
+        "qubit_recall_upper_bound": [
+          0.4530689275981726,
+          0.4022851931669983,
+          0.4846048952747159
+        ],
+        "caveats": [
+          "some capture patterns have zero observed sites; the fit is sparse and the unseen-cell estimate is correspondingly fragile"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 3,
+      "code": 0,
+      "mention": 2,
+      "comment": 1,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "packages/views/common/task-transcript/redact.test.ts",
+          "line": 18,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-18-30",
+          "class": "string-literal",
+          "source": "const input = \"-----BEGIN RSA PRIVATE KEY-----\\nMIIEow...\\n-----END RSA PRIVATE KEY-----\";"
+        },
+        {
+          "path": "server/internal/integrations/vcs/vcs.go",
+          "line": 122,
+          "algorithm": "HMAC-SHA2",
+          "family": "HMAC",
+          "rule_id": "MAC-HMAC-SHA2-001-122-37",
+          "class": "comment",
+          "source": "// stored secret. Forgejo/Gitea use HMAC-SHA256 (X-Gitea-Signature);"
+        },
+        {
+          "path": "server/pkg/redact/redact_test.go",
+          "line": 34,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA-001-34-40",
+          "class": "string-literal",
+          "source": "input := \"Here is the key:\\n-----BEGIN RSA PRIVATE KEY-----\\nMIIEow...\\n-----END RSA PRIVATE KEY-----\\nDone.\""
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 577,
+      "code": 58,
+      "mention": 85,
+      "comment": 1,
+      "absent": 433,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "server/pkg/db/generated/plugin.sql.go",
+          "line": 469,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "SELECT id, version_id, path, content, size_bytes, sha256, created_at FROM plugin_package_file"
+        },
+        {
+          "path": "server/pkg/db/queries/webhook_delivery.sql",
+          "line": 47,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY (status IN ('rejected', 'failed')), created_at DESC"
+        },
+        {
+          "path": "server/internal/storage/s3_test.go",
+          "line": 255,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "if got.contentSHA256 != \"STREAMING-UNSIGNED-PAYLOAD-TRAILER\" {"
+        },
+        {
+          "path": "server/internal/integrations/vcs/forgejo.go",
+          "line": 62,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, []byte(secret))"
+        },
+        {
+          "path": "server/internal/handler/github.go",
+          "line": 7,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"crypto/sha256\""
+        },
+        {
+          "path": "server/internal/integrations/wecom/inbound_media_bind_db_test.go",
+          "line": 279,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY cm.created_at DESC LIMIT 1`,"
+        },
+        {
+          "path": "server/pkg/db/generated/chat.sql.go",
+          "line": 1709,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "head.priority DESC,"
+        },
+        {
+          "path": "server/migrations/124_channel_generalization.up.sql",
+          "line": 267,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ON channel_outbound_card_message(chat_session_id, created_at DESC);"
+        },
+        {
+          "path": "server/internal/handler/comment_duplicate_enqueue_race_test.go",
+          "line": 296,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY created_at DESC LIMIT 1"
+        },
+        {
+          "path": "packages/views/issues/surface/issue-surface.test.tsx",
+          "line": 570,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "query_fingerprint: \"sha256:initial-sort\","
+        },
+        {
+          "path": "server/pkg/db/queries/agent.sql",
+          "line": 2049,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY t.priority DESC, t.created_at ASC, t.id"
+        },
+        {
+          "path": "server/migrations/301_drop_redundant_sys_cron_job_plan_index.down.sql",
+          "line": 2,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ON sys_cron_executions (job_name, scope_kind, scope_id, plan_time DESC);"
+        },
+        {
+          "path": "server/pkg/db/generated/chat.sql.go",
+          "line": 2563,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "head.priority DESC,"
+        },
+        {
+          "path": "packages/views/modals/create-squad.tsx",
+          "line": 196,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "maxLength={AGENT_DESCRIPTION_MAX_LENGTH}"
+        },
+        {
+          "path": "server/pkg/db/queries/agent.sql",
+          "line": 766,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY atq.priority DESC, atq.created_at ASC, atq.id ASC"
+        },
+        {
+          "path": "server/migrations/109_lark_integration.up.sql",
+          "line": 243,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ON lark_outbound_card_message(chat_session_id, created_at DESC);"
+        },
+        {
+          "path": "server/cmd/server/comment_at_least_once_test.go",
+          "line": 26,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY created_at DESC"
+        },
+        {
+          "path": "server/pkg/db/generated/task_usage.sql.go",
+          "line": 255,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY 1 DESC, 2"
+        },
+        {
+          "path": "server/pkg/db/queries/inbox.sql",
+          "line": 7,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY i.created_at DESC;"
+        },
+        {
+          "path": "server/pkg/db/generated/agent.sql.go",
+          "line": 5596,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY priority DESC, created_at ASC"
+        },
+        {
+          "path": "packages/views/issues/hooks/use-sticky-composer.test.tsx",
+          "line": 65,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "setViewportWidth(DESKTOP_WIDTH);"
+        },
+        {
+          "path": "packages/views/agents/components/agent-detail-inspector.tsx",
+          "line": 221,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "maxLength={AGENT_DESCRIPTION_MAX_LENGTH}"
+        },
+        {
+          "path": "packages/core/issues/revision-realtime.test.ts",
+          "line": 265,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "{ query_fingerprint: \"sha256:facets\", total: 1, facets: [] },"
+        },
+        {
+          "path": "server/internal/integrations/vcs/forgejo.go",
+          "line": 6,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"crypto/sha256\""
+        },
+        {
+          "path": "apps/desktop/scripts/worktree-dev-env.test.mjs",
+          "line": 116,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "expect(env.DESKTOP_APP_SUFFIX).toBe(\"manual\");"
+        },
+        {
+          "path": "server/migrations/109_lark_integration.up.sql",
+          "line": 214,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ON lark_inbound_audit(installation_id, received_at DESC);"
+        },
+        {
+          "path": "packages/core/runtimes/cli-version.ts",
+          "line": 142,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (DEV_DESCRIBE_RE.test(current)) return true;"
+        },
+        {
+          "path": "packages/views/agents/create/agent-configuration-panel.tsx",
+          "line": 137,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "maxLength={AGENT_DESCRIPTION_MAX_LENGTH}"
+        },
+        {
+          "path": "server/internal/handler/github.go",
+          "line": 438,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, []byte(secret))"
+        },
+        {
+          "path": "server/internal/handler/github_test.go",
+          "line": 1594,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "sig := \"sha256=\" + hex.EncodeToString(mac.Sum(nil))"
+        },
+        {
+          "path": "server/migrations/042_autopilot.up.sql",
+          "line": 67,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "CREATE INDEX IF NOT EXISTS idx_autopilot_run_autopilot ON autopilot_run(autopilot_id, created_at DESC);"
+        },
+        {
+          "path": "server/pkg/db/queries/task_usage.sql",
+          "line": 260,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY 1 DESC, 2;"
+        },
+        {
+          "path": "packages/views/settings/components/account-tab.tsx",
+          "line": 53,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const descriptionTooLong = profileDescription.length > MAX_PROFILE_DESCRIPTION_LEN;"
+        },
+        {
+          "path": "server/pkg/db/queries/chat.sql",
+          "line": 1041,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY t.session_id, t.completed_at DESC"
+        },
+        {
+          "path": "server/internal/handler/cross_issue_originator_test.go",
+          "line": 205,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "`SELECT id FROM comment WHERE issue_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`,"
+        },
+        {
+          "path": "server/pkg/db/generated/chat.sql.go",
+          "line": 1427,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY m.created_at DESC"
+        },
+        {
+          "path": "server/pkg/db/queries/github.sql",
+          "line": 220,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY (state IN ('open', 'draft')) DESC, pr_updated_at DESC"
+        },
+        {
+          "path": "packages/core/agents/draft.ts",
+          "line": 10,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "AGENT_DESCRIPTION_MAX_LENGTH,"
+        },
+        {
+          "path": "server/pkg/db/generated/agent.sql.go",
+          "line": 6460,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY t.created_at DESC"
+        },
+        {
+          "path": "server/pkg/db/generated/agent.sql.go",
+          "line": 7169,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY atq.priority DESC, atq.dispatched_at ASC"
+        },
+        {
+          "path": "server/pkg/db/queries/agent.sql",
+          "line": 1984,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY priority DESC, created_at ASC;"
+        },
+        {
+          "path": "server/internal/integrations/vcs/vcs_test.go",
+          "line": 62,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "t.Error(\"sha256-prefixed signature rejected\")"
+        },
+        {
+          "path": "packages/core/issues/mutations.test.tsx",
+          "line": 1003,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "{ query_fingerprint: \"sha256:groups\", total: 0, groups: [], next_cursor: null },"
+        },
+        {
+          "path": "apps/desktop/scripts/worktree-dev-env.test.mjs",
+          "line": 100,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "expect(env.DESKTOP_APP_SUFFIX).toBe(appSuffixForPath(root));"
+        },
+        {
+          "path": "server/internal/handler/webhook_delivery_test.go",
+          "line": 7,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"crypto/sha256\""
+        },
+        {
+          "path": "server/pkg/db/queries/chat.sql",
+          "line": 1124,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY created_at DESC"
+        },
+        {
+          "path": "apps/desktop/scripts/worktree-dev-env.test.mjs",
+          "line": 123,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "expect(env.DESKTOP_RENDERER_PORT).toBe(\"9999\");"
+        },
+        {
+          "path": "server/pkg/db/queries/task_usage.sql",
+          "line": 183,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY DATE(atq.completed_at AT TIME ZONE sqlc.arg('tz')::text) DESC;"
+        },
+        {
+          "path": "packages/views/skills/components/skill-detail-page.test.tsx",
+          "line": 326,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "expect(field.value).toBe(LONG_DESCRIPTION);"
+        },
+        {
+          "path": "server/internal/service/plugin_hook.go",
+          "line": 7,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"crypto/sha256\""
+        },
+        {
+          "path": "packages/views/agents/components/agent-detail-inspector.tsx",
+          "line": 113,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "profileDraft.description.length <= AGENT_DESCRIPTION_MAX_LENGTH,"
+        },
+        {
+          "path": "server/pkg/db/queries/autopilot.sql",
+          "line": 155,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY created_at DESC"
+        },
+        {
+          "path": "server/migrations/285_plugin_lifecycle_v1.up.sql",
+          "line": 64,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "entry_digest TEXT NOT NULL CHECK (entry_digest ~ '^sha256:[0-9a-f]{64}$'),"
+        },
+        {
+          "path": "server/internal/handler/search_test.go",
+          "line": 337,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if !strings.Contains(orderBy, \"i.updated_at DESC\") {"
+        },
+        {
+          "path": "server/internal/handler/github_test.go",
+          "line": 1199,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, []byte(secret))"
+        },
+        {
+          "path": "server/internal/handler/issue_window.go",
+          "line": 250,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY number DESC"
+        },
+        {
+          "path": "server/pkg/db/generated/task_usage.sql.go",
+          "line": 337,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY DATE(atq.completed_at AT TIME ZONE $2::text) DESC"
+        },
+        {
+          "path": "server/pkg/db/queries/chat.sql",
+          "line": 134,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY (cs.pinned_at IS NOT NULL) DESC, cs.pinned_at DESC, COALESCE(lm.created_at, cs.updated_at) DESC;"
+        },
+        {
+          "path": "server/pkg/db/generated/dingtalk.sql.go",
+          "line": 271,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY presence.last_active_at DESC NULLS LAST, presence.conversation_title ASC,"
+        },
+        {
+          "path": "server/pkg/db/queries/plugin.sql",
+          "line": 75,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "INSERT INTO plugin_package_file (version_id, path, content, size_bytes, sha256)"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 239,
+      "code": 43,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 196,
+      "sample": [
+        {
+          "path": "server/internal/integrations/wecom/metrics_test.go",
+          "line": 327,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "return InstallationCredentials{BotID: inst.BotID, Secret: \"secret-1\"}, nil"
+        },
+        {
+          "path": "packages/core/analytics/index.test.ts",
+          "line": 172,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "value: \"Bad email bob@corp.com\","
+        },
+        {
+          "path": "server/internal/daemon/daemon_test.go",
+          "line": 5401,
+          "algorithm": "GitHub token",
+          "family": "GITHUB TOKEN",
+          "rule_id": "SECRET-GITHUB-PAT",
+          "class": "not-applicable",
+          "source": "\"content\": \"GITHUB_TOKEN=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn\\n\","
+        },
+        {
+          "path": "server/internal/handler/auth_signup_test.go",
+          "line": 32,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "{\"email_allowlist_match\", Config{AllowSignup: false, AllowedEmails: []string{\"boss@x.com\"}}, \"boss@x.com\", true, false},"
+        },
+        {
+          "path": "server/internal/handler/contact_sales_test.go",
+          "line": 154,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "{\"ada@Gmail.COM\", false},"
+        },
+        {
+          "path": "server/internal/handler/invitation_test.go",
+          "line": 470,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "if rec := call(memberUserID, \"invitation-route-rejected@multica.ai\"); rec.Code != http.StatusForbidden {"
+        },
+        {
+          "path": "server/internal/middleware/auth_test.go",
+          "line": 225,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "claims[\"email\"] = \"pdzzer68@embassybase.com\""
+        },
+        {
+          "path": "server/internal/service/email.go",
+          "line": 120,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "return \"noreply@multica.ai\""
+        },
+        {
+          "path": "server/internal/auth/jwt.go",
+          "line": 14,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const defaultJWTSecret = \"multica-dev-secret-change-in-production\""
+        },
+        {
+          "path": "server/cmd/server/notification_listeners_test.go",
+          "line": 1037,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "parentSubEmail := \"notif-parent-sub-priority@multica.ai\""
+        },
+        {
+          "path": "server/internal/integrations/wecom/wecom_channel_test.go",
+          "line": 296,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "secret:         \"secret-1\","
+        },
+        {
+          "path": "server/internal/service/email_test.go",
+          "line": 398,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "\"noreply@multica.ai\","
+        },
+        {
+          "path": "server/internal/handler/webhook_delivery_test.go",
+          "line": 22,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const testSigningSecret = \"this-is-a-test-secret-32-chars-x\""
+        },
+        {
+          "path": "server/internal/handler/webhook_delivery_test.go",
+          "line": 46,
+          "algorithm": "HMAC",
+          "family": "HMAC",
+          "rule_id": "GO-CRYPTO-HMAC-NEW",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, []byte(secret))"
+        },
+        {
+          "path": "server/internal/handler/github.go",
+          "line": 406,
+          "algorithm": "HMAC",
+          "family": "HMAC",
+          "rule_id": "GO-CRYPTO-HMAC-NEW",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, []byte(secret))"
+        },
+        {
+          "path": "server/internal/service/task_dedup_head_sha_test.go",
+          "line": 62,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "email := fmt.Sprintf(\"head-sha-dedup-%d@multica.ai\", suffix)"
+        },
+        {
+          "path": "server/internal/integrations/wecom/wecom_channel_test.go",
+          "line": 127,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "secret:         \"secret-1\","
+        },
+        {
+          "path": "server/internal/handler/contact_sales_test.go",
+          "line": 153,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "{\"ada@gmail.com\", false},"
+        },
+        {
+          "path": "server/internal/handler/quick_create_parent_test.go",
+          "line": 86,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "`, \"QuickCreate Foreign\", \"quickcreate-foreign@multica.ai\").Scan(&foreignUserID); err != nil {"
+        },
+        {
+          "path": "server/internal/service/email_test.go",
+          "line": 345,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "\"noreply@multica.ai\","
+        },
+        {
+          "path": "server/internal/handler/runtime_local_skills_redis_store_test.go",
+          "line": 55,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const password = \"runtime-no-multi-test-password\""
+        },
+        {
+          "path": "server/internal/handler/contact_sales_test.go",
+          "line": 176,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "{\"uppercase normalized\", \"Ada@Multica.AI\", \"ada@multica.ai\", true},"
+        },
+        {
+          "path": "server/pkg/redact/redact_test.go",
+          "line": 393,
+          "algorithm": "GitHub token",
+          "family": "GITHUB TOKEN",
+          "rule_id": "SECRET-GITHUB-PAT",
+          "class": "not-applicable",
+          "source": "\"env\":  map[string]string{\"TOKEN\": \"ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn\"},"
+        },
+        {
+          "path": "server/internal/handler/issue_grouped_test.go",
+          "line": 22,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "`, \"Grouped Issues Test User\", fmt.Sprintf(\"grouped-%d@multica.ai\", suffix)).Scan(&assigneeID); err != nil {"
+        },
+        {
+          "path": "server/internal/handler/github_test.go",
+          "line": 2093,
+          "algorithm": "HMAC",
+          "family": "HMAC",
+          "rule_id": "GO-CRYPTO-HMAC-NEW",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, []byte(secret))"
+        },
+        {
+          "path": "server/internal/handler/contact_sales_test.go",
+          "line": 177,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "{\"trim whitespace\", \"  ada@multica.ai  \", \"ada@multica.ai\", true},"
+        },
+        {
+          "path": "server/cmd/server/notification_listeners_test.go",
+          "line": 384,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "commenterEmail := \"notif-commenter@multica.ai\""
+        },
+        {
+          "path": "packages/views/editor/utils/link-handler.test.ts",
+          "line": 71,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "expect(toInternalAppPath(\"mailto:a@b.com\", APP_ORIGIN)).toBeNull();"
+        },
+        {
+          "path": "server/internal/service/task_batch_claim_test.go",
+          "line": 26,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "\"Batch Claim Test\", fmt.Sprintf(\"batch-claim-%d@multica.ai\", suffix)).Scan(&userID); err != nil {"
+        },
+        {
+          "path": "server/internal/testutil/db_test.go",
+          "line": 19,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "fixtureEmail = \"testutil-fixture@multica.ai\""
+        },
+        {
+          "path": "server/internal/handler/onboarding_test.go",
+          "line": 91,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "userID := newWaitlistTestUser(t, \"waitlist-noreason@multica.ai\")"
+        },
+        {
+          "path": "server/cmd/server/quick_create_subscriber_test.go",
+          "line": 300,
+          "algorithm": "GitHub token",
+          "family": "GITHUB TOKEN",
+          "rule_id": "SECRET-GITHUB-PAT",
+          "class": "not-applicable",
+          "source": "const fakeToken = \"ghp_0123456789abcdefghijklmnopqrstuvwxyzAB\""
+        },
+        {
+          "path": "server/internal/auth/cookie.go",
+          "line": 252,
+          "algorithm": "HMAC",
+          "family": "HMAC",
+          "rule_id": "GO-CRYPTO-HMAC-NEW",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, []byte(authCookie.Value))"
+        },
+        {
+          "path": "apps/web/app/join/page.test.tsx",
+          "line": 161,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "authStateRef.state.user = { id: \"u1\", email: \"a@b.com\" };"
+        },
+        {
+          "path": "server/internal/auth/temporary_disabled_users.go",
+          "line": 20,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "\"pdzzer68@embassybase.com\": {},"
+        },
+        {
+          "path": "server/internal/handler/auth_signup_test.go",
+          "line": 32,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "{\"email_allowlist_match\", Config{AllowSignup: false, AllowedEmails: []string{\"boss@x.com\"}}, \"boss@x.com\", true, false},"
+        },
+        {
+          "path": "server/internal/service/email_test.go",
+          "line": 655,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "smtpPassword: \"testpass\","
+        },
+        {
+          "path": "server/internal/integrations/vcs/forgejo.go",
+          "line": 62,
+          "algorithm": "HMAC",
+          "family": "HMAC",
+          "rule_id": "GO-CRYPTO-HMAC-NEW",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, []byte(secret))"
+        },
+        {
+          "path": "server/pkg/redact/redact_test.go",
+          "line": 321,
+          "algorithm": "GitHub token",
+          "family": "GITHUB TOKEN",
+          "rule_id": "SECRET-GITHUB-PAT",
+          "class": "not-applicable",
+          "source": "\"content\": \"GITHUB_TOKEN=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn\","
+        },
+        {
+          "path": "server/internal/handler/github_test.go",
+          "line": 1592,
+          "algorithm": "HMAC",
+          "family": "HMAC",
+          "rule_id": "GO-CRYPTO-HMAC-NEW",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, []byte(secret))"
+        },
+        {
+          "path": "server/internal/auth/temporary_disabled_users.go",
+          "line": 21,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "\"gtwtrox@mowan666.com\":     {},"
+        },
+        {
+          "path": "server/cmd/server/notification_listeners_test.go",
+          "line": 329,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "normalEmail := \"notif-normal-status@multica.ai\""
+        },
+        {
+          "path": "server/internal/integrations/wecom/installation_probe_db_test.go",
+          "line": 111,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Secret:          \"the-callers-guess\","
+        },
+        {
+          "path": "server/internal/handler/project_resource_test.go",
+          "line": 228,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "\"git@github.com\",                // missing :path"
+        },
+        {
+          "path": "server/internal/handler/user_language_test.go",
+          "line": 130,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "userID := newLanguageTestUser(t, \"lang-preserve@multica.ai\")"
+        },
+        {
+          "path": "packages/views/settings/components/wecom-tab.test.tsx",
+          "line": 136,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "secret: \"s3cr3t\","
+        },
+        {
+          "path": "server/internal/service/email_test.go",
+          "line": 233,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "want: \"noreply@multica.ai\","
+        },
+        {
+          "path": "packages/views/issues/components/table-view-project-grouping.test.tsx",
+          "line": 54,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "const authState = { user: { id: \"user-1\", email: \"t@t.co\", name: \"Tester\" }, isAuthenticated: true };"
+        },
+        {
+          "path": "server/internal/service/email_test.go",
+          "line": 379,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "\"noreply@multica.ai\","
+        },
+        {
+          "path": "server/internal/integrations/wecom/helpers_test.go",
+          "line": 83,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Secret:          \"s3cr3t\","
+        },
+        {
+          "path": "server/cmd/server/notification_listeners_test.go",
+          "line": 863,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "sub1Email := \"notif-sub1-startdate@multica.ai\""
+        },
+        {
+          "path": "server/cmd/server/notification_listeners_test.go",
+          "line": 923,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "parentSubEmail := \"notif-parent-sub-status@multica.ai\""
+        },
+        {
+          "path": "server/pkg/composio/client_test.go",
+          "line": 25,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "APIKey:  \"test-key\","
+        },
+        {
+          "path": "server/internal/integrations/wecom/trace_test.go",
+          "line": 154,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "secret:         \"THE_SMART_BOT_SECRET\","
+        },
+        {
+          "path": "server/cmd/server/notification_listeners_test.go",
+          "line": 737,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "sub1Email := \"notif-sub1-priority@multica.ai\""
+        },
+        {
+          "path": "server/internal/integrations/ghsnapshot/client.go",
+          "line": 120,
+          "algorithm": "RS256",
+          "family": "RS256",
+          "rule_id": "GO-JWA-SIGNING-METHOD",
+          "class": "code",
+          "source": "tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)"
+        },
+        {
+          "path": "server/internal/integrations/lark/http_client_test.go",
+          "line": 234,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "return InstallationCredentials{AppID: \"cli_app_xx\", AppSecret: \"secret_xx\"}"
+        },
+        {
+          "path": "server/internal/handler/github_test.go",
+          "line": 542,
+          "algorithm": "HMAC",
+          "family": "HMAC",
+          "rule_id": "GO-CRYPTO-HMAC-NEW",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, []byte(secret))"
+        },
+        {
+          "path": "server/cmd/server/notification_listeners_test.go",
+          "line": 464,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "subEmail := \"notif-system-comment-sub@multica.ai\""
+        },
+        {
+          "path": "server/internal/analytics/client_test.go",
+          "line": 44,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "APIKey:     \"test-key\","
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 1,
+      "code": 1,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "server/internal/service/email.go",
+          "line": 131,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "rules.go.lang.security.audit.crypto.missing-ssl-minversion.missing-ssl-minversion",
+          "class": "code",
+          "source": "tlsCfg := &tls.Config{"
+        }
+      ]
+    },
+    "sonar": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

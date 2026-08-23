@@ -1,0 +1,758 @@
+{
+  "repository": "coder/code-server",
+  "stratum": "TypeScript",
+  "primary_language": "TypeScript",
+  "commit": "88c2b7432e938f6918f21ff8d9dbfc641cd933d0",
+  "license": "MIT",
+  "stars": 78997,
+  "detectors_with_findings": 3,
+  "counts": {
+    "qubit": 24,
+    "pqaudit": 15,
+    "semgrep": 0,
+    "cryptoscan": 37,
+    "sonar": 0
+  },
+  "elapsed_s": 18.5,
+  "comparison": {
+    "corpus": "coder/code-server",
+    "dropped_non_source_findings": 8,
+    "shared_vocabulary": [
+      "SHA"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 1,
+        "sites": 1
+      },
+      "pqaudit": {
+        "findings": 15,
+        "sites": 2
+      },
+      "semgrep": {
+        "findings": 0,
+        "sites": 0
+      },
+      "cryptoscan": {
+        "findings": 0,
+        "sites": 0
+      },
+      "sonar": {
+        "findings": 0,
+        "sites": 0
+      }
+    },
+    "unavailable": {},
+    "agreement": {
+      "cryptoscan|pqaudit": 0.0,
+      "cryptoscan|qubit": 0.0,
+      "cryptoscan|semgrep": 0.0,
+      "cryptoscan|sonar": 0.0,
+      "pqaudit|qubit": 0.5,
+      "pqaudit|semgrep": 0.0,
+      "pqaudit|sonar": 0.0,
+      "qubit|semgrep": 0.0,
+      "qubit|sonar": 0.0,
+      "semgrep|sonar": 0.0
+    },
+    "capture_table": {
+      "pqaudit": 1,
+      "pqaudit+qubit": 1
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 1,
+        "population": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 2,
+        "population": [
+          2.0,
+          2.0,
+          2.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "overlap is only 1 sites; the interval is wide and the point unstable"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 1,
+        "population": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|sonar",
+        "method": "Chapman (2-source)",
+        "observed": 1,
+        "population": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 35,
+      "code": 3,
+      "mention": 32,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "src/node/util.ts",
+          "line": 177,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-177-41",
+          "class": "string-literal",
+          "source": "export type PasswordMethod = \"SHA256\" | \"ARGON2\" | \"PLAIN_TEXT\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 320,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-320-10",
+          "class": "string-literal",
+          "source": "\"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 194,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-194-8",
+          "class": "string-literal",
+          "source": "\"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 338,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-338-19",
+          "class": "string-literal",
+          "source": "cookieKey: \"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 330,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-330-10",
+          "class": "string-literal",
+          "source": "\"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\","
+        },
+        {
+          "path": "test/unit/node/cli.test.ts",
+          "line": 353,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-353-10",
+          "class": "string-literal",
+          "source": "\"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\","
+        },
+        {
+          "path": "test/unit/node/cli.test.ts",
+          "line": 345,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-345-8",
+          "class": "string-literal",
+          "source": "\"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\" // test"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 271,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-271-10",
+          "class": "string-literal",
+          "source": "\"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\","
+        },
+        {
+          "path": "src/node/util.ts",
+          "line": 196,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-196-12",
+          "class": "string-literal",
+          "source": "return \"ARGON2\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 279,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-279-31",
+          "class": "string-literal",
+          "source": "it(\"should return false when ARGON2 password doesn't match hash\", async () => {"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 328,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-328-19",
+          "class": "string-literal",
+          "source": "cookieKey: \"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9H\","
+        },
+        {
+          "path": "test/unit/node/cli.test.ts",
+          "line": 540,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-540-10",
+          "class": "string-literal",
+          "source": "\"$argon2i$v=19$m=4096,t=3,p=1$0qr/o+0t00hsbjfqcksfdq$ofcm4rl6o+b7oxpua4qlxubypbbpsf+8l531u7p9hyy\","
+        },
+        {
+          "path": "test/unit/node/cli.test.ts",
+          "line": 522,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-522-8",
+          "class": "string-literal",
+          "source": "\"$argon2i$v=19$m=4096,t=3,p=1$0qr/o+0t00hsbjfqcksfdq$ofcm4rl6o+b7oxpua4qlxubypbbpsf+8l531u7p9hyy\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 317,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-317-23",
+          "class": "string-literal",
+          "source": "passwordMethod: \"ARGON2\","
+        },
+        {
+          "path": "src/node/util.ts",
+          "line": 154,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-154-15",
+          "class": "code",
+          "source": "return await argon2.verify(hash, password)"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 135,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-135-20",
+          "class": "string-literal",
+          "source": "const _hash = \"$argon2i$v=19$m=4096,t=3,p=1$EAoczTxVki21JDfIZpTUxg$rkXgyrW4RDGoDYrxBFD4H2DlSMEhP4h+Api1hXnGnFY\""
+        },
+        {
+          "path": "test/unit/node/cli.test.ts",
+          "line": 526,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-526-12",
+          "class": "string-literal",
+          "source": "_: [\"$argon2i$v=19$m=4096,t=3,p=1$0qr/o+0t00hsbjfqcksfdq$ofcm4rl6o+b7oxpua4qlxubypbbpsf+8l531u7p9hyy\"],"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 282,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-282-23",
+          "class": "string-literal",
+          "source": "passwordMethod: \"ARGON2\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 267,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-267-23",
+          "class": "string-literal",
+          "source": "passwordMethod: \"ARGON2\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 264,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-264-53",
+          "class": "string-literal",
+          "source": "it(\"should return true with a hashedPassword for a ARGON2 password\", async () => {"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 325,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-325-47",
+          "class": "string-literal",
+          "source": "it(\"should be invalid if hashed-password for ARGON2 does not match cookie.key\", async () => {"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 327,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-327-23",
+          "class": "string-literal",
+          "source": "passwordMethod: \"ARGON2\","
+        },
+        {
+          "path": "test/unit/node/cli.test.ts",
+          "line": 532,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-532-28",
+          "class": "string-literal",
+          "source": "\"--hashed-password=$argon2i$v=19$m=4096,t=3,p=1$0qr/o+0t00hsbjfqcksfdq$ofcm4rl6o+b7oxpua4qlxubypbbpsf+8l531u7p9hyy\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 318,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-318-19",
+          "class": "string-literal",
+          "source": "cookieKey: \"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 129,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-129-20",
+          "class": "string-literal",
+          "source": "const _hash = \"$argon2i$v=19$m=4096,t=3,p=1$EAoczTxVki21JDfIZpTUxg$rkXgyrW4RDGoDYrxBFD4H2DlSMEhP4h+Api1hXnGnFY\""
+        },
+        {
+          "path": "src/node/util.ts",
+          "line": 144,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-144-15",
+          "class": "code",
+          "source": "return await argon2.hash(password)"
+        },
+        {
+          "path": "src/node/util.ts",
+          "line": 283,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-283-10",
+          "class": "string-literal",
+          "source": "case \"ARGON2\":"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 315,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-315-45",
+          "class": "string-literal",
+          "source": "it(\"should be valid if hashed-password for ARGON2 matches cookie.key\", async () => {"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 192,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-192-20",
+          "class": "string-literal",
+          "source": "it(\"should return ARGON2 for password with 'argon2'\", () => {"
+        },
+        {
+          "path": "src/node/util.ts",
+          "line": 1,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-1-12",
+          "class": "code",
+          "source": "import * as argon2 from \"argon2\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 196,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-196-43",
+          "class": "string-literal",
+          "source": "const expected: util.PasswordMethod = \"ARGON2\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 347,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-347-19",
+          "class": "string-literal",
+          "source": "cookieKey: \"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9H\","
+        },
+        {
+          "path": "src/node/cli.ts",
+          "line": 156,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-156-32",
+          "class": "string-literal",
+          "source": "\"The password hashed with argon2 for password authentication (can only be passed in via $HASHED_PASSWORD or the config file). \\n\" +"
+        },
+        {
+          "path": "src/node/util.ts",
+          "line": 250,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-250-10",
+          "class": "string-literal",
+          "source": "case \"ARGON2\": {"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 286,
+          "algorithm": "Argon2",
+          "family": "ARGON2",
+          "rule_id": "KDF-ARGON2-001-286-10",
+          "class": "string-literal",
+          "source": "\"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\","
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 10,
+      "code": 0,
+      "mention": 10,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 199,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "it(\"should return SHA256 for password with legacy hash\", () => {"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 202,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "const expected: util.PasswordMethod = \"SHA256\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 236,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "it(\"should return true with a hashedPassword for a SHA256 password\", async () => {"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 306,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "it(\"should be invalid if hashed-password for SHA256 does not match cookie.key\", async () => {"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 299,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "passwordMethod: \"SHA256\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 250,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "it(\"should return false when SHA256 password doesn't match hash\", async () => {"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 308,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "passwordMethod: \"SHA256\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 239,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "passwordMethod: \"SHA256\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 253,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "passwordMethod: \"SHA256\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 297,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "it(\"should be valid if hashed-password for SHA256 matches cookie.key\", async () => {"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 17,
+      "code": 2,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 15,
+      "sample": [
+        {
+          "path": "src/node/util.ts",
+          "line": 154,
+          "algorithm": "argon2id",
+          "family": "ARGON2ID",
+          "rule_id": "TS-ARGON2-HASH",
+          "class": "code",
+          "source": "return await argon2.verify(hash, password)"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 178,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const password = \"password123\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 168,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const password = \"password123\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 140,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const password = \"hellowpasssword\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 146,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const password = \"hellowpasssword\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 122,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const password = \"password123\""
+        },
+        {
+          "path": "src/node/util.ts",
+          "line": 144,
+          "algorithm": "argon2id",
+          "family": "ARGON2ID",
+          "rule_id": "TS-ARGON2-HASH",
+          "class": "code",
+          "source": "return await argon2.hash(password)"
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 508,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "\"Linux version 3.4.0-Microsoft (Microsoft@Microsoft.com) (gcc version 4.7 (GCC) ) #1 SMP PREEMPT Wed Dec 31 14:42:53 PST 2014\","
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 173,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const password = \"password123\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 160,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const plainTextPassword = \"mySecretPassword123\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 128,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const password = \"password123\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 200,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const hashedPassword = \"936a185caaa266bb9cbe981e9e05cb78cd732b0b3280eb944412bb6f8f8f07af\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 152,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const password = \"hellowpasssword\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 532,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "\"Linux version 3.4.0-Microsoft (Microsoft@Microsoft.com) (gcc version 4.7 (GCC) ) #1 SMP PREEMPT Wed Dec 31 14:42:53 PST 2014\","
+        },
+        {
+          "path": "test/utils/constants.ts",
+          "line": 1,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "export const PASSWORD = \"e45432jklfdsab\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 116,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const password = \"codeserver1234\""
+        },
+        {
+          "path": "test/unit/node/util.test.ts",
+          "line": 104,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const plainTextPassword = \"mySecretPassword123\""
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "sonar": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

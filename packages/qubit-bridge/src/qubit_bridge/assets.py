@@ -1,15 +1,50 @@
+"""Turn a probe result into inventory rows.
+
+The evidence for a network finding is the handshake itself, so it is carried as the `snippet`
+the schema reserves for "a pcap/cert reference string otherwise", with the structured facts in
+`context.extra`. Passing a bare `{"transcript": ...}` dict looked right and was not: `Evidence`
+does not declare that field, so pydantic dropped it and every bridge asset reached the database
+with empty evidence -- the one thing the hybrid-handshake claim rests on.
+"""
+
 import os
 from uuid import uuid4
 
 import httpx
-from qubit_core.schemas import CryptoAsset
+from qubit_core.schemas import (
+    AssetType,
+    CryptoAsset,
+    Evidence,
+    EvidenceContext,
+    Location,
+    ProtocolDetail,
+    QuantumAttack,
+    QuantumVulnerability,
+    Sensitivity,
+    SourceScanner,
+    UsageContext,
+)
 
 from qubit_bridge.models import ProbeResult
 
+#: A transcript is evidence, not a payload: it is truncated so one probe cannot put a megabyte of
+#: handshake bytes into every row.
+_MAX_TRANSCRIPT = 4000
 
-def _pcap_or_transcript_ref(r: ProbeResult) -> dict:
-    # We return the raw transcript as evidence if pcap is not available in the model
-    return {"transcript": r.raw_output}
+
+def _transcript_evidence(r: ProbeResult) -> Evidence:
+    """The raw handshake, kept where the schema puts proof rather than in a field it discards."""
+    return Evidence(
+        snippet=r.raw_output[:_MAX_TRANSCRIPT],
+        context=EvidenceContext(
+            extra={
+                "probe": "tls-handshake",
+                "offered_groups": list(r.offered_groups),
+                "peer_signature_type": r.peer_signature_type,
+                "truncated": len(r.raw_output) > _MAX_TRANSCRIPT,
+            }
+        ),
+    )
 
 
 def _canon(alg: str, bits: int | None) -> str:
@@ -19,60 +54,68 @@ def _canon(alg: str, bits: int | None) -> str:
 
 
 def _is_classical_pk(r: ProbeResult) -> bool:
-    # Heuristic for demo
-    alg = r.cert_public_key_algorithm
-    return alg in ["RSA", "EC", "ECDSA"]
+    """Public-key algorithms Shor breaks. Anything else is left alone rather than guessed at."""
+    return r.cert_public_key_algorithm in ("RSA", "EC", "ECDSA")
 
 
 def probe_to_assets(r: ProbeResult) -> list[CryptoAsset]:
     """Convert a ProbeResult to a list of CryptoAssets."""
     proto = CryptoAsset(
         id=uuid4(),
-        source_scanner="network",
-        location={"host": r.host, "service": f"tcp/{r.port}"},
-        asset_type="protocol",
+        source_scanner=SourceScanner.network,
+        location=Location(host=r.host, service=f"tcp/{r.port}"),
+        asset_type=AssetType.protocol,
         algorithm=r.negotiated_group or "unknown",
         key_size=None,
-        protocol_detail={
-            "protocol": "tls",
-            "version": r.tls_version,
-            "cipher_suites": [r.cipher_suite] if r.cipher_suite else [],
-            "group": r.negotiated_group,
-            "group_codepoint": r.group_codepoint,
-        },
-        usage_context="kex",
-        quantum_vulnerable={
-            "vulnerable": not r.hybrid_pqc,
-            "attack": "shor" if not r.hybrid_pqc else "none",
-        },
-        evidence=_pcap_or_transcript_ref(r),
+        protocol_detail=ProtocolDetail(
+            protocol="tls",
+            version=r.tls_version,
+            cipher_suites=[r.cipher_suite] if r.cipher_suite else [],
+            group=r.negotiated_group,
+            group_codepoint=r.group_codepoint,
+        ),
+        usage_context=UsageContext.kex,
+        quantum_vulnerable=QuantumVulnerability(
+            vulnerable=not r.hybrid_pqc,
+            attack=QuantumAttack.none if r.hybrid_pqc else QuantumAttack.shor,
+        ),
+        evidence=_transcript_evidence(r),
         discovered_at=r.probed_at,
         risk=None,
         migration=None,
-        sensitivity="unknown",
+        sensitivity=Sensitivity.unknown,
         shelf_life_years=None,
     )
 
     assets = [proto]
     if r.cert_public_key_algorithm:
+        classical = _is_classical_pk(r)
         assets.append(
             CryptoAsset(
                 id=uuid4(),
-                source_scanner="cert",
-                location={"host": r.host, "service": f"tcp/{r.port}"},
-                asset_type="certificate",
+                source_scanner=SourceScanner.cert,
+                location=Location(host=r.host, service=f"tcp/{r.port}"),
+                asset_type=AssetType.certificate,
                 algorithm=_canon(r.cert_public_key_algorithm, r.cert_public_key_bits),
                 key_size=r.cert_public_key_bits,
-                usage_context="signature",
-                quantum_vulnerable={
-                    "vulnerable": _is_classical_pk(r),
-                    "attack": "shor" if _is_classical_pk(r) else "none",
-                },
-                evidence={"cert_fingerprint_sha256": r.cert_fingerprint_sha256},
+                usage_context=UsageContext.signature,
+                quantum_vulnerable=QuantumVulnerability(
+                    vulnerable=classical,
+                    attack=QuantumAttack.shor if classical else QuantumAttack.none,
+                ),
+                evidence=Evidence(
+                    snippet=r.cert_fingerprint_sha256 or "",
+                    context=EvidenceContext(
+                        extra={
+                            "cert_fingerprint_sha256": r.cert_fingerprint_sha256,
+                            "cert_signature_algorithm": r.cert_signature_algorithm,
+                        }
+                    ),
+                ),
                 discovered_at=r.probed_at,
                 risk=None,
                 migration=None,
-                sensitivity="unknown",
+                sensitivity=Sensitivity.unknown,
                 shelf_life_years=None,
             )
         )

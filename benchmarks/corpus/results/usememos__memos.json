@@ -1,0 +1,1198 @@
+{
+  "repository": "usememos/memos",
+  "stratum": "Go",
+  "primary_language": "Go",
+  "commit": "79baf2eab7de84210b8a0399bedd54bba5e3f9bd",
+  "license": "MIT",
+  "stars": 62416,
+  "detectors_with_findings": 4,
+  "counts": {
+    "qubit": 141,
+    "pqaudit": 65,
+    "semgrep": 1,
+    "cryptoscan": 21
+  },
+  "elapsed_s": 166.9,
+  "comparison": {
+    "corpus": "usememos/memos",
+    "dropped_non_source_findings": 25,
+    "shared_vocabulary": [
+      "BCRYPT",
+      "HMAC",
+      "MD5",
+      "SHA"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 20,
+        "sites": 15
+      },
+      "pqaudit": {
+        "findings": 28,
+        "sites": 14
+      },
+      "semgrep": {
+        "findings": 0,
+        "sites": 0
+      },
+      "cryptoscan": {
+        "findings": 19,
+        "sites": 8
+      }
+    },
+    "unavailable": {
+      "sonar": "SonarQube at http://127.0.0.1:9000 is DOWN: uv run python sonar_oracle.py --setup"
+    },
+    "agreement": {
+      "cryptoscan|pqaudit": 0.047619047619047616,
+      "cryptoscan|qubit": 0.4375,
+      "cryptoscan|semgrep": 0.0,
+      "pqaudit|qubit": 0.3181818181818182,
+      "pqaudit|semgrep": 0.0,
+      "qubit|semgrep": 0.0
+    },
+    "capture_table": {
+      "pqaudit": 7,
+      "cryptoscan+pqaudit+qubit": 1,
+      "pqaudit+qubit": 6,
+      "cryptoscan+qubit": 6,
+      "qubit": 2,
+      "cryptoscan": 1
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 16,
+        "population": [
+          17.0,
+          16.0,
+          19.771858582251266
+        ],
+        "missed_by_all": 1.0,
+        "qubit_recall_upper_bound": [
+          0.8823529411764706,
+          0.7586540201873155,
+          0.9375
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 22,
+        "population": [
+          29.0,
+          22.0,
+          38.4676994741771
+        ],
+        "missed_by_all": 7.0,
+        "qubit_recall_upper_bound": [
+          0.5172413793103449,
+          0.38993753733750874,
+          0.6818181818181818
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 15,
+        "population": [
+          15.0,
+          15.0,
+          15.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "model": "independence",
+        "method": "log-linear 4-source (independence)",
+        "observed": 23,
+        "population": [
+          27.151838317687712,
+          24.376952592225756,
+          35.51877625529298
+        ],
+        "missed_by_all": 4.151838317687712,
+        "qubit_recall_upper_bound": [
+          0.5524487817176064,
+          0.4223118468999819,
+          0.6153353231192552
+        ],
+        "caveats": [
+          "independence model: assumes detectors succeed and fail independently, which they do not -- this total is an UNDER-estimate",
+          "some capture patterns have zero observed sites; the fit is sparse and the unseen-cell estimate is correspondingly fragile"
+        ]
+      },
+      {
+        "model": "one interaction",
+        "method": "log-linear 4-source (interactions [(0, 1)])",
+        "observed": 23,
+        "population": [
+          24.23076923076924,
+          23.238242721085875,
+          29.35819173196186
+        ],
+        "missed_by_all": 1.2307692307692397,
+        "qubit_recall_upper_bound": [
+          0.6190476190476188,
+          0.5109306505301451,
+          0.6454877066237598
+        ],
+        "caveats": [
+          "some capture patterns have zero observed sites; the fit is sparse and the unseen-cell estimate is correspondingly fragile"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 1,
+      "code": 0,
+      "mention": 0,
+      "comment": 1,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "server/auth/token.go",
+          "line": 105,
+          "algorithm": "HMAC-SHA2",
+          "family": "HMAC",
+          "rule_id": "MAC-HMAC-SHA2-001-105-14",
+          "class": "comment",
+          "source": "// Signature: HMACSHA256(base64UrlEncode(header) + \".\" + base64UrlEncode(payload), secret)."
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 48,
+      "code": 5,
+      "mention": 6,
+      "comment": 0,
+      "absent": 37,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "store/db/postgres/user.go",
+          "line": 128,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"row_status DESC\","
+        },
+        {
+          "path": "store/db/mysql/user.go",
+          "line": 81,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "orderBy := []string{\"`created_ts` DESC\", \"`row_status` DESC\", \"`id` DESC\"}"
+        },
+        {
+          "path": "web/tests/tag-unicode-parity.test.ts",
+          "line": 5,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "const DIGEST_PATTERN = /Unicode data SHA-256: ([0-9a-f]{64})/;"
+        },
+        {
+          "path": "store/db/sqlite/user.go",
+          "line": 79,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "orderBy := []string{\"created_ts DESC\", \"row_status DESC\", \"id DESC\"}"
+        },
+        {
+          "path": "store/db/mysql/user.go",
+          "line": 138,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"`row_status` DESC\","
+        },
+        {
+          "path": "store/db/mysql/memo_relation.go",
+          "line": 96,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "query := \"SELECT `memo_id`, `related_memo_id`, `type` FROM `memo_relation` WHERE \" + strings.Join(where, \" AND \") + \" ORDER BY `memo_id` DESC\""
+        },
+        {
+          "path": "store/db/mysql/attachment.go",
+          "line": 115,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"ORDER BY `updated_ts` DESC\""
+        },
+        {
+          "path": "web/src/utils/gfm-url.ts",
+          "line": 178,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (resolvedLinkLike || knownEntity || URL_PREFIX_OPAQUE_NODES.has(child.name)) {"
+        },
+        {
+          "path": "store/db/postgres/user.go",
+          "line": 79,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "orderBy := []string{\"created_ts DESC\", \"row_status DESC\", \"id DESC\"}"
+        },
+        {
+          "path": "store/db/postgres/inbox.go",
+          "line": 64,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "query := \"SELECT id, created_ts, sender_id, receiver_id, status, message FROM inbox WHERE \" + strings.Join(where, \" AND \") + \" ORDER BY created_ts DESC\""
+        },
+        {
+          "path": "web/src/components/MemoEditor/Editor/formatting.ts",
+          "line": 35,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const DELIMITER_NODES = new Set(MARK_COMMANDS.map((c) => MARKS[c].delimiter));"
+        },
+        {
+          "path": "proto/gen/api/v1/common.pb.go",
+          "line": 86,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "2: \"DESC\","
+        },
+        {
+          "path": "store/db/sqlite/memo.go",
+          "line": 108,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "order := \"DESC\""
+        },
+        {
+          "path": "store/db/postgres/memo.go",
+          "line": 101,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "order := \"DESC\""
+        },
+        {
+          "path": "store/db/postgres/user.go",
+          "line": 127,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"created_ts DESC\","
+        },
+        {
+          "path": "proto/gen/api/v1/common.pb.go",
+          "line": 91,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"DESC\":                  2,"
+        },
+        {
+          "path": "store/db/sqlite/inbox.go",
+          "line": 65,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "query := \"SELECT `id`, `created_ts`, `sender_id`, `receiver_id`, `status`, `message` FROM `inbox` WHERE \" + strings.Join(where, \" AND \") + \" ORDER BY `created_ts` DESC\""
+        },
+        {
+          "path": "web/src/types/proto/api/v1/common_pb.ts",
+          "line": 82,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "DESC = 2,"
+        },
+        {
+          "path": "web/scripts/generate-tag-unicode-data.mjs",
+          "line": 108,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "return createHash(\"sha256\").update(canonical.join(\"\")).digest(\"hex\");"
+        },
+        {
+          "path": "store/db/postgres/memo.go",
+          "line": 115,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "orderBy = append(orderBy, \"id DESC\")"
+        },
+        {
+          "path": "server/auth/token_test.go",
+          "line": 176,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "assert.Len(t, hash, 64, \"SHA-256 hex should be 64 characters\")"
+        },
+        {
+          "path": "store/db/mysql/user.go",
+          "line": 137,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"`created_ts` DESC\","
+        },
+        {
+          "path": "internal/webhook/webhook_test.go",
+          "line": 130,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, tc.key)"
+        },
+        {
+          "path": "store/db/mysql/memo.go",
+          "line": 122,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "orderBy = append(orderBy, \"`pinned` DESC\")"
+        },
+        {
+          "path": "web/scripts/generate-tag-unicode-data.mjs",
+          "line": 116,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "const output = `// Generated by scripts/generate-tag-unicode-data.mjs. Do not edit.\\n// Unicode and Emoji ${UNICODE_RELEASE} data used by Memos tag recognition.\\n// Unicode data SHA-256: ${unicodeData"
+        },
+        {
+          "path": "web/src/types/proto/google/api/client_pb.ts",
+          "line": 824,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "CLIENT_LIBRARY_DESTINATION_UNSPECIFIED = 0,"
+        },
+        {
+          "path": "store/db/postgres/memo_relation.go",
+          "line": 123,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY memo_id DESC`"
+        },
+        {
+          "path": "store/db/mysql/inbox.go",
+          "line": 73,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "query := \"SELECT `id`, UNIX_TIMESTAMP(`created_ts`), `sender_id`, `receiver_id`, `status`, `message` FROM `inbox` WHERE \" + strings.Join(where, \" AND \") + \" ORDER BY `created_ts` DESC\""
+        },
+        {
+          "path": "internal/webhook/webhook_test.go",
+          "line": 5,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"crypto/sha256\""
+        },
+        {
+          "path": "internal/webhook/webhook.go",
+          "line": 142,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, key)"
+        },
+        {
+          "path": "internal/webhook/webhook.go",
+          "line": 8,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"crypto/sha256\""
+        },
+        {
+          "path": "proto/gen/api/v1/common.pb.go",
+          "line": 191,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"\\x04DESC\\x10\\x02B\\xa3\\x01\\n\" +"
+        },
+        {
+          "path": "internal/storage/s3/s3.go",
+          "line": 138,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "_, err := stack.Finalize.Swap((*v4.ComputePayloadSHA256)(nil).ID(), &v4.ComputePayloadSHA256{})"
+        },
+        {
+          "path": "proto/gen/api/v1/common.pb.go",
+          "line": 78,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "Direction_DESC                  Direction = 2"
+        },
+        {
+          "path": "store/db/sqlite/memo.go",
+          "line": 122,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "orderBy = append(orderBy, \"`id` DESC\")"
+        },
+        {
+          "path": "store/db/mysql/memo.go",
+          "line": 130,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "orderBy = append(orderBy, \"`id` DESC\")"
+        },
+        {
+          "path": "store/db/postgres/memo.go",
+          "line": 107,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "orderBy = append(orderBy, \"pinned DESC\")"
+        },
+        {
+          "path": "store/db/sqlite/attachment.go",
+          "line": 108,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"ORDER BY `attachment`.`updated_ts` DESC\""
+        },
+        {
+          "path": "store/db/sqlite/memo_relation.go",
+          "line": 107,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY memo_id DESC`"
+        },
+        {
+          "path": "store/test/user_setting_test.go",
+          "line": 716,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "{\"pat-special-2\", \"sha256:abcdef1234567890\"},"
+        },
+        {
+          "path": "store/db/sqlite/user.go",
+          "line": 136,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"row_status DESC\","
+        },
+        {
+          "path": "store/db/postgres/attachment.go",
+          "line": 107,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "ORDER BY attachment.updated_ts DESC"
+        },
+        {
+          "path": "web/src/components/MemoEditor/Editor/formatting.ts",
+          "line": 193,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "if (!DELIMITER_NODES.has(n.name)) return false;"
+        },
+        {
+          "path": "store/db/sqlite/memo.go",
+          "line": 114,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "orderBy = append(orderBy, \"`pinned` DESC\")"
+        },
+        {
+          "path": "server/auth/token_test.go",
+          "line": 172,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "t.Run(\"generates SHA-256 hash\", func(t *testing.T) {"
+        },
+        {
+          "path": "store/db/mysql/memo.go",
+          "line": 116,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "order := \"DESC\""
+        },
+        {
+          "path": "store/db/sqlite/user.go",
+          "line": 135,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "\"created_ts DESC\","
+        },
+        {
+          "path": "web/src/utils/gfm-url.ts",
+          "line": 158,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "const URL_PREFIX_OPAQUE_NODES = new Set(["
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 100,
+      "code": 3,
+      "mention": 0,
+      "comment": 0,
+      "absent": 1,
+      "not_applicable": 96,
+      "sample": [
+        {
+          "path": "store/storage_test.go",
+          "line": 259,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "AccessKeySecret: \"old-secret\","
+        },
+        {
+          "path": "server/router/api/v1/test/idp_service_test.go",
+          "line": 39,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"test-client-secret\","
+        },
+        {
+          "path": "server/router/api/v1/test/instance_service_test.go",
+          "line": 953,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ApiKey: \"sk-test\","
+        },
+        {
+          "path": "internal/webhook/webhook_test.go",
+          "line": 100,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "{name: \"plain secret\", secret: \"plain-secret-value\", key: []byte(\"plain-secret-value\")},"
+        },
+        {
+          "path": "internal/email/doc.go",
+          "line": 26,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "//   - Username: your-email@gmail.com"
+        },
+        {
+          "path": "internal/ai/stt/openai/openai_test.go",
+          "line": 50,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "APIKey:   \"test-key\","
+        },
+        {
+          "path": "server/router/api/v1/test/user_service_registration_test.go",
+          "line": 251,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Password: \"password123\","
+        },
+        {
+          "path": "store/storage_test.go",
+          "line": 326,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "currentStorage.GetS3Config().AccessKeySecret = \"new-secret\""
+        },
+        {
+          "path": "internal/webhook/webhook_test.go",
+          "line": 71,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "{name: \"non-ascii rejected\", secret: \"abc\u20acdef\", wantErr: true},"
+        },
+        {
+          "path": "server/router/api/v1/test/user_service_registration_test.go",
+          "line": 32,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Password: \"password123\","
+        },
+        {
+          "path": "internal/email/doc.go",
+          "line": 15,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "//\t    SMTPPassword: \"your-app-password\","
+        },
+        {
+          "path": "server/router/api/v1/test/user_service_registration_test.go",
+          "line": 171,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Password: \"password123\","
+        },
+        {
+          "path": "store/test/idp_test.go",
+          "line": 416,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"client_secret\","
+        },
+        {
+          "path": "store/storage_test.go",
+          "line": 119,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "AccessKeySecret: \"secret-b-new\","
+        },
+        {
+          "path": "server/router/api/v1/user_webhook_test.go",
+          "line": 26,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "SigningSecret: \"whsec_super-secret-value\","
+        },
+        {
+          "path": "internal/idp/oauth2/oauth2_test.go",
+          "line": 253,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"test-client-secret\","
+        },
+        {
+          "path": "internal/webhook/webhook_test.go",
+          "line": 101,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "{name: \"whsec_ secret\", secret: \"whsec_\" + base64.StdEncoding.EncodeToString(rawKey), key: rawKey},"
+        },
+        {
+          "path": "internal/idp/oauth2/oauth2_test.go",
+          "line": 30,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"test-client-secret\","
+        },
+        {
+          "path": "server/router/api/v1/test/configuration_provisioning_test.go",
+          "line": 146,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"client-secret\","
+        },
+        {
+          "path": "server/router/api/v1/test/user_service_registration_test.go",
+          "line": 267,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Password: \"password123\","
+        },
+        {
+          "path": "server/router/api/v1/test/user_resource_name_test.go",
+          "line": 42,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Password: \"password123\","
+        },
+        {
+          "path": "server/router/api/v1/test/auth_service_test.go",
+          "line": 222,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"test-client-secret\","
+        },
+        {
+          "path": "internal/webhook/webhook_test.go",
+          "line": 70,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "{name: \"tab rejected\", secret: \"abc\\tdef\", wantErr: true},"
+        },
+        {
+          "path": "internal/webhook/webhook_test.go",
+          "line": 130,
+          "algorithm": "HMAC",
+          "family": "HMAC",
+          "rule_id": "GO-CRYPTO-HMAC-NEW",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, tc.key)"
+        },
+        {
+          "path": "internal/webhook/webhook_test.go",
+          "line": 69,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "{name: \"carriage return rejected\", secret: \"abc\\rdef\", wantErr: true},"
+        },
+        {
+          "path": "server/router/api/v1/test/instance_service_test.go",
+          "line": 804,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ApiKey: \"sk-original\","
+        },
+        {
+          "path": "server/router/api/v1/test/user_resource_name_test.go",
+          "line": 99,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Password: \"password123\","
+        },
+        {
+          "path": "server/router/api/v1/test/instance_service_test.go",
+          "line": 472,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ApiKey: \"sk-test\","
+        },
+        {
+          "path": "server/router/api/v1/test/user_service_registration_test.go",
+          "line": 125,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Password: \"password123\","
+        },
+        {
+          "path": "store/test/instance_setting_test.go",
+          "line": 447,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ApiKey:   \"sk-test\","
+        },
+        {
+          "path": "internal/webhook/webhook.go",
+          "line": 142,
+          "algorithm": "HMAC",
+          "family": "HMAC",
+          "rule_id": "GO-CRYPTO-HMAC-NEW",
+          "class": "code",
+          "source": "mac := hmac.New(sha256.New, key)"
+        },
+        {
+          "path": "store/deployment_config_test.go",
+          "line": 237,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "{Id: \"primary\", Title: \"Primary\", Type: storepb.AIProviderType_OPENAI, ApiKey: \"ai-secret\"},"
+        },
+        {
+          "path": "server/auth/authenticator_test.go",
+          "line": 15,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "a := &Authenticator{secret: \"test-secret\"} // nil store: these paths never reach it."
+        },
+        {
+          "path": "server/router/api/v1/test/instance_service_test.go",
+          "line": 677,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "SmtpPassword: \"original-password\","
+        },
+        {
+          "path": "internal/testutil/fakes3/server.go",
+          "line": 45,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "AccessKeySecret: \"test-secret-key\","
+        },
+        {
+          "path": "internal/markdown/parser/gfm_email_test.go",
+          "line": 29,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "{name: \"multiple\", source: \"a@b.co c@d.io\", expected: []GFMEmailMatch{emailMatch(0, 6, \"a@b.co\"), emailMatch(7, 13, \"c@d.io\")}},"
+        },
+        {
+          "path": "server/router/api/v1/test/attachment_service_s3_test.go",
+          "line": 176,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "AccessKeySecret: \"old-secret-key\","
+        },
+        {
+          "path": "server/router/api/v1/test/idp_service_test.go",
+          "line": 381,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"original-secret\","
+        },
+        {
+          "path": "server/router/api/v1/test/configuration_provisioning_test.go",
+          "line": 130,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"client-secret\","
+        },
+        {
+          "path": "internal/markdown/parser/gfm_email_test.go",
+          "line": 29,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "{name: \"multiple\", source: \"a@b.co c@d.io\", expected: []GFMEmailMatch{emailMatch(0, 6, \"a@b.co\"), emailMatch(7, 13, \"c@d.io\")}},"
+        },
+        {
+          "path": "store/test/idp_test.go",
+          "line": 363,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"client_secret\","
+        },
+        {
+          "path": "web/tests/create-webhook-dialog.test.tsx",
+          "line": 40,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "clients.getUserWebhookSigningSecret.mockResolvedValue({ signingSecret: \"whsec_created-secret\" });"
+        },
+        {
+          "path": "store/test/idp_test.go",
+          "line": 454,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"client_secret\","
+        },
+        {
+          "path": "server/router/api/v1/test/user_service_registration_test.go",
+          "line": 234,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Password: \"password123\","
+        },
+        {
+          "path": "store/storage_test.go",
+          "line": 323,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "retainedOldStorage.GetS3Config().AccessKeySecret = \"old-secret\""
+        },
+        {
+          "path": "internal/webhook/webhook_test.go",
+          "line": 68,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "{name: \"newline rejected\", secret: \"abc\\ndef\", wantErr: true},"
+        },
+        {
+          "path": "internal/util/util_test.go",
+          "line": 13,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "email: \"t@gmail.com\","
+        },
+        {
+          "path": "internal/markdown/parser/gfm_email_test.go",
+          "line": 29,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "{name: \"multiple\", source: \"a@b.co c@d.io\", expected: []GFMEmailMatch{emailMatch(0, 6, \"a@b.co\"), emailMatch(7, 13, \"c@d.io\")}},"
+        },
+        {
+          "path": "store/test/instance_setting_test.go",
+          "line": 454,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ApiKey:   \"gemini-test\","
+        },
+        {
+          "path": "server/router/api/v1/test/user_service_registration_test.go",
+          "line": 146,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Password: \"password123\","
+        },
+        {
+          "path": "server/router/api/v1/test/idp_service_test.go",
+          "line": 214,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"test-secret\","
+        },
+        {
+          "path": "server/router/api/v1/test/instance_service_test.go",
+          "line": 631,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "SmtpPassword: \"original-password\","
+        },
+        {
+          "path": "server/router/api/v1/test/user_service_registration_test.go",
+          "line": 94,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Password: \"password123\","
+        },
+        {
+          "path": "internal/idp/oauth2/oauth2_test.go",
+          "line": 58,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"test-client-secret\","
+        },
+        {
+          "path": "internal/idp/oauth2/oauth2_test.go",
+          "line": 118,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "testAccessToken = \"test-access-token\""
+        },
+        {
+          "path": "internal/ai/audiollm/gemini/gemini_test.go",
+          "line": 69,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "APIKey:   \"test-key\","
+        },
+        {
+          "path": "internal/idp/oauth2/oauth2_test.go",
+          "line": 137,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ClientSecret: \"test-client-secret\","
+        },
+        {
+          "path": "server/router/api/v1/test/user_service_registration_test.go",
+          "line": 202,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "Password: \"password123\","
+        },
+        {
+          "path": "server/router/api/v1/test/instance_service_test.go",
+          "line": 869,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "ApiKey: \"sk-test\","
+        },
+        {
+          "path": "web/src/components/CreateWebhookDialog.tsx",
+          "line": 98,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "const secret = \"whsec_\" + btoa(String.fromCharCode(...bytes));"
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 1,
+      "code": 1,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "internal/storage/s3/s3.go",
+          "line": 68,
+          "algorithm": "TLS",
+          "family": "TLS",
+          "rule_id": "rules.go.lang.security.audit.crypto.missing-ssl-minversion.missing-ssl-minversion",
+          "class": "code",
+          "source": "tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402 -- opt-in for self-signed S3 endpoints"
+        }
+      ]
+    }
+  }
+}

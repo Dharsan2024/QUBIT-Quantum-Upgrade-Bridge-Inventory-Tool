@@ -1,0 +1,2162 @@
+[
+ {
+  "seq": 1,
+  "id": "909091541307",
+  "repository": "JetBrains/compose-multiplatform",
+  "path": "gradle-plugins/compose/src/main/kotlin/org/jetbrains/compose/desktop/application/internal/skikoUtils.kt",
+  "line": 30,
+  "family": "SHA",
+  "source": "removeSuffix(\".sha256\").substringAfterLast(\"/\")",
+  "context": [
+   "    27  }",
+   "    28  ",
+   "    29  private fun String.skikoFileName(): String =",
+   "    30      removeSuffix(\".sha256\").substringAfterLast(\"/\")",
+   "    31  ",
+   "    32  private fun String.isSkikoNative(): Boolean = when {",
+   "    33      this == \"icudtl.dat\" -> true"
+  ]
+ },
+ {
+  "seq": 2,
+  "id": "1d321216fcda",
+  "repository": "TheAlgorithms/Python",
+  "path": "strings/is_pangram.py",
+  "line": 87,
+  "family": "PII: CREDIT",
+  "source": "# 5.348480500048026, 2.6477354579837993, 1.8470395830227062",
+  "context": [
+   "    84      print(timeit(\"is_pangram()\", setup=setup))",
+   "    85      print(timeit(\"is_pangram_faster()\", setup=setup))",
+   "    86      print(timeit(\"is_pangram_fastest()\", setup=setup))",
+   "    87      # 5.348480500048026, 2.6477354579837993, 1.8470395830227062",
+   "    88      # 5.036091582966037, 2.644472333951853,  1.8869528750656173",
+   "    89  ",
+   "    90  "
+  ]
+ },
+ {
+  "seq": 3,
+  "id": "cdb8e550fb40",
+  "repository": "starship/starship",
+  "path": "src/modules/haskell.rs",
+  "line": 162,
+  "family": "SHA",
+  "source": "- fast-math-1.0.2@sha256:91181eb836e54413cc5a841e797c42b2264954e893ea530b6fc4da0dccf6a8b7",
+  "context": [
+   "   159  - reanimate-svg-0.13.0.1",
+   "   160  - chiphunk-0.1.2.1",
+   "   161  - cubicbezier-0.6.0.6@sha256:2191ff47144d9a13a2784651a33d340cd31be1926a6c188925143103eb3c8db3",
+   "   162  - fast-math-1.0.2@sha256:91181eb836e54413cc5a841e797c42b2264954e893ea530b6fc4da0dccf6a8b7",
+   "   163  - matrices-0.5.0@sha256:b2761813f6a61c84224559619cc60a16a858ac671c8436bbac8ec89e85473058",
+   "   164  - hmatrix-0.20.0.0@sha256:d79a9218e314f1a2344457c3851bd1d2536518ecb5f1a2fcd81daa45e46cd025,4870",
+   "   165  - earcut-0.1.0.4@sha256:d5118b3eecf24d130263d81fb30f1ff56b1db43036582bfd1d8cc9ba3adae8be,1010"
+  ]
+ },
+ {
+  "seq": 4,
+  "id": "751f36cefedd",
+  "repository": "redis/redis",
+  "path": "src/quicklist.c",
+  "line": 2677,
+  "family": "3DES",
+  "source": "TEST_DESC(\"insert [before] 250 new in middle of 500 elements at compress %d\",",
+  "context": [
+   "  2674              }",
+   "  2675          }",
+   "  2676  ",
+   "  2677          TEST_DESC(\"insert [before] 250 new in middle of 500 elements at compress %d\",",
+   "  2678                    options[_i]) {",
+   "  2679              for (int f = 0; f < fill_count; f++) {",
+   "  2680                  quicklist *ql = quicklistNew(fills[f], options[_i]);"
+  ]
+ },
+ {
+  "seq": 5,
+  "id": "93e96d69dc0b",
+  "repository": "openwrt/openwrt",
+  "path": "package/network/services/ead/src/tinysrp/t_client.c",
+  "line": 151,
+  "family": "SHA-1",
+  "source": "SHA1Update(&tc->hash, tc->A.data, tc->A.len);",
+  "context": [
+   "   148    BigIntegerFree(g);",
+   "   149    BigIntegerFree(n);",
+   "   150  ",
+   "   151    SHA1Update(&tc->hash, tc->A.data, tc->A.len);",
+   "   152    SHA1Update(&tc->ckhash, tc->A.data, tc->A.len);",
+   "   153  ",
+   "   154    return &tc->A;"
+  ]
+ },
+ {
+  "seq": 6,
+  "id": "16c23fcc4967",
+  "repository": "conductor-oss/conductor",
+  "path": "common/src/test/java/com/netflix/conductor/common/workflow/WorkflowDefValidatorTest.java",
+  "line": 286,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "workflowDef.setOwnerEmail(\"owner@test.com\");",
+  "context": [
+   "   283          WorkflowDef workflowDef = new WorkflowDef(); // name is null",
+   "   284          workflowDef.setSchemaVersion(3);",
+   "   285          workflowDef.setName(\"test_env\");",
+   "   286          workflowDef.setOwnerEmail(\"owner@test.com\");",
+   "   287  ",
+   "   288          WorkflowTask workflowTask = new WorkflowTask();",
+   "   289  "
+  ]
+ },
+ {
+  "seq": 7,
+  "id": "4b6a5965a33f",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+  "line": 93,
+  "family": "RC4",
+  "source": "\\brief main interface to ARC4 hardware",
+  "context": [
+   "    90  ",
+   "    91  /*! \\fn static void _deu_arc4 (void *ctx_arg, u8 *out_arg, const u8 *in_arg, u8 *iv_arg, u32 nbytes, int encdec, int mode)",
+   "    92      \\ingroup IFX_ARC4_FUNCTIONS",
+   "    93      \\brief main interface to ARC4 hardware",
+   "    94      \\param ctx_arg crypto algo context",
+   "    95      \\param out_arg output bytestream",
+   "    96      \\param in_arg input bytestream"
+  ]
+ },
+ {
+  "seq": 8,
+  "id": "150714c0dd67",
+  "repository": "TheAlgorithms/Python",
+  "path": "ciphers/diffie_hellman.py",
+  "line": 258,
+  "family": "EC",
+  "source": "if not DiffieHellman.is_valid_public_key_static(remote_public_key, prime):",
+  "context": [
+   "   255          local_private_key = int(local_private_key_str, base=16)",
+   "   256          remote_public_key = int(remote_public_key_str, base=16)",
+   "   257          prime = primes[group][\"prime\"]",
+   "   258          if not DiffieHellman.is_valid_public_key_static(remote_public_key, prime):",
+   "   259              raise ValueError(\"Invalid public key\")",
+   "   260          shared_key = pow(remote_public_key, local_private_key, prime)",
+   "   261          return sha256(str(shared_key).encode()).hexdigest()"
+  ]
+ },
+ {
+  "seq": 9,
+  "id": "b6887496c11b",
+  "repository": "TheAlgorithms/Python",
+  "path": "linear_algebra/src/transformations_2d.py",
+  "line": 32,
+  "family": "PII: CREDIT",
+  "source": "[[0.5253219888177297, -0.8509035245341184],",
+  "context": [
+   "    29  def rotation(angle: float) -> list[list[float]]:",
+   "    30      \"\"\"",
+   "    31      >>> rotation(45)  # doctest: +NORMALIZE_WHITESPACE",
+   "    32      [[0.5253219888177297, -0.8509035245341184],",
+   "    33       [0.8509035245341184, 0.5253219888177297]]",
+   "    34      \"\"\"",
+   "    35      c, s = cos(angle), sin(angle)"
+  ]
+ },
+ {
+  "seq": 10,
+  "id": "9d9ffed4c60d",
+  "repository": "withastro/astro",
+  "path": "packages/internal-helpers/test/path.test.ts",
+  "line": 461,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "'file://localhost/home/backup@2024.sql', // Backup file",
+  "context": [
+   "   458  \t\t'file:///Users/dev/icon@2x.png', // Retina image file",
+   "   459  \t\t'file:///C:/Projects/@company/app/index.js', // Scoped package path",
+   "   460  \t\t'file:///var/cache/@cache_key.dat', // Cache file with @",
+   "   461  \t\t'file://localhost/home/backup@2024.sql', // Backup file",
+   "   462  \t\t'file:///opt/app/sprite@mobile.css', // Responsive asset",
+   "   463  \t\t'file:///D:/Work/email@example.com.txt', // Email as filename",
+   "   464  \t\t'file:///home/user/@types/node/index.d.ts', // TypeScript defs"
+  ]
+ },
+ {
+  "seq": 11,
+  "id": "d0ca14d169f0",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchat/Noise/NoiseProtocol.swift",
+  "line": 118,
+  "family": "CHACHA20",
+  "source": "let cipher: String = \"ChaChaPoly\" // ChaCha20-Poly1305",
+  "context": [
+   "   115  struct NoiseProtocolName {",
+   "   116      let pattern: String",
+   "   117      let dh: String = \"25519\"        // Curve25519",
+   "   118      let cipher: String = \"ChaChaPoly\" // ChaCha20-Poly1305",
+   "   119      let hash: String = \"SHA256\"      // SHA-256",
+   "   120      ",
+   "   121      var fullName: String {"
+  ]
+ },
+ {
+  "seq": 12,
+  "id": "35392fbcb6b7",
+  "repository": "starship/starship",
+  "path": "src/modules/rust.rs",
+  "line": 578,
+  "family": "3DES",
+  "source": "test_settings.lookup_override(OVERRIDES_CWD_A.as_ref()),",
+  "context": [
+   "   575          static STABLE_TOOLCHAIN: &str = \"stable-x86_64-pc-windows-msvc\";",
+   "   576  ",
+   "   577          assert_eq!(",
+   "   578              test_settings.lookup_override(OVERRIDES_CWD_A.as_ref()),",
+   "   579              Some(BETA_TOOLCHAIN.to_string())",
+   "   580          );",
+   "   581          assert_eq!("
+  ]
+ },
+ {
+  "seq": 13,
+  "id": "1e7e7709506f",
+  "repository": "usememos/memos",
+  "path": "internal/ai/stt/openai/openai_test.go",
+  "line": 50,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "APIKey:   \"test-key\",",
+  "context": [
+   "    47  \ttranscriber, err := sttopenai.New(ai.ProviderConfig{",
+   "    48  \t\tType:     ai.ProviderOpenAI,",
+   "    49  \t\tEndpoint: server.URL,",
+   "    50  \t\tAPIKey:   \"test-key\",",
+   "    51  \t}, stt.ApplyOptions(nil))",
+   "    52  \trequire.NoError(t, err)",
+   "    53  "
+  ]
+ },
+ {
+  "seq": 14,
+  "id": "6907cb625ff9",
+  "repository": "TheAlgorithms/Python",
+  "path": "strings/credit_card_validator.py",
+  "line": 24,
+  "family": "PII: CREDIT",
+  "source": ">>> luhn_validation('4111111111111111')",
+  "context": [
+   "    21  def luhn_validation(credit_card_number: str) -> bool:",
+   "    22      \"\"\"",
+   "    23      Function to luhn algorithm validation for a given credit card number.",
+   "    24      >>> luhn_validation('4111111111111111')",
+   "    25      True",
+   "    26      >>> luhn_validation('36111111111111')",
+   "    27      True"
+  ]
+ },
+ {
+  "seq": 15,
+  "id": "149d0ef8b887",
+  "repository": "TheAlgorithms/Python",
+  "path": "sorts/bitonic_sort.py",
+  "line": 15,
+  "family": "3DES",
+  "source": "DESCENDING(0); if (a[i] > a[j]) agrees with the direction, then a[i] and a[j] are",
+  "context": [
+   "    12      the given direction.",
+   "    13  ",
+   "    14      The parameter direction indicates the sorting direction, ASCENDING(1) or",
+   "    15      DESCENDING(0); if (a[i] > a[j]) agrees with the direction, then a[i] and a[j] are",
+   "    16      interchanged.",
+   "    17  ",
+   "    18      >>> arr = [12, 42, -21, 1]"
+  ]
+ },
+ {
+  "seq": 16,
+  "id": "4c7aeec34b5e",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 128,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "const password = \"password123\"",
+  "context": [
+   "   125      expect(actual).toBe(false)",
+   "   126    })",
+   "   127    it(\"should return true with actual hash\", async () => {",
+   "   128      const password = \"password123\"",
+   "   129      const _hash = \"$argon2i$v=19$m=4096,t=3,p=1$EAoczTxVki21JDfIZpTUxg$rkXgyrW4RDGoDYrxBFD4H2DlSMEhP4h+Api1hXnGnFY\"",
+   "   130      const actual = await util.isHashMatch(password, _hash)",
+   "   131      expect(actual).toBe(true)"
+  ]
+ },
+ {
+  "seq": 17,
+  "id": "e94d6146de72",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/integrations/wecom/metrics_test.go",
+  "line": 234,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "secret:         \"secret-1\",",
+  "context": [
+   "   231  \tc := &wecomChannel{",
+   "   232  \t\tinstallationID: mustTestUUID(t),",
+   "   233  \t\tbotID:          \"bot-1\",",
+   "   234  \t\tsecret:         \"secret-1\",",
+   "   235  \t\thandler: func(context.Context, channel.InboundMessage) error {",
+   "   236  \t\t\tif calls.Add(1) == 1 {",
+   "   237  \t\t\t\t<-release"
+  ]
+ },
+ {
+  "seq": 18,
+  "id": "cd2c9dd96379",
+  "repository": "TheAlgorithms/Python",
+  "path": "graphics/vector3_for_2d_rendering.py",
+  "line": 47,
+  "family": "PII: CREDIT",
+  "source": "(3.130524675073759, 2.0, 0.4470070007889556)",
+  "context": [
+   "    44      'x', 'y', 'z'",
+   "    45  ",
+   "    46      >>> rotate(1.0, 2.0, 3.0, 'y', 90.0)",
+   "    47      (3.130524675073759, 2.0, 0.4470070007889556)",
+   "    48  ",
+   "    49      >>> rotate(1, 2, 3, \"z\", 180)",
+   "    50      (0.999736015495891, -2.0001319704760485, 3)"
+  ]
+ },
+ {
+  "seq": 19,
+  "id": "1aee83730c55",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 297,
+  "family": "SHA",
+  "source": "it(\"should be valid if hashed-password for SHA256 matches cookie.key\", async () => {",
+  "context": [
+   "   294  })",
+   "   295  ",
+   "   296  describe(\"isCookieValid\", () => {",
+   "   297    it(\"should be valid if hashed-password for SHA256 matches cookie.key\", async () => {",
+   "   298      const isValid = await util.isCookieValid({",
+   "   299        passwordMethod: \"SHA256\",",
+   "   300        cookieKey: \"936a185caaa266bb9cbe981e9e05cb78cd732b0b3280eb944412bb6f8f8f07af\","
+  ]
+ },
+ {
+  "seq": 20,
+  "id": "9b43e56c1c69",
+  "repository": "openwrt/openwrt",
+  "path": "scripts/flashing/jungo-image.py",
+  "line": 44,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "password = \"password1\"",
+  "context": [
+   "    41  PORT = 8080",
+   "    42  user = \"admin\"",
+   "    43  #password = getpass.getpass()",
+   "    44  password = \"password1\"",
+   "    45  proto = \"http\"",
+   "    46  url = \"\"",
+   "    47  imagefile = \"\""
+  ]
+ },
+ {
+  "seq": 21,
+  "id": "2758793365fc",
+  "repository": "redis/redis",
+  "path": "src/quicklist.c",
+  "line": 3184,
+  "family": "3DES",
+  "source": "TEST_DESC(\"ltrim test B at compress %d\", options[_i]) {",
+  "context": [
+   "  3181              }",
+   "  3182          }",
+   "  3183  ",
+   "  3184          TEST_DESC(\"ltrim test B at compress %d\", options[_i]) {",
+   "  3185              for (int f = 0; f < fill_count; f++) {",
+   "  3186                  /* Force-disable compression because our 33 sequential",
+   "  3187                   * integers don't compress and the check always fails. */"
+  ]
+ },
+ {
+  "seq": 22,
+  "id": "cf9d44bb0aa1",
+  "repository": "openwrt/openwrt",
+  "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+  "line": 39,
+  "family": "RSA",
+  "source": "#include <mbedtls/rsa.h>",
+  "context": [
+   "    36  #include <mbedtls/entropy.h>",
+   "    37  #include <mbedtls/x509_crt.h>",
+   "    38  #include <mbedtls/ecp.h>",
+   "    39  #include <mbedtls/rsa.h>",
+   "    40  #include <mbedtls/pk.h>",
+   "    41  #include <mbedtls/asn1.h>",
+   "    42  #include <mbedtls/oid.h>"
+  ]
+ },
+ {
+  "seq": 23,
+  "id": "ce5e0b3e9903",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 317,
+  "family": "ARGON2",
+  "source": "passwordMethod: \"ARGON2\",",
+  "context": [
+   "   314    })",
+   "   315    it(\"should be valid if hashed-password for ARGON2 matches cookie.key\", async () => {",
+   "   316      const isValid = await util.isCookieValid({",
+   "   317        passwordMethod: \"ARGON2\",",
+   "   318        cookieKey: \"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\",",
+   "   319        hashedPasswordFromArgs:",
+   "   320          \"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\","
+  ]
+ },
+ {
+  "seq": 24,
+  "id": "fa6facbfcb23",
+  "repository": "multica-ai/multica",
+  "path": "server/cmd/server/delegated_subscriber_concurrency_test.go",
+  "line": 154,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "const email = \"delegated-concurrent-revoke@multica.test\"",
+  "context": [
+   "   151  \tbus := events.New()",
+   "   152  \tregisterSubscriberListeners(bus, testPool)",
+   "   153  ",
+   "   154  \tconst email = \"delegated-concurrent-revoke@multica.test\"",
+   "   155  \tcleanupTestUser(t, email)",
+   "   156  \tuserID := createTestUser(t, email)",
+   "   157  \tt.Cleanup(func() { cleanupTestUser(t, email) })"
+  ]
+ },
+ {
+  "seq": 25,
+  "id": "6555dfa87829",
+  "repository": "starship/starship",
+  "path": "src/modules/package.rs",
+  "line": 1665,
+  "family": "3DES",
+  "source": "let config_name = \"DESCRIPTION\";",
+  "context": [
+   "  1662  ",
+   "  1663      #[test]",
+   "  1664      fn test_extract_rlang_version() -> io::Result<()> {",
+   "  1665          let config_name = \"DESCRIPTION\";",
+   "  1666          let config_content = \"",
+   "  1667  Package: starship",
+   "  1668  Version: 1.0.0"
+  ]
+ },
+ {
+  "seq": 26,
+  "id": "b024cd6f35c6",
+  "repository": "starship/starship",
+  "path": "src/modules/rust.rs",
+  "line": 567,
+  "family": "3DES",
+  "source": "static OVERRIDES_CWD_B: &str = \"/home/user/src/b/tests\";",
+  "context": [
+   "   564          .unwrap();",
+   "   565  ",
+   "   566          static OVERRIDES_CWD_A: &str = \"/home/user/src/a/src\";",
+   "   567          static OVERRIDES_CWD_B: &str = \"/home/user/src/b/tests\";",
+   "   568          static OVERRIDES_CWD_C: &str = \"/home/user/src/c/examples\";",
+   "   569          static OVERRIDES_CWD_D: &str = \"/home/user/src/b/d c/spaces\";",
+   "   570          static OVERRIDES_CWD_E: &str = \"/home/user/src/b_and_more\";"
+  ]
+ },
+ {
+  "seq": 27,
+  "id": "3ebb96acc52a",
+  "repository": "withastro/astro",
+  "path": "packages/internal-helpers/test/path.test.ts",
+  "line": 506,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "'icon@3x.png', // iOS asset naming",
+  "context": [
+   "   503  \t\t// Legitimate @ in filenames (NOT credentials)",
+   "   504  \t\t'package@1.0.0.tgz', // NPM package versioning",
+   "   505  \t\t'user@2x.png', // Retina image naming",
+   "   506  \t\t'icon@3x.png', // iOS asset naming",
+   "   507  \t\t'logo@2x@dark.png', // Multiple @ in filename",
+   "   508  \t\t'@babel/core/lib/index.js', // Scoped package path",
+   "   509  \t\t'/@babel/preset-env', // Scoped package in node_modules"
+  ]
+ },
+ {
+  "seq": 28,
+  "id": "1d0cdcefe462",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchat/Services/UnifiedPeerService.swift",
+  "line": 184,
+  "family": "SHA",
+  "source": "let fingerprint = peerInfo.noisePublicKey?.sha256Fingerprint()",
+  "context": [
+   "   181      ) -> BitchatPeer {",
+   "   182          // Determine reachability based on lastSeen and identity trust",
+   "   183          let now = Date()",
+   "   184          let fingerprint = peerInfo.noisePublicKey?.sha256Fingerprint()",
+   "   185          let isVerified = fingerprint.map { identityManager.isVerified(fingerprint: $0) } ?? false",
+   "   186          let isFav = peerInfo.noisePublicKey.flatMap { favorites[$0]?.isFavorite } ?? false",
+   "   187          let retention: TimeInterval = (isVerified || isFav) ? TransportConfig.bleReachabilityRetentionVerifiedSeconds : TransportConfig.bleReachabilityRetentionUnverifiedSeconds"
+  ]
+ },
+ {
+  "seq": 29,
+  "id": "6a2525183754",
+  "repository": "usememos/memos",
+  "path": "web/src/utils/gfm-url.ts",
+  "line": 178,
+  "family": "3DES",
+  "source": "if (resolvedLinkLike || knownEntity || URL_PREFIX_OPAQUE_NODES.has(child.name)) {",
+  "context": [
+   "   175        const resolvedLinkLike = (child.name === \"Link\" || child.name === \"Image\") && hasExactMarkdownRange(resolvedLinks, child);",
+   "   176        const knownEntity =",
+   "   177          child.name === \"Entity\" && decodeString(source.slice(child.from, child.to)) !== source.slice(child.from, child.to);",
+   "   178        if (resolvedLinkLike || knownEntity || URL_PREFIX_OPAQUE_NODES.has(child.name)) {",
+   "   179          ranges.push({ from: child.from, to: child.to });",
+   "   180        } else {",
+   "   181          collect(child);"
+  ]
+ },
+ {
+  "seq": 30,
+  "id": "1ab84f9a30ee",
+  "repository": "react/create-react-app",
+  "path": "packages/react-error-overlay/fixtures/bundle.mjs",
+  "line": 19268,
+  "family": "3DES",
+  "source": "var HTML_CODES = [39, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215",
+  "context": [
+   " 19265  /***/ (function(module, exports) {",
+   " 19266  ",
+   " 19267  var HTML_ALPHA = ['apos', 'nbsp', 'iexcl', 'cent', 'pound', 'curren', 'yen', 'brvbar', 'sect', 'uml', 'copy', 'ordf', 'laquo', 'not', 'shy', 'reg', 'macr', 'deg', 'plusmn', 'sup2', 'sup3', 'acute', 'micro', 'para', 'middot', 'cedil', 'sup1', 'ordm', 'raquo', 'frac14', 'frac12', 'frac34', 'iq",
+   " 19268  var HTML_CODES = [39, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, ",
+   " 19269  ",
+   " 19270  var alphaIndex = {};",
+   " 19271  var numIndex = {};"
+  ]
+ },
+ {
+  "seq": 31,
+  "id": "713a8743ceae",
+  "repository": "conductor-oss/conductor",
+  "path": "test-harness/src/test/java/com/netflix/conductor/test/integration/TestHarnessAbstractEndToEndTest.java",
+  "line": 66,
+  "family": "3DES",
+  "source": "private static final String DEFAULT_DESCRIPTION = \"description\";",
+  "context": [
+   "    63              LoggerFactory.getLogger(TestHarnessAbstractEndToEndTest.class);",
+   "    64  ",
+   "    65      private static final String TASK_DEFINITION_PREFIX = \"task_\";",
+   "    66      private static final String DEFAULT_DESCRIPTION = \"description\";",
+   "    67      // Represents null value deserialized from the redis in memory db",
+   "    68      private static final String DEFAULT_NULL_VALUE = \"null\";",
+   "    69      protected static final String DEFAULT_EMAIL_ADDRESS = \"test@harness.com\";"
+  ]
+ },
+ {
+  "seq": 32,
+  "id": "ae7f55dac3b3",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/d3d11/hwdec_d3d11va.c",
+  "line": 214,
+  "family": "3DES",
+  "source": "D3D11_TEXTURE2D_DESC copy_desc = {",
+  "context": [
+   "   211      struct mp_image layout = {0};",
+   "   212      mp_image_set_params(&layout, &mapper->dst_params);",
+   "   213  ",
+   "   214      D3D11_TEXTURE2D_DESC copy_desc = {",
+   "   215          .Width = mapper->dst_params.w,",
+   "   216          .Height = mapper->dst_params.h,",
+   "   217          .MipLevels = 1,"
+  ]
+ },
+ {
+  "seq": 33,
+  "id": "3ab80acc6720",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchatTests/Services/SecureIdentityStateManagerTests.swift",
+  "line": 138,
+  "family": "SHA",
+  "source": "let fingerprint = noisePublicKey.sha256Fingerprint()",
+  "context": [
+   "   135          let keychain = MockKeychain()",
+   "   136          let manager = SecureIdentityStateManager(keychain)",
+   "   137          let noisePublicKey = Data(repeating: 0x13, count: 32)",
+   "   138          let fingerprint = noisePublicKey.sha256Fingerprint()",
+   "   139          let peerID = PeerID(publicKey: noisePublicKey)",
+   "   140          let victimSigningKey = Data(repeating: 0x24, count: 32)",
+   "   141          let attackerSigningKey = Data(repeating: 0x77, count: 32)"
+  ]
+ },
+ {
+  "seq": 34,
+  "id": "29e53c0e127e",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchat/Noise/NoiseProtocol.swift",
+  "line": 482,
+  "family": "HKDF",
+  "source": "let output = hkdf(chainingKey: chainingKey, inputKeyMaterial: Data(), numOutputs: 2)",
+  "context": [
+   "   479      }",
+   "   480      ",
+   "   481      func split(useExtractedNonce: Bool) -> (NoiseCipherState, NoiseCipherState) {",
+   "   482          let output = hkdf(chainingKey: chainingKey, inputKeyMaterial: Data(), numOutputs: 2)",
+   "   483          let tempKey1 = SymmetricKey(data: output[0])",
+   "   484          let tempKey2 = SymmetricKey(data: output[1])",
+   "   485  "
+  ]
+ },
+ {
+  "seq": 35,
+  "id": "909091541307",
+  "repository": "JetBrains/compose-multiplatform",
+  "path": "gradle-plugins/compose/src/main/kotlin/org/jetbrains/compose/desktop/application/internal/skikoUtils.kt",
+  "line": 30,
+  "family": "SHA",
+  "source": "removeSuffix(\".sha256\").substringAfterLast(\"/\")",
+  "context": [
+   "    27  }",
+   "    28  ",
+   "    29  private fun String.skikoFileName(): String =",
+   "    30      removeSuffix(\".sha256\").substringAfterLast(\"/\")",
+   "    31  ",
+   "    32  private fun String.isSkikoNative(): Boolean = when {",
+   "    33      this == \"icudtl.dat\" -> true"
+  ]
+ },
+ {
+  "seq": 36,
+  "id": "db0125a3783e",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchat/Noise/NoiseProtocol.swift",
+  "line": 433,
+  "family": "HKDF",
+  "source": "let output = hkdf(chainingKey: chainingKey, inputKeyMaterial: inputKeyMaterial, numOutputs: 2)",
+  "context": [
+   "   430      }",
+   "   431      ",
+   "   432      func mixKey(_ inputKeyMaterial: Data) {",
+   "   433          let output = hkdf(chainingKey: chainingKey, inputKeyMaterial: inputKeyMaterial, numOutputs: 2)",
+   "   434          chainingKey = output[0]",
+   "   435          let tempKey = SymmetricKey(data: output[1])",
+   "   436          cipherState.initializeKey(tempKey)"
+  ]
+ },
+ {
+  "seq": 37,
+  "id": "93e96d69dc0b",
+  "repository": "openwrt/openwrt",
+  "path": "package/network/services/ead/src/tinysrp/t_client.c",
+  "line": 151,
+  "family": "SHA-1",
+  "source": "SHA1Update(&tc->hash, tc->A.data, tc->A.len);",
+  "context": [
+   "   148    BigIntegerFree(g);",
+   "   149    BigIntegerFree(n);",
+   "   150  ",
+   "   151    SHA1Update(&tc->hash, tc->A.data, tc->A.len);",
+   "   152    SHA1Update(&tc->ckhash, tc->A.data, tc->A.len);",
+   "   153  ",
+   "   154    return &tc->A;"
+  ]
+ },
+ {
+  "seq": 38,
+  "id": "669b1c6ad282",
+  "repository": "multica-ai/multica",
+  "path": "packages/views/skills/components/skill-detail-page.test.tsx",
+  "line": 326,
+  "family": "3DES",
+  "source": "expect(field.value).toBe(LONG_DESCRIPTION);",
+  "context": [
+   "   323    it(\"renders the whole description in an editable field sized for it\", async () => {",
+   "   324      renderPage();",
+   "   325      const field = (await screen.findByLabelText(\"Description\")) as HTMLTextAreaElement;",
+   "   326      expect(field.value).toBe(LONG_DESCRIPTION);",
+   "   327      expect(Number(field.rows)).toBeGreaterThanOrEqual(4);",
+   "   328      expect(",
+   "   329        screen.getByText(`${LONG_DESCRIPTION.length} characters.`, { exact: false }),"
+  ]
+ },
+ {
+  "seq": 39,
+  "id": "d8833d280c95",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/render-csp.test.ts",
+  "line": 210,
+  "family": "SHA",
+  "source": "renderCspContent(createCspResult({ scriptDirective: { hashes: ['sha256-default'] } })),",
+  "context": [
+   "   207  ",
+   "   208  \tit('omits the more specific directives when nothing is scoped to them', () => {",
+   "   209  \t\tassert.equal(",
+   "   210  \t\t\trenderCspContent(createCspResult({ scriptDirective: { hashes: ['sha256-default'] } })),",
+   "   211  \t\t\t\"script-src 'self' 'sha256-default'; style-src 'self' ;\",",
+   "   212  \t\t);",
+   "   213  \t});"
+  ]
+ },
+ {
+  "seq": 40,
+  "id": "71d25e97504a",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+  "line": 16,
+  "family": "POLY1305",
+  "source": "let plaintext = Data(\"Hello, XChaCha20-Poly1305!\".utf8)",
+  "context": [
+   "    13  struct XChaCha20Poly1305CompatTests {",
+   "    14  ",
+   "    15      @Test func sealAndOpenRoundtrip() throws {",
+   "    16          let plaintext = Data(\"Hello, XChaCha20-Poly1305!\".utf8)",
+   "    17          let key = Data(repeating: 0x42, count: 32)",
+   "    18          let nonce = Data(repeating: 0x24, count: 24)",
+   "    19  "
+  ]
+ },
+ {
+  "seq": 41,
+  "id": "3504ac7234b3",
+  "repository": "conductor-oss/conductor",
+  "path": "ai/src/test/resources/ai-test-env.sh",
+  "line": 14,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "export OPENAI_API_KEY=\"your-openai-api-key\"",
+  "context": [
+   "    11  # ============================================================================",
+   "    12  # OpenAI",
+   "    13  # ============================================================================",
+   "    14  export OPENAI_API_KEY=\"your-openai-api-key\"",
+   "    15  # Optional: Override base URL for OpenAI-compatible APIs",
+   "    16  # export OPENAI_BASE_URL=\"https://api.openai.com/v1\"",
+   "    17  "
+  ]
+ },
+ {
+  "seq": 42,
+  "id": "74e63e824962",
+  "repository": "usememos/memos",
+  "path": "proto/gen/api/v1/common.pb.go",
+  "line": 86,
+  "family": "3DES",
+  "source": "2: \"DESC\",",
+  "context": [
+   "    83  \tDirection_name = map[int32]string{",
+   "    84  \t\t0: \"DIRECTION_UNSPECIFIED\",",
+   "    85  \t\t1: \"ASC\",",
+   "    86  \t\t2: \"DESC\",",
+   "    87  \t}",
+   "    88  \tDirection_value = map[string]int32{",
+   "    89  \t\t\"DIRECTION_UNSPECIFIED\": 0,"
+  ]
+ },
+ {
+  "seq": 43,
+  "id": "46bb3118632e",
+  "repository": "withastro/astro",
+  "path": "packages/internal-helpers/test/path.test.ts",
+  "line": 338,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "'\\\\\\\\google.com@evil.com',",
+  "context": [
+   "   335  \t\t'http://google.com@evil.com',",
+   "   336  \t\t'http://user:pass@good.com@evil.com',",
+   "   337  \t\t'//google.com@evil.com',",
+   "   338  \t\t'\\\\\\\\google.com@evil.com',",
+   "   339  ",
+   "   340  \t\t// Windows UNC paths that could be URL bypass attempts",
+   "   341  \t\t'\\\\\\\\example.com\\\\share\\\\file.js', // Could be //example.com"
+  ]
+ },
+ {
+  "seq": 44,
+  "id": "9097b33772de",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/d3d11/context.c",
+  "line": 307,
+  "family": "3DES",
+  "source": "DXGI_SWAP_CHAIN_DESC desc;",
+  "context": [
+   "   304          return;",
+   "   305  ",
+   "   306      // They're also only valid for flip model swapchains",
+   "   307      DXGI_SWAP_CHAIN_DESC desc;",
+   "   308      hr = IDXGISwapChain_GetDesc(p->swapchain, &desc);",
+   "   309      if (FAILED(hr) || (desc.SwapEffect != DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL &&",
+   "   310                         desc.SwapEffect != DXGI_SWAP_EFFECT_FLIP_DISCARD))"
+  ]
+ },
+ {
+  "seq": 45,
+  "id": "cdb8e550fb40",
+  "repository": "starship/starship",
+  "path": "src/modules/haskell.rs",
+  "line": 162,
+  "family": "SHA",
+  "source": "- fast-math-1.0.2@sha256:91181eb836e54413cc5a841e797c42b2264954e893ea530b6fc4da0dccf6a8b7",
+  "context": [
+   "   159  - reanimate-svg-0.13.0.1",
+   "   160  - chiphunk-0.1.2.1",
+   "   161  - cubicbezier-0.6.0.6@sha256:2191ff47144d9a13a2784651a33d340cd31be1926a6c188925143103eb3c8db3",
+   "   162  - fast-math-1.0.2@sha256:91181eb836e54413cc5a841e797c42b2264954e893ea530b6fc4da0dccf6a8b7",
+   "   163  - matrices-0.5.0@sha256:b2761813f6a61c84224559619cc60a16a858ac671c8436bbac8ec89e85473058",
+   "   164  - hmatrix-0.20.0.0@sha256:d79a9218e314f1a2344457c3851bd1d2536518ecb5f1a2fcd81daa45e46cd025,4870",
+   "   165  - earcut-0.1.0.4@sha256:d5118b3eecf24d130263d81fb30f1ff56b1db43036582bfd1d8cc9ba3adae8be,1010"
+  ]
+ },
+ {
+  "seq": 46,
+  "id": "e72591f3ac94",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/cli.test.ts",
+  "line": 540,
+  "family": "ARGON2",
+  "source": "\"$argon2i$v=19$m=4096,t=3,p=1$0qr/o+0t00hsbjfqcksfdq$ofcm4rl6o+b7oxpua4qlxubypbbpsf+8l531u7p9hyy\",",
+  "context": [
+   "   537      )",
+   "   538      expect(args).toEqual({",
+   "   539        \"hashed-password\":",
+   "   540          \"$argon2i$v=19$m=4096,t=3,p=1$0qr/o+0t00hsbjfqcksfdq$ofcm4rl6o+b7oxpua4qlxubypbbpsf+8l531u7p9hyy\",",
+   "   541      })",
+   "   542    })",
+   "   543    it(\"should throw an error for invalid config values\", async () => {"
+  ]
+ },
+ {
+  "seq": 47,
+  "id": "9bd4884459b1",
+  "repository": "multica-ai/multica",
+  "path": "server/pkg/db/queries/agent.sql",
+  "line": 766,
+  "family": "3DES",
+  "source": "ORDER BY atq.priority DESC, atq.created_at ASC, atq.id ASC",
+  "context": [
+   "   763                )",
+   "   764              )",
+   "   765        )",
+   "   766      ORDER BY atq.priority DESC, atq.created_at ASC, atq.id ASC",
+   "   767      LIMIT 1",
+   "   768      FOR UPDATE SKIP LOCKED",
+   "   769  )"
+  ]
+ },
+ {
+  "seq": 48,
+  "id": "a891e3de5c28",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+  "line": 137,
+  "family": "RC4",
+  "source": "tmp_array32[2] = arc4->OD1R;",
+  "context": [
+   "   134                  // need to handle nbytes not multiple of 16",
+   "   135                  tmp_array32[0] = arc4->OD3R;",
+   "   136                  tmp_array32[1] = arc4->OD2R;",
+   "   137                  tmp_array32[2] = arc4->OD1R;",
+   "   138                  tmp_array32[3] = arc4->OD0R;",
+   "   139  ",
+   "   140                  remaining_bytes = nbytes - i;"
+  ]
+ },
+ {
+  "seq": 49,
+  "id": "ccb5a66eeaf8",
+  "repository": "usememos/memos",
+  "path": "store/db/postgres/memo.go",
+  "line": 101,
+  "family": "3DES",
+  "source": "order := \"DESC\"",
+  "context": [
+   "    98  \t\twhere = append(where, \"memo_relation.related_memo_id IS NULL\")",
+   "    99  \t}",
+   "   100  ",
+   "   101  \torder := \"DESC\"",
+   "   102  \tif find.OrderByTimeAsc {",
+   "   103  \t\torder = \"ASC\"",
+   "   104  \t}"
+  ]
+ },
+ {
+  "seq": 50,
+  "id": "1b39f7baef13",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchat/Noise/NoiseProtocol.swift",
+  "line": 279,
+  "family": "UNKNOWN(CHACHAPOLY)",
+  "source": "let sealedBox = try ChaChaPoly.seal(plaintext, using: key, nonce: ChaChaPoly.Nonce(data: nonceData), authenticating: associatedData)",
+  "context": [
+   "   276              nonceData.replaceSubrange(4..<12, with: bytes)",
+   "   277          }",
+   "   278          ",
+   "   279          let sealedBox = try ChaChaPoly.seal(plaintext, using: key, nonce: ChaChaPoly.Nonce(data: nonceData), authenticating: associatedData)",
+   "   280          // increment local nonce",
+   "   281          nonce += 1",
+   "   282          "
+  ]
+ },
+ {
+  "seq": 51,
+  "id": "e236d7150693",
+  "repository": "openwrt/openwrt",
+  "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+  "line": 336,
+  "family": "RSA",
+  "source": "gen_key(&key, rsa, ksize, exp, curve, pem);",
+  "context": [
+   "   333  \t\t}",
+   "   334  \t\tsan_prev = san_cur;",
+   "   335  \t}",
+   "   336  \tgen_key(&key, rsa, ksize, exp, curve, pem);",
+   "   337  ",
+   "   338  \tif (keypath)",
+   "   339  \t\twrite_key(&key, keypath, pem);"
+  ]
+ },
+ {
+  "seq": 52,
+  "id": "1d321216fcda",
+  "repository": "TheAlgorithms/Python",
+  "path": "strings/is_pangram.py",
+  "line": 87,
+  "family": "PII: CREDIT",
+  "source": "# 5.348480500048026, 2.6477354579837993, 1.8470395830227062",
+  "context": [
+   "    84      print(timeit(\"is_pangram()\", setup=setup))",
+   "    85      print(timeit(\"is_pangram_faster()\", setup=setup))",
+   "    86      print(timeit(\"is_pangram_fastest()\", setup=setup))",
+   "    87      # 5.348480500048026, 2.6477354579837993, 1.8470395830227062",
+   "    88      # 5.036091582966037, 2.644472333951853,  1.8869528750656173",
+   "    89  ",
+   "    90  "
+  ]
+ },
+ {
+  "seq": 53,
+  "id": "cfb3085b928d",
+  "repository": "starship/starship",
+  "path": "src/modules/rust.rs",
+  "line": 594,
+  "family": "3DES",
+  "source": "test_settings.lookup_override(OVERRIDES_CWD_E.as_ref()),",
+  "context": [
+   "   591              Some(STABLE_TOOLCHAIN.to_string())",
+   "   592          );",
+   "   593          assert_eq!(",
+   "   594              test_settings.lookup_override(OVERRIDES_CWD_E.as_ref()),",
+   "   595              None",
+   "   596          );",
+   "   597          assert_eq!("
+  ]
+ },
+ {
+  "seq": 54,
+  "id": "e7fe2c97a5b9",
+  "repository": "fruitcake/laravel-debugbar",
+  "path": "tests/Console/AnalyzesQueriesTest.php",
+  "line": 32,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "$this->normalizeSql(\"select * from users where email = 'a@b.com'\")",
+  "context": [
+   "    29      {",
+   "    30          static::assertSame(",
+   "    31              'select * from users where email = ?',",
+   "    32              $this->normalizeSql(\"select * from users where email = 'a@b.com'\")",
+   "    33          );",
+   "    34      }",
+   "    35  "
+  ]
+ },
+ {
+  "seq": 55,
+  "id": "ab26559db694",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/agent_permission_test.go",
+  "line": 452,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "memberX := createPermissionTestMember(t, \"perm-sys-failclosed@multica.test\")",
+  "context": [
+   "   449  ",
+   "   450  \t// public_to member-only agent \u2192 system / unattributed agent trigger must",
+   "   451  \t// fail closed (member target requires a resolved human originator).",
+   "   452  \tmemberX := createPermissionTestMember(t, \"perm-sys-failclosed@multica.test\")",
+   "   453  \tmemAgentID := createPublicToAgentWithTargets(t, \"sys-exception-member-agent\", []map[string]any{",
+   "   454  \t\t{\"target_type\": \"member\", \"target_id\": memberX},",
+   "   455  \t})"
+  ]
+ },
+ {
+  "seq": 56,
+  "id": "6591620b5397",
+  "repository": "openwrt/openwrt",
+  "path": "package/network/ipv6/6in4/files/6in4.sh",
+  "line": 144,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "if proto_6in4_update $urlget $urlget_opts --user=\"$username\" --password=\"$password\" \"$url\" 2>&1 | \\",
+  "context": [
+   "   141  \t\t\tset -o pipefail",
+   "   142  \t\t\twhile true; do",
+   "   143  \t\t\t\ttry=$((try + 1))",
+   "   144  \t\t\t\tif proto_6in4_update $urlget $urlget_opts --user=\"$username\" --password=\"$password\" \"$url\" 2>&1 | \\",
+   "   145  \t\t\t\t\tsed -e 's,^Killed$,timeout,' -e \"s,^,update $try/$max: ,\" | \\",
+   "   146  \t\t\t\t\tlogger -t \"$link\";",
+   "   147  \t\t\t\tthen"
+  ]
+ },
+ {
+  "seq": 57,
+  "id": "e3979f7e514e",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 4953,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   "  4950          method: \"GET\",",
+   "  4951          asyncComplete: false,",
+   "  4952          readTimeOut: \"3000\",",
+   "  4953          _createdBy: \"najeeb.thangal@orkes.io\",",
+   "  4954          uri: \"https://orkes-api-tester.orkesconductor.com/api\",",
+   "  4955          connectionTimeOut: 3000,",
+   "  4956          contentType: \"application/json\","
+  ]
+ },
+ {
+  "seq": 58,
+  "id": "223930159994",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/agent_env_permission_test.go",
+  "line": 191,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "agentID, _ := agentEnvOwnerFixture(t, \"env-role-check-agent\", \"env-role-check-owner@multica.test\")",
+  "context": [
+   "   188  \t}",
+   "   189  \tctx := context.Background()",
+   "   190  ",
+   "   191  \tagentID, _ := agentEnvOwnerFixture(t, \"env-role-check-agent\", \"env-role-check-owner@multica.test\")",
+   "   192  ",
+   "   193  \tadminID := createPermissionTestMember(t, \"env-admin@multica.test\")",
+   "   194  \tif _, err := testPool.Exec(ctx, `"
+  ]
+ },
+ {
+  "seq": 59,
+  "id": "bb88991b8244",
+  "repository": "redis/redis",
+  "path": "src/redis-benchmark.c",
+  "line": 1580,
+  "family": "TLS",
+  "source": "\"                    and specifically for TLSv1.3 ciphersuites.\\n\"",
+  "context": [
+   "  1577  \" --tls-ciphersuites <list> Sets the list of preferred ciphersuites (TLSv1.3)\\n\"",
+   "  1578  \"                    in order of preference from highest to lowest separated by colon (\\\":\\\").\\n\"",
+   "  1579  \"                    See the ciphers(1ssl) manpage for more information about the syntax of this string,\\n\"",
+   "  1580  \"                    and specifically for TLSv1.3 ciphersuites.\\n\"",
+   "  1581  #endif",
+   "  1582  #if CLI_TLS_SUPPORTS_GROUPS",
+   "  1583  \" --tls-groups <list> Sets the list of preferred TLS groups\\n\""
+  ]
+ },
+ {
+  "seq": 60,
+  "id": "150714c0dd67",
+  "repository": "TheAlgorithms/Python",
+  "path": "ciphers/diffie_hellman.py",
+  "line": 258,
+  "family": "EC",
+  "source": "if not DiffieHellman.is_valid_public_key_static(remote_public_key, prime):",
+  "context": [
+   "   255          local_private_key = int(local_private_key_str, base=16)",
+   "   256          remote_public_key = int(remote_public_key_str, base=16)",
+   "   257          prime = primes[group][\"prime\"]",
+   "   258          if not DiffieHellman.is_valid_public_key_static(remote_public_key, prime):",
+   "   259              raise ValueError(\"Invalid public key\")",
+   "   260          shared_key = pow(remote_public_key, local_private_key, prime)",
+   "   261          return sha256(str(shared_key).encode()).hexdigest()"
+  ]
+ },
+ {
+  "seq": 61,
+  "id": "b024cd6f35c6",
+  "repository": "starship/starship",
+  "path": "src/modules/rust.rs",
+  "line": 567,
+  "family": "3DES",
+  "source": "static OVERRIDES_CWD_B: &str = \"/home/user/src/b/tests\";",
+  "context": [
+   "   564          .unwrap();",
+   "   565  ",
+   "   566          static OVERRIDES_CWD_A: &str = \"/home/user/src/a/src\";",
+   "   567          static OVERRIDES_CWD_B: &str = \"/home/user/src/b/tests\";",
+   "   568          static OVERRIDES_CWD_C: &str = \"/home/user/src/c/examples\";",
+   "   569          static OVERRIDES_CWD_D: &str = \"/home/user/src/b/d c/spaces\";",
+   "   570          static OVERRIDES_CWD_E: &str = \"/home/user/src/b_and_more\";"
+  ]
+ },
+ {
+  "seq": 62,
+  "id": "5a3dedec77ab",
+  "repository": "usememos/memos",
+  "path": "store/test/instance_setting_test.go",
+  "line": 454,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "ApiKey:   \"gemini-test\",",
+  "context": [
+   "   451  \t\t\t\t\t\tTitle:    \"Gemini\",",
+   "   452  \t\t\t\t\t\tType:     storepb.AIProviderType_GEMINI,",
+   "   453  \t\t\t\t\t\tEndpoint: \"https://generativelanguage.googleapis.com/v1beta\",",
+   "   454  \t\t\t\t\t\tApiKey:   \"gemini-test\",",
+   "   455  \t\t\t\t\t},",
+   "   456  \t\t\t\t},",
+   "   457  \t\t\t},"
+  ]
+ },
+ {
+  "seq": 63,
+  "id": "20adb2124fad",
+  "repository": "gatsbyjs/gatsby",
+  "path": "examples/using-javascript-transforms/gatsby-config.js",
+  "line": 7,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "siteEmailUrl: `me@x.com`,",
+  "context": [
+   "     4      siteDescr: `Some best practices for using JavaScript in Gatsby.`,",
+   "     5      siteAuthor: `The Gatsby`,",
+   "     6  ",
+   "     7      siteEmailUrl: `me@x.com`,",
+   "     8      siteEmailPretty: `me@x.com`,",
+   "     9      siteTwitterUrl: `https://twitter.com/gatsbyjs`,",
+   "    10      siteTwitterPretty: `@gatsbyjs`,"
+  ]
+ },
+ {
+  "seq": 64,
+  "id": "8ea8bc66a775",
+  "repository": "coder/code-server",
+  "path": "src/node/cli.ts",
+  "line": 14,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "Password = \"password\",",
+  "context": [
+   "    11  }",
+   "    12  ",
+   "    13  export enum AuthType {",
+   "    14    Password = \"password\",",
+   "    15    None = \"none\",",
+   "    16  }",
+   "    17  "
+  ]
+ },
+ {
+  "seq": 65,
+  "id": "2dd45ca87295",
+  "repository": "allinurl/goaccess",
+  "path": "src/dialogs.c",
+  "line": 163,
+  "family": "3DES",
+  "source": "mvwprintw (win, 2, 2, AGENTSDLG_DESC);",
+  "context": [
+   "   160    post_gmenu (menu);",
+   "   161    snprintf (buf, sizeof buf, AGENTSDLG_HEAD, addr);",
+   "   162    draw_header (win, buf, \" %s\", 1, 1, list_w - 2, color_panel_header);",
+   "   163    mvwprintw (win, 2, 2, AGENTSDLG_DESC);",
+   "   164    wrefresh (win);",
+   "   165  ",
+   "   166    while (quit) {"
+  ]
+ },
+ {
+  "seq": 66,
+  "id": "d6f4f08514a0",
+  "repository": "multica-ai/multica",
+  "path": "server/pkg/db/generated/chat.sql.go",
+  "line": 2563,
+  "family": "3DES",
+  "source": "head.priority DESC,",
+  "context": [
+   "  2560                        WHEN head.status = 'deferred' THEN 1",
+   "  2561                        ELSE 2",
+   "  2562                      END,",
+   "  2563                      head.priority DESC,",
+   "  2564                      head.created_at ASC,",
+   "  2565                      head.id ASC",
+   "  2566                    LIMIT 1"
+  ]
+ },
+ {
+  "seq": 67,
+  "id": "d1ba9f62e59a",
+  "repository": "multica-ai/multica",
+  "path": "server/migrations/109_lark_integration.up.sql",
+  "line": 243,
+  "family": "3DES",
+  "source": "ON lark_outbound_card_message(chat_session_id, created_at DESC);",
+  "context": [
+   "   240      ON lark_outbound_card_message(task_id)",
+   "   241      WHERE task_id IS NOT NULL;",
+   "   242  CREATE INDEX idx_lark_outbound_card_session",
+   "   243      ON lark_outbound_card_message(chat_session_id, created_at DESC);",
+   "   244  ",
+   "   245  -- =====================",
+   "   246  -- lark_binding_token"
+  ]
+ },
+ {
+  "seq": 68,
+  "id": "36752213d93b",
+  "repository": "withastro/astro",
+  "path": "packages/internal-helpers/test/path.test.ts",
+  "line": 504,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "'package@1.0.0.tgz', // NPM package versioning",
+  "context": [
+   "   501  \t\t'/path/to/file@2x.png',",
+   "   502  \t\t'/path/to/file#1.js',",
+   "   503  \t\t// Legitimate @ in filenames (NOT credentials)",
+   "   504  \t\t'package@1.0.0.tgz', // NPM package versioning",
+   "   505  \t\t'user@2x.png', // Retina image naming",
+   "   506  \t\t'icon@3x.png', // iOS asset naming",
+   "   507  \t\t'logo@2x@dark.png', // Multiple @ in filename"
+  ]
+ },
+ {
+  "seq": 69,
+  "id": "b5383d9454e0",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 11819,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 11816          method: \"GET\",",
+   " 11817          asyncComplete: false,",
+   " 11818          readTimeOut: \"3000\",",
+   " 11819          _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 11820          uri: \"https://orkes-api-tester.orkesconductor.com/api\",",
+   " 11821          connectionTimeOut: 3000,",
+   " 11822          contentType: \"application/json\","
+  ]
+ },
+ {
+  "seq": 70,
+  "id": "ce5e0b3e9903",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 317,
+  "family": "ARGON2",
+  "source": "passwordMethod: \"ARGON2\",",
+  "context": [
+   "   314    })",
+   "   315    it(\"should be valid if hashed-password for ARGON2 matches cookie.key\", async () => {",
+   "   316      const isValid = await util.isCookieValid({",
+   "   317        passwordMethod: \"ARGON2\",",
+   "   318        cookieKey: \"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\",",
+   "   319        hashedPasswordFromArgs:",
+   "   320          \"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9HYY\","
+  ]
+ },
+ {
+  "seq": 71,
+  "id": "ae7f55dac3b3",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/d3d11/hwdec_d3d11va.c",
+  "line": 214,
+  "family": "3DES",
+  "source": "D3D11_TEXTURE2D_DESC copy_desc = {",
+  "context": [
+   "   211      struct mp_image layout = {0};",
+   "   212      mp_image_set_params(&layout, &mapper->dst_params);",
+   "   213  ",
+   "   214      D3D11_TEXTURE2D_DESC copy_desc = {",
+   "   215          .Width = mapper->dst_params.w,",
+   "   216          .Height = mapper->dst_params.h,",
+   "   217          .MipLevels = 1,"
+  ]
+ },
+ {
+  "seq": 72,
+  "id": "bfaa821c6fe4",
+  "repository": "withastro/astro",
+  "path": "packages/internal-helpers/test/path.test.ts",
+  "line": 319,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "'ssh://user@host.com',",
+  "context": [
+   "   316  ",
+   "   317  \t\t// Other network protocols",
+   "   318  \t\t'git://github.com/user/repo.git',",
+   "   319  \t\t'ssh://user@host.com',",
+   "   320  \t\t'telnet://host.com',",
+   "   321  \t\t'gopher://example.com',",
+   "   322  \t\t'redis://localhost:6379',"
+  ]
+ },
+ {
+  "seq": 73,
+  "id": "720b7e25ef0c",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 44590,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 44587            method: \"GET\",",
+   " 44588            asyncComplete: false,",
+   " 44589            readTimeOut: \"3000\",",
+   " 44590            _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 44591            uri: \"https://orkes-api-tester.orkesconductor.com/api\",",
+   " 44592            connectionTimeOut: 3000,",
+   " 44593            contentType: \"application/json\","
+  ]
+ },
+ {
+  "seq": 74,
+  "id": "8229d16e73e4",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+  "line": 328,
+  "family": "RC4",
+  "source": ".base.cra_name          =       \"ecb(arc4)\",",
+  "context": [
+   "   325   * \\brief ARC4 function mappings",
+   "   326  */",
+   "   327  static struct skcipher_alg ifxdeu_ecb_arc4_alg = {",
+   "   328          .base.cra_name          =       \"ecb(arc4)\",",
+   "   329          .base.cra_driver_name   =       \"ifxdeu-ecb(arc4)\",",
+   "   330          .base.cra_priority      =       400,",
+   "   331          .base.cra_flags         =       CRYPTO_ALG_TYPE_SKCIPHER | CRYPTO_ALG_KERN_DRIVER_ONLY,"
+  ]
+ },
+ {
+  "seq": 75,
+  "id": "21101291549b",
+  "repository": "conductor-oss/conductor",
+  "path": "test-harness/src/test/java/com/netflix/conductor/test/integration/agent/AgentSpanMcpTestkitApiDiscoveryEndToEndTest.java",
+  "line": 511,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "workflow.setOwnerEmail(\"agentspan-e2e@conductor.test\");",
+  "context": [
+   "   508          WorkflowDef workflow = new WorkflowDef();",
+   "   509          workflow.setName(name);",
+   "   510          workflow.setVersion(1);",
+   "   511          workflow.setOwnerEmail(\"agentspan-e2e@conductor.test\");",
+   "   512          workflow.setTasks(List.of(discovery, summarize));",
+   "   513          metadataService.updateWorkflowDef(List.of(workflow));",
+   "   514      }"
+  ]
+ },
+ {
+  "seq": 76,
+  "id": "f0c1c14a68d3",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 135,
+  "family": "ARGON2",
+  "source": "const _hash = \"$argon2i$v=19$m=4096,t=3,p=1$EAoczTxVki21JDfIZpTUxg$rkXgyrW4RDGoDYrxBFD4H2DlSMEhP4h+Api1hXnGnFY\"",
+  "context": [
+   "   132    })",
+   "   133    it(\"should return false if the password is empty\", async () => {",
+   "   134      const password = \"\"",
+   "   135      const _hash = \"$argon2i$v=19$m=4096,t=3,p=1$EAoczTxVki21JDfIZpTUxg$rkXgyrW4RDGoDYrxBFD4H2DlSMEhP4h+Api1hXnGnFY\"",
+   "   136      const actual = await util.isHashMatch(password, _hash)",
+   "   137      expect(actual).toBe(false)",
+   "   138    })"
+  ]
+ },
+ {
+  "seq": 77,
+  "id": "f6735178acf9",
+  "repository": "multica-ai/multica",
+  "path": "server/pkg/db/queries/chat.sql",
+  "line": 134,
+  "family": "3DES",
+  "source": "ORDER BY (cs.pinned_at IS NOT NULL) DESC, cs.pinned_at DESC, COALESCE(lm.created_at, cs.updated_at) DESC;",
+  "context": [
+   "   131        )",
+   "   132      )",
+   "   133    )",
+   "   134  ORDER BY (cs.pinned_at IS NOT NULL) DESC, cs.pinned_at DESC, COALESCE(lm.created_at, cs.updated_at) DESC;",
+   "   135  ",
+   "   136  -- name: ListAgentBuilderSessionsByCreator :many",
+   "   137  -- The caller's unfinished agent-creation conversations."
+  ]
+ },
+ {
+  "seq": 78,
+  "id": "3f958989c502",
+  "repository": "redis/redis",
+  "path": "src/quicklist.c",
+  "line": 3235,
+  "family": "3DES",
+  "source": "TEST_DESC(\"ltrim test C at compress %d\", options[_i]) {",
+  "context": [
+   "  3232              }",
+   "  3233          }",
+   "  3234  ",
+   "  3235          TEST_DESC(\"ltrim test C at compress %d\", options[_i]) {",
+   "  3236              for (int f = 0; f < fill_count; f++) {",
+   "  3237                  quicklist *ql = quicklistNew(fills[f], options[_i]);",
+   "  3238                  char num[32];"
+  ]
+ },
+ {
+  "seq": 79,
+  "id": "8d670e5fdcc7",
+  "repository": "allinurl/goaccess",
+  "path": "src/settings.c",
+  "line": 90,
+  "family": "LMS",
+  "source": "\"%h - %e [%d:%t %^] \\\"%r\\\" %s %b \\\"%R\\\" \\\"%u\\\" %^ \\\"%v\\\" \\\"%U\\\" %Lms\" /* Traefik's CLF flavor with header */",
+  "context": [
+   "    87  ",
+   "    88    \"%^ %dT%t.%^ %v %h:%^ %^ %^ %T %^ %s %^ %^ %b \\\"%r\\\" \\\"%u\\\" %k %K %^\", /* Amazon ALB */",
+   "    89  ",
+   "    90    \"%h - %e [%d:%t %^] \\\"%r\\\" %s %b \\\"%R\\\" \\\"%u\\\" %^ \\\"%v\\\" \\\"%U\\\" %Lms\" /* Traefik's CLF flavor with header */",
+   "    91  };",
+   "    92  ",
+   "    93  static const GPreConfTime times = {"
+  ]
+ },
+ {
+  "seq": 80,
+  "id": "c729fb870314",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 116,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "const password = \"codeserver1234\"",
+  "context": [
+   "   113  ",
+   "   114  describe(\"isHashMatch\", () => {",
+   "   115    it(\"should return true if the password matches the hash\", async () => {",
+   "   116      const password = \"codeserver1234\"",
+   "   117      const _hash = await util.hash(password)",
+   "   118      const actual = await util.isHashMatch(password, _hash)",
+   "   119      expect(actual).toBe(true)"
+  ]
+ },
+ {
+  "seq": 81,
+  "id": "7eca8f93fa01",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 253,
+  "family": "SHA",
+  "source": "passwordMethod: \"SHA256\",",
+  "context": [
+   "   250    it(\"should return false when SHA256 password doesn't match hash\", async () => {",
+   "   251      const p = \"helloworld1\"",
+   "   252      const passwordValidation = await util.handlePasswordValidation({",
+   "   253        passwordMethod: \"SHA256\",",
+   "   254        passwordFromRequestBody: p,",
+   "   255        passwordFromArgs: undefined,",
+   "   256        hashedPasswordFromArgs: \"936a185caaa266bb9cbe981e9e05cb78cd732b0b3280eb944412bb6f8f8f07af\","
+  ]
+ },
+ {
+  "seq": 82,
+  "id": "669b1c6ad282",
+  "repository": "multica-ai/multica",
+  "path": "packages/views/skills/components/skill-detail-page.test.tsx",
+  "line": 326,
+  "family": "3DES",
+  "source": "expect(field.value).toBe(LONG_DESCRIPTION);",
+  "context": [
+   "   323    it(\"renders the whole description in an editable field sized for it\", async () => {",
+   "   324      renderPage();",
+   "   325      const field = (await screen.findByLabelText(\"Description\")) as HTMLTextAreaElement;",
+   "   326      expect(field.value).toBe(LONG_DESCRIPTION);",
+   "   327      expect(Number(field.rows)).toBeGreaterThanOrEqual(4);",
+   "   328      expect(",
+   "   329        screen.getByText(`${LONG_DESCRIPTION.length} characters.`, { exact: false }),"
+  ]
+ },
+ {
+  "seq": 83,
+  "id": "72d79be0699f",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 308,
+  "family": "SHA",
+  "source": "passwordMethod: \"SHA256\",",
+  "context": [
+   "   305    })",
+   "   306    it(\"should be invalid if hashed-password for SHA256 does not match cookie.key\", async () => {",
+   "   307      const isValid = await util.isCookieValid({",
+   "   308        passwordMethod: \"SHA256\",",
+   "   309        cookieKey: \"936a185caaa266bb9cbe981e9e05cb78cd732b0b3280eb9442bb6f8f8f07af\",",
+   "   310        hashedPasswordFromArgs: \"936a185caaa266bb9cbe981e9e05cb78cd732b0b3280eb944412bb6f8f8f07af\",",
+   "   311        passwordFromArgs: undefined,"
+  ]
+ },
+ {
+  "seq": 84,
+  "id": "1ab84f9a30ee",
+  "repository": "react/create-react-app",
+  "path": "packages/react-error-overlay/fixtures/bundle.mjs",
+  "line": 19268,
+  "family": "3DES",
+  "source": "var HTML_CODES = [39, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215",
+  "context": [
+   " 19265  /***/ (function(module, exports) {",
+   " 19266  ",
+   " 19267  var HTML_ALPHA = ['apos', 'nbsp', 'iexcl', 'cent', 'pound', 'curren', 'yen', 'brvbar', 'sect', 'uml', 'copy', 'ordf', 'laquo', 'not', 'shy', 'reg', 'macr', 'deg', 'plusmn', 'sup2', 'sup3', 'acute', 'micro', 'para', 'middot', 'cedil', 'sup1', 'ordm', 'raquo', 'frac14', 'frac12', 'frac34', 'iq",
+   " 19268  var HTML_CODES = [39, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, ",
+   " 19269  ",
+   " 19270  var alphaIndex = {};",
+   " 19271  var numIndex = {};"
+  ]
+ },
+ {
+  "seq": 85,
+  "id": "96f79a128989",
+  "repository": "starship/starship",
+  "path": "src/modules/rust.rs",
+  "line": 590,
+  "family": "3DES",
+  "source": "test_settings.lookup_override(OVERRIDES_CWD_D.as_ref()),",
+  "context": [
+   "   587              None",
+   "   588          );",
+   "   589          assert_eq!(",
+   "   590              test_settings.lookup_override(OVERRIDES_CWD_D.as_ref()),",
+   "   591              Some(STABLE_TOOLCHAIN.to_string())",
+   "   592          );",
+   "   593          assert_eq!("
+  ]
+ },
+ {
+  "seq": 86,
+  "id": "cd2c9dd96379",
+  "repository": "TheAlgorithms/Python",
+  "path": "graphics/vector3_for_2d_rendering.py",
+  "line": 47,
+  "family": "PII: CREDIT",
+  "source": "(3.130524675073759, 2.0, 0.4470070007889556)",
+  "context": [
+   "    44      'x', 'y', 'z'",
+   "    45  ",
+   "    46      >>> rotate(1.0, 2.0, 3.0, 'y', 90.0)",
+   "    47      (3.130524675073759, 2.0, 0.4470070007889556)",
+   "    48  ",
+   "    49      >>> rotate(1, 2, 3, \"z\", 180)",
+   "    50      (0.999736015495891, -2.0001319704760485, 3)"
+  ]
+ },
+ {
+  "seq": 87,
+  "id": "228934457143",
+  "repository": "redis/redis",
+  "path": "deps/jemalloc/test/unit/ph.c",
+  "line": 206,
+  "family": "3DES",
+  "source": "bag[j] = NNODES - j - 1;",
+  "context": [
+   "   203  \t\tcase 1:",
+   "   204  \t\t\t/* Insert in reverse order. */",
+   "   205  \t\t\tfor (j = 0; j < NNODES; j++) {",
+   "   206  \t\t\t\tbag[j] = NNODES - j - 1;",
+   "   207  \t\t\t}",
+   "   208  \t\t\tbreak;",
+   "   209  \t\tdefault:"
+  ]
+ },
+ {
+  "seq": 88,
+  "id": "cefb141df18a",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/integrations/vcs/forgejo.go",
+  "line": 62,
+  "family": "SHA",
+  "source": "mac := hmac.New(sha256.New, []byte(secret))",
+  "context": [
+   "    59  \tif err != nil {",
+   "    60  \t\treturn false",
+   "    61  \t}",
+   "    62  \tmac := hmac.New(sha256.New, []byte(secret))",
+   "    63  \tmac.Write(body)",
+   "    64  \treturn hmac.Equal(mac.Sum(nil), want)",
+   "    65  }"
+  ]
+ },
+ {
+  "seq": 89,
+  "id": "3134a1fc0948",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/actions/actions-app.test.ts",
+  "line": 467,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "formData.append('contact.email', 'ben@test.test');",
+  "context": [
+   "   464  \t\tconst formData = new FormData();",
+   "   465  \t\tformData.append('name', 'Ben');",
+   "   466  \t\tformData.append('contact.type', 'email');",
+   "   467  \t\tformData.append('contact.email', 'ben@test.test');",
+   "   468  \t\tconst req = new Request('http://example.com/_actions/nestedDiscriminatedUnion', {",
+   "   469  \t\t\tmethod: 'POST',",
+   "   470  \t\t\tbody: formData,"
+  ]
+ },
+ {
+  "seq": 90,
+  "id": "f828694eafd5",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 236,
+  "family": "SHA",
+  "source": "it(\"should return true with a hashedPassword for a SHA256 password\", async () => {",
+  "context": [
+   "   233      expect(passwordValidation.isPasswordValid).toBe(false)",
+   "   234      expect(matchesHash).toBe(false)",
+   "   235    })",
+   "   236    it(\"should return true with a hashedPassword for a SHA256 password\", async () => {",
+   "   237      const p = \"helloworld\"",
+   "   238      const passwordValidation = await util.handlePasswordValidation({",
+   "   239        passwordMethod: \"SHA256\","
+  ]
+ },
+ {
+  "seq": 91,
+  "id": "4b6a5965a33f",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+  "line": 93,
+  "family": "RC4",
+  "source": "\\brief main interface to ARC4 hardware",
+  "context": [
+   "    90  ",
+   "    91  /*! \\fn static void _deu_arc4 (void *ctx_arg, u8 *out_arg, const u8 *in_arg, u8 *iv_arg, u32 nbytes, int encdec, int mode)",
+   "    92      \\ingroup IFX_ARC4_FUNCTIONS",
+   "    93      \\brief main interface to ARC4 hardware",
+   "    94      \\param ctx_arg crypto algo context",
+   "    95      \\param out_arg output bytestream",
+   "    96      \\param in_arg input bytestream"
+  ]
+ },
+ {
+  "seq": 92,
+  "id": "e911de124106",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 306,
+  "family": "SHA",
+  "source": "it(\"should be invalid if hashed-password for SHA256 does not match cookie.key\", async () => {",
+  "context": [
+   "   303      })",
+   "   304      expect(isValid).toBe(true)",
+   "   305    })",
+   "   306    it(\"should be invalid if hashed-password for SHA256 does not match cookie.key\", async () => {",
+   "   307      const isValid = await util.isCookieValid({",
+   "   308        passwordMethod: \"SHA256\",",
+   "   309        cookieKey: \"936a185caaa266bb9cbe981e9e05cb78cd732b0b3280eb9442bb6f8f8f07af\","
+  ]
+ },
+ {
+  "seq": 93,
+  "id": "2758793365fc",
+  "repository": "redis/redis",
+  "path": "src/quicklist.c",
+  "line": 3184,
+  "family": "3DES",
+  "source": "TEST_DESC(\"ltrim test B at compress %d\", options[_i]) {",
+  "context": [
+   "  3181              }",
+   "  3182          }",
+   "  3183  ",
+   "  3184          TEST_DESC(\"ltrim test B at compress %d\", options[_i]) {",
+   "  3185              for (int f = 0; f < fill_count; f++) {",
+   "  3186                  /* Force-disable compression because our 33 sequential",
+   "  3187                   * integers don't compress and the check always fails. */"
+  ]
+ },
+ {
+  "seq": 94,
+  "id": "dfc500fa2561",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/render-csp.test.ts",
+  "line": 52,
+  "family": "SHA",
+  "source": "\"script-src 'self' 'sha256-script'; style-src 'self' 'sha256-style';\",",
+  "context": [
+   "    49  \t\t\t\t\tstyleDirective: { hashes: ['sha256-style'] },",
+   "    50  \t\t\t\t}),",
+   "    51  \t\t\t),",
+   "    52  \t\t\t\"script-src 'self' 'sha256-script'; style-src 'self' 'sha256-style';\",",
+   "    53  \t\t);",
+   "    54  \t});",
+   "    55  "
+  ]
+ },
+ {
+  "seq": 95,
+  "id": "e697a8ad3f66",
+  "repository": "allinurl/goaccess",
+  "path": "src/ui.c",
+  "line": 264,
+  "family": "3DES",
+  "source": "STATUS_CODES_LABEL,",
+  "context": [
+   "   261      REFERRERS_LABEL,",
+   "   262      REFERRING_SITES_LABEL,",
+   "   263      KEYPHRASES_LABEL,",
+   "   264      STATUS_CODES_LABEL,",
+   "   265      REMOTE_USER_LABEL,",
+   "   266      CACHE_STATUS_LABEL,",
+   "   267  #ifdef HAVE_GEOLOCATION"
+  ]
+ },
+ {
+  "seq": 96,
+  "id": "8e3825710270",
+  "repository": "redis/redis",
+  "path": "src/tls.c",
+  "line": 107,
+  "family": "TLS",
+  "source": "\"Use a combination of 'TLSv1', 'TLSv1.1', 'TLSv1.2' and 'TLSv1.3'.\");",
+  "context": [
+   "   104  #endif",
+   "   105          } else {",
+   "   106              serverLog(LL_WARNING, \"Invalid tls-protocols specified. \"",
+   "   107                      \"Use a combination of 'TLSv1', 'TLSv1.1', 'TLSv1.2' and 'TLSv1.3'.\");",
+   "   108              protocols = -1;",
+   "   109              break;",
+   "   110          }"
+  ]
+ },
+ {
+  "seq": 97,
+  "id": "bb88991b8244",
+  "repository": "redis/redis",
+  "path": "src/redis-benchmark.c",
+  "line": 1580,
+  "family": "TLS",
+  "source": "\"                    and specifically for TLSv1.3 ciphersuites.\\n\"",
+  "context": [
+   "  1577  \" --tls-ciphersuites <list> Sets the list of preferred ciphersuites (TLSv1.3)\\n\"",
+   "  1578  \"                    in order of preference from highest to lowest separated by colon (\\\":\\\").\\n\"",
+   "  1579  \"                    See the ciphers(1ssl) manpage for more information about the syntax of this string,\\n\"",
+   "  1580  \"                    and specifically for TLSv1.3 ciphersuites.\\n\"",
+   "  1581  #endif",
+   "  1582  #if CLI_TLS_SUPPORTS_GROUPS",
+   "  1583  \" --tls-groups <list> Sets the list of preferred TLS groups\\n\""
+  ]
+ },
+ {
+  "seq": 98,
+  "id": "1a0fd48cb4c3",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/common.test.ts",
+  "line": 47,
+  "family": "SHA",
+  "source": "algorithm: 'SHA-256',",
+  "context": [
+   "    44  \t\t\tgetDirectives(",
+   "    45  \t\t\t\tbuildSettings({",
+   "    46  \t\t\t\t\tcsp: {",
+   "    47  \t\t\t\t\t\talgorithm: 'SHA-256',",
+   "    48  \t\t\t\t\t\tdirectives: ['font-src test'],",
+   "    49  \t\t\t\t\t},",
+   "    50  \t\t\t\t\tinjected: [],"
+  ]
+ },
+ {
+  "seq": 99,
+  "id": "4c361ada3e46",
+  "repository": "redis/redis",
+  "path": "deps/lua/src/lopcodes.c",
+  "line": 61,
+  "family": "3DES",
+  "source": "const lu_byte luaP_opmodes[NUM_OPCODES] = {",
+  "context": [
+   "    58  ",
+   "    59  #define opmode(t,a,b,c,m) (((t)<<7) | ((a)<<6) | ((b)<<4) | ((c)<<2) | (m))",
+   "    60  ",
+   "    61  const lu_byte luaP_opmodes[NUM_OPCODES] = {",
+   "    62  /*       T  A    B       C     mode\t\t   opcode\t*/",
+   "    63    opmode(0, 1, OpArgR, OpArgN, iABC) \t\t/* OP_MOVE */",
+   "    64   ,opmode(0, 1, OpArgK, OpArgN, iABx)\t\t/* OP_LOADK */"
+  ]
+ },
+ {
+  "seq": 100,
+  "id": "9097b33772de",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/d3d11/context.c",
+  "line": 307,
+  "family": "3DES",
+  "source": "DXGI_SWAP_CHAIN_DESC desc;",
+  "context": [
+   "   304          return;",
+   "   305  ",
+   "   306      // They're also only valid for flip model swapchains",
+   "   307      DXGI_SWAP_CHAIN_DESC desc;",
+   "   308      hr = IDXGISwapChain_GetDesc(p->swapchain, &desc);",
+   "   309      if (FAILED(hr) || (desc.SwapEffect != DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL &&",
+   "   310                         desc.SwapEffect != DXGI_SWAP_EFFECT_FLIP_DISCARD))"
+  ]
+ },
+ {
+  "seq": 101,
+  "id": "3ebb96acc52a",
+  "repository": "withastro/astro",
+  "path": "packages/internal-helpers/test/path.test.ts",
+  "line": 506,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "'icon@3x.png', // iOS asset naming",
+  "context": [
+   "   503  \t\t// Legitimate @ in filenames (NOT credentials)",
+   "   504  \t\t'package@1.0.0.tgz', // NPM package versioning",
+   "   505  \t\t'user@2x.png', // Retina image naming",
+   "   506  \t\t'icon@3x.png', // iOS asset naming",
+   "   507  \t\t'logo@2x@dark.png', // Multiple @ in filename",
+   "   508  \t\t'@babel/core/lib/index.js', // Scoped package path",
+   "   509  \t\t'/@babel/preset-env', // Scoped package in node_modules"
+  ]
+ },
+ {
+  "seq": 102,
+  "id": "135725b7a3e9",
+  "repository": "multica-ai/multica",
+  "path": "server/pkg/db/queries/inbox.sql",
+  "line": 7,
+  "family": "3DES",
+  "source": "ORDER BY i.created_at DESC;",
+  "context": [
+   "     4  FROM inbox_item i",
+   "     5  LEFT JOIN issue iss ON iss.id = i.issue_id",
+   "     6  WHERE i.workspace_id = $1 AND i.recipient_type = $2 AND i.recipient_id = $3 AND i.archived = false",
+   "     7  ORDER BY i.created_at DESC;",
+   "     8  ",
+   "     9  -- name: ListArchivedInboxItems :many",
+   "    10  -- Archived counterpart of ListInboxItems, backing the inbox's \"Archived\""
+  ]
+ },
+ {
+  "seq": 103,
+  "id": "be09619aac17",
+  "repository": "usememos/memos",
+  "path": "store/db/postgres/user.go",
+  "line": 128,
+  "family": "3DES",
+  "source": "\"row_status DESC\",",
+  "context": [
+   "   125  \t\t\t\t\"WHEN LOWER(nickname) LIKE \" + placeholder(len(args)+3) + \" THEN 2 ELSE 3 END\",",
+   "   126  \t\t\t\"LENGTH(username) ASC\",",
+   "   127  \t\t\t\"created_ts DESC\",",
+   "   128  \t\t\t\"row_status DESC\",",
+   "   129  \t\t}",
+   "   130  \t\targs = append(args, query, query+\"%\", query+\"%\")",
+   "   131  \t}"
+  ]
+ },
+ {
+  "seq": 104,
+  "id": "89d9f9cc2574",
+  "repository": "allinurl/goaccess",
+  "path": "src/ui.c",
+  "line": 357,
+  "family": "3DES",
+  "source": "REFERRERS_DESC,",
+  "context": [
+   "   354      BROWSERS_DESC,",
+   "   355      VISIT_TIMES_DESC,",
+   "   356      VIRTUAL_HOSTS_DESC,",
+   "   357      REFERRERS_DESC,",
+   "   358      REFERRING_SITES_DESC,",
+   "   359      KEYPHRASES_DESC,",
+   "   360      STATUS_CODES_DESC,"
+  ]
+ },
+ {
+  "seq": 105,
+  "id": "9aa058f47518",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/opengl/context_dxinterop.c",
+  "line": 253,
+  "family": "3DES",
+  "source": "D3DSURFACE_DESC bb_desc = { 0 };",
+  "context": [
+   "   250      }",
+   "   251  ",
+   "   252      // Get the format of the backbuffer",
+   "   253      D3DSURFACE_DESC bb_desc = { 0 };",
+   "   254      IDirect3DSurface9_GetDesc(p->backbuffer, &bb_desc);",
+   "   255  ",
+   "   256      MP_VERBOSE(ctx->vo, \"DX_interop backbuffer size: %ux%u\\n\","
+  ]
+ },
+ {
+  "seq": 106,
+  "id": "149d0ef8b887",
+  "repository": "TheAlgorithms/Python",
+  "path": "sorts/bitonic_sort.py",
+  "line": 15,
+  "family": "3DES",
+  "source": "DESCENDING(0); if (a[i] > a[j]) agrees with the direction, then a[i] and a[j] are",
+  "context": [
+   "    12      the given direction.",
+   "    13  ",
+   "    14      The parameter direction indicates the sorting direction, ASCENDING(1) or",
+   "    15      DESCENDING(0); if (a[i] > a[j]) agrees with the direction, then a[i] and a[j] are",
+   "    16      interchanged.",
+   "    17  ",
+   "    18      >>> arr = [12, 42, -21, 1]"
+  ]
+ },
+ {
+  "seq": 107,
+  "id": "29e53c0e127e",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchat/Noise/NoiseProtocol.swift",
+  "line": 482,
+  "family": "HKDF",
+  "source": "let output = hkdf(chainingKey: chainingKey, inputKeyMaterial: Data(), numOutputs: 2)",
+  "context": [
+   "   479      }",
+   "   480      ",
+   "   481      func split(useExtractedNonce: Bool) -> (NoiseCipherState, NoiseCipherState) {",
+   "   482          let output = hkdf(chainingKey: chainingKey, inputKeyMaterial: Data(), numOutputs: 2)",
+   "   483          let tempKey1 = SymmetricKey(data: output[0])",
+   "   484          let tempKey2 = SymmetricKey(data: output[1])",
+   "   485  "
+  ]
+ },
+ {
+  "seq": 108,
+  "id": "db9247c6b431",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 31881,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 31878          inputData: {",
+   " 31879            hasChildren: \"true\",",
+   " 31880            switchCaseValue: 2,",
+   " 31881            _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 31882            case: \"2\",",
+   " 31883          },",
+   " 31884          referenceTaskName: \"switch_ref__10\","
+  ]
+ },
+ {
+  "seq": 109,
+  "id": "fcf460ad5cb9",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 140,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "const password = \"hellowpasssword\"",
+  "context": [
+   "   137      expect(actual).toBe(false)",
+   "   138    })",
+   "   139    it(\"should return false if the hash is empty\", async () => {",
+   "   140      const password = \"hellowpasssword\"",
+   "   141      const _hash = \"\"",
+   "   142      const actual = await util.isHashMatch(password, _hash)",
+   "   143      expect(actual).toBe(false)"
+  ]
+ },
+ {
+  "seq": 110,
+  "id": "c5da2a6f9180",
+  "repository": "usememos/memos",
+  "path": "store/test/idp_test.go",
+  "line": 454,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "ClientSecret: \"client_secret\",",
+  "context": [
+   "   451  \t\t\tConfig: &storepb.IdentityProviderConfig_Oauth2Config{",
+   "   452  \t\t\t\tOauth2Config: &storepb.OAuth2Config{",
+   "   453  \t\t\t\t\tClientId:     \"client_id\",",
+   "   454  \t\t\t\t\tClientSecret: \"client_secret\",",
+   "   455  \t\t\t\t\tAuthUrl:      \"https://provider.com/auth\",",
+   "   456  \t\t\t\t\tTokenUrl:     \"https://provider.com/token\",",
+   "   457  \t\t\t\t\tUserInfoUrl:  \"https://provider.com/userinfo\","
+  ]
+ },
+ {
+  "seq": 111,
+  "id": "0a2b73cda713",
+  "repository": "react/create-react-app",
+  "path": "packages/react-error-overlay/fixtures/bundle_u.mjs",
+  "line": 28290,
+  "family": "3DES",
+  "source": "var END_KEYCODES = [9, 13, 27, 32]; // Tab, Return, Esc, Space",
+  "context": [
+   " 28287  var SyntheticCompositionEvent = __webpack_require__(/*! ./SyntheticCompositionEvent */ 271);",
+   " 28288  var SyntheticInputEvent = __webpack_require__(/*! ./SyntheticInputEvent */ 274);",
+   " 28289  ",
+   " 28290  var END_KEYCODES = [9, 13, 27, 32]; // Tab, Return, Esc, Space",
+   " 28291  var START_KEYCODE = 229;",
+   " 28292  ",
+   " 28293  var canUseCompositionEvent = ExecutionEnvironment.canUseDOM && 'CompositionEvent' in window;"
+  ]
+ },
+ {
+  "seq": 112,
+  "id": "4da15ed22650",
+  "repository": "conductor-oss/conductor",
+  "path": "nats/src/main/java/com/netflix/conductor/contribs/queue/nats/config/JetStreamProperties.java",
+  "line": 22,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "* @author andrey.stelmashenko@gmail.com",
+  "context": [
+   "    19  import io.nats.client.Options;",
+   "    20  ",
+   "    21  /**",
+   "    22   * @author andrey.stelmashenko@gmail.com",
+   "    23   */",
+   "    24  @ConfigurationProperties(\"conductor.event-queues.jsm\")",
+   "    25  public class JetStreamProperties {"
+  ]
+ },
+ {
+  "seq": 113,
+  "id": "c903e341b592",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/workspace_test.go",
+  "line": 769,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "targetEmail := fmt.Sprintf(\"revocation-%s@multica.ai\", slug)",
+  "context": [
+   "   766  INSERT INTO member (workspace_id, user_id, role) VALUES ($1, $2, 'owner')",
+   "   767  `, wsID, testUserID)",
+   "   768  ",
+   "   769  \ttargetEmail := fmt.Sprintf(\"revocation-%s@multica.ai\", slug)",
+   "   770  \ttargetUserID := dbfx.Insert(t, \"user\", testutil.Cols{",
+   "   771  \t\t\"name\":  \"Revocation Target \" + slug,",
+   "   772  \t\t\"email\": targetEmail,"
+  ]
+ },
+ {
+  "seq": 114,
+  "id": "a486ef4f82c1",
+  "repository": "openwrt/openwrt",
+  "path": "scripts/mkhash.c",
+  "line": 727,
+  "family": "SHA",
+  "source": "return hash_string(val, SHA256_DIGEST_LENGTH);",
+  "context": [
+   "   724  \t\tSHA256_Update(&ctx, buf, len);",
+   "   725  \tSHA256_Final(val, &ctx);",
+   "   726  ",
+   "   727  \treturn hash_string(val, SHA256_DIGEST_LENGTH);",
+   "   728  }",
+   "   729  ",
+   "   730  "
+  ]
+ },
+ {
+  "seq": 115,
+  "id": "254fb1685f55",
+  "repository": "gatsbyjs/gatsby",
+  "path": "packages/gatsby-source-wordpress/src/steps/create-schema-customization/index.js",
+  "line": 117,
+  "family": "3DES",
+  "source": "id: CODES.SourcePluginCodeError,",
+  "context": [
+   "   114      await customizeSchema(api)",
+   "   115    } catch (e) {",
+   "   116      api.reporter.panic({",
+   "   117        id: CODES.SourcePluginCodeError,",
+   "   118        error: e,",
+   "   119        context: {",
+   "   120          sourceMessage: formatLogMessage(e.message),"
+  ]
+ },
+ {
+  "seq": 116,
+  "id": "d569e20f8aa0",
+  "repository": "gatsbyjs/gatsby",
+  "path": "benchmarks/markdown_id/src/pages/index.js",
+  "line": 59,
+  "family": "3DES",
+  "source": "allMarkdownRemark(sort: { fields: [frontmatter___date], order: DESC }) {",
+  "context": [
+   "    56          title",
+   "    57        }",
+   "    58      }",
+   "    59      allMarkdownRemark(sort: { fields: [frontmatter___date], order: DESC }) {",
+   "    60        edges {",
+   "    61          node {",
+   "    62            excerpt"
+  ]
+ },
+ {
+  "seq": 117,
+  "id": "8d670e5fdcc7",
+  "repository": "allinurl/goaccess",
+  "path": "src/settings.c",
+  "line": 90,
+  "family": "LMS",
+  "source": "\"%h - %e [%d:%t %^] \\\"%r\\\" %s %b \\\"%R\\\" \\\"%u\\\" %^ \\\"%v\\\" \\\"%U\\\" %Lms\" /* Traefik's CLF flavor with header */",
+  "context": [
+   "    87  ",
+   "    88    \"%^ %dT%t.%^ %v %h:%^ %^ %^ %T %^ %s %^ %^ %b \\\"%r\\\" \\\"%u\\\" %k %K %^\", /* Amazon ALB */",
+   "    89  ",
+   "    90    \"%h - %e [%d:%t %^] \\\"%r\\\" %s %b \\\"%R\\\" \\\"%u\\\" %^ \\\"%v\\\" \\\"%U\\\" %Lms\" /* Traefik's CLF flavor with header */",
+   "    91  };",
+   "    92  ",
+   "    93  static const GPreConfTime times = {"
+  ]
+ },
+ {
+  "seq": 118,
+  "id": "bbabb83a2582",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 33734,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 33731      status: \"COMPLETED\",",
+   " 33732      inputData: {",
+   " 33733        number: 10,",
+   " 33734        _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 33735      },",
+   " 33736      referenceTaskName: \"do_while_ref_1\",",
+   " 33737      retryCount: 0,"
+  ]
+ },
+ {
+  "seq": 119,
+  "id": "c729fb870314",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 116,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "const password = \"codeserver1234\"",
+  "context": [
+   "   113  ",
+   "   114  describe(\"isHashMatch\", () => {",
+   "   115    it(\"should return true if the password matches the hash\", async () => {",
+   "   116      const password = \"codeserver1234\"",
+   "   117      const _hash = await util.hash(password)",
+   "   118      const actual = await util.isHashMatch(password, _hash)",
+   "   119      expect(actual).toBe(true)"
+  ]
+ },
+ {
+  "seq": 120,
+  "id": "c075a418f01b",
+  "repository": "withastro/astro",
+  "path": "packages/internal-helpers/test/path.test.ts",
+  "line": 514,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "'backup@2023-12-01.sql', // Backup file naming",
+  "context": [
+   "   511  \t\t'./@company/shared-ui/Button.tsx', // Monorepo package",
+   "   512  \t\t'packages/@my-org/utils/index.js', // Lerna/workspace package",
+   "   513  \t\t'email@example.com.txt', // Email as filename",
+   "   514  \t\t'backup@2023-12-01.sql', // Backup file naming",
+   "   515  \t\t'snapshot@latest.json', // Version/tag in filename",
+   "   516  \t\t'test@integration.spec.js', // Test file naming",
+   "   517  \t\t'sprite@mobile.css', // Responsive asset naming"
+  ]
+ }
+]

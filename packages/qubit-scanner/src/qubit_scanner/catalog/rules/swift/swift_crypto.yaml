@@ -232,3 +232,71 @@ rules:
       negative:
         - |
           func f(c: URLSessionConfiguration) { c.httpMaximumConnectionsPerHost = 4 }
+
+  # Post-quantum. Swift was the one language in the corpus with rules for classical cryptography and
+  # none at all for its replacement: `bitchat` and `SwiftLint` were scanned for MD5, SHA-1, RC4 and
+  # TLS versions, and a Swift file that had already migrated would have inventoried as having no
+  # post-quantum cryptography in it. That is the wrong direction of error for a migration tool --
+  # it reports work as outstanding after it has been done.
+  #
+  # These are CryptoKit's own names (iOS 26 / macOS 26) and swift-crypto's, which mirrors CryptoKit
+  # deliberately so server code matches: `MLKEM768.PrivateKey()`, `MLDSA65.PrivateKey()`. The type
+  # name is the reliable signal; the operations (`decapsulate`, `signature(for:)`) hang off an
+  # instance whose type is not recoverable from one line.
+  - id: SWIFT-CRYPTOKIT-MLKEM
+    title: MLKEM768.PrivateKey() / MLKEM1024 key encapsulation
+    match:
+      query: |
+        (navigation_expression
+          target: (simple_identifier) @cls
+          suffix: (navigation_suffix suffix: (simple_identifier) @meth)) @call
+      where:
+        - { capture: cls, in: [MLKEM768, MLKEM1024] }
+        - { capture: meth, in: [PrivateKey, PublicKey] }
+    extract:
+      algorithm: { from: cls, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          import CryptoKit
+          func f() { let k = MLKEM768.PrivateKey() }
+        - |
+          import Crypto
+          func f() { let k = MLKEM1024.PrivateKey() }
+        - |
+          func f(d: Data) throws { let p = try MLKEM768.PublicKey(rawRepresentation: d) }
+      negative:
+        - |
+          func f() { let k = Curve25519.KeyAgreement.PrivateKey() }
+
+  - id: SWIFT-CRYPTOKIT-MLDSA
+    title: MLDSA65.PrivateKey() / MLDSA87 signatures
+    match:
+      query: |
+        (navigation_expression
+          target: (simple_identifier) @cls
+          suffix: (navigation_suffix suffix: (simple_identifier) @meth)) @call
+      where:
+        - { capture: cls, in: [MLDSA65, MLDSA87] }
+        - { capture: meth, in: [PrivateKey, PublicKey] }
+    extract:
+      algorithm: { from: cls, resolve: capture-text }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          import CryptoKit
+          func f() { let k = MLDSA65.PrivateKey() }
+        - |
+          import Crypto
+          func f() { let k = MLDSA87.PrivateKey() }
+        - |
+          func f(d: Data) throws { let p = try MLDSA65.PublicKey(rawRepresentation: d) }
+      negative:
+        - |
+          func f() { let k = P256.Signing.PrivateKey() }

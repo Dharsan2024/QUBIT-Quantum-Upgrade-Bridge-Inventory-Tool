@@ -1,0 +1,3389 @@
+[
+ {
+  "id": "30241fd91af4",
+  "repository": "multica-ai/multica",
+  "path": "apps/desktop/scripts/worktree-dev-env.test.mjs",
+  "line": 100,
+  "family": "3DES",
+  "source": "expect(env.DESKTOP_APP_SUFFIX).toBe(appSuffixForPath(root));",
+  "context": [
+   "    97      const env = {};",
+   "    98      applyWorktreeDevEnv(env, { root });",
+   "    99      expect(env.DESKTOP_RENDERER_PORT).toBe(String(rendererPortForPath(root)));",
+   "   100      expect(env.DESKTOP_APP_SUFFIX).toBe(appSuffixForPath(root));",
+   "   101    });",
+   "   102  ",
+   "   103    it(\"leaves the primary checkout untouched (.git is a dir)\", () => {"
+  ]
+ },
+ {
+  "id": "68f4d6896856",
+  "repository": "starship/starship",
+  "path": "src/modules/haskell.rs",
+  "line": 163,
+  "family": "SHA",
+  "source": "- matrices-0.5.0@sha256:b2761813f6a61c84224559619cc60a16a858ac671c8436bbac8ec89e85473058",
+  "context": [
+   "   160  - chiphunk-0.1.2.1",
+   "   161  - cubicbezier-0.6.0.6@sha256:2191ff47144d9a13a2784651a33d340cd31be1926a6c188925143103eb3c8db3",
+   "   162  - fast-math-1.0.2@sha256:91181eb836e54413cc5a841e797c42b2264954e893ea530b6fc4da0dccf6a8b7",
+   "   163  - matrices-0.5.0@sha256:b2761813f6a61c84224559619cc60a16a858ac671c8436bbac8ec89e85473058",
+   "   164  - hmatrix-0.20.0.0@sha256:d79a9218e314f1a2344457c3851bd1d2536518ecb5f1a2fcd81daa45e46cd025,4870",
+   "   165  - earcut-0.1.0.4@sha256:d5118b3eecf24d130263d81fb30f1ff56b1db43036582bfd1d8cc9ba3adae8be,1010",
+   "   166  - tasty-rerun-1.1.17@sha256:d4a3ccb0f63f499f36edc71b33c0f91c850eddb22dd92b928aa33b8459f3734a,1373"
+  ]
+ },
+ {
+  "id": "8c69325f9c6d",
+  "repository": "usememos/memos",
+  "path": "store/storage_test.go",
+  "line": 119,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "AccessKeySecret: \"secret-b-new\",",
+  "context": [
+   "   116  \t\t\t\tType: storepb.StorageType_STORAGE_TYPE_S3,",
+   "   117  \t\t\t\tConfig: &storepb.Storage_S3Config{S3Config: &storepb.StorageS3Config{",
+   "   118  \t\t\t\t\tAccessKeyId:     \"key-b-new\",",
+   "   119  \t\t\t\t\tAccessKeySecret: \"secret-b-new\",",
+   "   120  \t\t\t\t\tEndpoint:        \"https://s3.example.com\",",
+   "   121  \t\t\t\t\tRegion:          \"us-east-1\",",
+   "   122  \t\t\t\t\tBucket:          \"memos\","
+  ]
+ },
+ {
+  "id": "22f10923c0f8",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/e2e/integration/workflow-crud.spec.ts",
+  "line": 30,
+  "family": "3DES",
+  "source": "await page.locator(\"#workflow-description-field\").fill(WF_DESCRIPTION);",
+  "context": [
+   "    27  ",
+   "    28    // Workflow properties tab is open by default for new definitions.",
+   "    29    await page.locator(\"#workflow-name-field\").fill(WF_NAME);",
+   "    30    await page.locator(\"#workflow-description-field\").fill(WF_DESCRIPTION);",
+   "    31  ",
+   "    32    // Add a SET_VARIABLE task via the diagram \"+\" control so Save enables",
+   "    33    // (Save stays disabled while tasks is empty)."
+  ]
+ },
+ {
+  "id": "254fb1685f55",
+  "repository": "gatsbyjs/gatsby",
+  "path": "packages/gatsby-source-wordpress/src/steps/create-schema-customization/index.js",
+  "line": 117,
+  "family": "3DES",
+  "source": "id: CODES.SourcePluginCodeError,",
+  "context": [
+   "   114      await customizeSchema(api)",
+   "   115    } catch (e) {",
+   "   116      api.reporter.panic({",
+   "   117        id: CODES.SourcePluginCodeError,",
+   "   118        error: e,",
+   "   119        context: {",
+   "   120          sourceMessage: formatLogMessage(e.message),"
+  ]
+ },
+ {
+  "id": "948253da2c0e",
+  "repository": "allinurl/goaccess",
+  "path": "src/ui.c",
+  "line": 295,
+  "family": "3DES",
+  "source": "STATUS_CODES_ID,",
+  "context": [
+   "   292      REFERRERS_ID,",
+   "   293      REFERRING_SITES_ID,",
+   "   294      KEYPHRASES_ID,",
+   "   295      STATUS_CODES_ID,",
+   "   296      REMOTE_USER_ID,",
+   "   297      CACHE_STATUS_ID,",
+   "   298  #ifdef HAVE_GEOLOCATION"
+  ]
+ },
+ {
+  "id": "98e6dadde107",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/gpu/video.c",
+  "line": 2883,
+  "family": "3DES",
+  "source": "case GAMUT_DESATURATE:",
+  "context": [
+   "  2880      case GAMUT_AUTO:",
+   "  2881      case GAMUT_WARN:",
+   "  2882      case GAMUT_CLIP:",
+   "  2883      case GAMUT_DESATURATE:",
+   "  2884          break;",
+   "  2885      default:",
+   "  2886          MP_WARN(p, \"Gamut mapping mode unsupported by vo_gpu, falling back.\\n\");"
+  ]
+ },
+ {
+  "id": "1244a8862fd3",
+  "repository": "conductor-oss/conductor",
+  "path": "ai/src/main/java/org/conductoross/conductor/ai/a2a/A2AService.java",
+  "line": 530,
+  "family": "3DES",
+  "source": "boolean terminal = TERMINAL_RPC_CODES.contains(code);",
+  "context": [
+   "   527                                  \"A2A JSON-RPC error %d from %s (%s): %s %s\",",
+   "   528                                  code, endpoint, op, message, data)",
+   "   529                          .trim();",
+   "   530          boolean terminal = TERMINAL_RPC_CODES.contains(code);",
+   "   531          A2AMetrics.rpcError(op, terminal);",
+   "   532          return terminal ? new NonRetryableException(full) : new A2AException(full);",
+   "   533      }"
+  ]
+ },
+ {
+  "id": "04873279be32",
+  "repository": "gatsbyjs/gatsby",
+  "path": "packages/gatsby-source-wordpress/src/steps/create-schema-customization/index.js",
+  "line": 9,
+  "family": "3DES",
+  "source": "import { CODES } from \"../../utils/report\"",
+  "context": [
+   "     6  import { getGatsbyNodeTypeNames } from \"../source-nodes/fetch-nodes/fetch-nodes\"",
+   "     7  import { typeIsExcluded } from \"~/steps/ingest-remote-schema/is-excluded\"",
+   "     8  import { formatLogMessage } from \"../../utils/format-log-message\"",
+   "     9  import { CODES } from \"../../utils/report\"",
+   "    10  import { addRemoteFilePolyfillInterface } from \"gatsby-plugin-utils/polyfill-remote-file\"",
+   "    11  ",
+   "    12  /**"
+  ]
+ },
+ {
+  "id": "66f6ca27f6ea",
+  "repository": "coder/code-server",
+  "path": "src/node/util.ts",
+  "line": 250,
+  "family": "ARGON2",
+  "source": "case \"ARGON2\": {",
+  "context": [
+   "   247        passwordValidation.hashedPassword = hashedPasswordFromArgs || (await hashLegacy(passwordFromRequestBody))",
+   "   248        break",
+   "   249      }",
+   "   250      case \"ARGON2\": {",
+   "   251        const isValid = await isHashMatch(passwordFromRequestBody, hashedPasswordFromArgs || \"\")",
+   "   252        passwordValidation.isPasswordValid = isValid",
+   "   253  "
+  ]
+ },
+ {
+  "id": "01622274ac42",
+  "repository": "withastro/astro",
+  "path": "packages/astro/e2e/fixtures/actions-blog/src/consts.ts",
+  "line": 5,
+  "family": "3DES",
+  "source": "export const SITE_DESCRIPTION = 'Welcome to my website!';",
+  "context": [
+   "     2  // You can import this data from anywhere in your site by using the `import` keyword.",
+   "     3  ",
+   "     4  export const SITE_TITLE = 'Astro Blog';",
+   "     5  export const SITE_DESCRIPTION = 'Welcome to my website!';"
+  ]
+ },
+ {
+  "id": "4b6a5965a33f",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+  "line": 93,
+  "family": "RC4",
+  "source": "\\brief main interface to ARC4 hardware",
+  "context": [
+   "    90  ",
+   "    91  /*! \\fn static void _deu_arc4 (void *ctx_arg, u8 *out_arg, const u8 *in_arg, u8 *iv_arg, u32 nbytes, int encdec, int mode)",
+   "    92      \\ingroup IFX_ARC4_FUNCTIONS",
+   "    93      \\brief main interface to ARC4 hardware",
+   "    94      \\param ctx_arg crypto algo context",
+   "    95      \\param out_arg output bytestream",
+   "    96      \\param in_arg input bytestream"
+  ]
+ },
+ {
+  "id": "e36bdcc70f83",
+  "repository": "starship/starship",
+  "path": "src/modules/git_branch.rs",
+  "line": 587,
+  "family": "SHA",
+  "source": "let sha256 = rand::random();",
+  "context": [
+   "   584      fn test_remote() -> io::Result<()> {",
+   "   585          for &mode in COMMON_GIT_PROVIDERS {",
+   "   586              // Both repos must use the same hash format; SHA1/SHA256 repos can't fetch from each other.",
+   "   587              let sha256 = rand::random();",
+   "   588              let remote_dir = fixture_repo_with_hash(mode, sha256)?;",
+   "   589              let repo_dir = fixture_repo_with_hash(mode, sha256)?;",
+   "   590  "
+  ]
+ },
+ {
+  "id": "0d1ee4dcde45",
+  "repository": "redis/redis",
+  "path": "deps/jemalloc/test/unit/rb.c",
+  "line": 529,
+  "family": "3DES",
+  "source": "for (int i = 1; i < FILTER_NODES; i += 2) {",
+  "context": [
+   "   526  \t    /* first */ NULL, /* last */ NULL);",
+   "   527  ",
+   "   528  \t/* Fill in just the odd nodes. */",
+   "   529  \tfor (int i = 1; i < FILTER_NODES; i += 2) {",
+   "   530  \t\ttree_insert(&tree, &nodes[i]);",
+   "   531  \t}",
+   "   532  "
+  ]
+ },
+ {
+  "id": "712dfa190c3e",
+  "repository": "openwrt/openwrt",
+  "path": "scripts/nand-fwupgradecfg-gen.sh",
+  "line": 48,
+  "family": "SHA",
+  "source": "filesha256sum=$KERNEL_SHA256",
+  "context": [
+   "    45  filename=kernel",
+   "    46  md5sum=$KERNEL_MD5",
+   "    47  filemd5sum=$KERNEL_MD5",
+   "    48  filesha256sum=$KERNEL_SHA256",
+   "    49  checksize=$KERNEL_CHECK_SIZE",
+   "    50  ubi=1",
+   "    51  cmd_success=setenv bootseq 1,2; $EXTRA_SETENV; saveenv"
+  ]
+ },
+ {
+  "id": "4f5aeac71df1",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+  "line": 105,
+  "family": "RC4",
+  "source": "volatile struct arc4_t *arc4 = (struct arc4_t *) ARC4_START;",
+  "context": [
+   "   102  static void _deu_arc4 (void *ctx_arg, u8 *out_arg, const u8 *in_arg,",
+   "   103              u8 *iv_arg, u32 nbytes, int encdec, int mode)",
+   "   104  {",
+   "   105          volatile struct arc4_t *arc4 = (struct arc4_t *) ARC4_START;",
+   "   106  ",
+   "   107          int i = 0;",
+   "   108          unsigned long flag;"
+  ]
+ },
+ {
+  "id": "ca050d16e489",
+  "repository": "multica-ai/multica",
+  "path": "server/pkg/db/generated/dingtalk.sql.go",
+  "line": 271,
+  "family": "3DES",
+  "source": "ORDER BY presence.last_active_at DESC NULLS LAST, presence.conversation_title ASC,",
+  "context": [
+   "   268        (NOT $6::boolean AND presence.last_active_at >= $7)",
+   "   269        OR ($6::boolean AND (presence.last_active_at < $7 OR presence.last_active_at IS NULL))",
+   "   270    )",
+   "   271  ORDER BY presence.last_active_at DESC NULLS LAST, presence.conversation_title ASC,",
+   "   272           presence.conversation_id ASC, installation.installed_at ASC, installation.id ASC",
+   "   273  LIMIT NULLIF($9::integer, 0)",
+   "   274  OFFSET $8::integer"
+  ]
+ },
+ {
+  "id": "9b004681c5bb",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/auth/temporary_disabled_users.go",
+  "line": 21,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "\"gtwtrox@mowan666.com\":     {},",
+  "context": [
+   "    18  ",
+   "    19  var temporarilyDisabledUserEmails = map[string]struct{}{",
+   "    20  \t\"pdzzer68@embassybase.com\": {},",
+   "    21  \t\"gtwtrox@mowan666.com\":     {},",
+   "    22  }",
+   "    23  ",
+   "    24  func IsTemporarilyDisabledUser(userID, email string) bool {"
+  ]
+ },
+ {
+  "id": "1a0fd48cb4c3",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/common.test.ts",
+  "line": 47,
+  "family": "SHA",
+  "source": "algorithm: 'SHA-256',",
+  "context": [
+   "    44  \t\t\tgetDirectives(",
+   "    45  \t\t\t\tbuildSettings({",
+   "    46  \t\t\t\t\tcsp: {",
+   "    47  \t\t\t\t\t\talgorithm: 'SHA-256',",
+   "    48  \t\t\t\t\t\tdirectives: ['font-src test'],",
+   "    49  \t\t\t\t\t},",
+   "    50  \t\t\t\t\tinjected: [],"
+  ]
+ },
+ {
+  "id": "becd197715b9",
+  "repository": "redis/redis",
+  "path": "src/sha256.c",
+  "line": 90,
+  "family": "SHA",
+  "source": "void sha256_init(SHA256_CTX *ctx)",
+  "context": [
+   "    87  \tctx->state[7] += h;",
+   "    88  }",
+   "    89  ",
+   "    90  void sha256_init(SHA256_CTX *ctx)",
+   "    91  {",
+   "    92  \tctx->datalen = 0;",
+   "    93  \tctx->bitlen = 0;"
+  ]
+ },
+ {
+  "id": "ed86fda1baf9",
+  "repository": "usememos/memos",
+  "path": "internal/idp/oauth2/oauth2_test.go",
+  "line": 58,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "ClientSecret: \"test-client-secret\",",
+  "context": [
+   "    55  \t\t\tname: \"no field mapping identifier\",",
+   "    56  \t\t\tconfig: &storepb.OAuth2Config{",
+   "    57  \t\t\t\tClientId:     \"test-client-id\",",
+   "    58  \t\t\t\tClientSecret: \"test-client-secret\",",
+   "    59  \t\t\t\tAuthUrl:      \"\",",
+   "    60  \t\t\t\tTokenUrl:     \"https://example.com/token\",",
+   "    61  \t\t\t\tUserInfoUrl:  \"https://example.com/api/user\","
+  ]
+ },
+ {
+  "id": "8da9c7eef34b",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 36072,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 36069            evaluatorType: \"graaljs\",",
+   " 36070            expression:",
+   " 36071              \"(function () {\\n  return Math.floor(Math.random() * 4) + 1;\\n})();\",",
+   " 36072            _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 36073          },",
+   " 36074          referenceTaskName: \"inline_ref_1__9\",",
+   " 36075          retryCount: 0,"
+  ]
+ },
+ {
+  "id": "63fe0137f2f3",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 38283,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 38280            method: \"GET\",",
+   " 38281            asyncComplete: false,",
+   " 38282            readTimeOut: \"3000\",",
+   " 38283            _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 38284            uri: \"https://orkes-api-tester.orkesconductor.com/api\",",
+   " 38285            connectionTimeOut: 3000,",
+   " 38286            contentType: \"application/json\","
+  ]
+ },
+ {
+  "id": "d5e3a292cd8e",
+  "repository": "multica-ai/multica",
+  "path": "packages/core/agents/draft.ts",
+  "line": 10,
+  "family": "3DES",
+  "source": "AGENT_DESCRIPTION_MAX_LENGTH,",
+  "context": [
+   "     7    RuntimeDevice,",
+   "     8  } from \"../types\";",
+   "     9  import {",
+   "    10    AGENT_DESCRIPTION_MAX_LENGTH,",
+   "    11    AGENT_MAX_CONCURRENT_TASKS_MAX,",
+   "    12    AGENT_MAX_CONCURRENT_TASKS_MIN,",
+   "    13  } from \"./constants\";"
+  ]
+ },
+ {
+  "id": "9b346f953841",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/auth/cookie.go",
+  "line": 252,
+  "family": "HMAC",
+  "source": "mac := hmac.New(sha256.New, []byte(authCookie.Value))",
+  "context": [
+   "   249  \t\treturn false",
+   "   250  \t}",
+   "   251  ",
+   "   252  \tmac := hmac.New(sha256.New, []byte(authCookie.Value))",
+   "   253  \tmac.Write(nonce)",
+   "   254  \treturn hmac.Equal(mac.Sum(nil), expectedSig)",
+   "   255  }"
+  ]
+ },
+ {
+  "id": "15e435f9d209",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/rendering.test.ts",
+  "line": 405,
+  "family": "SHA",
+  "source": "scriptHashes: ['sha256-test123'],",
+  "context": [
+   "   402  \t\tit(\"should add 'strict-dynamic' when enabled\", async () => {",
+   "   403  \t\t\tconst pipeline = createCspPipeline({",
+   "   404  \t\t\t\tisStrictDynamic: true,",
+   "   405  \t\t\t\tscriptHashes: ['sha256-test123'],",
+   "   406  \t\t\t});",
+   "   407  ",
+   "   408  \t\t\tconst { html } = await renderPage(SimplePage, pipeline);"
+  ]
+ },
+ {
+  "id": "08d0451b8ac7",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_async_des.c",
+  "line": 864,
+  "family": "3DES",
+  "source": ".cra_blocksize   = DES_BLOCK_SIZE,",
+  "context": [
+   "   861              .cra_name        = \"cbc(des3_ede)\",",
+   "   862              .cra_driver_name = \"lqdeu-cbc(des3_ede)\",",
+   "   863              .cra_flags       = CRYPTO_ALG_TYPE_ABLKCIPHER | CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_ASYNC,",
+   "   864              .cra_blocksize   = DES_BLOCK_SIZE,",
+   "   865              .cra_ctxsize     = sizeof(struct des_ctx),",
+   "   866              .cra_type        = &crypto_ablkcipher_type,",
+   "   867              .cra_priority    = 400,"
+  ]
+ },
+ {
+  "id": "c2fffb148b41",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/rendering.test.ts",
+  "line": 158,
+  "family": "SHA",
+  "source": "assert.ok(content.includes('sha256-abc123'), 'Should include first style hash');",
+  "context": [
+   "   155  \t\t\tconst meta = $('meta[http-equiv=\"Content-Security-Policy\"]');",
+   "   156  \t\t\tconst content = meta.attr('content')!;",
+   "   157  ",
+   "   158  \t\t\tassert.ok(content.includes('sha256-abc123'), 'Should include first style hash');",
+   "   159  \t\t\tassert.ok(content.includes('sha256-def456'), 'Should include second style hash');",
+   "   160  \t\t\tassert.ok(content.includes('style-src'), 'Should have style-src directive');",
+   "   161  \t\t});"
+  ]
+ },
+ {
+  "id": "54ad7515e2f3",
+  "repository": "allinurl/goaccess",
+  "path": "src/sort.c",
+  "line": 498,
+  "family": "3DES",
+  "source": "if (sort.sort == SORT_DESC)",
+  "context": [
+   "   495        qsort (items, size, sizeof (GHolderItem), cmp_num_asc);",
+   "   496      break;",
+   "   497    case SORT_BY_VISITORS:",
+   "   498      if (sort.sort == SORT_DESC)",
+   "   499        qsort (items, size, sizeof (GHolderItem), cmp_vis_desc);",
+   "   500      else",
+   "   501        qsort (items, size, sizeof (GHolderItem), cmp_vis_asc);"
+  ]
+ },
+ {
+  "id": "20dc37f28f5b",
+  "repository": "TheAlgorithms/Python",
+  "path": "web_programming/instagram_crawler.py",
+  "line": 130,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "assert instagram_user.email == \"support@github.com\"",
+  "context": [
+   "   127      assert instagram_user.number_of_posts > 150",
+   "   128      assert instagram_user.number_of_followers > 120000",
+   "   129      assert instagram_user.number_of_followings > 15",
+   "   130      assert instagram_user.email == \"support@github.com\"",
+   "   131      assert instagram_user.website == \"https://github.com/readme\"",
+   "   132      assert instagram_user.profile_picture_url.startswith(\"https://instagram.\")",
+   "   133      assert instagram_user.is_verified is True"
+  ]
+ },
+ {
+  "id": "9bc75e0861b5",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 160,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "const plainTextPassword = \"mySecretPassword123\"",
+  "context": [
+   "   157  ",
+   "   158  describe(\"hashLegacy\", () => {",
+   "   159    it(\"should return a hash of the string passed in\", () => {",
+   "   160      const plainTextPassword = \"mySecretPassword123\"",
+   "   161      const hashed = util.hashLegacy(plainTextPassword)",
+   "   162      expect(hashed).not.toBe(plainTextPassword)",
+   "   163    })"
+  ]
+ },
+ {
+  "id": "dd2ac088b714",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/rendering.test.ts",
+  "line": 613,
+  "family": "SHA",
+  "source": "assert.ok(parsed.get('script-src-elem')?.includes(\"'sha256-elemHash'\"));",
+  "context": [
+   "   610  \t\t\tassert.ok(parsed.get('script-src-elem')?.includes('https://cdn.example.com'));",
+   "   611  \t\t\t// element insert folds the auto hash + the runtime element hash.",
+   "   612  \t\t\tassert.ok(parsed.get('script-src-elem')?.includes(\"'sha256-island'\"));",
+   "   613  \t\t\tassert.ok(parsed.get('script-src-elem')?.includes(\"'sha256-elemHash'\"));",
+   "   614  \t\t\tassert.deepEqual(parsed.get('style-src-attr'), [\"'unsafe-inline'\"]);",
+   "   615  \t\t});",
+   "   616  "
+  ]
+ },
+ {
+  "id": "3bbce9e74686",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/service/task_dedup_head_sha_test.go",
+  "line": 62,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "email := fmt.Sprintf(\"head-sha-dedup-%d@multica.ai\", suffix)",
+  "context": [
+   "    59  \tt.Helper()",
+   "    60  ",
+   "    61  \tsuffix := time.Now().UnixNano()",
+   "    62  \temail := fmt.Sprintf(\"head-sha-dedup-%d@multica.ai\", suffix)",
+   "    63  \tslug := fmt.Sprintf(\"head-sha-dedup-%d\", suffix)",
+   "    64  ",
+   "    65  \tvar userID string"
+  ]
+ },
+ {
+  "id": "7ed00772dd3e",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_async_des.c",
+  "line": 34,
+  "family": "3DES",
+  "source": "\\brief DES Encryption Driver main file",
+  "context": [
+   "    31  /*!",
+   "    32    \\file ifxmips_async_des.c",
+   "    33    \\ingroup IFX_DEU",
+   "    34    \\brief DES Encryption Driver main file",
+   "    35  */",
+   "    36  ",
+   "    37  /*!"
+  ]
+ },
+ {
+  "id": "bac30bf3654a",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/service/email_test.go",
+  "line": 345,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "\"noreply@multica.ai\",",
+  "context": [
+   "   342  ",
+   "   343  func TestBuildInvitationParams_SubjectStripsControls(t *testing.T) {",
+   "   344  \tp := buildInvitationParams(",
+   "   345  \t\t\"noreply@multica.ai\",",
+   "   346  \t\t\"invitee@example.com\",",
+   "   347  \t\t\"Alice\\r\\n\",",
+   "   348  \t\t\"Acme\\t\","
+  ]
+ },
+ {
+  "id": "4d1c14e72d76",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+  "line": 136,
+  "family": "RC4",
+  "source": "tmp_array32[1] = arc4->OD2R;",
+  "context": [
+   "   133  #if 1",
+   "   134                  // need to handle nbytes not multiple of 16",
+   "   135                  tmp_array32[0] = arc4->OD3R;",
+   "   136                  tmp_array32[1] = arc4->OD2R;",
+   "   137                  tmp_array32[2] = arc4->OD1R;",
+   "   138                  tmp_array32[3] = arc4->OD0R;",
+   "   139  "
+  ]
+ },
+ {
+  "id": "cbd14cb20149",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_aes.c",
+  "line": 1559,
+  "family": "CBC",
+  "source": ".cra_driver_name=       \"ifxdeu-cbcmac(aes)\",",
+  "context": [
+   "  1556      .descsize           =       sizeof(struct aes_ctx),",
+   "  1557      .base               =       {",
+   "  1558          .cra_name       =       \"cbcmac(aes)\",",
+   "  1559          .cra_driver_name=       \"ifxdeu-cbcmac(aes)\",",
+   "  1560          .cra_priority   =       400,",
+   "  1561          .cra_ctxsize    =       sizeof(struct aes_ctx),",
+   "  1562          .cra_flags      =       CRYPTO_ALG_TYPE_HASH | CRYPTO_ALG_KERN_DRIVER_ONLY,"
+  ]
+ },
+ {
+  "id": "97174ef6cc0c",
+  "repository": "multica-ai/multica",
+  "path": "packages/views/settings/components/wecom-tab.test.tsx",
+  "line": 136,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "secret: \"s3cr3t\",",
+  "context": [
+   "   133        // Credential trimming: leading/trailing whitespace is stripped before send.",
+   "   134        expect(mockRegisterBYO).toHaveBeenCalledWith(\"workspace-1\", \"agent-1\", {",
+   "   135          bot_id: \"aibot_xyz\",",
+   "   136          secret: \"s3cr3t\",",
+   "   137        }),",
+   "   138      );",
+   "   139    });"
+  ]
+ },
+ {
+  "id": "0f2bf221a523",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/gpu/shader_cache.c",
+  "line": 597,
+  "family": "SHA",
+  "source": "bstr hashstr = mp_hash_to_bstr(tmp, entry->total.start, entry->total.len, \"SHA256\");",
+  "context": [
+   "   594          // Try to load it from a disk cache.",
+   "   595          cache_dir = mp_get_user_path(tmp, sc->global, sc->cache_dir);",
+   "   596  ",
+   "   597          bstr hashstr = mp_hash_to_bstr(tmp, entry->total.start, entry->total.len, \"SHA256\");",
+   "   598          cache_filename = mp_path_join_bstr(tmp, bstr0(cache_dir), hashstr);",
+   "   599          if (stat(cache_filename, &(struct stat){0}) == 0) {",
+   "   600              MP_DBG(sc, \"Trying to load shader from disk...\\n\");"
+  ]
+ },
+ {
+  "id": "6c6426f57395",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/placebo/ra_pl.c",
+  "line": 353,
+  "family": "3DES",
+  "source": "[RA_VARTYPE_IMG_W]  = PL_DESC_STORAGE_IMG,",
+  "context": [
+   "   350  ",
+   "   351  static const enum pl_desc_type desc_type[RA_VARTYPE_COUNT] = {",
+   "   352      [RA_VARTYPE_TEX]    = PL_DESC_SAMPLED_TEX,",
+   "   353      [RA_VARTYPE_IMG_W]  = PL_DESC_STORAGE_IMG,",
+   "   354      [RA_VARTYPE_BUF_RO] = PL_DESC_BUF_UNIFORM,",
+   "   355      [RA_VARTYPE_BUF_RW] = PL_DESC_BUF_STORAGE,",
+   "   356  };"
+  ]
+ },
+ {
+  "id": "4dd48d24d5a8",
+  "repository": "gatsbyjs/gatsby",
+  "path": "packages/gatsby-plugin-mdx/src/compile-mdx.ts",
+  "line": 6,
+  "family": "3DES",
+  "source": "import { ERROR_CODES } from \"./error-utils\"",
+  "context": [
+   "     3  import type { ProcessorOptions } from \"@mdx-js/mdx\"",
+   "     4  import type { IMdxMetadata } from \"./types\"",
+   "     5  import { enhanceMdxOptions, IMdxPluginOptions } from \"./plugin-options\"",
+   "     6  import { ERROR_CODES } from \"./error-utils\"",
+   "     7  import { cachedImport, createFileToMdxCacheKey } from \"./cache-helpers\"",
+   "     8  ",
+   "     9  // Compiles MDX into JS"
+  ]
+ },
+ {
+  "id": "9c73df69c56f",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 5878,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   "  5875        inputData: {",
+   "  5876          \"\": \"\",",
+   "  5877          hasChildren: \"true\",",
+   "  5878          _createdBy: \"najeeb.thangal@orkes.io\",",
+   "  5879          case: \"3\",",
+   "  5880        },",
+   "  5881        referenceTaskName: \"switch_ref__5\","
+  ]
+ },
+ {
+  "id": "86253355748e",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/rendering.test.ts",
+  "line": 366,
+  "family": "SHA",
+  "source": "Astro.csp.insertStyleHash('sha256-customStyleHash');",
+  "context": [
+   "   363  ",
+   "   364  \t\t\t\t// Use runtime CSP API for styles",
+   "   365  \t\t\t\tAstro.csp.insertStyleResource('https://styles.cdn.example.com');",
+   "   366  \t\t\t\tAstro.csp.insertStyleHash('sha256-customStyleHash');",
+   "   367  \t\t\t\tAstro.csp.insertDirective(\"default-src 'self'\");",
+   "   368  \t\t\t\tAstro.csp.insertDirective('img-src https://images.cdn.example.com');",
+   "   369  "
+  ]
+ },
+ {
+  "id": "7c6e6fc0b40a",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/auth/temporary_disabled_users.go",
+  "line": 20,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "\"pdzzer68@embassybase.com\": {},",
+  "context": [
+   "    17  }",
+   "    18  ",
+   "    19  var temporarilyDisabledUserEmails = map[string]struct{}{",
+   "    20  \t\"pdzzer68@embassybase.com\": {},",
+   "    21  \t\"gtwtrox@mowan666.com\":     {},",
+   "    22  }",
+   "    23  "
+  ]
+ },
+ {
+  "id": "76958cb8c5dd",
+  "repository": "redis/redis",
+  "path": "src/util.c",
+  "line": 1005,
+  "family": "SHA",
+  "source": "sha256_init(&ctx);",
+  "context": [
+   "  1002          for (unsigned int i = 0; i < sizeof(kxor); i++) kxor[i] ^= 0x5C;",
+   "  1003  ",
+   "  1004          /* Obtain HASH(OKEY || HASH(IKEY||MESSAGE)). */",
+   "  1005          sha256_init(&ctx);",
+   "  1006          sha256_update(&ctx,kxor,sizeof(kxor));",
+   "  1007          sha256_update(&ctx,digest,SHA256_BLOCK_SIZE);",
+   "  1008          sha256_final(&ctx,digest);"
+  ]
+ },
+ {
+  "id": "24f3a31fc224",
+  "repository": "gatsbyjs/gatsby",
+  "path": "packages/gatsby-core-utils/src/md5-file.ts",
+  "line": 9,
+  "family": "MD5",
+  "source": "export const md5File = async (filePath: string): Promise<string> => {",
+  "context": [
+   "     6   * @param filePath Absolute path to the file",
+   "     7   * @returns MD5 hash in hex format",
+   "     8   */",
+   "     9  export const md5File = async (filePath: string): Promise<string> => {",
+   "    10    const md5hasher = await createMD5()",
+   "    11  ",
+   "    12    return new Promise((resolve, reject) => {"
+  ]
+ },
+ {
+  "id": "4c361ada3e46",
+  "repository": "redis/redis",
+  "path": "deps/lua/src/lopcodes.c",
+  "line": 61,
+  "family": "3DES",
+  "source": "const lu_byte luaP_opmodes[NUM_OPCODES] = {",
+  "context": [
+   "    58  ",
+   "    59  #define opmode(t,a,b,c,m) (((t)<<7) | ((a)<<6) | ((b)<<4) | ((c)<<2) | (m))",
+   "    60  ",
+   "    61  const lu_byte luaP_opmodes[NUM_OPCODES] = {",
+   "    62  /*       T  A    B       C     mode\t\t   opcode\t*/",
+   "    63    opmode(0, 1, OpArgR, OpArgN, iABC) \t\t/* OP_MOVE */",
+   "    64   ,opmode(0, 1, OpArgK, OpArgN, iABx)\t\t/* OP_LOADK */"
+  ]
+ },
+ {
+  "id": "a046041d89d0",
+  "repository": "multica-ai/multica",
+  "path": "packages/core/runtimes/cli-version.ts",
+  "line": 142,
+  "family": "3DES",
+  "source": "if (DEV_DESCRIBE_RE.test(current)) return true;",
+  "context": [
+   "   139  function meetsMinCliVersion(detected: string | undefined | null, minimum: string): boolean {",
+   "   140    const current = (detected ?? \"\").trim();",
+   "   141    if (!current) return false;",
+   "   142    if (DEV_DESCRIBE_RE.test(current)) return true;",
+   "   143    const parsed = parseSemver(current);",
+   "   144    if (!parsed) return false;",
+   "   145    return !lessThan(parsed, parseSemver(minimum)!);"
+  ]
+ },
+ {
+  "id": "aff745bd44b2",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/opengl/hwdec_d3d11egl.c",
+  "line": 315,
+  "family": "3DES",
+  "source": "D3D11_TEXTURE2D_DESC texdesc;",
+  "context": [
+   "   312      if (!o->StreamConsumerAcquireKHR(o->egl_display, p->egl_stream))",
+   "   313          return -1;",
+   "   314  ",
+   "   315      D3D11_TEXTURE2D_DESC texdesc;",
+   "   316      ID3D11Texture2D_GetDesc(d3d_tex, &texdesc);",
+   "   317  ",
+   "   318      for (int n = 0; n < 2; n++) {"
+  ]
+ },
+ {
+  "id": "599cc152fbf7",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/common.test.ts",
+  "line": 86,
+  "family": "SHA",
+  "source": "hashes: ['sha256-AAA', { hash: 'sha256-BBB', kind: 'attribute' }],",
+  "context": [
+   "    83  \t\t\talgorithm: 'SHA-256',",
+   "    84  \t\t\tscriptDirective: {",
+   "    85  \t\t\t\tresources: [\"'self'\", { resource: 'https://cdn', kind: 'element' }],",
+   "    86  \t\t\t\thashes: ['sha256-AAA', { hash: 'sha256-BBB', kind: 'attribute' }],",
+   "    87  \t\t\t},",
+   "    88  \t\t\tstyleDirective: {",
+   "    89  \t\t\t\tresources: [{ resource: \"'unsafe-inline'\", kind: 'attribute' }],"
+  ]
+ },
+ {
+  "id": "736b823aa817",
+  "repository": "permissionlesstech/bitchat",
+  "path": "localPackages/BitFoundation/Tests/BitFoundationTests/PeerIDTests.swift",
+  "line": 190,
+  "family": "SHA",
+  "source": "let expected = publicKey.sha256Fingerprint().prefix(16)",
+  "context": [
+   "   187      ",
+   "   188      @Test func publicKey_derivesFingerprint() {",
+   "   189          let publicKey = Data(hex64.utf8)",
+   "   190          let expected = publicKey.sha256Fingerprint().prefix(16)",
+   "   191          let peerID = PeerID(publicKey: publicKey)",
+   "   192          #expect(peerID.bare == String(expected))",
+   "   193          #expect(peerID.prefix == .empty)"
+  ]
+ },
+ {
+  "id": "721f55ae27c5",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 36334,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 36331          inputData: {",
+   " 36332            hasChildren: \"true\",",
+   " 36333            switchCaseValue: 2,",
+   " 36334            _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 36335            case: \"2\",",
+   " 36336          },",
+   " 36337          referenceTaskName: \"switch_ref_1__1\","
+  ]
+ },
+ {
+  "id": "f365f657ca6c",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 25125,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 25122          inputData: {",
+   " 25123            hasChildren: \"true\",",
+   " 25124            switchCaseValue: 3,",
+   " 25125            _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 25126            case: \"3\",",
+   " 25127          },",
+   " 25128          referenceTaskName: \"switch_ref_1__10\","
+  ]
+ },
+ {
+  "id": "9a9666162819",
+  "repository": "gatsbyjs/gatsby",
+  "path": "packages/gatsby-plugin-page-creator/src/error-utils.ts",
+  "line": 42,
+  "family": "3DES",
+  "source": "[CODES.GeneratePath]: {",
+  "context": [
+   "    39      type: `PLUGIN`,",
+   "    40      category: `USER`,",
+   "    41    },",
+   "    42    [CODES.GeneratePath]: {",
+   "    43      text: (context): string => `PageCreator: ${context.sourceMessage}`,",
+   "    44      level: `ERROR`,",
+   "    45      type: `PLUGIN`,"
+  ]
+ },
+ {
+  "id": "2d0034b36ccc",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+  "line": 55,
+  "family": "CHACHA20",
+  "source": "let sealed1 = try XChaCha20Poly1305Compat.seal(plaintext: plaintext, key: key, nonce24: nonce1)",
+  "context": [
+   "    52          let nonce1 = Data(repeating: 0x01, count: 24)",
+   "    53          let nonce2 = Data(repeating: 0x02, count: 24)",
+   "    54  ",
+   "    55          let sealed1 = try XChaCha20Poly1305Compat.seal(plaintext: plaintext, key: key, nonce24: nonce1)",
+   "    56          let sealed2 = try XChaCha20Poly1305Compat.seal(plaintext: plaintext, key: key, nonce24: nonce2)",
+   "    57  ",
+   "    58          #expect(sealed1.ciphertext != sealed2.ciphertext)"
+  ]
+ },
+ {
+  "id": "720dac64f515",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/vrx518_ep/src/ep.c",
+  "line": 739,
+  "family": "3DES",
+  "source": "MODULE_DESCRIPTION(\"Intel(R) SmartPHY PCIe EP/ACA Driver\");",
+  "context": [
+   "   736  module_pci_driver(dc_ep_driver);",
+   "   737  ",
+   "   738  MODULE_AUTHOR(\"Intel Corporation, <Chuanhua.lei@intel.com>\");",
+   "   739  MODULE_DESCRIPTION(\"Intel(R) SmartPHY PCIe EP/ACA Driver\");",
+   "   740  MODULE_LICENSE(\"GPL\");",
+   "   741  MODULE_VERSION(DRV_VERSION);"
+  ]
+ },
+ {
+  "id": "f6f32e38f9f7",
+  "repository": "openwrt/openwrt",
+  "path": "package/network/services/ead/src/tinysrp/t_misc.c",
+  "line": 148,
+  "family": "SHA-1",
+  "source": "SHA1Final(out, &ctxt);",
+  "context": [
+   "   145      SHA1Update(&ctxt, (unsigned char *) &st, sizeof(st));",
+   "   146    unlink(dotpath);",
+   "   147  ",
+   "   148    SHA1Final(out, &ctxt);",
+   "   149  }",
+   "   150  ",
+   "   151  /*"
+  ]
+ },
+ {
+  "id": "6db2c04ff919",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchatTests/EndToEnd/CourierEndToEndTests.swift",
+  "line": 222,
+  "family": "SHA",
+  "source": "bobIdentity.setBlocked(alice.noiseStaticPublicKeyData().sha256Fingerprint(), isBlocked: true)",
+  "context": [
+   "   219          preseedConnectedPeer(carol, in: alice)",
+   "   220  ",
+   "   221          // Bob blocked Alice by her stable Noise identity while she was away.",
+   "   222          bobIdentity.setBlocked(alice.noiseStaticPublicKeyData().sha256Fingerprint(), isBlocked: true)",
+   "   223  ",
+   "   224          #expect(alice.sendCourierMessage(",
+   "   225              \"you should not see this\","
+  ]
+ },
+ {
+  "id": "e91ce9ebca29",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/cross_issue_originator_test.go",
+  "line": 205,
+  "family": "3DES",
+  "source": "`SELECT id FROM comment WHERE issue_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`,",
+  "context": [
+   "   202  \tt.Helper()",
+   "   203  \tvar commentID string",
+   "   204  \tdbfx.QueryRow(t,",
+   "   205  \t\t`SELECT id FROM comment WHERE issue_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`,",
+   "   206  \t\tissueID).Scan(&commentID)",
+   "   207  \treturn commentID",
+   "   208  }"
+  ]
+ },
+ {
+  "id": "cdb8e550fb40",
+  "repository": "starship/starship",
+  "path": "src/modules/haskell.rs",
+  "line": 162,
+  "family": "SHA",
+  "source": "- fast-math-1.0.2@sha256:91181eb836e54413cc5a841e797c42b2264954e893ea530b6fc4da0dccf6a8b7",
+  "context": [
+   "   159  - reanimate-svg-0.13.0.1",
+   "   160  - chiphunk-0.1.2.1",
+   "   161  - cubicbezier-0.6.0.6@sha256:2191ff47144d9a13a2784651a33d340cd31be1926a6c188925143103eb3c8db3",
+   "   162  - fast-math-1.0.2@sha256:91181eb836e54413cc5a841e797c42b2264954e893ea530b6fc4da0dccf6a8b7",
+   "   163  - matrices-0.5.0@sha256:b2761813f6a61c84224559619cc60a16a858ac671c8436bbac8ec89e85473058",
+   "   164  - hmatrix-0.20.0.0@sha256:d79a9218e314f1a2344457c3851bd1d2536518ecb5f1a2fcd81daa45e46cd025,4870",
+   "   165  - earcut-0.1.0.4@sha256:d5118b3eecf24d130263d81fb30f1ff56b1db43036582bfd1d8cc9ba3adae8be,1010"
+  ]
+ },
+ {
+  "id": "db9247c6b431",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 31881,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 31878          inputData: {",
+   " 31879            hasChildren: \"true\",",
+   " 31880            switchCaseValue: 2,",
+   " 31881            _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 31882            case: \"2\",",
+   " 31883          },",
+   " 31884          referenceTaskName: \"switch_ref__10\","
+  ]
+ },
+ {
+  "id": "5ec68ff86d51",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/gpu/video.c",
+  "line": 482,
+  "family": "3DES",
+  "source": "{\"desaturate\",  GAMUT_DESATURATE},",
+  "context": [
+   "   479              {\"relative\",    GAMUT_RELATIVE},",
+   "   480              {\"saturation\",  GAMUT_SATURATION},",
+   "   481              {\"absolute\",    GAMUT_ABSOLUTE},",
+   "   482              {\"desaturate\",  GAMUT_DESATURATE},",
+   "   483              {\"darken\",      GAMUT_DARKEN},",
+   "   484              {\"warn\",        GAMUT_WARN},",
+   "   485              {\"linear\",      GAMUT_LINEAR})},"
+  ]
+ },
+ {
+  "id": "0664fdef7f46",
+  "repository": "usememos/memos",
+  "path": "web/src/components/MemoEditor/Editor/formatting.ts",
+  "line": 193,
+  "family": "3DES",
+  "source": "if (!DELIMITER_NODES.has(n.name)) return false;",
+  "context": [
+   "   190      // tilde fence) is just this empty pair wearing another node name.",
+   "   191      const tree = syntaxTree(view.state);",
+   "   192      const blocking = (n: TreeNode) => {",
+   "   193        if (!DELIMITER_NODES.has(n.name)) return false;",
+   "   194        const construct = n.parent ?? n;",
+   "   195        return construct.from < delFrom || construct.to > delTo;",
+   "   196      };"
+  ]
+ },
+ {
+  "id": "32ff5b971c75",
+  "repository": "redis/redis",
+  "path": "src/sha256.c",
+  "line": 7,
+  "family": "SHA",
+  "source": "SHA-256 is one of the three algorithms in the SHA2",
+  "context": [
+   "     4  * Copyright:",
+   "     5  * Disclaimer: This code is presented \"as is\" without any guarantees.",
+   "     6  * Details:    Implementation of the SHA-256 hashing algorithm.",
+   "     7                SHA-256 is one of the three algorithms in the SHA2",
+   "     8                specification. The others, SHA-384 and SHA-512, are not",
+   "     9                offered in this implementation.",
+   "    10                Algorithm specification can be found here:"
+  ]
+ },
+ {
+  "id": "5eff30b74018",
+  "repository": "redis/redis",
+  "path": "src/sentinel.c",
+  "line": 5000,
+  "family": "3DES",
+  "source": "master->failover_start_time = mstime()+rand()%SENTINEL_MAX_DESYNC;",
+  "context": [
+   "  4997      sentinelEvent(LL_WARNING,\"+new-epoch\",master,\"%llu\",",
+   "  4998          (unsigned long long) sentinel.current_epoch);",
+   "  4999      sentinelEvent(LL_WARNING,\"+try-failover\",master,\"%@\");",
+   "  5000      master->failover_start_time = mstime()+rand()%SENTINEL_MAX_DESYNC;",
+   "  5001      master->failover_state_change_time = mstime();",
+   "  5002  }",
+   "  5003  "
+  ]
+ },
+ {
+  "id": "0c00f9cb8b3e",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+  "line": 165,
+  "family": "RC4",
+  "source": "\\brief initialize arc4 hardware",
+  "context": [
+   "   162  ",
+   "   163  /*! \\fn arc4_chip_init (void)",
+   "   164      \\ingroup IFX_ARC4_FUNCTIONS",
+   "   165      \\brief initialize arc4 hardware",
+   "   166  */",
+   "   167  static void arc4_chip_init (void)",
+   "   168  {"
+  ]
+ },
+ {
+  "id": "33f991c54fb5",
+  "repository": "gatsbyjs/gatsby",
+  "path": "packages/gatsby-transformer-sharp/src/error-utils.js",
+  "line": 15,
+  "family": "3DES",
+  "source": "[CODES.Generic]: {",
+  "context": [
+   "    12  // TODO: Refactor to use contextual data instead of only context.sourceMessage",
+   "    13  // once reporter.setErrorMap is guaranteed to be available",
+   "    14  export const ERROR_MAP = {",
+   "    15    [CODES.Generic]: {",
+   "    16      text: context => context.sourceMessage,",
+   "    17      level: `ERROR`,",
+   "    18      type: `PLUGIN`,"
+  ]
+ },
+ {
+  "id": "c155fbe6c14c",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/d3d11/ra_d3d11.c",
+  "line": 1155,
+  "family": "3DES",
+  "source": "D3D11_BUFFER_DESC vdesc = {",
+  "context": [
+   "  1152          goto error;",
+   "  1153      }",
+   "  1154  ",
+   "  1155      D3D11_BUFFER_DESC vdesc = {",
+   "  1156          .ByteWidth = sizeof(struct blit_vert[6]),",
+   "  1157          .Usage = D3D11_USAGE_DEFAULT,",
+   "  1158          .BindFlags = D3D11_BIND_VERTEX_BUFFER,"
+  ]
+ },
+ {
+  "id": "dee2f1ac7edb",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchatTests/EndToEnd/PrivateMediaEndToEndTests.swift",
+  "line": 590,
+  "family": "SHA",
+  "source": "let bobFingerprint = bob.noiseStaticPublicKeyData().sha256Fingerprint()",
+  "context": [
+   "   587              identityManager: identity",
+   "   588          )",
+   "   589          let bob = makeService(baseDirectory: root.appendingPathComponent(\"bob\", isDirectory: true))",
+   "   590          let bobFingerprint = bob.noiseStaticPublicKeyData().sha256Fingerprint()",
+   "   591          let capableAnnounce = try signedAnnounce(",
+   "   592              from: bob,",
+   "   593              capabilities: .privateMedia"
+  ]
+ },
+ {
+  "id": "5a64a169413b",
+  "repository": "conductor-oss/conductor",
+  "path": "test-harness/src/test/java/com/netflix/conductor/test/integration/TestHarnessAbstractEndToEndTest.java",
+  "line": 278,
+  "family": "3DES",
+  "source": "\"task \" + i + DEFAULT_DESCRIPTION,",
+  "context": [
+   "   275              TaskDef def =",
+   "   276                      new TaskDef(",
+   "   277                              prefix + i,",
+   "   278                              \"task \" + i + DEFAULT_DESCRIPTION,",
+   "   279                              DEFAULT_EMAIL_ADDRESS,",
+   "   280                              3,",
+   "   281                              60,"
+  ]
+ },
+ {
+  "id": "56cf57c5ec48",
+  "repository": "redis/redis",
+  "path": "src/quicklist.c",
+  "line": 3004,
+  "family": "3DES",
+  "source": "TEST_DESC(\"lrem test at compress %d\", options[_i]) {",
+  "context": [
+   "  3001              quicklistRelease(ql);",
+   "  3002          }",
+   "  3003  ",
+   "  3004          TEST_DESC(\"lrem test at compress %d\", options[_i]) {",
+   "  3005              for (int f = 0; f < fill_count; f++) {",
+   "  3006                  quicklist *ql = quicklistNew(fills[f], options[_i]);",
+   "  3007                  char *words[] = {\"abc\", \"foo\", \"bar\",  \"foobar\", \"foobared\","
+  ]
+ },
+ {
+  "id": "09542419e1df",
+  "repository": "usememos/memos",
+  "path": "store/db/sqlite/memo_relation.go",
+  "line": 107,
+  "family": "3DES",
+  "source": "ORDER BY memo_id DESC`",
+  "context": [
+   "   104  \t\t\ttype",
+   "   105  \t\tFROM memo_relation",
+   "   106  \t\tWHERE ` + strings.Join(where, \" AND \") + `",
+   "   107  \t\tORDER BY memo_id DESC`",
+   "   108  \tif find.Limit != nil {",
+   "   109  \t\tquery = fmt.Sprintf(\"%s LIMIT %d\", query, *find.Limit)",
+   "   110  \t\tif find.Offset != nil {"
+  ]
+ },
+ {
+  "id": "d0ca14d169f0",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchat/Noise/NoiseProtocol.swift",
+  "line": 118,
+  "family": "CHACHA20",
+  "source": "let cipher: String = \"ChaChaPoly\" // ChaCha20-Poly1305",
+  "context": [
+   "   115  struct NoiseProtocolName {",
+   "   116      let pattern: String",
+   "   117      let dh: String = \"25519\"        // Curve25519",
+   "   118      let cipher: String = \"ChaChaPoly\" // ChaCha20-Poly1305",
+   "   119      let hash: String = \"SHA256\"      // SHA-256",
+   "   120      ",
+   "   121      var fullName: String {"
+  ]
+ },
+ {
+  "id": "ccc3ba21620b",
+  "repository": "allinurl/goaccess",
+  "path": "src/ui.c",
+  "line": 349,
+  "family": "3DES",
+  "source": "REQUESTS_DESC,",
+  "context": [
+   "   346  module_to_desc (GModule module) {",
+   "   347    static const char *const modules[] = {",
+   "   348      VISITORS_DESC,",
+   "   349      REQUESTS_DESC,",
+   "   350      REQUESTS_STATIC_DESC,",
+   "   351      NOT_FOUND_DESC,",
+   "   352      HOSTS_DESC,"
+  ]
+ },
+ {
+  "id": "74f65691c2f5",
+  "repository": "conductor-oss/conductor",
+  "path": "agentspan/src/test/java/org/conductoross/conductor/ai/agentspan/ConductorAgentSpanConfigurationIntegrationTest.java",
+  "line": 120,
+  "family": "SHA",
+  "source": "\"sha256-checksum\",",
+  "context": [
+   "   117                                      packageStore.store(",
+   "   118                                              \"incident-response\",",
+   "   119                                              \"1.0.0\",",
+   "   120                                              \"sha256-checksum\",",
+   "   121                                              packageBytes);",
+   "   122  ",
+   "   123                              assertThat(packageStore.storageType()).isEqualTo(\"conductor-db\");"
+  ]
+ },
+ {
+  "id": "3447c7e991ab",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/test-adapter.ts",
+  "line": 118,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "envGetSecret: 'stable',",
+  "context": [
+   "   115  \t\t\t\t\texports: ['manifest', 'createApp'],",
+   "   116  \t\t\t\t\tsupportedAstroFeatures: {",
+   "   117  \t\t\t\t\t\tserverOutput: 'stable',",
+   "   118  \t\t\t\t\t\tenvGetSecret: 'stable',",
+   "   119  \t\t\t\t\t\tstaticOutput: 'stable',",
+   "   120  \t\t\t\t\t\thybridOutput: 'stable',",
+   "   121  \t\t\t\t\t\ti18nDomains: 'stable',"
+  ]
+ },
+ {
+  "id": "a0923a0257ff",
+  "repository": "openwrt/openwrt",
+  "path": "package/system/mtd/src/md5.h",
+  "line": 58,
+  "family": "MD5",
+  "source": "} MD5_CTX;",
+  "context": [
+   "    55    UINT4 buf[4];                                    /* scratch buffer */",
+   "    56    unsigned char in[64];                              /* input buffer */",
+   "    57    unsigned char digest[16];     /* actual digest after MD5Final call */",
+   "    58  } MD5_CTX;",
+   "    59  ",
+   "    60  void MD5_Init (MD5_CTX *mdContext);",
+   "    61  void MD5_Update (MD5_CTX *mdContext, unsigned char *inBuf, unsigned int inLen);"
+  ]
+ },
+ {
+  "id": "cf9d44bb0aa1",
+  "repository": "openwrt/openwrt",
+  "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+  "line": 39,
+  "family": "RSA",
+  "source": "#include <mbedtls/rsa.h>",
+  "context": [
+   "    36  #include <mbedtls/entropy.h>",
+   "    37  #include <mbedtls/x509_crt.h>",
+   "    38  #include <mbedtls/ecp.h>",
+   "    39  #include <mbedtls/rsa.h>",
+   "    40  #include <mbedtls/pk.h>",
+   "    41  #include <mbedtls/asn1.h>",
+   "    42  #include <mbedtls/oid.h>"
+  ]
+ },
+ {
+  "id": "372fd674051c",
+  "repository": "multica-ai/multica",
+  "path": "packages/views/settings/components/account-tab.tsx",
+  "line": 53,
+  "family": "3DES",
+  "source": "const descriptionTooLong = profileDescription.length > MAX_PROFILE_DESCRIPTION_LEN;",
+  "context": [
+   "    50      // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on user identity",
+   "    51    }, [user?.id]);",
+   "    52  ",
+   "    53    const descriptionTooLong = profileDescription.length > MAX_PROFILE_DESCRIPTION_LEN;",
+   "    54  ",
+   "    55    const draft = useMemo(",
+   "    56      () => ({ name: profileName, profileDescription }),"
+  ]
+ },
+ {
+  "id": "a891e3de5c28",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+  "line": 137,
+  "family": "RC4",
+  "source": "tmp_array32[2] = arc4->OD1R;",
+  "context": [
+   "   134                  // need to handle nbytes not multiple of 16",
+   "   135                  tmp_array32[0] = arc4->OD3R;",
+   "   136                  tmp_array32[1] = arc4->OD2R;",
+   "   137                  tmp_array32[2] = arc4->OD1R;",
+   "   138                  tmp_array32[3] = arc4->OD0R;",
+   "   139  ",
+   "   140                  remaining_bytes = nbytes - i;"
+  ]
+ },
+ {
+  "id": "dd40265e5679",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/github.go",
+  "line": 406,
+  "family": "HMAC",
+  "source": "mac := hmac.New(sha256.New, []byte(secret))",
+  "context": [
+   "   403  \tif returnTo != githubReturnToGitHub {",
+   "   404  \t\tpayload = workspaceID + \".\" + returnTo + \".\" + nonce",
+   "   405  \t}",
+   "   406  \tmac := hmac.New(sha256.New, []byte(secret))",
+   "   407  \tmac.Write([]byte(payload))",
+   "   408  \tsig := hex.EncodeToString(mac.Sum(nil))",
+   "   409  \treturn payload + \".\" + sig, nil"
+  ]
+ },
+ {
+  "id": "c4a6c3eb3b4d",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/types/TaskType.ts",
+  "line": 340,
+  "family": "RSA",
+  "source": "RS256 = \"RS256\",",
+  "context": [
+   "   337  }",
+   "   338  ",
+   "   339  export enum GetSignedJWTAlgorithmType {",
+   "   340    RS256 = \"RS256\",",
+   "   341  }",
+   "   342  ",
+   "   343  export interface JDBCInputParameters {"
+  ]
+ },
+ {
+  "id": "67255130df87",
+  "repository": "usememos/memos",
+  "path": "internal/idp/oauth2/oauth2_test.go",
+  "line": 253,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "ClientSecret: \"test-client-secret\",",
+  "context": [
+   "   250  \toauth2, err := NewIdentityProvider(",
+   "   251  \t\t&storepb.OAuth2Config{",
+   "   252  \t\t\tClientId:     \"test-client-id\",",
+   "   253  \t\t\tClientSecret: \"test-client-secret\",",
+   "   254  \t\t\tTokenUrl:     \"https://example.com/oauth2/token\",",
+   "   255  \t\t\tUserInfoUrl:  s.URL,",
+   "   256  \t\t\tFieldMapping: &storepb.FieldMapping{"
+  ]
+ },
+ {
+  "id": "11d98ce6e80c",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/github.go",
+  "line": 438,
+  "family": "SHA",
+  "source": "mac := hmac.New(sha256.New, []byte(secret))",
+  "context": [
+   "   435  \t}",
+   "   436  \tsig := parts[nonceIndex+1]",
+   "   437  \tpayload := strings.Join(parts[:nonceIndex+1], \".\")",
+   "   438  \tmac := hmac.New(sha256.New, []byte(secret))",
+   "   439  \tmac.Write([]byte(payload))",
+   "   440  \texpected := hex.EncodeToString(mac.Sum(nil))",
+   "   441  \tif !hmac.Equal([]byte(expected), []byte(sig)) {"
+  ]
+ },
+ {
+  "id": "ee87cab196c2",
+  "repository": "usememos/memos",
+  "path": "internal/idp/oauth2/oauth2_test.go",
+  "line": 137,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "ClientSecret: \"test-client-secret\",",
+  "context": [
+   "   134  \toauth2, err := NewIdentityProvider(",
+   "   135  \t\t&storepb.OAuth2Config{",
+   "   136  \t\t\tClientId:     testClientID,",
+   "   137  \t\t\tClientSecret: \"test-client-secret\",",
+   "   138  \t\t\tTokenUrl:     fmt.Sprintf(\"%s/oauth2/token\", s.URL),",
+   "   139  \t\t\tUserInfoUrl:  fmt.Sprintf(\"%s/oauth2/userinfo\", s.URL),",
+   "   140  \t\t\tFieldMapping: &storepb.FieldMapping{"
+  ]
+ },
+ {
+  "id": "4a0c8a27d121",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/rendering.test.ts",
+  "line": 579,
+  "family": "SHA",
+  "source": "const pipeline = createCspPipeline({ scriptHashes: ['sha256-island'] });",
+  "context": [
+   "   576  \t\t});",
+   "   577  ",
+   "   578  \t\tit('omits more-specific directives when not enabled', async () => {",
+   "   579  \t\t\tconst pipeline = createCspPipeline({ scriptHashes: ['sha256-island'] });",
+   "   580  ",
+   "   581  \t\t\tconst { html } = await renderPage(SimplePage, pipeline);",
+   "   582  \t\t\tconst content = cheerio"
+  ]
+ },
+ {
+  "id": "bf6a74eeb43c",
+  "repository": "conductor-oss/conductor",
+  "path": "os-persistence-v3/src/main/java/org/conductoross/conductor/os3/dao/index/OpenSearchRestDAO.java",
+  "line": 1067,
+  "family": "3DES",
+  "source": "order = \"DESC\".equalsIgnoreCase(orderStr) ? SortOrder.Desc : SortOrder.Asc;",
+  "context": [
+   "  1064                  if (index > 0) {",
+   "  1065                      field = sortOption.substring(0, index);",
+   "  1066                      String orderStr = sortOption.substring(index + 1);",
+   "  1067                      order = \"DESC\".equalsIgnoreCase(orderStr) ? SortOrder.Desc : SortOrder.Asc;",
+   "  1068                  }",
+   "  1069                  final String finalField = field;",
+   "  1070                  final SortOrder finalOrder = order;"
+  ]
+ },
+ {
+  "id": "dfc500fa2561",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/render-csp.test.ts",
+  "line": 52,
+  "family": "SHA",
+  "source": "\"script-src 'self' 'sha256-script'; style-src 'self' 'sha256-style';\",",
+  "context": [
+   "    49  \t\t\t\t\tstyleDirective: { hashes: ['sha256-style'] },",
+   "    50  \t\t\t\t}),",
+   "    51  \t\t\t),",
+   "    52  \t\t\t\"script-src 'self' 'sha256-script'; style-src 'self' 'sha256-style';\",",
+   "    53  \t\t);",
+   "    54  \t});",
+   "    55  "
+  ]
+ },
+ {
+  "id": "f6735178acf9",
+  "repository": "multica-ai/multica",
+  "path": "server/pkg/db/queries/chat.sql",
+  "line": 134,
+  "family": "3DES",
+  "source": "ORDER BY (cs.pinned_at IS NOT NULL) DESC, cs.pinned_at DESC, COALESCE(lm.created_at, cs.updated_at) DESC;",
+  "context": [
+   "   131        )",
+   "   132      )",
+   "   133    )",
+   "   134  ORDER BY (cs.pinned_at IS NOT NULL) DESC, cs.pinned_at DESC, COALESCE(lm.created_at, cs.updated_at) DESC;",
+   "   135  ",
+   "   136  -- name: ListAgentBuilderSessionsByCreator :many",
+   "   137  -- The caller's unfinished agent-creation conversations."
+  ]
+ },
+ {
+  "id": "b5383d9454e0",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 11819,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 11816          method: \"GET\",",
+   " 11817          asyncComplete: false,",
+   " 11818          readTimeOut: \"3000\",",
+   " 11819          _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 11820          uri: \"https://orkes-api-tester.orkesconductor.com/api\",",
+   " 11821          connectionTimeOut: 3000,",
+   " 11822          contentType: \"application/json\","
+  ]
+ },
+ {
+  "id": "645e37b26e03",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/github_test.go",
+  "line": 1199,
+  "family": "SHA",
+  "source": "mac := hmac.New(sha256.New, []byte(secret))",
+  "context": [
+   "  1196  \t\t\"installation\": map[string]any{\"id\": installationID},",
+   "  1197  \t}",
+   "  1198  \traw, _ := json.Marshal(payload)",
+   "  1199  \tmac := hmac.New(sha256.New, []byte(secret))",
+   "  1200  \tmac.Write(raw)",
+   "  1201  \tsig := \"sha256=\" + hex.EncodeToString(mac.Sum(nil))",
+   "  1202  "
+  ]
+ },
+ {
+  "id": "811502a7b96e",
+  "repository": "gatsbyjs/gatsby",
+  "path": "packages/gatsby-source-wordpress/src/utils/fetch-graphql.ts",
+  "line": 617,
+  "family": "3DES",
+  "source": "id: CODES.BadResponse,",
+  "context": [
+   "   614        reporter.warn(formatLogMessage(sharedEmptyStringReponseError))",
+   "   615      } else {",
+   "   616        reporter.panic({",
+   "   617          id: CODES.BadResponse,",
+   "   618          context: {",
+   "   619            sourceMessage: formatLogMessage(sharedEmptyStringReponseError),",
+   "   620          },"
+  ]
+ },
+ {
+  "id": "188eab54c693",
+  "repository": "conductor-oss/conductor",
+  "path": "es8-persistence/src/main/java/org/conductoross/conductor/es8/dao/index/Es8SearchSupport.java",
+  "line": 282,
+  "family": "3DES",
+  "source": "if (\"DESC\".equals(orderValue)) {",
+  "context": [
+   "   279              if (index > 0) {",
+   "   280                  field = sortOption.substring(0, index);",
+   "   281                  String orderValue = sortOption.substring(index + 1).trim().toUpperCase(Locale.ROOT);",
+   "   282                  if (\"DESC\".equals(orderValue)) {",
+   "   283                      order = SortOrder.Desc;",
+   "   284                  }",
+   "   285              }"
+  ]
+ },
+ {
+  "id": "84d9a28c4226",
+  "repository": "openwrt/openwrt",
+  "path": "package/utils/uencrypt/src/uencrypt-mbedtls.c",
+  "line": 12,
+  "family": "TLS",
+  "source": "#if MBEDTLS_VERSION_NUMBER < 0x03010000 /* mbedtls 3.1.0 */",
+  "context": [
+   "     9  #include <unistd.h>",
+   "    10  #include \"uencrypt.h\"",
+   "    11  ",
+   "    12  #if MBEDTLS_VERSION_NUMBER < 0x03010000 /* mbedtls 3.1.0 */",
+   "    13  static inline mbedtls_cipher_mode_t mbedtls_cipher_info_get_mode(",
+   "    14      const mbedtls_cipher_info_t *info)",
+   "    15  {"
+  ]
+ },
+ {
+  "id": "b377e9cbc5f7",
+  "repository": "gatsbyjs/gatsby",
+  "path": "packages/gatsby-plugin-page-creator/src/error-utils.ts",
+  "line": 80,
+  "family": "3DES",
+  "source": "[CODES.FileSystemRemove]: {",
+  "context": [
+   "    77      type: `PLUGIN`,",
+   "    78      category: `SYSTEM`,",
+   "    79    },",
+   "    80    [CODES.FileSystemRemove]: {",
+   "    81      text: (context): string => `PageCreator: ${context.sourceMessage}`,",
+   "    82      level: `ERROR`,",
+   "    83      type: `PLUGIN`,"
+  ]
+ },
+ {
+  "id": "1ae8f0f36f76",
+  "repository": "usememos/memos",
+  "path": "server/router/api/v1/test/user_service_registration_test.go",
+  "line": 171,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "Password: \"password123\",",
+  "context": [
+   "   168  \t\t\tUser: &apiv1.User{",
+   "   169  \t\t\t\tUsername: \"wannabeadmin\",",
+   "   170  \t\t\t\tEmail:    \"wannabeadmin@example.com\",",
+   "   171  \t\t\t\tPassword: \"password123\",",
+   "   172  \t\t\t\tRole:     apiv1.User_ADMIN, // This should be ignored",
+   "   173  \t\t\t},",
+   "   174  \t\t})"
+  ]
+ },
+ {
+  "id": "6b74efa42d10",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/daemon/daemon_test.go",
+  "line": 5401,
+  "family": "GITHUB TOKEN",
+  "source": "\"content\": \"GITHUB_TOKEN=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn\\n\",",
+  "context": [
+   "  5398  \t\t\t\tmap[string]any{",
+   "  5399  \t\t\t\t\t\"path\":    \".env\",",
+   "  5400  \t\t\t\t\t\"kind\":    \"delete\",",
+   "  5401  \t\t\t\t\t\"content\": \"GITHUB_TOKEN=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn\\n\",",
+   "  5402  \t\t\t\t},",
+   "  5403  \t\t\t},",
+   "  5404  \t\t},"
+  ]
+ },
+ {
+  "id": "7bda5d7cdc2b",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/drm_common.c",
+  "line": 525,
+  "family": "3DES",
+  "source": "int ret = drmModeAtomicCommit(drm->fd, atomic_ctx->request, DRM_MODE_ATOMIC_ALLOW_MODESET, drm);",
+  "context": [
+   "   522  ",
+   "   523      struct pl_color_space sdr = pl_color_space_srgb;",
+   "   524      vo_drm_set_color(drm->vo, &sdr);",
+   "   525      int ret = drmModeAtomicCommit(drm->fd, atomic_ctx->request, DRM_MODE_ATOMIC_ALLOW_MODESET, drm);",
+   "   526      if (ret)",
+   "   527          MP_VERBOSE(drm, \"Failed to commit atomic request: %s\\n\", mp_strerror(ret));",
+   "   528  }"
+  ]
+ },
+ {
+  "id": "461ebc74e055",
+  "repository": "withastro/astro",
+  "path": "packages/astro/src/actions/runtime/server.ts",
+  "line": 4,
+  "family": "3DES",
+  "source": "import { REDIRECT_STATUS_CODES } from '../../core/constants.js';",
+  "context": [
+   "     1  import { stringify as devalueStringify } from 'devalue';",
+   "     2  import * as z from 'zod/v4/core';",
+   "     3  import { shouldAppendForwardSlash } from '../../core/build/util.js';",
+   "     4  import { REDIRECT_STATUS_CODES } from '../../core/constants.js';",
+   "     5  import { getFetchStateFromAPIContext } from '../../core/fetch/fetch-state.js';",
+   "     6  import { getAction } from '../load.js';",
+   "     7  import {"
+  ]
+ },
+ {
+  "id": "f387028abc48",
+  "repository": "multica-ai/multica",
+  "path": "server/cmd/server/notification_listeners_test.go",
+  "line": 923,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "parentSubEmail := \"notif-parent-sub-status@multica.ai\"",
+  "context": [
+   "   920  \tqueries := db.New(testPool)",
+   "   921  \tbus := newNotificationBus(t, queries)",
+   "   922  ",
+   "   923  \tparentSubEmail := \"notif-parent-sub-status@multica.ai\"",
+   "   924  \tparentSubID := createTestUser(t, parentSubEmail)",
+   "   925  \tt.Cleanup(func() { cleanupTestUser(t, parentSubEmail) })",
+   "   926  "
+  ]
+ },
+ {
+  "id": "58b032938cf1",
+  "repository": "multica-ai/multica",
+  "path": "server/pkg/db/queries/github.sql",
+  "line": 220,
+  "family": "3DES",
+  "source": "ORDER BY (state IN ('open', 'draft')) DESC, pr_updated_at DESC",
+  "context": [
+   "   217      JOIN issue_vcs_pull_request ipr ON ipr.pull_request_id = pr.id",
+   "   218      WHERE ipr.issue_id = $1 AND pr.head_sha <> '' AND NOT ipr.reference_only",
+   "   219  ) combined",
+   "   220  ORDER BY (state IN ('open', 'draft')) DESC, pr_updated_at DESC",
+   "   221  LIMIT 1;",
+   "   222  ",
+   "   223  -- name: ListIssueIDsForPullRequest :many"
+  ]
+ },
+ {
+  "id": "6907cb625ff9",
+  "repository": "TheAlgorithms/Python",
+  "path": "strings/credit_card_validator.py",
+  "line": 24,
+  "family": "PII: CREDIT",
+  "source": ">>> luhn_validation('4111111111111111')",
+  "context": [
+   "    21  def luhn_validation(credit_card_number: str) -> bool:",
+   "    22      \"\"\"",
+   "    23      Function to luhn algorithm validation for a given credit card number.",
+   "    24      >>> luhn_validation('4111111111111111')",
+   "    25      True",
+   "    26      >>> luhn_validation('36111111111111')",
+   "    27      True"
+  ]
+ },
+ {
+  "id": "b5ab91870484",
+  "repository": "gatsbyjs/gatsby",
+  "path": "packages/gatsby/src/schema/__tests__/queries.js",
+  "line": 2014,
+  "family": "3DES",
+  "source": "allMarkdown(sort: { fields: [frontmatter___title], order: DESC}) {",
+  "context": [
+   "  2011      it(`DESC sort on one field`, async () => {",
+   "  2012        const query = `",
+   "  2013          {",
+   "  2014            allMarkdown(sort: { fields: [frontmatter___title], order: DESC}) {",
+   "  2015              nodes {",
+   "  2016                frontmatter {",
+   "  2017                  title"
+  ]
+ },
+ {
+  "id": "773c5e5ac0f5",
+  "repository": "redis/redis",
+  "path": "deps/jemalloc/src/ctl.c",
+  "line": 1430,
+  "family": "3DES",
+  "source": "if ((ctl_darena = arenas_i_impl(tsd, MALLCTL_ARENAS_DESTROYED,",
+  "context": [
+   "  1427  \t\t}",
+   "  1428  \t\tctl_sarena->initialized = true;",
+   "  1429  ",
+   "  1430  \t\tif ((ctl_darena = arenas_i_impl(tsd, MALLCTL_ARENAS_DESTROYED,",
+   "  1431  \t\t    false, true)) == NULL) {",
+   "  1432  \t\t\tret = true;",
+   "  1433  \t\t\tgoto label_return;"
+  ]
+ },
+ {
+  "id": "d0cfe2e74eaf",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-atm/src/ltq_atm.c",
+  "line": 129,
+  "family": "3DES",
+  "source": "MODULE_PARM_DESC(aal5s_max_packet_size, \"Max packet size in byte for upstream AAL5 frames\");",
+  "context": [
+   "   126  MODULE_PARM(aal5r_min_packet_size, \"i\");",
+   "   127  MODULE_PARM_DESC(aal5r_min_packet_size, \"Min packet size in byte for downstream AAL5 frames\");",
+   "   128  MODULE_PARM(aal5s_max_packet_size, \"i\");",
+   "   129  MODULE_PARM_DESC(aal5s_max_packet_size, \"Max packet size in byte for upstream AAL5 frames\");",
+   "   130  MODULE_PARM(aal5s_min_packet_size, \"i\");",
+   "   131  MODULE_PARM_DESC(aal5s_min_packet_size, \"Min packet size in byte for upstream AAL5 frames\");",
+   "   132  MODULE_PARM(aal5r_drop_error_packet, \"i\");"
+  ]
+ },
+ {
+  "id": "4b6d2fa13b4a",
+  "repository": "coder/code-server",
+  "path": "test/unit/node/util.test.ts",
+  "line": 347,
+  "family": "ARGON2",
+  "source": "cookieKey: \"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9H\",",
+  "context": [
+   "   344    it(\"should be invalid if hashed-password for PLAIN_TEXT does not match cookie.key\", async () => {",
+   "   345      const isValid = await util.isCookieValid({",
+   "   346        passwordMethod: \"PLAIN_TEXT\",",
+   "   347        cookieKey: \"$argon2i$v=19$m=4096,t=3,p=1$0qR/o+0t00hsbJFQCKSfdQ$oFcM4rL6o+B7oxpuA4qlXubypbBPsf+8L531U7P9H\",",
+   "   348        passwordFromArgs: \"password1234\",",
+   "   349        hashedPasswordFromArgs: undefined,",
+   "   350      })"
+  ]
+ },
+ {
+  "id": "4918ee46406f",
+  "repository": "allinurl/goaccess",
+  "path": "src/sort.c",
+  "line": 109,
+  "family": "3DES",
+  "source": "{NOT_FOUND           , SORT_BY_HITS , SORT_DESC } ,",
+  "context": [
+   "   106    {VISITORS            , SORT_BY_DATA , SORT_DESC } ,",
+   "   107    {REQUESTS            , SORT_BY_HITS , SORT_DESC } ,",
+   "   108    {REQUESTS_STATIC     , SORT_BY_HITS , SORT_DESC } ,",
+   "   109    {NOT_FOUND           , SORT_BY_HITS , SORT_DESC } ,",
+   "   110    {HOSTS               , SORT_BY_HITS , SORT_DESC } ,",
+   "   111    {OS                  , SORT_BY_HITS , SORT_DESC } ,",
+   "   112    {BROWSERS            , SORT_BY_HITS , SORT_DESC } ,"
+  ]
+ },
+ {
+  "id": "4f6f22e3f193",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/vrx518_ep/src/test/ep_test.c",
+  "line": 674,
+  "family": "3DES",
+  "source": "size = TXIN_SOC_DES_NUM * TXIN_HD_DES_SIZE * 4;",
+  "context": [
+   "   671  \t\treturn -EINVAL;",
+   "   672  ",
+   "   673  \t/* TXIN */",
+   "   674  \tsize = TXIN_SOC_DES_NUM * TXIN_HD_DES_SIZE * 4;",
+   "   675  \tbase  = dma_alloc_coherent(NULL, size, &phy_addr, GFP_DMA);",
+   "   676  \tif (!base)",
+   "   677  \t\tgoto txin;"
+  ]
+ },
+ {
+  "id": "9a840afd7d4b",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/components/features/flow/components/graphs/PanAndZoomWrapper/ZoomControls.tsx",
+  "line": 135,
+  "family": "3DES",
+  "source": "flowActor.send({ type: FlowActionTypes.TOGGLE_SHOW_DESCRIPTION });",
+  "context": [
+   "   132      state.hasTag(\"showDescription\"),",
+   "   133    );",
+   "   134    const handleToggleShowDescription = useCallback(() => {",
+   "   135      flowActor.send({ type: FlowActionTypes.TOGGLE_SHOW_DESCRIPTION });",
+   "   136      logrocketTrackIfEnabled(\"user_toggle_show_description\");",
+   "   137    }, [flowActor]);",
+   "   138  "
+  ]
+ },
+ {
+  "id": "049c5ea9125b",
+  "repository": "usememos/memos",
+  "path": "store/db/postgres/memo.go",
+  "line": 107,
+  "family": "3DES",
+  "source": "orderBy = append(orderBy, \"pinned DESC\")",
+  "context": [
+   "   104  \t}",
+   "   105  \torderBy := []string{}",
+   "   106  \tif find.OrderByPinned {",
+   "   107  \t\torderBy = append(orderBy, \"pinned DESC\")",
+   "   108  \t}",
+   "   109  \tif find.OrderByUpdatedTs {",
+   "   110  \t\torderBy = append(orderBy, \"updated_ts \"+order)"
+  ]
+ },
+ {
+  "id": "79211112bb3f",
+  "repository": "openwrt/openwrt",
+  "path": "package/base-files/files/lib/functions/system.sh",
+  "line": 134,
+  "family": "DES",
+  "source": "uencrypt -n -d -k $key -c des-ecb | hexdump -v -n 6 -e '5/1 \"%02x:\" 1/1 \"%02x\"')",
+  "context": [
+   "   131  \t\tuencrypt -n -d -k $tplink_key -c des-ecb | hexdump -v -n 8 -e '1/1 \"%02x\"')",
+   "   132  ",
+   "   133  \tmacaddr=$(dd if=$mtdname bs=1 skip=32 count=8 2>/dev/null | \\",
+   "   134  \t\tuencrypt -n -d -k $key -c des-ecb | hexdump -v -n 6 -e '5/1 \"%02x:\" 1/1 \"%02x\"')",
+   "   135  ",
+   "   136  \techo $macaddr",
+   "   137  }"
+  ]
+ },
+ {
+  "id": "5d308e2b715c",
+  "repository": "usememos/memos",
+  "path": "server/router/api/v1/test/idp_service_test.go",
+  "line": 381,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "ClientSecret: \"original-secret\",",
+  "context": [
+   "   378  \t\t\t\t\tConfig: &v1pb.IdentityProviderConfig_Oauth2Config{",
+   "   379  \t\t\t\t\t\tOauth2Config: &v1pb.OAuth2Config{",
+   "   380  \t\t\t\t\t\t\tClientId:     \"cid\",",
+   "   381  \t\t\t\t\t\t\tClientSecret: \"original-secret\",",
+   "   382  \t\t\t\t\t\t\tAuthUrl:      \"https://ex.com/auth\",",
+   "   383  \t\t\t\t\t\t\tTokenUrl:     \"https://ex.com/token\",",
+   "   384  \t\t\t\t\t\t\tUserInfoUrl:  \"https://ex.com/user\","
+  ]
+ },
+ {
+  "id": "c2dad09cb0ed",
+  "repository": "starship/starship",
+  "path": "src/modules/utils/directory_win.rs",
+  "line": 71,
+  "family": "3DES",
+  "source": "let psecurity_descriptor = PSECURITY_DESCRIPTOR(buf.as_mut_ptr().cast::<std::ffi::c_void>());",
+  "context": [
+   "    68      }",
+   "    69  ",
+   "    70      let mut buf = vec![0u8; length as usize];",
+   "    71      let psecurity_descriptor = PSECURITY_DESCRIPTOR(buf.as_mut_ptr().cast::<std::ffi::c_void>());",
+   "    72  ",
+   "    73      let rc = unsafe {",
+   "    74          GetFileSecurityW("
+  ]
+ },
+ {
+  "id": "8fe8a01b8793",
+  "repository": "redis/redis",
+  "path": "deps/jemalloc/src/arena.c",
+  "line": 730,
+  "family": "3DES",
+  "source": "assert(n < ARENA_DESTROY_MAX_DELAYED_MTX);",
+  "context": [
+   "   727  \t\treturn;",
+   "   728  \t}",
+   "   729  \tunsigned n = *n_delayed;",
+   "   730  \tassert(n < ARENA_DESTROY_MAX_DELAYED_MTX);",
+   "   731  \t/* Add another to the batch. */",
+   "   732  \tdelayed_mtx[n++] = mtx;",
+   "   733  "
+  ]
+ },
+ {
+  "id": "5493eb5d82e9",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/github_test.go",
+  "line": 542,
+  "family": "HMAC",
+  "source": "mac := hmac.New(sha256.New, []byte(secret))",
+  "context": [
+   "   539  \t\t\"repository\":   map[string]any{\"name\": \"r\", \"owner\": map[string]any{\"login\": \"o\"}},",
+   "   540  \t\t\"installation\": map[string]any{\"id\": installationID},",
+   "   541  \t})",
+   "   542  \tmac := hmac.New(sha256.New, []byte(secret))",
+   "   543  \tmac.Write(body)",
+   "   544  \tsig := \"sha256=\" + hex.EncodeToString(mac.Sum(nil))",
+   "   545  "
+  ]
+ },
+ {
+  "id": "9c279d268fc5",
+  "repository": "allinurl/goaccess",
+  "path": "src/ui.c",
+  "line": 368,
+  "family": "3DES",
+  "source": "TLS_TYPE_DESC,",
+  "context": [
+   "   365      ASN_DESC,",
+   "   366  #endif",
+   "   367      MIME_TYPE_DESC,",
+   "   368      TLS_TYPE_DESC,",
+   "   369    };",
+   "   370    return _(modules[module]);",
+   "   371  }"
+  ]
+ },
+ {
+  "id": "6d5bc061c7b0",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/rendering.test.ts",
+  "line": 390,
+  "family": "SHA",
+  "source": "assert.ok(content.includes('sha256-customStyleHash'), 'Should include custom style hash');",
+  "context": [
+   "   387  \t\t\tassert.ok(content.includes(\"script-src 'self'\"), 'Should have default script-src');",
+   "   388  ",
+   "   389  \t\t\t// Check hashes",
+   "   390  \t\t\tassert.ok(content.includes('sha256-customStyleHash'), 'Should include custom style hash');",
+   "   391  ",
+   "   392  \t\t\t// Check directives are merged",
+   "   393  \t\t\tassert.ok(content.includes(\"default-src 'self'\"), 'Should include default-src');"
+  ]
+ },
+ {
+  "id": "c5da2a6f9180",
+  "repository": "usememos/memos",
+  "path": "store/test/idp_test.go",
+  "line": 454,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "ClientSecret: \"client_secret\",",
+  "context": [
+   "   451  \t\t\tConfig: &storepb.IdentityProviderConfig_Oauth2Config{",
+   "   452  \t\t\t\tOauth2Config: &storepb.OAuth2Config{",
+   "   453  \t\t\t\t\tClientId:     \"client_id\",",
+   "   454  \t\t\t\t\tClientSecret: \"client_secret\",",
+   "   455  \t\t\t\t\tAuthUrl:      \"https://provider.com/auth\",",
+   "   456  \t\t\t\t\tTokenUrl:     \"https://provider.com/token\",",
+   "   457  \t\t\t\t\tUserInfoUrl:  \"https://provider.com/userinfo\","
+  ]
+ },
+ {
+  "id": "5edfffa9b9d3",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchat/Services/BLE/BLEOutboundFragmentTransferScheduler.swift",
+  "line": 34,
+  "family": "SHA",
+  "source": "return packet.payload.sha256Hex()",
+  "context": [
+   "    31      var resolvedTransferId: String? {",
+   "    32          if let transferId { return transferId }",
+   "    33          guard packet.type == MessageType.fileTransfer.rawValue else { return nil }",
+   "    34          return packet.payload.sha256Hex()",
+   "    35      }",
+   "    36  ",
+   "    37      /// Content identity independent of the caller-chosen transfer ID: the"
+  ]
+ },
+ {
+  "id": "7abea6d08fc7",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 33464,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 33461            method: \"GET\",",
+   " 33462            asyncComplete: false,",
+   " 33463            readTimeOut: \"3000\",",
+   " 33464            _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 33465            uri: \"https://orkes-api-tester.orkesconductor.com/api\",",
+   " 33466            connectionTimeOut: 3000,",
+   " 33467            contentType: \"application/json\","
+  ]
+ },
+ {
+  "id": "9ad1c12748e7",
+  "repository": "redis/redis",
+  "path": "src/sha256.h",
+  "line": 33,
+  "family": "SHA",
+  "source": "void sha256_final(SHA256_CTX *ctx, BYTE hash[]);",
+  "context": [
+   "    30  /*********************** FUNCTION DECLARATIONS **********************/",
+   "    31  void sha256_init(SHA256_CTX *ctx);",
+   "    32  void sha256_update(SHA256_CTX *ctx, const BYTE data[], size_t len);",
+   "    33  void sha256_final(SHA256_CTX *ctx, BYTE hash[]);",
+   "    34  ",
+   "    35  #endif   // SHA256_H"
+  ]
+ },
+ {
+  "id": "57573ed4be49",
+  "repository": "usememos/memos",
+  "path": "internal/webhook/webhook.go",
+  "line": 8,
+  "family": "SHA",
+  "source": "\"crypto/sha256\"",
+  "context": [
+   "     5  \t\"context\"",
+   "     6  \t\"crypto/hmac\"",
+   "     7  \t\"crypto/rand\"",
+   "     8  \t\"crypto/sha256\"",
+   "     9  \t\"encoding/base64\"",
+   "    10  \t\"encoding/json\"",
+   "    11  \t\"io\""
+  ]
+ },
+ {
+  "id": "c079d3de9c50",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchatTests/Services/BLEAnnounceHandlerTests.swift",
+  "line": 844,
+  "family": "SHA",
+  "source": "fingerprint: announcement.noisePublicKey.sha256Fingerprint(),",
+  "context": [
+   "   841                  updateTopology: { _, _ in },",
+   "   842                  persistIdentity: { announcement in",
+   "   843                      identityManager.upsertCryptographicIdentity(",
+   "   844                          fingerprint: announcement.noisePublicKey.sha256Fingerprint(),",
+   "   845                          noisePublicKey: announcement.noisePublicKey,",
+   "   846                          signingPublicKey: announcement.signingPublicKey,",
+   "   847                          claimedNickname: announcement.nickname"
+  ]
+ },
+ {
+  "id": "e11280b0ed95",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/e2e/integration/scheduler-definitions.spec.ts",
+  "line": 33,
+  "family": "3DES",
+  "source": "description: DESCRIPTION,",
+  "context": [
+   "    30  const WORKFLOW: WorkflowDef = {",
+   "    31    name: WF_NAME,",
+   "    32    version: 1,",
+   "    33    description: DESCRIPTION,",
+   "    34    ownerEmail: \"e2e@conductor.test\",",
+   "    35    schemaVersion: 2,",
+   "    36    tasks: ["
+  ]
+ },
+ {
+  "id": "d5be7d552a81",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/vrx518_ep/src/test/ep_test.c",
+  "line": 360,
+  "family": "3DES",
+  "source": "MODULE_PARM_DESC(dma_pkt_size, \"Single packet length\");",
+  "context": [
+   "   357  static int desc_num = 32;",
+   "   358  ",
+   "   359  module_param(dma_pkt_size, int, 0);",
+   "   360  MODULE_PARM_DESC(dma_pkt_size, \"Single packet length\");",
+   "   361  ",
+   "   362  module_param(dma_mode, int, 0);",
+   "   363  MODULE_PARM_DESC(dma_mode, \"mode 0 -- Soc->EP, mode 1-- EP->SoC\");"
+  ]
+ },
+ {
+  "id": "5fbd5112e1e8",
+  "repository": "multica-ai/multica",
+  "path": "packages/views/agents/create/agent-configuration-panel.tsx",
+  "line": 137,
+  "family": "3DES",
+  "source": "maxLength={AGENT_DESCRIPTION_MAX_LENGTH}",
+  "context": [
+   "   134                  // The create API rejects >255 characters with a 400. Cap the",
+   "   135                  // input and show the counter so the limit is visible before",
+   "   136                  // submitting, matching the settings page.",
+   "   137                  maxLength={AGENT_DESCRIPTION_MAX_LENGTH}",
+   "   138                  className=\"resize-y\"",
+   "   139                />",
+   "   140                <CharCounter"
+  ]
+ },
+ {
+  "id": "5ba768b60d1c",
+  "repository": "openwrt/openwrt",
+  "path": "package/utils/px5g-wolfssl/px5g-wolfssl.c",
+  "line": 116,
+  "family": "RSA",
+  "source": "fprintf(stderr, \"Generating RSA private key, %i bit long modulus\\n\", keySz);",
+  "context": [
+   "   113      fprintf(stderr, \"Generating EC private key\\n\");",
+   "   114      ret = wc_ecc_make_key_ex(rng, 32, ecKey, curve);",
+   "   115    } else {",
+   "   116      fprintf(stderr, \"Generating RSA private key, %i bit long modulus\\n\", keySz);",
+   "   117      ret = wc_MakeRsaKey(rsaKey, keySz, WC_RSA_EXPONENT, rng);",
+   "   118    }",
+   "   119    if (ret != 0) {"
+  ]
+ },
+ {
+  "id": "add342201916",
+  "repository": "multica-ai/multica",
+  "path": "apps/desktop/scripts/worktree-dev-env.test.mjs",
+  "line": 123,
+  "family": "3DES",
+  "source": "expect(env.DESKTOP_RENDERER_PORT).toBe(\"9999\");",
+  "context": [
+   "   120      const root = tmpRoot(\"file\");",
+   "   121      const env = { DESKTOP_RENDERER_PORT: \"9999\" };",
+   "   122      applyWorktreeDevEnv(env, { root });",
+   "   123      expect(env.DESKTOP_RENDERER_PORT).toBe(\"9999\");",
+   "   124      expect(env.DESKTOP_APP_SUFFIX).toBe(appSuffixForPath(root));",
+   "   125    });",
+   "   126  });"
+  ]
+ },
+ {
+  "id": "ea297304d0a9",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/rendering.test.ts",
+  "line": 170,
+  "family": "SHA",
+  "source": "scriptHashes: ['sha256-xyz789', 'sha256-uvw456'],",
+  "context": [
+   "   167  \tdescribe('Script Hashes', () => {",
+   "   168  \t\tit('should contain script hashes in meta tag when using client islands', async () => {",
+   "   169  \t\t\tconst pipeline = createCspPipeline({",
+   "   170  \t\t\t\tscriptHashes: ['sha256-xyz789', 'sha256-uvw456'],",
+   "   171  \t\t\t});",
+   "   172  ",
+   "   173  \t\t\tconst { html } = await renderPage(SimplePage, pipeline);"
+  ]
+ },
+ {
+  "id": "d714a479b300",
+  "repository": "openwrt/openwrt",
+  "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+  "line": 221,
+  "family": "RSA",
+  "source": "bool rsa = true;",
+  "context": [
+   "   218  \ttime_t from = time(NULL), to;",
+   "   219  \tchar fstr[20], tstr[20], sstr[17];",
+   "   220  \tint len;",
+   "   221  \tbool rsa = true;",
+   "   222  \tmbedtls_ecp_group_id curve = MBEDTLS_ECP_DP_SECP256R1;",
+   "   223  ",
+   "   224  \twhile (*arg && **arg == '-') {"
+  ]
+ },
+ {
+  "id": "39604a51970f",
+  "repository": "openwrt/openwrt",
+  "path": "scripts/config/nconf.gui.c",
+  "line": 261,
+  "family": "3DES",
+  "source": "menu_opts_off(menu, O_SHOWDESC);",
+  "context": [
+   "   258  \tset_menu_win(menu, win);",
+   "   259  \tset_menu_sub(menu, menu_win);",
+   "   260  \tset_menu_format(menu, 1, btn_num);",
+   "   261  \tmenu_opts_off(menu, O_SHOWDESC);",
+   "   262  \tmenu_opts_off(menu, O_SHOWMATCH);",
+   "   263  \tmenu_opts_on(menu, O_ONEVALUE);",
+   "   264  \tmenu_opts_on(menu, O_NONCYCLIC);"
+  ]
+ },
+ {
+  "id": "0c8332fa1d95",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/search_test.go",
+  "line": 337,
+  "family": "3DES",
+  "source": "if !strings.Contains(orderBy, \"i.updated_at DESC\") {",
+  "context": [
+   "   334  \tif !strings.Contains(orderBy, \"WHEN 'in_progress' THEN 0\") {",
+   "   335  \t\tt.Errorf(\"statusRank was dropped from ORDER BY:\\n%s\", orderBy)",
+   "   336  \t}",
+   "   337  \tif !strings.Contains(orderBy, \"i.updated_at DESC\") {",
+   "   338  \t\tt.Errorf(\"recency tie-breaker was dropped from ORDER BY:\\n%s\", orderBy)",
+   "   339  \t}",
+   "   340  }"
+  ]
+ },
+ {
+  "id": "0a46dc5f6d3b",
+  "repository": "usememos/memos",
+  "path": "server/router/api/v1/test/user_service_registration_test.go",
+  "line": 146,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "Password: \"password123\",",
+  "context": [
+   "   143  \t\t\tUser: &apiv1.User{",
+   "   144  \t\t\t\tUsername: \"newadmin\",",
+   "   145  \t\t\t\tEmail:    \"newadmin@example.com\",",
+   "   146  \t\t\t\tPassword: \"password123\",",
+   "   147  \t\t\t\tRole:     apiv1.User_ADMIN,",
+   "   148  \t\t\t},",
+   "   149  \t\t})"
+  ]
+ },
+ {
+  "id": "5f59deba7eab",
+  "repository": "openwrt/openwrt",
+  "path": "package/network/services/ead/src/tinysrp/t_client.c",
+  "line": 88,
+  "family": "SHA-1",
+  "source": "SHA1Init(&ctxt);",
+  "context": [
+   "    85    tc->n.data = tc->nbuf;",
+   "    86    memcpy(tc->n.data, n->data, tc->n.len);",
+   "    87  ",
+   "    88    SHA1Init(&ctxt);",
+   "    89    SHA1Update(&ctxt, tc->n.data, tc->n.len);",
+   "    90    SHA1Final(buf1, &ctxt);",
+   "    91  "
+  ]
+ },
+ {
+  "id": "9406bcb72995",
+  "repository": "TheAlgorithms/Python",
+  "path": "machine_learning/dimensionality_reduction.py",
+  "line": 1,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "#  Copyright (c) 2023 Diego Gasco (diego.gasco99@gmail.com), Diegomangasco on GitHub",
+  "context": [
+   "     1  #  Copyright (c) 2023 Diego Gasco (diego.gasco99@gmail.com), Diegomangasco on GitHub",
+   "     2  ",
+   "     3  \"\"\"",
+   "     4  Requirements:"
+  ]
+ },
+ {
+  "id": "45e64772d717",
+  "repository": "allinurl/goaccess",
+  "path": "src/sort.c",
+  "line": 522,
+  "family": "3DES",
+  "source": "if (sort.sort == SORT_DESC)",
+  "context": [
+   "   519        qsort (items, size, sizeof (GHolderItem), cmp_avgts_asc);",
+   "   520      break;",
+   "   521    case SORT_BY_CUMTS:",
+   "   522      if (sort.sort == SORT_DESC)",
+   "   523        qsort (items, size, sizeof (GHolderItem), cmp_cumts_desc);",
+   "   524      else",
+   "   525        qsort (items, size, sizeof (GHolderItem), cmp_cumts_asc);"
+  ]
+ },
+ {
+  "id": "1e7e7709506f",
+  "repository": "usememos/memos",
+  "path": "internal/ai/stt/openai/openai_test.go",
+  "line": 50,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "APIKey:   \"test-key\",",
+  "context": [
+   "    47  \ttranscriber, err := sttopenai.New(ai.ProviderConfig{",
+   "    48  \t\tType:     ai.ProviderOpenAI,",
+   "    49  \t\tEndpoint: server.URL,",
+   "    50  \t\tAPIKey:   \"test-key\",",
+   "    51  \t}, stt.ApplyOptions(nil))",
+   "    52  \trequire.NoError(t, err)",
+   "    53  "
+  ]
+ },
+ {
+  "id": "24ade05f5409",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/webhook_delivery_test.go",
+  "line": 46,
+  "family": "HMAC",
+  "source": "mac := hmac.New(sha256.New, []byte(secret))",
+  "context": [
+   "    43  }",
+   "    44  ",
+   "    45  func signBody(secret string, body []byte) string {",
+   "    46  \tmac := hmac.New(sha256.New, []byte(secret))",
+   "    47  \tmac.Write(body)",
+   "    48  \treturn \"sha256=\" + hex.EncodeToString(mac.Sum(nil))",
+   "    49  }"
+  ]
+ },
+ {
+  "id": "efc3d80b5145",
+  "repository": "usememos/memos",
+  "path": "web/src/components/CreateWebhookDialog.tsx",
+  "line": 98,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "const secret = \"whsec_\" + btoa(String.fromCharCode(...bytes));",
+  "context": [
+   "    95    const handleGenerateSecret = async () => {",
+   "    96      if (!webhookName) return;",
+   "    97      const bytes = crypto.getRandomValues(new Uint8Array(32));",
+   "    98      const secret = \"whsec_\" + btoa(String.fromCharCode(...bytes));",
+   "    99      try {",
+   "   100        secretState.setLoading();",
+   "   101        await userServiceClient.updateUserWebhook({"
+  ]
+ },
+ {
+  "id": "93033c42bfd9",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 42636,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 42633            evaluatorType: \"graaljs\",",
+   " 42634            expression:",
+   " 42635              \"(function () {\\n  return Math.floor(Math.random() *3) + 1;\\n})();\",",
+   " 42636            _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 42637          },",
+   " 42638          referenceTaskName: \"inline_ref__6\",",
+   " 42639          retryCount: 0,"
+  ]
+ },
+ {
+  "id": "947e89e26876",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/github_test.go",
+  "line": 1594,
+  "family": "SHA",
+  "source": "sig := \"sha256=\" + hex.EncodeToString(mac.Sum(nil))",
+  "context": [
+   "  1591  \traw, _ := json.Marshal(payload)",
+   "  1592  \tmac := hmac.New(sha256.New, []byte(secret))",
+   "  1593  \tmac.Write(raw)",
+   "  1594  \tsig := \"sha256=\" + hex.EncodeToString(mac.Sum(nil))",
+   "  1595  ",
+   "  1596  \thookReq := httptest.NewRequest(\"POST\", \"/api/webhooks/github\", bytes.NewReader(raw))",
+   "  1597  \thookReq.Header.Set(\"X-GitHub-Event\", \"pull_request\")"
+  ]
+ },
+ {
+  "id": "e00b86ebf43b",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/user_language_test.go",
+  "line": 130,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "userID := newLanguageTestUser(t, \"lang-preserve@multica.ai\")",
+  "context": [
+   "   127  ",
+   "   128  // COALESCE semantics: omitting language must NOT clear an existing value.",
+   "   129  func TestUpdateMePreservesLanguageWhenNotProvided(t *testing.T) {",
+   "   130  \tuserID := newLanguageTestUser(t, \"lang-preserve@multica.ai\")",
+   "   131  ",
+   "   132  \tif _, err := testPool.Exec(context.Background(),",
+   "   133  \t\t`UPDATE \"user\" SET language = 'en' WHERE id = $1`, userID,"
+  ]
+ },
+ {
+  "id": "18d2ef002d05",
+  "repository": "withastro/astro",
+  "path": "packages/astro/src/assets/utils/node.ts",
+  "line": 91,
+  "family": "3DES",
+  "source": "if (code && TRANSIENT_ERROR_CODES.has(code) && attempt < maxRetries) {",
+  "context": [
+   "    88  \t\t\t} catch (err) {",
+   "    89  \t\t\t\tconst code =",
+   "    90  \t\t\t\t\terr instanceof Error && 'code' in err ? (err as NodeJS.ErrnoException).code : undefined;",
+   "    91  \t\t\t\tif (code && TRANSIENT_ERROR_CODES.has(code) && attempt < maxRetries) {",
+   "    92  \t\t\t\t\tawait new Promise((resolve) => setTimeout(resolve, 50 * 2 ** attempt));",
+   "    93  \t\t\t\t\tcontinue;",
+   "    94  \t\t\t\t}"
+  ]
+ },
+ {
+  "id": "d1345ca6b8f2",
+  "repository": "conductor-oss/conductor",
+  "path": "test-util/src/test/java/com/netflix/conductor/test/integration/AbstractEndToEndTest.java",
+  "line": 57,
+  "family": "3DES",
+  "source": "private static final String DEFAULT_DESCRIPTION = \"description\";",
+  "context": [
+   "    54      private static final Logger log = LoggerFactory.getLogger(AbstractEndToEndTest.class);",
+   "    55  ",
+   "    56      private static final String TASK_DEFINITION_PREFIX = \"task_\";",
+   "    57      private static final String DEFAULT_DESCRIPTION = \"description\";",
+   "    58      // Represents null value deserialized from the redis in memory db",
+   "    59      private static final String DEFAULT_NULL_VALUE = \"null\";",
+   "    60      protected static final String DEFAULT_EMAIL_ADDRESS = \"test@harness.com\";"
+  ]
+ },
+ {
+  "id": "c45f7e0e24b3",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/w32_common.c",
+  "line": 1489,
+  "family": "3DES",
+  "source": "case WM_DESTROY:",
+  "context": [
+   "  1486          mp_input_put_key(w32->input_ctx, MP_KEY_CLOSE_WIN);",
+   "  1487          return 0;",
+   "  1488      case WM_NCDESTROY: // Sometimes only WM_NCDESTROY is received in --wid mode",
+   "  1489      case WM_DESTROY:",
+   "  1490          if (w32->destroyed)",
+   "  1491              break;",
+   "  1492          // If terminate is not set, something else destroyed the window. This"
+  ]
+ },
+ {
+  "id": "fd11949c1b6e",
+  "repository": "starship/starship",
+  "path": "src/configs/rlang.rs",
+  "line": 30,
+  "family": "3DES",
+  "source": "detect_files: vec![\"DESCRIPTION\"],",
+  "context": [
+   "    27              symbol: \"\ud83d\udcd0 \",",
+   "    28              disabled: false,",
+   "    29              detect_extensions: vec![\"R\", \"Rd\", \"Rmd\", \"Rproj\", \"Rsx\"],",
+   "    30              detect_files: vec![\"DESCRIPTION\"],",
+   "    31              detect_folders: vec![\".Rproj.user\"],",
+   "    32          }",
+   "    33      }"
+  ]
+ },
+ {
+  "id": "0e4ccc40c6a1",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-ptm/src/ifxmips_ptm_vdsl.c",
+  "line": 912,
+  "family": "3DES",
+  "source": "for ( i = 0; i < WAN_TX_DESC_NUM; i++ ) {",
+  "context": [
+   "   909      }",
+   "   910  ",
+   "   911      for ( j = 0; j < 8; j++ )",
+   "   912          for ( i = 0; i < WAN_TX_DESC_NUM; i++ ) {",
+   "   913              skb = get_skb_pointer(WAN_TX_DESC_BASE(j)[i].dataptr);",
+   "   914              if ( skb != NULL )",
+   "   915                  dev_kfree_skb_any(skb);"
+  ]
+ },
+ {
+  "id": "a6d5fd65841e",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 9211,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   "  9208          method: \"GET\",",
+   "  9209          asyncComplete: false,",
+   "  9210          readTimeOut: \"3000\",",
+   "  9211          _createdBy: \"najeeb.thangal@orkes.io\",",
+   "  9212          uri: \"https://orkes-api-tester.orkesconductor.com/api\",",
+   "  9213          connectionTimeOut: 3000,",
+   "  9214          contentType: \"application/json\","
+  ]
+ },
+ {
+  "id": "171137a6b159",
+  "repository": "coder/code-server",
+  "path": "src/node/util.ts",
+  "line": 1,
+  "family": "ARGON2",
+  "source": "import * as argon2 from \"argon2\"",
+  "context": [
+   "     1  import * as argon2 from \"argon2\"",
+   "     2  import * as cp from \"child_process\"",
+   "     3  import * as crypto from \"crypto\"",
+   "     4  import envPaths from \"env-paths\""
+  ]
+ },
+ {
+  "id": "669b1c6ad282",
+  "repository": "multica-ai/multica",
+  "path": "packages/views/skills/components/skill-detail-page.test.tsx",
+  "line": 326,
+  "family": "3DES",
+  "source": "expect(field.value).toBe(LONG_DESCRIPTION);",
+  "context": [
+   "   323    it(\"renders the whole description in an editable field sized for it\", async () => {",
+   "   324      renderPage();",
+   "   325      const field = (await screen.findByLabelText(\"Description\")) as HTMLTextAreaElement;",
+   "   326      expect(field.value).toBe(LONG_DESCRIPTION);",
+   "   327      expect(Number(field.rows)).toBeGreaterThanOrEqual(4);",
+   "   328      expect(",
+   "   329        screen.getByText(`${LONG_DESCRIPTION.length} characters.`, { exact: false }),"
+  ]
+ },
+ {
+  "id": "aa8762e7cd82",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/integrations/vcs/vcs_test.go",
+  "line": 62,
+  "family": "SHA",
+  "source": "t.Error(\"sha256-prefixed signature rejected\")",
+  "context": [
+   "    59  \t}",
+   "    60  \th.Set(\"X-Gitea-Signature\", \"sha256=\"+valid)",
+   "    61  \tif !p.VerifySignature(secret, h, body) {",
+   "    62  \t\tt.Error(\"sha256-prefixed signature rejected\")",
+   "    63  \t}",
+   "    64  \tif p.VerifySignature(\"wrong\", h, body) {",
+   "    65  \t\tt.Error(\"wrong secret accepted\")"
+  ]
+ },
+ {
+  "id": "f7f57774cd5e",
+  "repository": "starship/starship",
+  "path": "src/modules/rust.rs",
+  "line": 618,
+  "family": "3DES",
+  "source": "static OVERRIDES_CWD_A: &str = r\"\\\\?\\C:\\src1\";",
+  "context": [
+   "   615  \"#,",
+   "   616          )",
+   "   617          .unwrap();",
+   "   618          static OVERRIDES_CWD_A: &str = r\"\\\\?\\C:\\src1\";",
+   "   619          static OVERRIDES_CWD_B: &str = r\"C:\\src1\";",
+   "   620          static OVERRIDES_CWD_C: &str = r\"\\\\?\\C:\\src2\";",
+   "   621          static OVERRIDES_CWD_D: &str = r\"C:\\src2\";"
+  ]
+ },
+ {
+  "id": "2d567d06537c",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-ptm/src/ifxmips_ptm_vdsl.c",
+  "line": 622,
+  "family": "3DES",
+  "source": "desc = &WAN_SWAP_DESC_BASE[g_ptm_priv_data.itf[0].tx_swap_desc_pos];",
+  "context": [
+   "   619  \tif ( WAN_SWAP_DESC_BASE[g_ptm_priv_data.itf[0].tx_swap_desc_pos].own )  //  if PP32 hold descriptor",
+   "   620              break;",
+   "   621  ",
+   "   622          desc = &WAN_SWAP_DESC_BASE[g_ptm_priv_data.itf[0].tx_swap_desc_pos];",
+   "   623          if ( ++g_ptm_priv_data.itf[0].tx_swap_desc_pos == WAN_SWAP_DESC_NUM )",
+   "   624              g_ptm_priv_data.itf[0].tx_swap_desc_pos = 0;",
+   "   625  "
+  ]
+ },
+ {
+  "id": "eaeca97fc491",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/analytics/client_test.go",
+  "line": 44,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "APIKey:     \"test-key\",",
+  "context": [
+   "    41  \tdefer srv.Close()",
+   "    42  ",
+   "    43  \tc := NewPostHogClient(PostHogConfig{",
+   "    44  \t\tAPIKey:     \"test-key\",",
+   "    45  \t\tHost:       srv.URL,",
+   "    46  \t\tBatchSize:  2,",
+   "    47  \t\tFlushEvery: time.Hour, // irrelevant, we hit the size trigger"
+  ]
+ },
+ {
+  "id": "75882fc7e3c6",
+  "repository": "TheAlgorithms/Python",
+  "path": "maths/extended_euclidean_algorithm.py",
+  "line": 12,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "# @Email:  silentcat@protonmail.com",
+  "context": [
+   "     9  ",
+   "    10  # @Author: S. Sharma <silentcat>",
+   "    11  # @Date:   2019-02-25T12:08:53-06:00",
+   "    12  # @Email:  silentcat@protonmail.com",
+   "    13  # @Last modified by:   pikulet",
+   "    14  # @Last modified time: 2020-10-02",
+   "    15  from __future__ import annotations"
+  ]
+ },
+ {
+  "id": "93e96d69dc0b",
+  "repository": "openwrt/openwrt",
+  "path": "package/network/services/ead/src/tinysrp/t_client.c",
+  "line": 151,
+  "family": "SHA-1",
+  "source": "SHA1Update(&tc->hash, tc->A.data, tc->A.len);",
+  "context": [
+   "   148    BigIntegerFree(g);",
+   "   149    BigIntegerFree(n);",
+   "   150  ",
+   "   151    SHA1Update(&tc->hash, tc->A.data, tc->A.len);",
+   "   152    SHA1Update(&tc->ckhash, tc->A.data, tc->A.len);",
+   "   153  ",
+   "   154    return &tc->A;"
+  ]
+ },
+ {
+  "id": "c591ef9b47dd",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 45400,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 45397            method: \"GET\",",
+   " 45398            asyncComplete: false,",
+   " 45399            readTimeOut: \"3000\",",
+   " 45400            _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 45401            uri: \"https://orkes-api-tester.orkesconductor.com/api\",",
+   " 45402            connectionTimeOut: 3000,",
+   " 45403            contentType: \"application/json\","
+  ]
+ },
+ {
+  "id": "ad8abb9dc756",
+  "repository": "openwrt/openwrt",
+  "path": "package/network/services/ead/src/tinysrp/t_misc.c",
+  "line": 133,
+  "family": "SHA-1",
+  "source": "SHA1Update(&ctxt, (unsigned char *) &st, sizeof(st));",
+  "context": [
+   "   130  \tbreak;",
+   "   131        if(st.st_ino == pinode && st.st_dev == pdev)",
+   "   132  \tbreak;",
+   "   133        SHA1Update(&ctxt, (unsigned char *) &st, sizeof(st));",
+   "   134        pinode = st.st_ino;",
+   "   135        pdev = st.st_dev;",
+   "   136        strcat(dotpath, \"/..\");"
+  ]
+ },
+ {
+  "id": "a9d2778f3721",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+  "line": 193,
+  "family": "RC4",
+  "source": "arc4->K1R = *((u32 *) in_key + 2);",
+  "context": [
+   "   190  ",
+   "   191          arc4->K3R = *((u32 *) in_key + 0);",
+   "   192          arc4->K2R = *((u32 *) in_key + 1);",
+   "   193          arc4->K1R = *((u32 *) in_key + 2);",
+   "   194          arc4->K0R = *((u32 *) in_key + 3);",
+   "   195  ",
+   "   196  #if 0 // arc4 is a ugly state machine, KSAE can only be set once per session"
+  ]
+ },
+ {
+  "id": "f91563ebbf13",
+  "repository": "multica-ai/multica",
+  "path": "server/pkg/redact/redact_test.go",
+  "line": 321,
+  "family": "GITHUB TOKEN",
+  "source": "\"content\": \"GITHUB_TOKEN=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn\",",
+  "context": [
+   "   318  \t\t\t},",
+   "   319  \t\t\tmap[string]any{",
+   "   320  \t\t\t\t\"path\":    \".env\",",
+   "   321  \t\t\t\t\"content\": \"GITHUB_TOKEN=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn\",",
+   "   322  \t\t\t},",
+   "   323  \t\t},",
+   "   324  \t}"
+  ]
+ },
+ {
+  "id": "35170a92768c",
+  "repository": "starship/starship",
+  "path": "src/test/mod.rs",
+  "line": 260,
+  "family": "SHA",
+  "source": "pub fn fixture_repo_with_hash(provider: FixtureProvider, sha256: bool) -> io::Result<TempDir> {",
+  "context": [
+   "   257      fixture_repo_with_hash(provider, rand::random())",
+   "   258  }",
+   "   259  ",
+   "   260  pub fn fixture_repo_with_hash(provider: FixtureProvider, sha256: bool) -> io::Result<TempDir> {",
+   "   261      match provider {",
+   "   262          FixtureProvider::Fossil => {",
+   "   263              let checkout_db = if cfg!(windows) {"
+  ]
+ },
+ {
+  "id": "889511f5683d",
+  "repository": "starship/starship",
+  "path": "src/modules/rust.rs",
+  "line": 598,
+  "family": "3DES",
+  "source": "test_settings.lookup_override(OVERRIDES_CWD_F.as_ref()),",
+  "context": [
+   "   595              None",
+   "   596          );",
+   "   597          assert_eq!(",
+   "   598              test_settings.lookup_override(OVERRIDES_CWD_F.as_ref()),",
+   "   599              Some(NIGHTLY_TOOLCHAIN.to_string())",
+   "   600          );",
+   "   601      }"
+  ]
+ },
+ {
+  "id": "6e77f762213a",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/rendering.test.ts",
+  "line": 679,
+  "family": "SHA",
+  "source": "scriptHashes: ['sha256-abc123'],",
+  "context": [
+   "   676  \t\tit('should generate well-formed CSP content', async () => {",
+   "   677  \t\t\tconst pipeline = createCspPipeline({",
+   "   678  \t\t\t\tdirectives: [\"img-src 'self'\", \"default-src 'none'\"],",
+   "   679  \t\t\t\tscriptHashes: ['sha256-abc123'],",
+   "   680  \t\t\t\tscriptResources: ['https://cdn.example.com'],",
+   "   681  \t\t\t\tstyleHashes: ['sha256-def456'],",
+   "   682  \t\t\t\tstyleResources: ['https://styles.example.com'],"
+  ]
+ },
+ {
+  "id": "29afaeece9cb",
+  "repository": "openwrt/openwrt",
+  "path": "package/kernel/lantiq/ltq-deu/src/ifxmips_arc4.c",
+  "line": 329,
+  "family": "RC4",
+  "source": ".base.cra_driver_name   =       \"ifxdeu-ecb(arc4)\",",
+  "context": [
+   "   326  */",
+   "   327  static struct skcipher_alg ifxdeu_ecb_arc4_alg = {",
+   "   328          .base.cra_name          =       \"ecb(arc4)\",",
+   "   329          .base.cra_driver_name   =       \"ifxdeu-ecb(arc4)\",",
+   "   330          .base.cra_priority      =       400,",
+   "   331          .base.cra_flags         =       CRYPTO_ALG_TYPE_SKCIPHER | CRYPTO_ALG_KERN_DRIVER_ONLY,",
+   "   332          .base.cra_blocksize     =       ARC4_BLOCK_SIZE,"
+  ]
+ },
+ {
+  "id": "c7439eafe5e0",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/contact_sales_test.go",
+  "line": 177,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "{\"trim whitespace\", \"  ada@multica.ai  \", \"ada@multica.ai\", true},",
+  "context": [
+   "   174  \t}{",
+   "   175  \t\t{\"plain\", \"ada@multica.ai\", \"ada@multica.ai\", true},",
+   "   176  \t\t{\"uppercase normalized\", \"Ada@Multica.AI\", \"ada@multica.ai\", true},",
+   "   177  \t\t{\"trim whitespace\", \"  ada@multica.ai  \", \"ada@multica.ai\", true},",
+   "   178  \t\t{\"display name stripped\", \"Ada Lovelace <ada@multica.ai>\", \"ada@multica.ai\", true},",
+   "   179  \t\t{\"angle-bracketed\", \"<ada@multica.ai>\", \"ada@multica.ai\", true},",
+   "   180  \t\t{\"empty\", \"\", \"\", false},"
+  ]
+ },
+ {
+  "id": "ed244a3aa662",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/service/plugin_hook.go",
+  "line": 7,
+  "family": "SHA",
+  "source": "\"crypto/sha256\"",
+  "context": [
+   "     4  \t\"bytes\"",
+   "     5  \t\"context\"",
+   "     6  \t\"crypto/hmac\"",
+   "     7  \t\"crypto/sha256\"",
+   "     8  \t\"crypto/subtle\"",
+   "     9  \t\"encoding/hex\"",
+   "    10  \t\"encoding/json\""
+  ]
+ },
+ {
+  "id": "c0bf86f01f95",
+  "repository": "openwrt/openwrt",
+  "path": "package/network/services/ead/src/tinysrp/t_client.c",
+  "line": 253,
+  "family": "SHA-1",
+  "source": "SHA1Update(&tc->ckhash, tc->session_key, sizeof(tc->session_key));",
+  "context": [
+   "   250  ",
+   "   251    SHA1Final(tc->session_response, &tc->hash);",
+   "   252    SHA1Update(&tc->ckhash, tc->session_response, sizeof(tc->session_response));",
+   "   253    SHA1Update(&tc->ckhash, tc->session_key, sizeof(tc->session_key));",
+   "   254  ",
+   "   255    return tc->session_key;",
+   "   256  }"
+  ]
+ },
+ {
+  "id": "bdc5ea056063",
+  "repository": "redis/redis",
+  "path": "src/util.c",
+  "line": 994,
+  "family": "SHA",
+  "source": "SHA256_CTX ctx;",
+  "context": [
+   "   991          for (unsigned int i = 0; i < sizeof(kxor); i++) kxor[i] ^= 0x36;",
+   "   992  ",
+   "   993          /* Obtain HASH(IKEY||MESSAGE). */",
+   "   994          SHA256_CTX ctx;",
+   "   995          sha256_init(&ctx);",
+   "   996          sha256_update(&ctx,kxor,sizeof(kxor));",
+   "   997          sha256_update(&ctx,(unsigned char*)&counter,sizeof(counter));"
+  ]
+ },
+ {
+  "id": "1886aebc5d15",
+  "repository": "starship/starship",
+  "path": "src/modules/haskell.rs",
+  "line": 169,
+  "family": "SHA",
+  "source": "- vinyl-0.13.0@sha256:0f247cd3f8682b30881a07de18e6fec52d540646fbcb328420049cc8d63cd407,3724",
+  "context": [
+   "   166  - tasty-rerun-1.1.17@sha256:d4a3ccb0f63f499f36edc71b33c0f91c850eddb22dd92b928aa33b8459f3734a,1373",
+   "   167  - hgeometry-0.11.0.0@sha256:09ead201a6ac3492c0be8dda5a6b32792b9ae87cab730b8362d46ee8d5c2acb4,11714",
+   "   168  - hgeometry-combinatorial-0.11.0.0@sha256:03176f235a1c49a415fe1266274dafca84deb917cbcbf9a654452686b4cd2bfe,8286",
+   "   169  - vinyl-0.13.0@sha256:0f247cd3f8682b30881a07de18e6fec52d540646fbcb328420049cc8d63cd407,3724",
+   "   170  - hashable-1.3.0.0@sha256:4c70f1407881059e93550d3742191254296b2737b793a742bd901348fb3e1fb1,5206",
+   "   171  - network-3.1.2.1@sha256:188d6daea8cd91bc3553efd5a90a1e7c6d0425fa66a53baa74db5b6d9fd75c8b,4968",
+   "   172  \";"
+  ]
+ },
+ {
+  "id": "f2bc9120d12a",
+  "repository": "openwrt/openwrt",
+  "path": "package/network/services/ead/src/tinysrp/t_client.c",
+  "line": 171,
+  "family": "SHA-1",
+  "source": "SHA1Update(&ctxt, \":\", 1);",
+  "context": [
+   "   168  ",
+   "   169    SHA1Init(&ctxt);",
+   "   170    SHA1Update(&ctxt, tc->username, strlen(tc->username));",
+   "   171    SHA1Update(&ctxt, \":\", 1);",
+   "   172    SHA1Update(&ctxt, password, strlen(password));",
+   "   173    SHA1Final(dig, &ctxt);",
+   "   174  "
+  ]
+ },
+ {
+  "id": "978c30cef804",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/rendering.test.ts",
+  "line": 512,
+  "family": "SHA",
+  "source": "assert.deepEqual(parsed.get('style-src-elem'), [\"'self'\", \"'sha256-css'\"]);",
+  "context": [
+   "   509  \t\t\t);",
+   "   510  ",
+   "   511  \t\t\tassert.deepEqual(parsed.get('style-src'), [\"'self'\"]);",
+   "   512  \t\t\tassert.deepEqual(parsed.get('style-src-elem'), [\"'self'\", \"'sha256-css'\"]);",
+   "   513  \t\t});",
+   "   514  ",
+   "   515  \t\tit('does not fold Astro element hashes into script-src-attr', async () => {"
+  ]
+ },
+ {
+  "id": "8844b842b281",
+  "repository": "openwrt/openwrt",
+  "path": "package/utils/px5g-mbedtls/px5g-mbedtls.c",
+  "line": 143,
+  "family": "RSA",
+  "source": "fprintf(stderr, \"Generating RSA private key, %i bit long modulus\\n\", ksize);",
+  "context": [
+   "   140  {",
+   "   141  \tmbedtls_pk_init(key);",
+   "   142  \tif (rsa) {",
+   "   143  \t\tfprintf(stderr, \"Generating RSA private key, %i bit long modulus\\n\", ksize);",
+   "   144  \t\tmbedtls_pk_setup(key, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));",
+   "   145  \t\tif (!mbedtls_rsa_gen_key(mbedtls_pk_rsa(*key), _urandom, NULL, ksize, exp))",
+   "   146  \t\t\treturn;"
+  ]
+ },
+ {
+  "id": "ee09e7bfaa36",
+  "repository": "mpv-player/mpv",
+  "path": "audio/out/ao_pipewire.c",
+  "line": 781,
+  "family": "3DES",
+  "source": "const char *description = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);",
+  "context": [
+   "   778      if (!name)",
+   "   779          return;",
+   "   780  ",
+   "   781      const char *description = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);",
+   "   782  ",
+   "   783      ao_device_list_add(list, ao, &(struct ao_device_desc){name, description});",
+   "   784  }"
+  ]
+ },
+ {
+  "id": "bb889207d80d",
+  "repository": "mpv-player/mpv",
+  "path": "video/out/gpu/d3d11_helpers.c",
+  "line": 966,
+  "family": "3DES",
+  "source": "DXGI_SWAP_CHAIN_DESC scd = {0};",
+  "context": [
+   "   963                                  opts->color_space,",
+   "   964                                  opts->configured_csp);",
+   "   965  ",
+   "   966      DXGI_SWAP_CHAIN_DESC scd = {0};",
+   "   967      IDXGISwapChain_GetDesc(swapchain, &scd);",
+   "   968      if (scd.SwapEffect == DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL ||",
+   "   969          scd.SwapEffect == DXGI_SWAP_EFFECT_FLIP_DISCARD)"
+  ]
+ },
+ {
+  "id": "02d8b97252cb",
+  "repository": "conductor-oss/conductor",
+  "path": "nats/src/main/java/com/netflix/conductor/contribs/queue/nats/config/JetStreamEventQueueProvider.java",
+  "line": 31,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "* @author andrey.stelmashenko@gmail.com",
+  "context": [
+   "    28  import rx.Scheduler;",
+   "    29  ",
+   "    30  /**",
+   "    31   * @author andrey.stelmashenko@gmail.com",
+   "    32   */",
+   "    33  public class JetStreamEventQueueProvider implements EventQueueProvider {",
+   "    34      public static final String QUEUE_TYPE = \"jsm\";"
+  ]
+ },
+ {
+  "id": "c6b6900f6a8c",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 37745,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 37742        method: \"GET\",",
+   " 37743        asyncComplete: false,",
+   " 37744        readTimeOut: \"3000\",",
+   " 37745        _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 37746        uri: \"https://orkes-api-tester.orkesconductor.com/api\",",
+   " 37747        connectionTimeOut: 3000,",
+   " 37748        contentType: \"application/json\","
+  ]
+ },
+ {
+  "id": "321e8501a9f3",
+  "repository": "permissionlesstech/bitchat",
+  "path": "bitchat/Services/Groups/GroupProtocol.swift",
+  "line": 228,
+  "family": "SHA",
+  "source": "content.append(rosterBlob.sha256Hash())",
+  "context": [
+   "   225          content.append(groupID)",
+   "   226          content.append(GroupTLV.epochData(epoch))",
+   "   227          content.append(key.sha256Hash())",
+   "   228          content.append(rosterBlob.sha256Hash())",
+   "   229          content.append(Data(name.utf8).sha256Hash())",
+   "   230          return content",
+   "   231      }"
+  ]
+ },
+ {
+  "id": "786815bed6ef",
+  "repository": "openwrt/openwrt",
+  "path": "package/network/services/ead/src/tinysrp/t_server.c",
+  "line": 163,
+  "family": "SHA-1",
+  "source": "SHA1Final(dig, &ctxt);",
+  "context": [
+   "   160  ",
+   "   161    SHA1Init(&ctxt);",
+   "   162    SHA1Update(&ctxt, ts->B.data, ts->B.len);",
+   "   163    SHA1Final(dig, &ctxt);",
+   "   164    u = (dig[0] << 24) | (dig[1] << 16) | (dig[2] << 8) | dig[3];",
+   "   165  ",
+   "   166    SHA1Update(&ts->oldhash, clientval->data, clientval->len);"
+  ]
+ },
+ {
+  "id": "1e2f952b5e9c",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/service/email.go",
+  "line": 120,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "return \"noreply@multica.ai\"",
+  "context": [
+   "   117  \t\tif resendFrom != \"\" {",
+   "   118  \t\t\treturn resendFrom",
+   "   119  \t\t}",
+   "   120  \t\treturn \"noreply@multica.ai\"",
+   "   121  \t}",
+   "   122  \tif smtpFrom := strings.TrimSpace(os.Getenv(\"SMTP_FROM_EMAIL\")); smtpFrom != \"\" {",
+   "   123  \t\treturn smtpFrom"
+  ]
+ },
+ {
+  "id": "99da933aed5b",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 28062,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 28059        method: \"GET\",",
+   " 28060        asyncComplete: false,",
+   " 28061        readTimeOut: \"3000\",",
+   " 28062        _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 28063        uri: \"https://orkes-api-tester.orkesconductor.com/api\",",
+   " 28064        connectionTimeOut: 3000,",
+   " 28065        contentType: \"application/json\","
+  ]
+ },
+ {
+  "id": "ae05af63bab4",
+  "repository": "allinurl/goaccess",
+  "path": "src/sort.c",
+  "line": 122,
+  "family": "3DES",
+  "source": "{GEO_LOCATION        , SORT_BY_HITS , SORT_DESC } ,",
+  "context": [
+   "   119    {REMOTE_USER         , SORT_BY_HITS , SORT_DESC } ,",
+   "   120    {CACHE_STATUS        , SORT_BY_HITS , SORT_DESC } ,",
+   "   121  #ifdef HAVE_GEOLOCATION",
+   "   122    {GEO_LOCATION        , SORT_BY_HITS , SORT_DESC } ,",
+   "   123    {ASN                 , SORT_BY_HITS , SORT_DESC } ,",
+   "   124  #endif",
+   "   125    {MIME_TYPE           , SORT_BY_HITS , SORT_DESC } ,"
+  ]
+ },
+ {
+  "id": "dadd9533e909",
+  "repository": "gatsbyjs/gatsby",
+  "path": "packages/gatsby-source-contentful/src/gatsby-node.js",
+  "line": 55,
+  "family": "3DES",
+  "source": "id: CODES.GatsbyPluginMissing,",
+  "context": [
+   "    52      await import(`gatsby-plugin-image/graphql-utils`)",
+   "    53    } catch (err) {",
+   "    54      reporter.panic({",
+   "    55        id: CODES.GatsbyPluginMissing,",
+   "    56        context: {",
+   "    57          sourceMessage: `gatsby-plugin-image is missing from your project.\\nPlease install \"gatsby-plugin-image\".`,",
+   "    58        },"
+  ]
+ },
+ {
+  "id": "bbabb83a2582",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 33734,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 33731      status: \"COMPLETED\",",
+   " 33732      inputData: {",
+   " 33733        number: 10,",
+   " 33734        _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 33735      },",
+   " 33736      referenceTaskName: \"do_while_ref_1\",",
+   " 33737      retryCount: 0,"
+  ]
+ },
+ {
+  "id": "ca3d8d9b008b",
+  "repository": "usememos/memos",
+  "path": "server/router/api/v1/test/attachment_service_s3_test.go",
+  "line": 176,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "AccessKeySecret: \"old-secret-key\",",
+  "context": [
+   "   173  \t\t// storage and its current path-style option is used.",
+   "   174  \t\tlegacyConfig := &storepb.StorageS3Config{",
+   "   175  \t\t\tAccessKeyId:     \"old-access-key\",",
+   "   176  \t\t\tAccessKeySecret: \"old-secret-key\",",
+   "   177  \t\t\tEndpoint:        currentConfig.Endpoint + \"/\",",
+   "   178  \t\t\tRegion:          currentConfig.Region,",
+   "   179  \t\t\tBucket:          currentConfig.Bucket,"
+  ]
+ },
+ {
+  "id": "b282e5e8c3ab",
+  "repository": "allinurl/goaccess",
+  "path": "src/sort.c",
+  "line": 534,
+  "family": "3DES",
+  "source": "if (sort.sort == SORT_DESC)",
+  "context": [
+   "   531        qsort (items, size, sizeof (GHolderItem), cmp_maxts_asc);",
+   "   532      break;",
+   "   533    case SORT_BY_PROT:",
+   "   534      if (sort.sort == SORT_DESC)",
+   "   535        qsort (items, size, sizeof (GHolderItem), cmp_proto_desc);",
+   "   536      else",
+   "   537        qsort (items, size, sizeof (GHolderItem), cmp_proto_asc);"
+  ]
+ },
+ {
+  "id": "76ce7fa80bc4",
+  "repository": "usememos/memos",
+  "path": "store/db/sqlite/user.go",
+  "line": 136,
+  "family": "3DES",
+  "source": "\"row_status DESC\",",
+  "context": [
+   "   133  \t\t\t\"CASE WHEN LOWER(username) = ? THEN 0 WHEN LOWER(username) LIKE ? THEN 1 WHEN LOWER(nickname) LIKE ? THEN 2 ELSE 3 END\",",
+   "   134  \t\t\t\"LENGTH(username) ASC\",",
+   "   135  \t\t\t\"created_ts DESC\",",
+   "   136  \t\t\t\"row_status DESC\",",
+   "   137  \t\t}",
+   "   138  \t\targs = append(args, query, query+\"%\", query+\"%\")",
+   "   139  \t}"
+  ]
+ },
+ {
+  "id": "2a577e4b1248",
+  "repository": "redis/redis",
+  "path": "utils/releasetools/02_upload_tarball.sh",
+  "line": 22,
+  "family": "SHA",
+  "source": "shasum -a 256 redis-stable.tar.gz > redis-stable.tar.gz.SHA256SUM;",
+  "context": [
+   "    19                            mv redis-${1} redis-stable;",
+   "    20                            tar cvzf redis-stable.tar.gz redis-stable;",
+   "    21                            rm -rf redis-${1}.tar.gz;",
+   "    22                            shasum -a 256 redis-stable.tar.gz > redis-stable.tar.gz.SHA256SUM;",
+   "    23                            \""
+  ]
+ },
+ {
+  "id": "c570bc2decff",
+  "repository": "withastro/astro",
+  "path": "packages/internal-helpers/test/path.test.ts",
+  "line": 223,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "'//%2Fetc%2Fpasswd@evil.com', // Encoded /etc/passwd@evil.com",
+  "context": [
+   "   220  ",
+   "   221  \t\t// Encoded credentials in paths that might decode to look local",
+   "   222  \t\t'//%2F%2Fhome/user', // Encoded // at start: //home/user",
+   "   223  \t\t'//%2Fetc%2Fpasswd@evil.com', // Encoded /etc/passwd@evil.com",
+   "   224  \t\t'%2F%2Fadmin:admin@/var/log', // Encoded //admin:admin@/var/log",
+   "   225  \t\t'//%252Fhome%252Fuser@evil.com', // Double encoded /home/user",
+   "   226  "
+  ]
+ },
+ {
+  "id": "3504ac7234b3",
+  "repository": "conductor-oss/conductor",
+  "path": "ai/src/test/resources/ai-test-env.sh",
+  "line": 14,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "export OPENAI_API_KEY=\"your-openai-api-key\"",
+  "context": [
+   "    11  # ============================================================================",
+   "    12  # OpenAI",
+   "    13  # ============================================================================",
+   "    14  export OPENAI_API_KEY=\"your-openai-api-key\"",
+   "    15  # Optional: Override base URL for OpenAI-compatible APIs",
+   "    16  # export OPENAI_BASE_URL=\"https://api.openai.com/v1\"",
+   "    17  "
+  ]
+ },
+ {
+  "id": "2ddd41f3f9e6",
+  "repository": "multica-ai/multica",
+  "path": "server/pkg/db/queries/plugin.sql",
+  "line": 75,
+  "family": "SHA",
+  "source": "INSERT INTO plugin_package_file (version_id, path, content, size_bytes, sha256)",
+  "context": [
+   "    72  );",
+   "    73  ",
+   "    74  -- name: CreatePluginPackageFile :exec",
+   "    75  INSERT INTO plugin_package_file (version_id, path, content, size_bytes, sha256)",
+   "    76  VALUES ($1, $2, $3, $4, $5);",
+   "    77  ",
+   "    78  -- name: GetPluginPackageFile :one"
+  ]
+ },
+ {
+  "id": "267a05a54340",
+  "repository": "multica-ai/multica",
+  "path": "server/internal/handler/quick_create_parent_test.go",
+  "line": 86,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "`, \"QuickCreate Foreign\", \"quickcreate-foreign@multica.ai\").Scan(&foreignUserID); err != nil {",
+  "context": [
+   "    83  \tvar foreignWorkspaceID, foreignUserID, foreignParentID string",
+   "    84  \tif err := testPool.QueryRow(ctx, `",
+   "    85  \t\tINSERT INTO \"user\" (name, email) VALUES ($1, $2) RETURNING id",
+   "    86  \t`, \"QuickCreate Foreign\", \"quickcreate-foreign@multica.ai\").Scan(&foreignUserID); err != nil {",
+   "    87  \t\tt.Fatalf(\"create foreign user: %v\", err)",
+   "    88  \t}",
+   "    89  \tt.Cleanup(func() {"
+  ]
+ },
+ {
+  "id": "42fc68d23472",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 48668,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 48665      status: \"COMPLETED\",",
+   " 48666      inputData: {",
+   " 48667        switchCaseValue: 4,",
+   " 48668        _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 48669        case: \"4\",",
+   " 48670      },",
+   " 48671      referenceTaskName: \"switch_ref_1__6\","
+  ]
+ },
+ {
+  "id": "08da83349247",
+  "repository": "redis/redis",
+  "path": "deps/jemalloc/test/unit/rb.c",
+  "line": 503,
+  "family": "3DES",
+  "source": "node_t nodes[FILTER_NODES];",
+  "context": [
+   "   500  ",
+   "   501  TEST_BEGIN(test_rb_filter_simple) {",
+   "   502  \tenum {FILTER_NODES = 10};",
+   "   503  \tnode_t nodes[FILTER_NODES];",
+   "   504  \tfor (unsigned i = 0; i < FILTER_NODES; i++) {",
+   "   505  \t\tnodes[i].magic = NODE_MAGIC;",
+   "   506  \t\tnodes[i].key = i;"
+  ]
+ },
+ {
+  "id": "735732ae08eb",
+  "repository": "usememos/memos",
+  "path": "server/router/api/v1/test/user_service_registration_test.go",
+  "line": 125,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "Password: \"password123\",",
+  "context": [
+   "   122  \t\t\tUser: &apiv1.User{",
+   "   123  \t\t\t\tUsername: \"newuser\",",
+   "   124  \t\t\t\tEmail:    \"newuser@example.com\",",
+   "   125  \t\t\t\tPassword: \"password123\",",
+   "   126  \t\t\t},",
+   "   127  \t\t})",
+   "   128  \t\trequire.Error(t, err)"
+  ]
+ },
+ {
+  "id": "9e8b4aa33b14",
+  "repository": "usememos/memos",
+  "path": "internal/webhook/webhook_test.go",
+  "line": 101,
+  "family": "HARDCODED PASSWORD/SECRET",
+  "source": "{name: \"whsec_ secret\", secret: \"whsec_\" + base64.StdEncoding.EncodeToString(rawKey), key: rawKey},",
+  "context": [
+   "    98  \t\tkey    []byte",
+   "    99  \t}{",
+   "   100  \t\t{name: \"plain secret\", secret: \"plain-secret-value\", key: []byte(\"plain-secret-value\")},",
+   "   101  \t\t{name: \"whsec_ secret\", secret: \"whsec_\" + base64.StdEncoding.EncodeToString(rawKey), key: rawKey},",
+   "   102  \t}",
+   "   103  ",
+   "   104  \tfor _, tc := range cases {"
+  ]
+ },
+ {
+  "id": "d6f86dc99ff9",
+  "repository": "multica-ai/multica",
+  "path": "server/pkg/db/generated/agent.sql.go",
+  "line": 7169,
+  "family": "3DES",
+  "source": "ORDER BY atq.priority DESC, atq.dispatched_at ASC",
+  "context": [
+   "  7166              AND COALESCE(r.last_seen_at, r.updated_at) >=",
+   "  7167                  now() - make_interval(secs => $4::double precision)",
+   "  7168        )",
+   "  7169      ORDER BY atq.priority DESC, atq.dispatched_at ASC",
+   "  7170      LIMIT $5::int",
+   "  7171      FOR UPDATE SKIP LOCKED",
+   "  7172  )"
+  ]
+ },
+ {
+  "id": "e03bb2dd1a95",
+  "repository": "allinurl/goaccess",
+  "path": "src/ui.c",
+  "line": 83,
+  "family": "3DES",
+  "source": "{STATUS_CODES    , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 0 , 0 , 1 , 0 , 0} ,",
+  "context": [
+   "    80    {REFERRERS       , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 0 , 0 , 1 , 0 , 0} ,",
+   "    81    {REFERRING_SITES , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 0 , 0 , 1 , 0 , 0} ,",
+   "    82    {KEYPHRASES      , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 0 , 0 , 1 , 0 , 0} ,",
+   "    83    {STATUS_CODES    , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 0 , 0 , 1 , 0 , 0} ,",
+   "    84    {REMOTE_USER     , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 0 , 0 , 1 , 0 , 0} ,",
+   "    85    {CACHE_STATUS    , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 0 , 0 , 1 , 0 , 0} ,",
+   "    86  #ifdef HAVE_GEOLOCATION"
+  ]
+ },
+ {
+  "id": "ce97311ee7c2",
+  "repository": "conductor-oss/conductor",
+  "path": "ui-next/src/pages/execution/state/sampleExecutions.js",
+  "line": 45580,
+  "family": "PII: EMAIL ADDRESS",
+  "source": "_createdBy: \"najeeb.thangal@orkes.io\",",
+  "context": [
+   " 45577            method: \"GET\",",
+   " 45578            asyncComplete: false,",
+   " 45579            readTimeOut: \"3000\",",
+   " 45580            _createdBy: \"najeeb.thangal@orkes.io\",",
+   " 45581            uri: \"https://orkes-api-tester.orkesconductor.com/api\",",
+   " 45582            connectionTimeOut: 3000,",
+   " 45583            contentType: \"application/json\","
+  ]
+ },
+ {
+  "id": "78fa462ea5ae",
+  "repository": "redis/redis",
+  "path": "deps/jemalloc/test/unit/rb.c",
+  "line": 502,
+  "family": "3DES",
+  "source": "enum {FILTER_NODES = 10};",
+  "context": [
+   "   499  }",
+   "   500  ",
+   "   501  TEST_BEGIN(test_rb_filter_simple) {",
+   "   502  \tenum {FILTER_NODES = 10};",
+   "   503  \tnode_t nodes[FILTER_NODES];",
+   "   504  \tfor (unsigned i = 0; i < FILTER_NODES; i++) {",
+   "   505  \t\tnodes[i].magic = NODE_MAGIC;"
+  ]
+ },
+ {
+  "id": "b0cf51b85e6d",
+  "repository": "withastro/astro",
+  "path": "packages/astro/test/units/csp/render-csp.test.ts",
+  "line": 76,
+  "family": "SHA",
+  "source": "scriptDirective: { hashes: [{ hash: 'sha256-elem', kind: 'element' }] },",
+  "context": [
+   "    73  \t\tassert.equal(",
+   "    74  \t\t\trenderCspContent(",
+   "    75  \t\t\t\tcreateCspResult({",
+   "    76  \t\t\t\t\tscriptDirective: { hashes: [{ hash: 'sha256-elem', kind: 'element' }] },",
+   "    77  \t\t\t\t}),",
+   "    78  \t\t\t),",
+   "    79  \t\t\t\"script-src 'self' ; script-src-elem 'self' 'sha256-elem'; style-src 'self' ;\","
+  ]
+ }
+]

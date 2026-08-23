@@ -99,6 +99,12 @@ class MigrationTask(Base):
     rank: Mapped[int] = mapped_column(default=0)
     attempts: Mapped[int] = mapped_column(default=0)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # WHY a task is parked in `deferred`. Both "could not migrate" and "nothing to migrate" land in
+    # that state -- the FSM's terminal states all mean "a patch was applied and verified" -- so
+    # without this the two are indistinguishable and a plan reports finished work as broken.
+    # NULL on tasks that never parked, and on rows written before this column existed.
+    # See RESOLUTION_SATISFIED / RESOLUTION_UNRESOLVED in orchestrator.py.
+    resolution: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # Migration advice for a finding no patch could be produced for. A queue entry that says
     # "manual change" and nothing else is a dead end: it names an algorithm and a line and leaves
     # the reader to work out what the code does, what it should become, and what breaks on the way.

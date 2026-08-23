@@ -189,14 +189,20 @@ class SemgrepDetector:
         env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
 
         command = [
-            "docker", "run", "--rm",
-            "-v", f"{root.as_posix()}:/src:ro",
-            "-v", f"{rules.parent.resolve().as_posix()}:/rules:ro",
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{root.as_posix()}:/src:ro",
+            "-v",
+            f"{rules.parent.resolve().as_posix()}:/rules:ro",
             IMAGE,
             "semgrep",
-            "--config", f"/rules/{rules.name}",
-            "--metrics", "off",       # see module docstring
-            "--no-git-ignore",        # corpora are git clones; default would skip untracked files
+            "--config",
+            f"/rules/{rules.name}",
+            "--metrics",
+            "off",  # see module docstring
+            "--no-git-ignore",  # corpora are git clones; default would skip untracked files
             "--json",
             "--quiet",
             "/src",

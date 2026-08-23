@@ -1,0 +1,896 @@
+{
+  "repository": "permissionlesstech/bitchat",
+  "stratum": "Swift",
+  "primary_language": "Swift",
+  "commit": "9b84b361225facd8e623f25d76f889d3dc54a879",
+  "license": "Unlicense",
+  "stars": 35746,
+  "detectors_with_findings": 3,
+  "counts": {
+    "qubit": 11,
+    "pqaudit": 276,
+    "semgrep": 0,
+    "cryptoscan": 148
+  },
+  "elapsed_s": 102.7,
+  "comparison": {
+    "corpus": "permissionlesstech/bitchat",
+    "dropped_non_source_findings": 1,
+    "shared_vocabulary": [
+      "EC",
+      "SHA"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 5,
+        "sites": 5
+      },
+      "pqaudit": {
+        "findings": 249,
+        "sites": 65
+      },
+      "semgrep": {
+        "findings": 0,
+        "sites": 0
+      },
+      "cryptoscan": {
+        "findings": 135,
+        "sites": 24
+      }
+    },
+    "unavailable": {
+      "sonar": "SonarQube at http://127.0.0.1:9000 is DOWN: uv run python sonar_oracle.py --setup"
+    },
+    "agreement": {
+      "cryptoscan|pqaudit": 0.3484848484848485,
+      "cryptoscan|qubit": 0.0,
+      "cryptoscan|semgrep": 0.0,
+      "pqaudit|qubit": 0.07692307692307693,
+      "pqaudit|semgrep": 0.0,
+      "qubit|semgrep": 0.0
+    },
+    "capture_table": {
+      "pqaudit": 37,
+      "cryptoscan+pqaudit": 23,
+      "cryptoscan": 1,
+      "pqaudit+qubit": 5
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 29,
+        "population": [
+          149.0,
+          29.0,
+          334.94192641790073
+        ],
+        "missed_by_all": 120.0,
+        "qubit_recall_upper_bound": [
+          0.03355704697986577,
+          0.014927960955719811,
+          0.1724137931034483
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 65,
+        "population": [
+          65.0,
+          65.0,
+          65.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.07692307692307693,
+          0.07692307692307693,
+          0.07692307692307693
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 5,
+        "population": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "model": "independence",
+        "method": "log-linear 4-source (independence)",
+        "observed": 66,
+        "population": [
+          67.47886619388315,
+          66.19665850422842,
+          77.12103047865192
+        ],
+        "missed_by_all": 1.4788661938831473,
+        "qubit_recall_upper_bound": [
+          0.07409727344312199,
+          0.06483315859458158,
+          0.07553251346789078
+        ],
+        "caveats": [
+          "independence model: assumes detectors succeed and fail independently, which they do not -- this total is an UNDER-estimate",
+          "some capture patterns have zero observed sites; the fit is sparse and the unseen-cell estimate is correspondingly fragile"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 13,
+      "code": 7,
+      "mention": 2,
+      "comment": 4,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "bitchat/Noise/NoiseProtocol.swift",
+          "line": 433,
+          "algorithm": "HKDF",
+          "family": "HKDF",
+          "rule_id": "KDF-HKDF-001-433-21",
+          "class": "code",
+          "source": "let output = hkdf(chainingKey: chainingKey, inputKeyMaterial: inputKeyMaterial, numOutputs: 2)"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 16,
+          "algorithm": "Poly1305",
+          "family": "POLY1305",
+          "rule_id": "MAC-POLY1305-001-16-47",
+          "class": "string-literal",
+          "source": "let plaintext = Data(\"Hello, XChaCha20-Poly1305!\".utf8)"
+        },
+        {
+          "path": "bitchat/Noise/NoiseProtocol.swift",
+          "line": 516,
+          "algorithm": "HKDF",
+          "family": "HKDF",
+          "rule_id": "KDF-HKDF-001-516-17",
+          "class": "code",
+          "source": "private func hkdf(chainingKey: Data, inputKeyMaterial: Data, numOutputs: Int) -> [Data] {"
+        },
+        {
+          "path": "localPackages/BitFoundation/Sources/BitFoundation/CourierEnvelope.swift",
+          "line": 21,
+          "algorithm": "HMAC-SHA2",
+          "family": "HMAC",
+          "rule_id": "MAC-HMAC-SHA2-001-21-33",
+          "class": "comment",
+          "source": "/// Rotating recipient hint: HMAC-SHA256(recipient static key, context || epoch day), truncated."
+        },
+        {
+          "path": "localPackages/BitFoundation/Sources/BitFoundation/PeerIDRotation.swift",
+          "line": 93,
+          "algorithm": "HKDF",
+          "family": "HKDF",
+          "rule_id": "KDF-HKDF-001-93-22",
+          "class": "code",
+          "source": "let derived = HKDF<SHA256>.deriveKey("
+        },
+        {
+          "path": "bitchat/Nostr/NostrIdentityBridge.swift",
+          "line": 96,
+          "algorithm": "HMAC-SHA2",
+          "family": "HMAC",
+          "rule_id": "MAC-HMAC-SHA2-001-96-13",
+          "class": "comment",
+          "source": "/// Uses HMAC-SHA256(deviceSeed, geohash) as private key material, with fallback rehashing"
+        },
+        {
+          "path": "bitchat/Noise/NoiseProtocol.swift",
+          "line": 444,
+          "algorithm": "HKDF",
+          "family": "HKDF",
+          "rule_id": "KDF-HKDF-001-444-21",
+          "class": "code",
+          "source": "let output = hkdf(chainingKey: chainingKey, inputKeyMaterial: inputKeyMaterial, numOutputs: 3)"
+        },
+        {
+          "path": "bitchat/Nostr/NostrProtocol.swift",
+          "line": 912,
+          "algorithm": "HKDF",
+          "family": "HKDF",
+          "rule_id": "KDF-HKDF-001-912-25",
+          "class": "code",
+          "source": "let derivedKey = HKDF<CryptoKit.SHA256>.deriveKey("
+        },
+        {
+          "path": "localPackages/BitFoundation/Tests/BitFoundationTests/PeerIDRotationTests.swift",
+          "line": 72,
+          "algorithm": "HMAC-SHA2",
+          "family": "HMAC",
+          "rule_id": "MAC-HMAC-SHA2-001-72-19",
+          "class": "comment",
+          "source": "// VECTOR: HMAC-SHA256(rotationSecret, \"bitchat-peer-id-v2\" || uint32be(100))[0..8]"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 16,
+          "algorithm": "XChaCha20",
+          "family": "XCHACHA20",
+          "rule_id": "SYM-XCHACHA-001-16-37",
+          "class": "string-literal",
+          "source": "let plaintext = Data(\"Hello, XChaCha20-Poly1305!\".utf8)"
+        },
+        {
+          "path": "localPackages/BitFoundation/Sources/BitFoundation/PeerIDRotation.swift",
+          "line": 128,
+          "algorithm": "HKDF",
+          "family": "HKDF",
+          "rule_id": "KDF-HKDF-001-128-22",
+          "class": "code",
+          "source": "let derived = HKDF<SHA256>.deriveKey("
+        },
+        {
+          "path": "bitchat/Noise/NoiseProtocol.swift",
+          "line": 482,
+          "algorithm": "HKDF",
+          "family": "HKDF",
+          "rule_id": "KDF-HKDF-001-482-21",
+          "class": "code",
+          "source": "let output = hkdf(chainingKey: chainingKey, inputKeyMaterial: Data(), numOutputs: 2)"
+        },
+        {
+          "path": "localPackages/BitFoundation/Sources/BitFoundation/PrekeyBundle.swift",
+          "line": 23,
+          "algorithm": "ECC",
+          "family": "EC",
+          "rule_id": "ECC-001-23-12",
+          "class": "comment",
+          "source": "/// Curve25519.KeyAgreement public key (32 bytes)."
+        }
+      ]
+    },
+    "pqaudit": {
+      "exclusive": 115,
+      "code": 97,
+      "mention": 11,
+      "comment": 4,
+      "absent": 3,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "bitchat/Nostr/NostrProtocol.swift",
+          "line": 656,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "return try XChaCha20Poly1305Compat.open("
+        },
+        {
+          "path": "localPackages/BitFoundation/Sources/BitFoundation/CourierEnvelope.swift",
+          "line": 181,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let mac = HMAC<SHA256>.authenticationCode(for: message, using: SymmetricKey(data: noiseStaticKey))"
+        },
+        {
+          "path": "bitchatTests/PreviewKeychainManagerTests.swift",
+          "line": 120,
+          "algorithm": "Ed25519",
+          "family": "EC",
+          "rule_id": "ED25519_USAGE",
+          "class": "string-literal",
+          "source": "if case .success = manager.saveIdentityKeyWithResult(Data([5, 6, 7]), forKey: \"ed25519SigningKey\") {"
+        },
+        {
+          "path": "bitchat/Services/UnifiedPeerService.swift",
+          "line": 184,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let fingerprint = peerInfo.noisePublicKey?.sha256Fingerprint()"
+        },
+        {
+          "path": "bitchatTests/EndToEnd/PrivateMediaEndToEndTests.swift",
+          "line": 895,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "fingerprint: impostorKey.sha256Fingerprint()"
+        },
+        {
+          "path": "bitchat/Nostr/NostrProtocol.swift",
+          "line": 886,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "return (data.sha256Fingerprint(), data.sha256Hash())"
+        },
+        {
+          "path": "bitchatTests/NostrProtocolTests.swift",
+          "line": 551,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "case generatorPatchSHA256 = \"generator_patch_sha256\""
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 13,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "struct XChaCha20Poly1305CompatTests {"
+        },
+        {
+          "path": "localPackages/BitFoundation/Tests/BitFoundationTests/PeerIDTests.swift",
+          "line": 209,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let expected = Data(hexString: hex64)!.sha256Fingerprint().prefix(16)"
+        },
+        {
+          "path": "scripts/tests/test_fetch_georelays_workflow.py",
+          "line": 32,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "\"SHA-256: $DATA_SHA256\","
+        },
+        {
+          "path": "bitchat/Services/NoiseEncryptionService.swift",
+          "line": 1029,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let fingerprint = remoteStaticKey.rawRepresentation.sha256Fingerprint()"
+        },
+        {
+          "path": "bitchatTests/Services/SecureIdentityStateManagerTests.swift",
+          "line": 138,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let fingerprint = noisePublicKey.sha256Fingerprint()"
+        },
+        {
+          "path": "bitchat/Nostr/XChaCha20Poly1305Compat.swift",
+          "line": 44,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "substring",
+          "source": "let subkey = try hchacha20(key: key, nonce16: Data(nonce24.prefix(16)))"
+        },
+        {
+          "path": "bitchatTests/NostrProtocolTests.swift",
+          "line": 543,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let fixtureSHA256: String"
+        },
+        {
+          "path": "bitchatTests/Services/NoiseEncryptionServiceTests.swift",
+          "line": 40,
+          "algorithm": "Ed25519",
+          "family": "EC",
+          "rule_id": "ED25519_USAGE",
+          "class": "code",
+          "source": "ed25519Key: signingPublicKey,"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 16,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "string-literal",
+          "source": "let plaintext = Data(\"Hello, XChaCha20-Poly1305!\".utf8)"
+        },
+        {
+          "path": "localPackages/BitFoundation/Sources/BitFoundation/PeerIDRotation.swift",
+          "line": 128,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let derived = HKDF<SHA256>.deriveKey("
+        },
+        {
+          "path": "bitchatTests/AppArchitectureTests.swift",
+          "line": 831,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let verifiedFingerprint = otherNoiseKey.sha256Fingerprint()"
+        },
+        {
+          "path": "scripts/tests/test_validate_georelays.py",
+          "line": 182,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "self.assertIn(\"sha256=\", metadata)"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 125,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "_ = try XChaCha20Poly1305Compat.seal(plaintext: plaintext, key: key, nonce24: shortNonce)"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 96,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "_ = try XChaCha20Poly1305Compat.seal(plaintext: plaintext, key: emptyKey, nonce24: nonce)"
+        },
+        {
+          "path": "bitchat/Noise/NoiseProtocol.swift",
+          "line": 517,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let tempKey = HMAC<SHA256>.authenticationCode(for: inputKeyMaterial, using: SymmetricKey(data: chainingKey))"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 111,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "_ = try XChaCha20Poly1305Compat.open(ciphertext: ciphertext, tag: tag, key: shortKey, nonce24: nonce)"
+        },
+        {
+          "path": "bitchat/Noise/NoiseProtocol.swift",
+          "line": 440,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "hash = (hash + data).sha256Hash()"
+        },
+        {
+          "path": "bitchat/Services/BLE/BLEService.swift",
+          "line": 6463,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "forFingerprint: noisePublicKey.sha256Fingerprint()"
+        },
+        {
+          "path": "bitchat/Identity/IdentityModels.swift",
+          "line": 117,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "comment",
+          "source": "let fingerprint: String     // SHA256 of public key"
+        },
+        {
+          "path": "localPackages/BitFoundation/Tests/BitFoundationTests/PeerIDTests.swift",
+          "line": 190,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let expected = publicKey.sha256Fingerprint().prefix(16)"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 21,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "let decrypted = try XChaCha20Poly1305Compat.open("
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 139,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "_ = try XChaCha20Poly1305Compat.seal(plaintext: plaintext, key: key, nonce24: longNonce)"
+        },
+        {
+          "path": "bitchat/Nostr/NostrIdentityBridge.swift",
+          "line": 118,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let code = HMAC<SHA256>.authenticationCode(for: input, using: SymmetricKey(data: seed))"
+        },
+        {
+          "path": "bitchat/Services/BLE/BLEOutboundFragmentTransferScheduler.swift",
+          "line": 34,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "return packet.payload.sha256Hex()"
+        },
+        {
+          "path": "bitchat/Services/BLE/BLEReceivePipeline.swift",
+          "line": 20,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let digestPrefix = packet.payload.sha256Hash().prefix(4).hexEncodedString()"
+        },
+        {
+          "path": "bitchat/Services/Groups/GroupProtocol.swift",
+          "line": 229,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "content.append(Data(name.utf8).sha256Hash())"
+        },
+        {
+          "path": "bitchatTests/Services/NoiseEncryptionServiceTests.swift",
+          "line": 1382,
+          "algorithm": "Ed25519",
+          "family": "EC",
+          "rule_id": "ED25519_USAGE",
+          "class": "string-literal",
+          "source": "if case .itemNotFound = keychain.getIdentityKeyWithResult(forKey: \"ed25519SigningKey\") {"
+        },
+        {
+          "path": "localPackages/BitFoundation/Tests/BitFoundationTests/PeerIDTests.swift",
+          "line": 469,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "comment",
+          "source": "let myPeerID = PeerID(publicKey: noiseKey)  // SHA256-derived 16-hex"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 68,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "_ = try XChaCha20Poly1305Compat.seal(plaintext: plaintext, key: shortKey, nonce24: nonce)"
+        },
+        {
+          "path": "bitchatTests/Services/BLEAnnounceHandlerTests.swift",
+          "line": 844,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "fingerprint: announcement.noisePublicKey.sha256Fingerprint(),"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 55,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "let sealed1 = try XChaCha20Poly1305Compat.seal(plaintext: plaintext, key: key, nonce24: nonce1)"
+        },
+        {
+          "path": "bitchatTests/EndToEnd/PrivateMediaEndToEndTests.swift",
+          "line": 590,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let bobFingerprint = bob.noiseStaticPublicKeyData().sha256Fingerprint()"
+        },
+        {
+          "path": "localPackages/BitFoundation/Sources/BitFoundation/PeerIDRotation.swift",
+          "line": 93,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let derived = HKDF<SHA256>.deriveKey("
+        },
+        {
+          "path": "bitchat/Noise/NoiseProtocol.swift",
+          "line": 119,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let hash: String = \"SHA256\"      // SHA-256"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 211,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "_ = try XChaCha20Poly1305Compat.open("
+        },
+        {
+          "path": "bitchatTests/EndToEnd/CourierEndToEndTests.swift",
+          "line": 222,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "bobIdentity.setBlocked(alice.noiseStaticPublicKeyData().sha256Fingerprint(), isBlocked: true)"
+        },
+        {
+          "path": "Package.swift",
+          "line": 28,
+          "algorithm": "ECDSA",
+          "family": "EC",
+          "rule_id": "ECDSA_USAGE",
+          "class": "string-literal",
+          "source": ".product(name: \"P256K\", package: \"swift-secp256k1\"),"
+        },
+        {
+          "path": "bitchat/Services/BLE/BLEService.swift",
+          "line": 6522,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "fingerprint: announcement.noisePublicKey.sha256Fingerprint(),"
+        },
+        {
+          "path": "bitchat/Noise/NoiseProtocol.swift",
+          "line": 427,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "self.hash = nameData.sha256Hash()"
+        },
+        {
+          "path": "bitchat/App/VerificationModel.swift",
+          "line": 232,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let fingerprint = data.sha256Fingerprint()"
+        },
+        {
+          "path": "bitchat/Services/BLE/BLEService.swift",
+          "line": 4674,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "guard !identityManager.isBlocked(fingerprint: senderStaticKey.sha256Fingerprint()) else {"
+        },
+        {
+          "path": "localPackages/BitFoundation/Tests/BitFoundationTests/PeerIDTests.swift",
+          "line": 444,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let expected = noiseKey.sha256Fingerprint().prefix(16)"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 153,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "_ = try XChaCha20Poly1305Compat.seal(plaintext: plaintext, key: key, nonce24: emptyNonce)"
+        },
+        {
+          "path": "bitchat/Nostr/NostrProtocol.swift",
+          "line": 912,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let derivedKey = HKDF<CryptoKit.SHA256>.deriveKey("
+        },
+        {
+          "path": "bitchat/Services/Gateway/BridgeCourierService.swift",
+          "line": 228,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "string-literal",
+          "source": "return \"v2:\\(material.sha256Hex())\""
+        },
+        {
+          "path": "bitchat/Noise/NoiseProtocol.swift",
+          "line": 118,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "comment",
+          "source": "let cipher: String = \"ChaChaPoly\" // ChaCha20-Poly1305"
+        },
+        {
+          "path": "bitchat/Services/BLE/BLEOutboundFragmentTransferScheduler.swift",
+          "line": 42,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "return packet.payload.sha256Hex()"
+        },
+        {
+          "path": "bitchat/Services/Groups/GroupProtocol.swift",
+          "line": 228,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "content.append(rosterBlob.sha256Hash())"
+        },
+        {
+          "path": "bitchat/Services/BLE/BLEService.swift",
+          "line": 4268,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "publicKey.sha256Fingerprint().caseInsensitiveCompare(fingerprint) == .orderedSame else {"
+        },
+        {
+          "path": "Package.swift",
+          "line": 22,
+          "algorithm": "ECDSA",
+          "family": "EC",
+          "rule_id": "ECDSA_USAGE",
+          "class": "string-literal",
+          "source": ".package(url: \"https://github.com/21-DOT-DEV/swift-secp256k1\", exact: \"0.21.1\")"
+        },
+        {
+          "path": "bitchat/Services/BLE/BLEIngressLinkRegistry.swift",
+          "line": 108,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "let digestPrefix = packet.payload.sha256Hash().prefix(4).hexEncodedString()"
+        },
+        {
+          "path": "bitchatTests/Protocols/BinaryEncodingUtilsTests.swift",
+          "line": 74,
+          "algorithm": "SHA-256",
+          "family": "SHA",
+          "rule_id": "SHA256_SAFE",
+          "class": "code",
+          "source": "func test_sha256Hex_andExtendedLengthStringRoundTrip() throws {"
+        },
+        {
+          "path": "bitchatTests/XChaCha20Poly1305CompatTests.swift",
+          "line": 202,
+          "algorithm": "ChaCha20-Poly1305",
+          "family": "CHACHA20",
+          "rule_id": "CHACHA20",
+          "class": "code",
+          "source": "let sealed = try XChaCha20Poly1305Compat.seal(plaintext: plaintext, key: key, nonce24: nonce)"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 6,
+      "code": 6,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "bitchatTests/Noise/NoiseCoverageTests.swift",
+          "line": 965,
+          "algorithm": "UNKNOWN(ChaChaPoly)",
+          "family": "UNKNOWN(CHACHAPOLY)",
+          "rule_id": "SWIFT-CRYPTOKIT-STRONG",
+          "class": "code",
+          "source": "let sealedBox = try ChaChaPoly.seal("
+        },
+        {
+          "path": "bitchat/Services/Groups/GroupProtocol.swift",
+          "line": 482,
+          "algorithm": "UNKNOWN(ChaChaPoly)",
+          "family": "UNKNOWN(CHACHAPOLY)",
+          "rule_id": "SWIFT-CRYPTOKIT-STRONG",
+          "class": "code",
+          "source": "let sealed = try ChaChaPoly.seal(inner, using: symmetricKey, authenticating: aad)"
+        },
+        {
+          "path": "bitchat/Noise/NoiseProtocol.swift",
+          "line": 279,
+          "algorithm": "UNKNOWN(ChaChaPoly)",
+          "family": "UNKNOWN(CHACHAPOLY)",
+          "rule_id": "SWIFT-CRYPTOKIT-STRONG",
+          "class": "code",
+          "source": "let sealedBox = try ChaChaPoly.seal(plaintext, using: key, nonce: ChaChaPoly.Nonce(data: nonceData), authenticating: associatedData)"
+        },
+        {
+          "path": "bitchat/Services/Courier/MessageOutboxStore.swift",
+          "line": 703,
+          "algorithm": "UNKNOWN(ChaChaPoly)",
+          "family": "UNKNOWN(CHACHAPOLY)",
+          "rule_id": "SWIFT-CRYPTOKIT-STRONG",
+          "class": "code",
+          "source": "let plaintext = try ChaChaPoly.open(box, using: key)"
+        },
+        {
+          "path": "bitchat/Nostr/XChaCha20Poly1305Compat.swift",
+          "line": 32,
+          "algorithm": "UNKNOWN(ChaChaPoly)",
+          "family": "UNKNOWN(CHACHAPOLY)",
+          "rule_id": "SWIFT-CRYPTOKIT-STRONG",
+          "class": "code",
+          "source": "let sealed = try ChaChaPoly.seal(plaintext, using: chachaKey, nonce: nonce, authenticating: aad ?? Data())"
+        },
+        {
+          "path": "bitchat/Identity/SecureIdentityStateManager.swift",
+          "line": 275,
+          "algorithm": "AES",
+          "family": "AES",
+          "rule_id": "SWIFT-CRYPTOKIT-AEAD",
+          "class": "code",
+          "source": "let decryptedData = try AES.GCM.open(sealedBox, using: encryptionKey)"
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

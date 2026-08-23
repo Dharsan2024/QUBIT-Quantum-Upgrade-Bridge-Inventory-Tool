@@ -1,0 +1,306 @@
+{
+  "repository": "react/create-react-app",
+  "stratum": "JavaScript",
+  "primary_language": "JavaScript",
+  "commit": "6254386531d263688ccfa542d0e628fbc0de0b28",
+  "license": "MIT",
+  "stars": 103290,
+  "detectors_with_findings": 3,
+  "counts": {
+    "qubit": 3,
+    "pqaudit": 12,
+    "semgrep": 0,
+    "cryptoscan": 2,
+    "sonar": 0
+  },
+  "elapsed_s": 43.2,
+  "comparison": {
+    "corpus": "react/create-react-app",
+    "dropped_non_source_findings": 1,
+    "shared_vocabulary": [
+      "MD5"
+    ],
+    "vocabulary_restricted": true,
+    "detectors": {
+      "qubit": {
+        "findings": 0,
+        "sites": 0
+      },
+      "pqaudit": {
+        "findings": 2,
+        "sites": 2
+      },
+      "semgrep": {
+        "findings": 0,
+        "sites": 0
+      },
+      "cryptoscan": {
+        "findings": 2,
+        "sites": 2
+      },
+      "sonar": {
+        "findings": 0,
+        "sites": 0
+      }
+    },
+    "unavailable": {},
+    "agreement": {
+      "cryptoscan|pqaudit": 1.0,
+      "cryptoscan|qubit": 0.0,
+      "cryptoscan|semgrep": 0.0,
+      "cryptoscan|sonar": 0.0,
+      "pqaudit|qubit": 0.0,
+      "pqaudit|semgrep": 0.0,
+      "pqaudit|sonar": 0.0,
+      "qubit|semgrep": 0.0,
+      "qubit|sonar": 0.0,
+      "semgrep|sonar": 0.0
+    },
+    "capture_table": {
+      "cryptoscan+pqaudit": 2
+    },
+    "estimates": [
+      {
+        "pair": "qubit|cryptoscan",
+        "method": "Chapman (2-source)",
+        "observed": 2,
+        "population": [
+          2.0,
+          2.0,
+          2.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|pqaudit",
+        "method": "Chapman (2-source)",
+        "observed": 2,
+        "population": [
+          2.0,
+          2.0,
+          2.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|semgrep",
+        "method": "Chapman (2-source)",
+        "observed": 0,
+        "population": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      },
+      {
+        "pair": "qubit|sonar",
+        "method": "Chapman (2-source)",
+        "observed": 0,
+        "population": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "missed_by_all": 0.0,
+        "qubit_recall_upper_bound": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "caveats": [
+          "positive correlation between detectors inflates the overlap, so this total is an UNDER-estimate and any recall computed from it is an UPPER bound",
+          "under realistic heterogeneity this estimator is badly low (simulation: 593 against a true 1000); treat it as a floor on the population, never as its size",
+          "the detectors share no findings at all: the estimate is driven entirely by Chapman's correction and carries essentially no information"
+        ]
+      }
+    ]
+  },
+  "adjudication": {
+    "cryptoscan": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "pqaudit": {
+      "exclusive": 10,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 10,
+      "not_applicable": 0,
+      "sample": [
+        {
+          "path": "packages/react-error-overlay/fixtures/bundle.mjs",
+          "line": 19277,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "var c = HTML_CODES[i];"
+        },
+        {
+          "path": "packages/react-error-overlay/fixtures/bundle_u.mjs",
+          "line": 28408,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "return END_KEYCODES.indexOf(nativeEvent.keyCode) !== -1;"
+        },
+        {
+          "path": "packages/react-error-overlay/fixtures/bundle_u.mjs",
+          "line": 19176,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "var HTML_CODES = [39, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195"
+        },
+        {
+          "path": "packages/react-error-overlay/fixtures/bundle.mjs",
+          "line": 28282,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "return END_KEYCODES.indexOf(nativeEvent.keyCode) !== -1;"
+        },
+        {
+          "path": "packages/react-scripts/config/getHttpsConfig.js",
+          "line": 23,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA_ENCRYPT",
+          "class": "substring",
+          "source": "encrypted = crypto.publicEncrypt(cert, Buffer.from('test'));"
+        },
+        {
+          "path": "packages/react-error-overlay/fixtures/bundle.mjs",
+          "line": 28164,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "var END_KEYCODES = [9, 13, 27, 32]; // Tab, Return, Esc, Space"
+        },
+        {
+          "path": "packages/react-error-overlay/fixtures/bundle_u.mjs",
+          "line": 19185,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "var c = HTML_CODES[i];"
+        },
+        {
+          "path": "packages/react-error-overlay/fixtures/bundle_u.mjs",
+          "line": 28290,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "var END_KEYCODES = [9, 13, 27, 32]; // Tab, Return, Esc, Space"
+        },
+        {
+          "path": "packages/react-error-overlay/fixtures/bundle.mjs",
+          "line": 19268,
+          "algorithm": "3DES",
+          "family": "3DES",
+          "rule_id": "DES_3DES",
+          "class": "substring",
+          "source": "var HTML_CODES = [39, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195"
+        },
+        {
+          "path": "packages/react-scripts/config/getHttpsConfig.js",
+          "line": 32,
+          "algorithm": "RSA",
+          "family": "RSA",
+          "rule_id": "RSA_ENCRYPT",
+          "class": "substring",
+          "source": "crypto.privateDecrypt(key, encrypted);"
+        }
+      ]
+    },
+    "qubit": {
+      "exclusive": 2,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 2,
+      "sample": [
+        {
+          "path": "tasks/local-test.sh",
+          "line": 78,
+          "algorithm": "PII: email address",
+          "family": "PII: EMAIL ADDRESS",
+          "rule_id": "PII-EMAIL",
+          "class": "not-applicable",
+          "source": "git config --global user.email \"cra@email.com\""
+        },
+        {
+          "path": "docusaurus/website/docusaurus.config.js",
+          "line": 48,
+          "algorithm": "Hardcoded password/secret",
+          "family": "HARDCODED PASSWORD/SECRET",
+          "rule_id": "SECRET-HARDCODED-PW",
+          "class": "not-applicable",
+          "source": "apiKey: '25243dbf9049cf036e87f64b361bd2b9',"
+        }
+      ]
+    },
+    "semgrep": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    },
+    "sonar": {
+      "exclusive": 0,
+      "code": 0,
+      "mention": 0,
+      "comment": 0,
+      "absent": 0,
+      "not_applicable": 0,
+      "sample": []
+    }
+  }
+}

@@ -26,12 +26,12 @@ order, and each phase has an exit criterion that is a number, not an opinion.
 
 | # | Gap | Today | Exit criterion |
 |---|---|---|---|
-| G1 | **No ground truth.** The "oracle" is another tool with its own false positives. | ~20 findings adjudicated ad hoc | ≥500 findings adjudicated under a written protocol, labels released |
+| G1 | **No ground truth.** The "oracle" is another tool with its own false positives. | ~20 findings adjudicated ad hoc | ≥500 findings adjudicated under a written protocol, labels released — ✅ **601, released as `benchmarks/adjudication/labels.jsonl`** |
 | G2 | **One baseline.** Only `pqaudit`, a regex engine. | 1 detector | ≥3 independent detectors, ≥1 AST-based |
-| G3 | **n = 4**, and one corpus is a detector's own pattern tables. | 4 repos | ≥25 repos, documented sampling frame |
-| G4 | **No precision.** 99 QUBIT-only findings on go-jose are unadjudicated. | recall only | precision + recall + F1, per stratum |
+| G3 | **n = 4**, and one corpus is a detector's own pattern tables. | 4 repos | ≥25 repos, documented sampling frame — ✅ **26 pinned, frame in `benchmarks/corpus/`** |
+| G4 | **No precision.** 99 QUBIT-only findings on go-jose are unadjudicated. | recall only | precision + recall + F1, per stratum — ✅ **per-detector precision on the exclusive stratum, with intervals** |
 | G5 | **Toy migration corpus.** 87/105 on 15-line synthetic files. | synthetic | real repository files, with a build/behaviour check |
-| G6 | **No statistics.** Point estimates, n=4. | bare percentages | Wilson intervals, bootstrap, and a population estimate |
+| G6 | **No statistics.** Point estimates, n=4. | bare percentages | Wilson intervals, bootstrap, and a population estimate — ✅ **all three; bootstrap resamples repositories, not findings** |
 
 ## The idea that makes this a paper rather than a report
 
@@ -133,6 +133,63 @@ Full detail and numbers: `benchmarks/oracles/README.md`.
 **Consequence for the corpus:** crypto tooling cannot be pooled with ordinary software. It is a
 separate stratum with its own result, which is now one of the paper's findings rather than a
 contaminated denominator.
+
+---
+
+## Phase 3 + 4 — Ground truth, and the instrument that needed it (G1, G4, G6) ✅
+
+601 findings drawn from the 26-repository corpus, provenance stripped, labelled one at a time
+against the source, released as data. Full write-up: `benchmarks/adjudication/README.md`.
+
+**The finding that mattered most was about this evaluation, not about the detectors.** Phase 1.5's
+headline — *76–96% of exclusive findings are mentions* — rested entirely on `adjudicate.py`, a
+one-line heuristic nobody had ever validated. Scored against the labels it came out at **Cohen's
+κ = 0.279**: fair on the conventional scale, useless in practice.
+
+One defect explained 107 of the 601. The word-boundary test accepted a break only at punctuation or
+a camelCase hump, so a **digit** after the name read as the word continuing — `SHA` could not match
+`sha256`. The most common spelling of the most common primitive in the corpus was invisible to the
+instrument scoring it. A second defect (categories recognised only by a colon) explained 35 more.
+Fixed and pinned; κ rose to **0.762**, and that figure is in-sample and labelled as such.
+
+This is the same thesis the whole document is built on, turned one level inward: **a screening
+instrument written by the person it flatters cannot validate itself either.** It went into the paper
+as a result rather than into a changelog as a bug.
+
+**What the labels then said about the detectors** (exclusive stratum, Wilson intervals):
+
+| detector | n | use rate | what the rest is |
+|---|---:|---|---|
+| `qubit` | 23 | 100.0% [85.7%, 100%] | — |
+| `cryptoscan` | 107 | 47.7% [38.4%, 57.0%] | 53 mentions, 3 absent |
+| `pqaudit` | 317 | **18.0%** [14.1%, 22.6%] | 57 mentions, **203 absent** |
+
+64% of pqaudit's exclusive findings do not contain the algorithm at all: `DES` inside `DESC`,
+`CODES`, `OVERRIDES`, `SLIDES`. 199 of the 601 sampled findings are that single pattern. QUBIT's row
+is precision on the *exclusive* stratum at n = 23, not a headline recall or precision figure, and is
+reported that way.
+
+**And what they said about QUBIT.** Of 151 labelled findings from QUBIT's own HNDL secret/PII pass,
+**31.1% were not instances of their category at all** — `icon@2x.png` as an email address,
+`0.4365079365079365` as a Visa number, `Password = "password"` as a credential. The paper's claim
+that this pass "trades recall for precision" was an intention backed by five unit tests on invented
+input. All 47 are now filtered, all 31 genuine findings survive, and the regression lock is
+`packages/qubit-scanner/tests/test_secrets_precision.py`.
+
+**Two corpus-level defects fell out of reading the same output:**
+
+- `SKIP_DIRS` existed from the first commit and was **enforced nowhere** — `iter_source_files`
+  applied it and nothing called `iter_source_files`. gatsbyjs/gatsby vendors a 5 MB bundled
+  `yarn-1.21.0.js`, and 24 of the 28 exclusive findings sampled from that repository came out of it:
+  true about yarn, and not a fact about gatsby. Now applied in `restrict_to_source`, identically to
+  every detector including QUBIT.
+- The adjudication and the comparison were running over **different file populations**, so their
+  numbers could not be put in one table. One predicate now serves both.
+
+**Exit criteria, met:** ≥500 blind-adjudicated labels released as data (601); precision per detector
+per stratum with Wilson intervals; bootstrap over repositories; κ reported between two independently
+constructed annotators. **Not met:** a second *human* annotator on a subset. The annotator is a
+language model under a written protocol, disclosed in `PROTOCOL.md` as a threat to validity.
 
 ---
 

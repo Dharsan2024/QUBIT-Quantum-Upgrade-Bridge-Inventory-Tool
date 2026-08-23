@@ -1,0 +1,1 @@
+The bootstrap interval is stable well before the 10,000 resamples used throughout: the width stops moving by roughly 1,000. What the interval cannot shrink past is the number of repositories, which is the unit resampled, so more resamples buy nothing after this point. Source: data/convergence.csv.

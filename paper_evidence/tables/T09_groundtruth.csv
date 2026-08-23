@@ -1,0 +1,4 @@
+category,n,tp,fp,fn,tn,precision,recall
+A — weak-algorithm identity,68,29,11,27,1,"72.5% [57.2%, 83.9%]","51.8% [39.0%, 64.3%]"
+B — construct differs (RSA key size),6,5,1,0,0,"83.3% [43.6%, 97.0%]","100.0% [56.6%, 100.0%]"
+C — declared out of scope,105,16,6,65,18,"72.7% [51.8%, 86.8%]","19.8% [12.5%, 29.7%]"

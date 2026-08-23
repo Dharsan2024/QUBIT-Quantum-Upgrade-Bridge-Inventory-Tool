@@ -1,0 +1,9 @@
+area,test_functions
+packages/qubit-scanner,175
+packages/qubit-migrate,159
+packages/qubit-api,110
+benchmarks,84
+packages/qubit-risk,69
+packages/qubit-core,64
+packages/qubit-cli,40
+packages/qubit-bridge,23

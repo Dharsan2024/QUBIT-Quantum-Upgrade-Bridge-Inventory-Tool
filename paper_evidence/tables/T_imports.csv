@@ -1,0 +1,17 @@
+from_package,to_package,import_statements,kind
+qubit_api,qubit_core,38,runtime
+qubit_api,qubit_migrate,19,runtime
+qubit_api,qubit_risk,12,runtime
+qubit_api,qubit_scanner,11,runtime
+qubit_bridge,qubit_core,1,runtime
+qubit_cli,qubit_bridge,4,runtime
+qubit_cli,qubit_core,22,runtime
+qubit_cli,qubit_migrate,3,runtime
+qubit_cli,qubit_risk,11,runtime
+qubit_cli,qubit_scanner,8,runtime
+qubit_core,qubit_migrate,1,alembic metadata only
+qubit_core,qubit_risk,1,alembic metadata only
+qubit_migrate,qubit_core,21,runtime
+qubit_risk,qubit_core,7,runtime
+qubit_risk,qubit_scanner,2,runtime
+qubit_scanner,qubit_core,12,runtime

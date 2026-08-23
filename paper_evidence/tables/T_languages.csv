@@ -1,0 +1,11 @@
+language,category,files,physical_lines,code_lines
+Python,source,259,45475,35106
+YAML,config/docs,75,23549,21967
+JSON,config/docs,31,15860,15852
+TypeScript,source,42,8420,7008
+Markdown,config/docs,28,9687,6786
+CSS,config/docs,1,592,517
+TOML,config/docs,10,330,262
+Rust,source,2,331,222
+Shell,source,2,75,53
+HTML,config/docs,1,16,15

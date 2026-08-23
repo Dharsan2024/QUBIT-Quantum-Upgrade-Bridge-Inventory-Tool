@@ -1,0 +1,1 @@
+The screening classifier is reliable about absence and much weaker about the use/mention distinction, and this holds out of sample: ABSENT precision is 95.8% in calibration and 94.9% held out, while MENTION falls from 72.7% to 65.4%. Bars are Wilson 95% intervals. Source: tables/T07.csv.

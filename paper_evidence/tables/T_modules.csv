@@ -1,0 +1,14 @@
+module,files,physical_lines,code_lines
+benchmarks,57,28401,26543
+packages/qubit-scanner,95,23711,20829
+packages/qubit-migrate,69,11192,8617
+dashboard,56,9579,7959
+packages/qubit-api,34,7560,5856
+docs,17,8211,5811
+packages/qubit-risk,48,5104,4014
+packages/qubit-core,35,4977,3819
+packages/qubit-cli,13,2906,2268
+packages/qubit-bridge,18,1782,1405
+(root),7,710,498
+.github,1,121,109
+scripts,1,81,60

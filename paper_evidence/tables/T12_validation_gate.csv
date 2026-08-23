@@ -1,0 +1,5 @@
+any stage failed,any stage skipped,passed,partial,meaning
+no,no,True,False,accepted and fully verified
+no,yes,True,True,accepted; but not fully verified
+yes,no,False,False,patch rejected
+yes,yes,False,True,patch rejected

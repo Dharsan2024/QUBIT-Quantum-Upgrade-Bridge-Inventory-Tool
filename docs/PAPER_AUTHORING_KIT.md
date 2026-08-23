@@ -83,26 +83,66 @@ Use as the paper's "Implementation / Tech Stack" table. Versions are the pinned 
 
 ---
 
-## 2. Novelty — how to position it — TABLE 2 (feature comparison)
+## 2. Novelty — how to position it — TABLE 2
 
-**The novelty is the *synthesis*, not any single stage.** No prior open system connects
-discovery → calibrated HNDL risk → verification-gated remediation → on-wire proof, framed around the
-full HNDL *exposure surface*. State it exactly that way; do not claim to beat any single-purpose tool
-at its one job.
+**The novelty is the measurement, and the synthesis is the system it measures.**
 
-### 2.1 Novelty claims (rank in the paper)
-1. **Unified offline HNDL loop** — the four stages in one reproducible artifact. **[M functional]**
-2. **HNDL exposure-surface model** — discovery beyond crypto algorithms to secrets/keys/tokens/PII,
-   each with an exploit narrative; the risk framing is "what an HNDL adversary harvests," not "what
-   algorithm is weak." **[M]**
-3. **Fused calibrated risk** — Monte-Carlo CRQC arrival × data-shelf-life under Mosca, distilled to
-   an XGBoost score with split-conformal CIs + TreeSHAP; two independent exposure formulations
-   (closed-form vs. Bayesian net) cross-validate to <0.02. **[Mod]**
-4. **Safety-gated LLM migration** — a bad patch *cannot* merge (sandbox apply→parse→compile→re-scan);
-   safety is the claim, not LLM accuracy. **[M pipeline]**
-5. **On-wire proof** — same-port classical→hybrid swap verified as X25519MLKEM768. **[M]**
+This section used to read "the novelty is the *synthesis*". That was the right claim for a system
+with no evaluation, and it is the weaker one now. A synthesis claim is a feature table, and a
+reviewer at a serious venue reads a feature table as marketing: every cell is a design decision
+somebody could have made, and none of them is a finding. What survives review is a question nobody
+in the field currently answers, answered with evidence a reader can check.
 
-### 2.2 Feature-comparison table (fill baselines from their papers/docs)
+**Lead with this, in one sentence:** *every published cryptographic-inventory tool reports recall
+against a corpus it can see; none estimates what all of them missed — and when you build the
+apparatus to estimate it, the apparatus itself turns out to need validating.*
+
+### 2.1 Novelty claims (rank in the paper, in this order)
+1. **Population estimation for cryptographic inventory.** Capture–recapture across four independent
+   detectors, with the estimator's bias direction established by simulation against a known
+   population rather than assumed away. **[M]**
+2. **Use versus mention, adjudicated and released.** A pre-registered protocol, a blind stratified
+   sample, 601 hand labels published as data, per-detector precision on the exclusive stratum with
+   Wilson intervals and a bootstrap over *repositories*. 64% of one baseline's exclusive findings do
+   not contain the algorithm they name. **[M]**
+3. **Validation of the benchmark's own instrument.** κ = 0.279 → 0.762, and the two defects behind
+   it. This is the claim that makes the other two believable, and it is unusual enough in this
+   literature to be worth its own subsection. **[M]**
+4. **A corpus with a sampling frame** — 26 repositories, 13 language strata, fixed seed, pinned
+   commits, an inclusion criterion fixed *before* the run, and excluded repositories reported with
+   their counts. **[M]**
+5. **The unified offline HNDL loop** — discovery → calibrated risk → verification-gated remediation
+   → on-wire proof, in one reproducible artifact. Now positioned as *the system the measurement was
+   used to improve*: the evaluation found seven detection defects, a scanner precision of 20.5%, and
+   a vendored-directory filter that had never been enforced. **[M functional]**
+6. **HNDL exposure-surface model** — discovery beyond crypto algorithms to secrets/keys/tokens/PII
+   with an exploit narrative each. Report it **with its measured precision**, not as a feature. **[M]**
+7. **Fused calibrated risk** — Monte-Carlo CRQC arrival × shelf-life under Mosca, distilled to a
+   conformalised score; two independent exposure formulations cross-validate to <0.02. **[Mod]**
+8. **Safety-gated migration** — a bad patch cannot merge; safety is the claim, not model
+   accuracy. **[M pipeline]**
+9. **On-wire proof** — same-port classical→hybrid swap verified as X25519MLKEM768. **[M]**
+
+> **Why the reordering matters.** Claims 5–9 are all things a well-resourced team could build in a
+> quarter. Claims 1–4 are things the field has not done, and the reason it has not done them is that
+> they cost you your own headline. Ours cost us three.
+
+### 2.2 Where the evaluation is different (state this as a table; it is the real Table 2)
+
+| | misuse detectors (CryptoGuard, CogniCrypt) | CBOM tools | LLM-rewrite research | **QUBIT** |
+|---|---|---|---|---|
+| Recall reported against | a labelled benchmark | — (no evaluation) | task success | four independent detectors |
+| Estimates what **every** detector missed | ✗ | ✗ | ✗ | **✓** (capture–recapture, bias bounded by simulation) |
+| Separates a *use* from a *mention* | ✗ | ✗ | n/a | **✓** (601 released labels) |
+| Releases its labels | rarely | n/a | n/a | **✓** |
+| Validates its own screening instrument | ✗ | ✗ | ✗ | **✓** (κ reported before and after) |
+| Sampling frame stated, seed fixed, commits pinned | varies | ✗ | varies | **✓** |
+| Intervals on every proportion | varies | ✗ | varies | **✓** (Wilson; bootstrap over repositories) |
+
+Fill the first three columns only from sources you have read. An unverified ✗ is worse than a "—",
+because a reviewer who knows that literature will check exactly those cells.
+
+### 2.3 Feature-comparison table (secondary — capabilities, not findings)
 | Capability | CryptoGuard | CogniCrypt | CBOM tools (e.g. cbomkit) | LLM-rewrite research | **QUBIT** |
 |---|---|---|---|---|---|
 | Crypto misuse/asset discovery | ✓ | ✓ | ✓ | ✗ | ✓ |
@@ -120,42 +160,82 @@ at its one job.
 
 ---
 
-## 3. Measured results — TABLES 3–5
+## 3. Measured results — TABLES 3–6
 
-### TABLE 3 — System scale (measured at `7de4756`) **[M]**
+### TABLE 3 — System scale **[M]**
+Regenerate before submission; the numbers below were measured on 2026-08-22.
+
 | Package | Source LOC (non-test) | Test functions | Primary role |
 |---|---|---|---|
-| qubit-core | 1,940 | 33 | Schema, registry, CBOM |
-| qubit-scanner | 1,690 | 63 | Discovery + HNDL surface |
-| qubit-risk | 2,861 | 43 | HNDL risk engine |
-| qubit-migrate | 2,636 | 50 | Graph + migration + sandbox |
-| qubit-bridge | 949 | 5 | Hybrid TLS proof |
-| qubit-api | 2,440 | 31 | REST spine |
-| qubit-cli | 1,633 | 27 | CLI |
-| **Total (Python)** | **14,149** | **252** | (→ **331** collected cases via parametrization) |
-| Dashboard (TypeScript) | 2,915 | — | React UI |
+| qubit-core | 3,785 | 60 | Schema, registry, CBOM |
+| qubit-scanner | 4,719 | 153 | Discovery + HNDL surface |
+| qubit-risk | 3,405 | 69 | HNDL risk engine |
+| qubit-migrate | 5,595 | 152 | Graph + migration + sandbox |
+| qubit-bridge | 1,264 | 18 | Hybrid TLS proof |
+| qubit-api | 4,308 | 103 | REST spine |
+| qubit-cli | 2,013 | 40 | CLI |
+| **Total (Python)** | **25,089** | **595** | (→ **1,722** collected cases via parametrization, incl. benchmarks) |
+| Dashboard (TypeScript) | 6,905 | — | React UI |
+| Evaluation harness | 3,956 | 79 | `benchmarks/` — corpus, oracles, adjudication |
 
 ### TABLE 4 — Detection coverage **[M]**
 | Detector | Count | Notes |
 |---|---|---|
-| Crypto rule files | 8 | Python (5), Java (2), Go (1) |
-| Individual crypto rules | 34 | AST-query rules over tree-sitter |
+| Crypto rule files | 43 | tree-sitter AST-query packs |
+| Individual crypto rules | 264 | across the rule packs |
+| Languages (code scan) | 18 | python 41 rules, go 35, javascript 27, typescript 26, java 21, c 13, csharp 13, php 13, sql 11, bash 9, kotlin 8, ruby 8, rust 8, swift 8, scala 7, dart 6, powershell 6, cpp 4 |
 | HNDL secret/PII patterns | 11 | AWS/GitHub/Slack/Google/Stripe/JWT/PEM/password + email/CC/SSN |
 | Asset types (schema) | 7 | algorithm-use, protocol, certificate, key, library, **secret**, **sensitive-data** |
-| Languages (code scan) | 3 | Python, Java, Go |
 
 ### TABLE 5 — Quality gate & consistency results **[M]**
 | Metric | Value | How obtained |
 |---|---|---|
-| Automated tests passing | 331 collected, all pass | `uv run pytest packages -q` |
+| Automated tests | **1,722 collected, 0 failed, 0 skipped** | `uv run pytest packages benchmarks -q` |
 | Lint | ruff clean | `ruff check` |
 | Types | mypy clean (per-package) | `mypy <pkg>/src` |
 | Bayesian-net vs. closed-form P_HNDL | agree to <0.02 | internal cross-validation test |
 | Split-conformal coverage (synthetic) | ~90.5% | conformal calibration on synthetic set **[Mod]** |
+| End-to-end through the installed Windows app | 18/18 checks | live API on 127.0.0.1:8787 |
 | Coverage gate (core pkgs) | ≥70% (CI-enforced) | pytest-cov |
 
-> **Efficiency note to write honestly:** these are *functional/consistency* numbers. Detection
-> precision/recall, patch pass@k, and handshake-overhead latency are **[F]** — see §5.
+> **What Table 5 is and is not.** These are *functional and consistency* numbers — the system does
+> what it says, repeatably. They are **not** detection quality. Detection quality is Table 6, and it
+> is the part of this paper a reviewer will actually weigh.
+
+### TABLE 6 — Detection quality, measured **[M]**
+The comparative evaluation the earlier draft listed as future work. Sources:
+`benchmarks/corpus/` (26 pinned repositories, 13 language strata, seed `20260821`, drawn from a
+750-repository frame) and `benchmarks/adjudication/` (601 blind hand labels, released as data).
+
+**6a — the screening classifier, scored against the labels**
+
+| | before | after |
+|---|---|---|
+| raw agreement | 56.8% | 84.8% |
+| Cohen's κ | **0.279** | **0.762** *(in-sample)* |
+
+**6b — exclusive findings: what fraction is a real cryptographic use** (Wilson intervals; bootstrap
+resamples repositories, not findings)
+
+| detector | n | use | mention | absent | use rate |
+|---|---:|---:|---:|---:|---|
+| qubit | 23 | 23 | 0 | 0 | 100.0% [85.7%, 100%] |
+| semgrep | 2 | 2 | 0 | 0 | 100.0% [34.2%, 100%] |
+| cryptoscan | 107 | 51 | 53 | 3 | 47.7% [38.4%, 57.0%] |
+| pqaudit | 317 | 57 | 57 | 203 | **18.0%** [14.1%, 22.6%] |
+
+**6c — QUBIT's own HNDL pass, before and after the repairs it prompted**
+
+| | before | after |
+|---|---|---|
+| real secret or address | 31 / 151 = **20.5%** [14.9%, 27.7%] | 31 / 89 = **34.8%** *(in-sample)* |
+| outright false positives | 47 | **0** |
+
+> **Three rules for writing these up.** (1) Never quote 6b's QUBIT row as "precision" without
+> "on the exclusive stratum, n = 23". (2) Always carry the *(in-sample)* tag on κ = 0.762 and on
+> 34.8% — both were obtained after repairs derived from the same labels. (3) The κ = 0.279 row is
+> not an embarrassment to be trimmed; it is the paper's methodological finding and the reason the
+> other numbers can be believed.
 
 ---
 
@@ -181,19 +261,28 @@ Each figure below is generatable from the running app or the codebase — no fab
 
 ---
 
-## 5. Evaluation plan to actually run (turns [F] into [M]) — TABLE 6
+## 5. Evaluation suites — status
 
-Your co-author should run at least E1 before submission; a single real P/R/F1 number transforms the paper.
+**E1 has been run.** Its results are Table 6 above and §7 of the manuscript. What follows is the
+status of all four, so nothing gets written up as achieved that is not.
 
-| Suite | Metric | Dataset / method | Baseline(s) | Output figure/table |
-|---|---|---|---|---|
-| **E1 Discovery** | Precision, Recall, F1 | Labeled crypto corpus (e.g. CryptoAPI-Bench + hand-labeled repos) | CryptoGuard, CogniCrypt | Table of P/R/F1 + ablation |
-| **E2 Risk calibration** | Conformal coverage; Spearman ρ | Collect 40 demo-lab assets × 3 human raters; Bradley-Terry consensus | expert ranking | Calibration plot + ρ |
-| **E3 Patch quality** | pass@1/pass@k; template success | Rule/fixture set through the sandbox | — (report as-is) | Bar chart per rule |
-| **E4 Handshake overhead** | ms mean/p50/p95 | pcap-timestamp + `tc netem` (classical vs. hybrid) | classical TLS | Latency bars |
+| Suite | Metric | Status |
+|---|---|---|
+| **E1 Discovery** | use-rate on the exclusive stratum, per detector, with intervals; population estimate | ✅ **run** — 4 detectors, 26 pinned repos, 601 released labels (`benchmarks/`) |
+| **E2 Risk calibration** | Conformal coverage; Spearman ρ vs. expert ranking | **future work** — the harness exists (`qubit risk eval --pairwise … --scores …`); the *human ratings do not*. Collect real ones or report E2 as future work. **Never fabricate them.** |
+| **E3 Patch quality** | accept rate through the sandbox | partial — 89/105 on a *synthetic* polyglot corpus. On real repository files, with a build check rather than a re-scan check: **future work**, and the largest remaining gap. |
+| **E4 Handshake overhead** | ms mean/p50/p95, classical vs. hybrid | **future work** — `tc netem` + pcap timestamps |
 
-> The harness for E2's Spearman study exists (`qubit risk eval --pairwise … --scores …`). **Never
-> fabricate the human ratings** — collect real ones or report E2 as future work.
+**E1 did not turn out the way this document originally assumed.** It was written expecting a
+precision/recall table against CryptoGuard and CogniCrypt. What the run actually produced was a
+finding about *evaluation*: the screening instrument behind the earlier headline scored κ = 0.279
+against hand labels, and 64% of one baseline's exclusive findings do not contain the algorithm they
+name. Write the paper around that, not around a P/R/F1 table it cannot honestly fill.
+
+**A note on baselines.** CryptoGuard and CogniCrypt detect *misuse* of cryptographic APIs; the four
+detectors in E1 build *inventories* of cryptography in use. Those are different tasks, and putting
+their numbers in one table would be the same category error as scoring QUBIT against cryptoscan's
+own pattern tables. If a misuse baseline is added, say what question it answers.
 
 ---
 
@@ -280,8 +369,43 @@ Tooling & methodology (for related work + methods):
 19. M. Brand et al. / tree-sitter — "Tree-sitter: an incremental parsing system" (cite the project).
 20. A. Ankan and A. Panda, "pgmpy: Probabilistic Graphical Models using Python," SciPy 2015.
 
-> Fill in exact volumes/pages and match the target venue's citation style (IEEE numeric is typical
-> for Annexure-I/SCOPUS CS venues).
+**Evaluation methodology (the new backbone — cite these, they are what §7 of the manuscript rests
+on and their absence is what makes the inventory literature's evaluations weak):**
+
+21. D. G. Chapman, "Some properties of the hypergeometric distribution with applications to
+    zoological sample censuses," Univ. California Publications in Statistics, 1951. *(the
+    bias-corrected Lincoln–Petersen estimator used in `population.py`)*
+22. S. E. Fienberg, "The multiple recapture census for closed populations and incomplete 2^k
+    contingency tables," Biometrika, 1972. *(the log-linear M_th models)*
+23. S. G. Eick, C. R. Loader, M. D. Long, L. G. Votta, S. Vander Wiel, "Estimating software fault
+    content before coding," ICSE 1992. *(capture–recapture from overlapping inspections — the
+    precedent this paper transfers from inspectors to detectors)*
+24. L. C. Briand, K. El Emam, B. G. Freimut, O. Laitenberger, "A comprehensive evaluation of
+    capture-recapture models for estimating software defect content," IEEE TSE, 2000. *(why the
+    estimators are biased low under heterogeneity — the same direction our simulation measures)*
+25. E. B. Wilson, "Probable inference, the law of succession, and statistical inference," JASA,
+    1927. *(the score interval; the normal approximation is wrong at our counts)*
+26. J. Cohen, "A coefficient of agreement for nominal scales," Educational and Psychological
+    Measurement, 1960. *(κ, reported before and after the classifier repairs)*
+27. B. Efron, "Bootstrap methods: another look at the jackknife," Annals of Statistics, 1979.
+    *(resampled over repositories, not findings)*
+28. J. Zobel, "How reliable are the results of large-scale information retrieval experiments?"
+    SIGIR 1998. *(pooled assessment and the incompleteness of judgements)*
+29. E. M. Voorhees, "Variations in relevance judgments and the measurement of retrieval
+    effectiveness," IP&M, 2000. *(annotator disagreement treated as a first-class problem — the
+    threat-to-validity framing for our single LLM annotator)*
+30. C. Buckley and E. M. Voorhees, "Retrieval evaluation with incomplete information," SIGIR 2004.
+
+> **Verify every one of these before submission**: fill in exact volumes, issues and pages, and
+> match the target venue's citation style (IEEE numeric is typical for Annexure-I/SCOPUS CS venues).
+> Author, title, venue and year above are believed correct; page numbers are deliberately omitted
+> rather than guessed.
+>
+> **A caution about 13–14 (CryptoGuard, CogniCrypt).** Do **not** put their reported precision or
+> recall in a table beside ours. They detect *misuse of cryptographic APIs*; QUBIT and its three
+> baselines build *inventories of cryptography in use*. Different task, different denominator.
+> Cite them for the evaluation template this paper departs from, and say which question each
+> answers.
 
 ---
 
@@ -305,8 +429,16 @@ Tooling & methodology (for related work + methods):
 ## 9. Honesty checklist before submission (critical for the viva)
 - [ ] No [Mod]/[F] number is stated as a measured empirical result.
 - [ ] The CRQC timeline is described as a *simulation/model*, never a prediction.
-- [ ] At least E1 (discovery P/R/F1) run on a small labeled set, OR evaluation clearly framed as
-      "designed, in progress."
+- [ ] Every **in-sample** figure carries that word: κ = 0.762 and the 34.8% HNDL precision were
+      obtained after repairs derived from the same 601 labels.
+- [ ] Table 3 and Table 4 have been **regenerated**, not copied — they have gone stale once already.
+- [ ] QUBIT's 100% on Table 6b is written as *precision on the exclusive stratum at n = 23*, never
+      as a headline precision or recall figure, and its degenerate bootstrap is stated as degenerate.
+- [ ] The annotator is disclosed as a language model under a written protocol, with the released
+      labels named as the reason a reviewer can disagree.
 - [ ] The DistilBERT negative result is reported honestly (strengthens credibility).
-- [ ] Every competitor cell in Table 2 is verified against its source or marked "—".
+- [ ] κ = 0.279 and the 20.5% HNDL precision are **in the paper**, not in a changelog. If a reviewer
+      finds those numbers only in the repository, the paper has managed its results.
+- [ ] Every competitor cell in Table 2 is verified against its source or marked "—"; §10 of the
+      manuscript quotes no figures from prior work that have not been read from the source.
 - [ ] Figures are real screenshots/plots from the artifact, captioned with how they were produced.

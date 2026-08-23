@@ -1,0 +1,9 @@
+dimension,n,recall_before,recall_after,tp_before,tp_after,fp_before,fp_after
+Basis benchmark,14,"81.8% [52.3%, 94.9%]","100.0% [74.1%, 100.0%]",9,11,2,2
+Interprocedural (2 methods),9,"0.0% [0.0%, 29.9%]","100.0% [70.1%, 100.0%]",0,9,0,0
+pure Interprocedural cases,9,"0.0% [0.0%, 29.9%]","100.0% [70.1%, 100.0%]",0,9,0,0
+Field sensitive,9,"0.0% [0.0%, 29.9%]","0.0% [0.0%, 29.9%]",0,0,0,0
+Interprocedural + Field Sensitive,9,"0.0% [0.0%, 29.9%]","0.0% [0.0%, 29.9%]",0,0,0,0
+Multiple java classes,9,"0.0% [0.0%, 29.9%]","0.0% [0.0%, 29.9%]",0,0,0,0
+Path sensitive cases,9,n/a,n/a,0,0,7,9
+ALL (category A),68,"16.1% [8.7%, 27.8%]","51.8% [39.0%, 64.3%]",9,29,9,11

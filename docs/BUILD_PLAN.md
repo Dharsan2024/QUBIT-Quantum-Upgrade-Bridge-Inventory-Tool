@@ -209,16 +209,45 @@ running the external-validation study with **real human rankings** for the paper
 `v1.0.0` to PyPI + GHCR; docs site; the SCOPUS/Annexure-1 **paper**; thesis chapters + viva prep. These
 resume after the Sep 30 product deadline.
 
-## 6. What makes this a product, not a prototype
+## 6. What is product-grade, and what is still prototype
 
-`pip install qubit-cli` + `docker compose up` both work from a clean clone; CI is green with ≥70% coverage on the three core packages; every scan/risk run records engine versions for reproducibility; the CBOM validates against the official ECMA-424 schema; the whole thing runs offline with a local LLM and no telemetry; and a third party can add a detection rule or a migration rule as pure YAML + fixtures and watch it flow through the pipeline.
+**Product-grade engineering.** `pip install qubit-cli` + `docker compose up` both work from a clean
+clone; CI is green with ≥70% coverage on the three core packages; mypy is clean across all seven
+packages; every scan/risk run records engine versions for reproducibility; the CBOM validates against
+the official ECMA-424 schema; the whole thing runs offline with a local LLM and no telemetry; and a
+third party can add a detection rule or a migration rule as pure YAML + fixtures and watch it flow
+through the pipeline.
+
+**Prototype accuracy.** The engineering claim above says nothing about whether the findings are
+right, and when that was finally measured (`benchmarks/adjudication/`) the answer was that the HNDL
+pass ran at **20.5% precision** and the benchmark's own screening classifier at **κ = 0.279**. Both
+were repaired and the repairs confirmed out-of-sample (**47.1%** and **κ = 0.758**), but ~half of
+what the HNDL pass reports is still a placeholder or a fixture, and QUBIT's *cryptographic*
+precision has no established figure at all — 27 hand-labelled exclusive findings is too small a
+sample to have one. Calling this production-ready would be the same unmeasured confidence the
+measurement exists to catch.
 
 ## 7. What makes it publishable (paper track — deferred post-deadline)
 
 > The paper is now **deferred to after the Sep 30, 2026 product deadline** (see §5). This section records
 > the publishable claim so it is ready to pick up once the hardened product ships.
 
-The novelty is the **synthesis** no prior work combines (confirmed against the 2026 ecosystem in doc 07): CRQC Monte-Carlo hardware simulation **fused with** programmatic AST discovery into a continuous, calibrated HNDL score; **local-LLM** AST-to-PQC code transformation with a safety-gated verification pipeline (a bad patch can never merge — the honest claim even at a 55% LLM success rate); and automated CycloneDX CBOM output tying it to emerging compliance mandates. The evaluation (E1–E4) measures each claim against real baselines on real benchmarks, with all figures regenerable from `experiments/run_all.py`.
+**The framing changed once the measurement ran, and the paper follows the evidence.** The original
+claim was the *synthesis* no prior work combines (CRQC Monte-Carlo fused with AST discovery,
+local-LLM transformation behind a safety gate, CBOM output). That synthesis is real and remains the
+tool's contribution, but it is an engineering contribution, and it is not the strongest thing this
+project now has.
+
+The strongest thing is a **measurement**: a 26-repository corpus with a pre-registered inclusion
+criterion, four independent detectors, capture–recapture estimates of what every detector missed,
+and 801 blind hand labels under a protocol fixed in advance — which found that **the benchmark's own
+screening instrument was wrong, in the direction that flattered QUBIT**. A paper that reports that
+is worth more than one that reports a synthesis, and it is the one being written. See
+[RESEARCH_PAPER.md](RESEARCH_PAPER.md) and `benchmarks/adjudication/README.md`.
+
+The open threat to validity is stated rather than hidden: every one of the 801 labels was produced
+by a language model. A human pass over a stratified subsample is registered in
+`benchmarks/adjudication/HUMAN_PROTOCOL.md` and is the outstanding item.
 
 ## 8. Top risks and how the plan absorbs them
 

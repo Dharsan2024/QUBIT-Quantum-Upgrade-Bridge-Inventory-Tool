@@ -1,0 +1,18 @@
+symbol,name,meaning
+n,count,"number of items in a sample, stated on every interval"
+kappa,Cohen's kappa,chance-corrected agreement between two labellings of the same items
+kappa_intra,intra-rater kappa,one annotator against themselves on hidden repeats
+P,precision,"of the items given a label, the fraction that deserved it"
+R,recall,"of the items deserving a label, the fraction that got it"
+F1,harmonic mean,2PR/(P+R)
+MCC,Matthews correlation,balanced even when the classes are not
+CI,confidence interval,95% throughout; Wilson for proportions
+"[a, b]",interval,"lower and upper bound, inclusive"
+pp,percentage points,"a difference between two percentages, never a ratio"
+USE,label,"the algorithm is invoked, configured or selected at this line"
+MENTION,label,"the name is present as data or prose, not as an operation"
+ABSENT,label,the name is not there at all; the detector matched something else
+AMBIGUOUS,label,the line alone cannot settle it; never resolved by guessing
+HNDL,"harvest now, decrypt later",the threat model the risk engine quantifies
+CRQC,cryptographically relevant quantum computer,the capability the timeline models
+CBOM,cryptographic bill of materials,"CycloneDX 1.7, the exported inventory"

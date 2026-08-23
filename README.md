@@ -3,9 +3,10 @@
   <p><b>Quantum Upgrade Bridge &amp; Inventory Tool</b></p>
   <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
 
-  <img src="https://img.shields.io/badge/status-Phase%203%20hardening-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-1473%20passing%20%7C%200%20skipped-brightgreen?style=flat-square" alt="Tests" />
-  <img src="https://img.shields.io/badge/coverage-82%25%20core-brightgreen?style=flat-square" alt="Coverage" />
+  <img src="https://img.shields.io/badge/status-research%20prototype-yellow?style=flat-square" alt="Status" />
+  <img src="https://img.shields.io/badge/tests-1851%20passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/coverage-85.6%25-brightgreen?style=flat-square" alt="Coverage" />
+  <img src="https://img.shields.io/badge/WCAG-2.2%20AA-brightgreen?style=flat-square" alt="Accessibility" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
   <img src="https://img.shields.io/badge/react-19-blue?style=flat-square" alt="React Version" />
@@ -21,7 +22,22 @@ As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, exist
 
 QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
 
-> **Honest status.** QUBIT is production-*grade* (real scanning, typed, 1473 tests passing with zero skips, CI, git-safe DB migrations, a live hybrid-PQC TLS bridge) but not yet production-*hardened* — see [Project status](#-project-status) for exactly what is and isn't done, including a security review of the deployed surface and the hardening gaps that remain.
+> **Honest status: QUBIT is a research prototype, not a production tool.** The engineering is real —
+> 1692 tests passing with zero skips, mypy clean across all seven packages, CI, git-safe DB
+> migrations, a live hybrid-PQC TLS bridge, a packaged desktop app. What is not production-ready is
+> the **accuracy**, and it has been measured rather than asserted:
+>
+> * The HNDL exposure pass ran at **20.5% precision [14.9%, 27.7%]** before repair and **47.1%
+>   [34.1%, 60.5%]** after, the latter measured out-of-sample on findings drawn after the fix.
+>   Roughly half of what it reports is still a placeholder or a test fixture.
+> * QUBIT's **cryptographic** precision is *not yet established*: 27 hand-labelled exclusive
+>   findings across two cohorts, all correct, is a sample too small to have a precision. It is not a
+>   100% score and is not reported as one.
+> * The screening classifier the corpus comparison rests on reached **κ = 0.758 out-of-sample**,
+>   after an earlier version reached 0.279 and reversed a headline.
+>
+> Full method, labels and intervals in [`benchmarks/adjudication/`](benchmarks/adjudication/README.md);
+> see [Project status](#-project-status) for the engineering gaps.
 
 ---
 
@@ -194,16 +210,32 @@ uv run qubit cbom validate out.json                   # validate against Cyclone
 ## 📊 Project status
 
 Phases 0–2 are complete; the project is in its **Phase 3 hardening sprint** (deadline end of
-September 2026). Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
+September 2026). It is a **research prototype** — see the honest-status note at the top for what the
+accuracy actually measures. Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
 [docs/project-status/](docs/project-status/).
 
 **Done and verified:** all five scanner sources · CBOM 1.7 export/import · the full risk engine ·
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
 governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
-1473 tests passing with **zero skips** · 82% coverage on the three core packages · CI green.
+**1851 tests passing** · **85.6% line+branch coverage** over `packages/` · CI green ·
+mypy clean across all seven packages · **WCAG 2.2 AA with zero axe-core violations**, pinned by
+real-browser tests.
 
-**Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video.
+**Measured, not asserted:** a 26-repository corpus with a pre-registered inclusion criterion, four
+independent detectors, capture–recapture population estimates, and 801 blind hand labels under a
+protocol fixed before the first label. Both the classifier and QUBIT's own HNDL pass were found
+defective by that measurement and repaired; the repairs were then confirmed on a held-out cohort.
+See [`benchmarks/adjudication/`](benchmarks/adjudication/README.md).
+
+**Since measured, and no longer outstanding:** cryptographic precision now has a figure against
+**published, independently-labelled ground truth** (CryptoAPI-Bench), not a self-generated sample —
+16.1% -> 51.8% recall on the in-scope category after an intra-file constant-folding fix, with the
+remaining 0% on field-sensitive and cross-file cases reported rather than hidden. Two human
+annotators now give a real inter-rater kappa instead of the intra-rater substitute.
+
+**Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video ·
+a third annotator (two points establish a direction, not a population threshold).
 
 ### Rebuilding the Windows desktop app after a change
 
@@ -286,8 +318,41 @@ they are called out here rather than quietly patched:
 Both fixes ship with regression tests that were each confirmed to fail when the fix is reverted, and
 `test_spa_hosting.py` gives the SPA-hosting route its first coverage of any kind.
 
+#### Second pass — live penetration testing
+
+A later pass probed the running API directly (35 checks across authentication, traversal, injection,
+SSRF, headers and error handling). Two more real defects, both fixed and pinned:
+
+| Defect | Why it mattered | Fix |
+|---|---|---|
+| **SSRF to the cloud instance-metadata service** | Python's `ipaddress.is_private` returns true for link-local, so the network scanner's "local targets need no authorization" rule auto-allowed `169.254.169.254` — the AWS/Azure/GCP metadata endpoint, and the standard pivot for stealing instance credentials. Confirmed against the running app: the scan was accepted and reported `succeeded`, while `8.8.8.8` and `example.com` were correctly refused, so this was a gap in the rule and not an open door. | Link-local is excluded from the auto-allow and now needs the same explicit allowlist entry plus `authorized` flag as any other off-network target. |
+| **No baseline response headers** | No `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options` or `Referrer-Policy` on any response — and in desktop mode the API serves the dashboard HTML itself, so those headers land on a page a real browser engine renders. | All four set, with a CSP that forbids framing, objects, base-URI rewriting and `unsafe-eval`. |
+
+Everything else held: unauthenticated/bad/empty tokens rejected, path traversal refused, git-URL
+command injection not exploitable (the clone is `subprocess` with an argument list, never a shell),
+SQL injection stopped at the type boundary, and no stack traces in 4xx bodies.
+
+#### Accessibility conformance
+
+EN 301 549 — the standard the European Accessibility Act has enforced since 28 June 2025 — is
+anchored to WCAG Level AA, so an accessibility defect in a shipped tool is a compliance defect. The
+dashboard was audited with **axe-core in a real browser across all eight pages**:
+
+| Check | Before | After |
+|---|---|---|
+| axe-core violations (WCAG 2.0/2.1/2.2 A + AA) | 3 critical | **0** |
+| SC 2.5.8 Target Size — interactive targets below 24x24 CSS px | 21 | **0** |
+| SC 2.4.7 Focus Visible / SC 2.4.11 Focus Not Obscured | already clean | clean |
+
+The three violations were real Level A failures: two Settings inputs had labels positioned above
+them but never associated via `htmlFor`, so a screen reader announced them as unlabelled, and the
+CRQC Timeline algorithm picker had no accessible name at all. The target-size failures were ordinary
+usability defects independent of assistive technology — the scan-row delete control was 16x21 px.
+All of it is pinned by [`dashboard/e2e/accessibility.spec.ts`](dashboard/e2e/accessibility.spec.ts).
+
 **Known hardening gaps** (real deployments should plan for these): the API container runs as root;
-there is no rate limiting or request-size cap in front of the scan endpoints; PostgreSQL is
+there is no request-size cap in front of the scan endpoints (rate limiting on mutating verbs now
+exists); PostgreSQL is
 URL-supported through SQLAlchemy but only SQLite is exercised by the suite; and a scan target is any
 path the server process can read, so the API is designed to be bound to localhost or a trusted
 network rather than exposed publicly.
@@ -328,6 +393,28 @@ algorithm, so 213 assets cost only 5 real Monte-Carlo runs. Its hottest function
 72% of the pipeline) was rewritten for a modest 1.09x and, more usefully, fewer moving parts; two
 faster-looking alternatives were measured, found slower, and are recorded in the code so they are not
 retried. Reporting a 9% win as a 5x one would have been the easy mistake here.
+
+---
+
+## 🤖 Learned tiers
+
+Three learned or generative components sit inside QUBIT. Each is **optional**, each degrades to a
+deterministic path when absent, and none of them decides anything alone — the scanner's findings and
+the patch-validation gate are rule-based throughout. Full cards, with the numbers read out of the
+artifacts themselves, are in `paper_evidence/MODELS.md`.
+
+| Component | What it does | Status |
+|---|---|---|
+| **XGBoost risk regressor** + split conformal | Distils the closed-form HNDL score so the app returns a score *and* a calibrated interval without re-running the Monte-Carlo timeline per asset | Trained. Test MAE **0.0021** on a 0–1 score; **90.51%** empirical interval coverage against a 90% target; 34 features; 50,000 synthetic assets |
+| **DistilBERT sensitivity classifier** | Decides what *kind* of data a finding protects (PHI, PII, financial, credentials, IP, ephemeral, public) — the input that sets shelf-life, and therefore the Mosca margin | Harness present, **not trained in this checkout**, so no accuracy is claimed for it |
+| **Local code-rewriting model** (`qwen2.5-coder:7b`) | Writes patches for rules with no deterministic codemod, entirely on-device through Ollama | Greedy decoding, pinned seed, 3-attempt repair loop, every attempt re-validated |
+
+The regressor's coverage figure is the one that matters: split-conformal prediction gives a
+distribution-free guarantee that the interval contains the true value at the target rate, and 90.51%
+against a 90% target is the check that the guarantee held on data the model never saw. It is trained
+on a **synthetic** population drawn from the same priors the closed-form score uses, so it distils a
+model rather than learning from observed breaches — it inherits every assumption in `qubit_risk`,
+which is stated as a limitation rather than a footnote.
 
 ---
 

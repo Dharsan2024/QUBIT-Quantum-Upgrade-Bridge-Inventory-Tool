@@ -1,0 +1,27 @@
+repository,stratum,primary_language,license,stars,commit,status
+CymChad/BaseRecyclerViewAdapterHelper,Kotlin,Kotlin,MIT,24578,9948068cd95d,not yet swept
+JetBrains/compose-multiplatform,Kotlin,Kotlin,Apache-2.0,19309,a933da08f5d5,included
+ReactiveX/RxJava,Java,Java,Apache-2.0,48204,eed1277349b2,not yet swept
+TheAlgorithms/Python,Python,Python,MIT,223920,f5988cc09713,included
+activeadmin/activeadmin,Ruby,Ruby,MIT,9703,c8e93a8edbb2,not yet swept
+allinurl/goaccess,C,C,MIT,20829,0784e0e7c281,included
+anthropics/skills,Python,Python,NOASSERTION,170814,0a64e398ec6b,not yet swept
+coder/code-server,TypeScript,TypeScript,MIT,78997,88c2b7432e93,included
+conductor-oss/conductor,Java,Java,Apache-2.0,32102,9b6e4c08aca4,included
+filp/whoops,PHP,PHP,MIT,13234,fa1bc9c95a1b,not yet swept
+fruitcake/laravel-debugbar,PHP,PHP,MIT,19281,a1cbd4855091,included
+gatsbyjs/gatsby,JavaScript,JavaScript,MIT,55941,e85d62f1779e,included
+lencx/ChatGPT,Rust,Rust,NOASSERTION,54447,a6de9a8b6107,not yet swept
+libuv/libuv,C++,C,MIT,27125,f87c8e4f70f2,not yet swept
+mpv-player/mpv,C#,C,NOASSERTION,36613,49418246f30a,included
+multica-ai/multica,Go,Go,NOASSERTION,47188,fbbe69757853,included
+openwrt/openwrt,C#,C,NOASSERTION,28057,f1bf2d18392e,included
+permissionlesstech/bitchat,Swift,Swift,Unlicense,35746,9b84b361225f,included
+react/create-react-app,JavaScript,JavaScript,MIT,103290,6254386531d2,included
+realm/SwiftLint,Swift,Swift,MIT,19702,ea29a5bee7f4,included
+redis/redis,C,C,NOASSERTION,76078,78432ed8e48a,included
+starship/starship,Rust,Rust,ISC,59518,6d38f35391a8,included
+tmuxinator/tmuxinator,Ruby,Ruby,MIT,13708,6d021f7befee,not yet swept
+usememos/memos,Go,Go,MIT,62416,79baf2eab7de,included
+valinet/ExplorerPatcher,C++,C,GPL-2.0,33677,0a88a6e0ef6b,not yet swept
+withastro/astro,TypeScript,TypeScript,NOASSERTION,61913,3578d45d3422,included

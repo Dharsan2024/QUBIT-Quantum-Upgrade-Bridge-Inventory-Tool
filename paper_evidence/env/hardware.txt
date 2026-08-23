@@ -1,0 +1,24 @@
+# A11 — Environment
+
+captured_utc: 2026-08-23T18:13:47+00:00
+platform: Windows-11-10.0.26200-SP0
+machine: AMD64
+processor: Intel64 Family 6 Model 183 Stepping 1, GenuineIntel
+python: 3.12.13 (CPython)
+logical_cpus: 28
+total_memory_bytes: 16873545728
+cpu_name: Intel(R) Core(TM) i7-14700HX
+
+## Git
+
+commit: 63823b49e3991c31176b66a8cb66fab4e25a563b
+branch: main
+dirty_files: 112
+
+## Container image digests (benchmark oracles)
+
+qubit-bench-cryptoscan:11f0e46: qubit-bench-cryptoscan@sha256:0017535511487f7f5eecd706cc429ddb346c179563013cc0b53d38bfd241b967
+semgrep/semgrep:latest: semgrep/semgrep@sha256:67319956da3dcb58baf5b322899c15458e3963e7018a86aeeb5cd224e69cb77a
+sonarqube:community: sonarqube@sha256:9026624a61cd25542a402a9e7213dd7dbb39724ac9597e331e6b85362558c079
+sonarsource/sonar-scanner-cli:latest: sonarsource/sonar-scanner-cli@sha256:23ca0f137965d9dff2198074043fd48d386280bc5d0ccac8c8349cea4cf096a9
+hashicorp/vault:latest: hashicorp/vault@sha256:5be49781ecf78bfe775c5309c6a4d9f4e9e040b6c885c99eb2b12fb69855e1a2

@@ -1,0 +1,6 @@
+repository,files,findings,reps,mean_s,sd_s,min_s,max_s,files_per_s,peak_python_mb,quiet_machine
+lencx/ChatGPT,74,0,5,0.11,0.013,0.102,0.134,675.8,0.6,True
+valinet/ExplorerPatcher,238,0,5,3.435,0.057,3.378,3.518,69.3,23.9,True
+permissionlesstech/bitchat,633,11,5,13.066,0.11,12.927,13.19,48.4,18.5,True
+JetBrains/compose-multiplatform,2127,2,5,8.485,0.106,8.395,8.668,250.7,90.1,True
+openwrt/openwrt,11526,38,5,25.651,0.174,25.364,25.82,449.3,40.7,True

@@ -1,0 +1,8 @@
+scenario,output,value,p_too_late
+baseline,margin_years,-30.01,0.9946
+X: shelf-life P90 -20%,margin_years,-21.21,0.9835
+X: shelf-life P90 +20%,margin_years,-38.81,0.9985
+Y: migration effort -20%,margin_years,-29.81,0.9944
+Y: migration effort +20%,margin_years,-30.21,0.9947
+Z: CRQC arrival percentile P10,margin_years,-34.01,0.9946
+Z: CRQC arrival percentile P90,margin_years,-21.01,0.9946

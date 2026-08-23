@@ -12,13 +12,13 @@ from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from qubit_core.db import AssetRow, ProjectRow
 from qubit_migrate.orchestrator import MigrationOrchestrator
 from qubit_migrate.state import MigrationPlan, MigrationTask, PatchProposal
 from qubit_migrate.state.machine import InvalidTransition
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..deps import get_session
@@ -36,6 +36,10 @@ class PlanCreate(BaseModel):
     # a plan across everything. The app always sends a project.
     project_id: UUID | None = None
     scan_id: UUID | None = None
+    #: Build a NEW plan even when this scan already has one. Off by default, because planning the
+    #: same scan twice produces two plans holding the same findings and the reader has no way to
+    #: tell which one to work. Set it deliberately to re-plan at a different `min_risk`.
+    force: bool = False
 
 
 class PlanOut(BaseModel):
@@ -69,6 +73,11 @@ class TaskOut(BaseModel):
     rank: int
     effort_points: int
     last_error: str | None
+    #: Why a `deferred` task is parked: "satisfied" (an earlier patch covered it, or the pin already
+    #: meets the PQC floor) vs "unresolved" (QUBIT could not migrate it). Both share one FSM state,
+    #: so without this the queue shows finished work as failed and sends the operator to fix
+    #: something already correct. NULL for tasks that never parked.
+    resolution: str | None = None
     # denormalized asset context for the UI
     algorithm: str | None = None
     key_size: int | None = None
@@ -190,6 +199,7 @@ def _task_out(task: MigrationTask, row: AssetRow | None) -> TaskOut:
         rank=task.rank,
         effort_points=task.effort_points,
         last_error=task.last_error,
+        resolution=task.resolution,
         algorithm=row.algorithm if row else None,
         key_size=row.key_size if row else None,
         file_path=loc.get("file_path"),
@@ -234,6 +244,27 @@ def create_plan(
 ) -> PlanOut:
     if payload.project_id is not None and not session.get(ProjectRow, payload.project_id):
         raise HTTPException(status_code=404, detail="Project not found")
+
+    # Planning the same scan twice is a duplicate, not a second opinion. Measured against the
+    # running app: one scan of demo-lab/vulnapp-python ended up with THREE plans -- one built
+    # automatically when the scan finished, plus one for each explicit request -- each holding the
+    # same findings, with nothing to say which was the real one. On the polyglot corpus that is two
+    # plans of 127 tasks each.
+    #
+    # `generate_patch` already guards the same double-click for a single task (it answers 409 and
+    # points at the existing patch). This is that protection one level up, except that returning
+    # the existing plan is friendlier than refusing: "plan this scan" is a request for THE plan,
+    # and the caller wants a usable id back either way.
+    if payload.scan_id is not None and not payload.force:
+        existing = (
+            session.query(MigrationPlan)
+            .filter(MigrationPlan.scan_id == payload.scan_id)
+            .order_by(MigrationPlan.created_at.desc())
+            .first()
+        )
+        if existing is not None:
+            return _plan_out(existing)
+
     orch = MigrationOrchestrator(session)
     plan = orch.build_plan(
         min_risk=payload.min_risk,
@@ -260,6 +291,73 @@ def list_plans(
         stmt = stmt.where(MigrationPlan.project_id == project_id)
     plans = session.scalars(stmt).all()
     return [_plan_out(p) for p in plans]
+
+
+class RunPlanRequest(BaseModel):
+    apply: bool = True
+    generator: Literal["auto", "llm", "template"] = "auto"
+
+
+@router.post("/migrate/plans/{plan_id}/run", status_code=status.HTTP_202_ACCEPTED)
+def run_plan(
+    plan_id: UUID,
+    payload: RunPlanRequest,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, object]:
+    """Migrate every ready task in this plan — the "Initiate migration" button.
+
+    Dispatched to the job runner rather than run here: a plan of twenty findings can hold the
+    request open for minutes while the local model works, and the caller needs progress, not a
+    timeout. Poll `GET /jobs/{id}` for status and the per-task result.
+    """
+    plan = session.get(MigrationPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    ready = session.scalar(
+        select(func.count())
+        .select_from(MigrationTask)
+        .where(MigrationTask.plan_id == plan_id)
+        .where(MigrationTask.state == "ready")
+    )
+    if not ready:
+        raise HTTPException(
+            status_code=409,
+            detail="This plan has no ready tasks — every finding is already migrated or parked.",
+        )
+
+    runner = getattr(request.app.state, "job_runner", None)
+    if runner is None:
+        raise HTTPException(
+            status_code=503,
+            detail="The job runner is not available, so a bulk migration cannot be dispatched.",
+        )
+
+    from qubit_core.db import Job
+
+    job = Job(
+        kind="migrate",
+        project_id=plan.project_id,
+        ref_id=plan.id,
+        payload={
+            "plan_id": str(plan_id),
+            "apply": payload.apply,
+            "generator": payload.generator,
+        },
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    runner.submit(job.id)
+    return {
+        "job": {"id": str(job.id), "kind": "migrate"},
+        "tasks": int(ready),
+        "warning": (
+            f"Migrating {ready} finding(s) in the background. Poll GET /api/v1/jobs/{job.id} "
+            "for progress; the result carries per-task outcomes."
+        ),
+    }
 
 
 @router.get("/migrate/plans/{plan_id}/queue", response_model=list[TaskOut])

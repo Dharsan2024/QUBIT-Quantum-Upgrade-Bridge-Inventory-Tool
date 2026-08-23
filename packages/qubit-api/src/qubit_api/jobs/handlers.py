@@ -13,6 +13,7 @@ from qubit_core import asset_to_row
 from qubit_core.db import AssetRow, ProjectRow, ScanRow
 from qubit_risk.pipeline import RiskPipeline
 from qubit_scanner import SCANNER_NAMES, scan_paths
+from sqlalchemy import select
 
 from ..services import autobuild_migration_plan, is_git_url
 from .runner import ProgressReporter
@@ -435,7 +436,115 @@ def _generate_risk_summary(assets) -> dict[str, Any]:
     }
 
 
+def _plan_repo_root(session, plan) -> Path | None:
+    """Where this plan's code actually lives, so a patch can be written back to it.
+
+    A task's `file_path` is absolute, but `git apply` needs a root to resolve the diff's relative
+    headers against, and `generate_patch` only writes relative headers when it is GIVEN one. The
+    project's `root_path` is the declared answer; a scan's first target is the observed one, and is
+    what the dashboard's scans actually set, so it is the fallback rather than the other way round.
+    """
+    project = session.get(ProjectRow, plan.project_id) if plan.project_id else None
+    if project and project.root_path and Path(project.root_path).is_dir():
+        return Path(project.root_path)
+    scan = session.get(ScanRow, plan.scan_id) if plan.scan_id else None
+    for target in (scan.targets if scan else []) or []:
+        candidate = Path(str(target))
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[str, Any]:
+    """Run a whole plan: generate a patch per ready task, approve it, and write it to the tree.
+
+    This is the "Initiate migration" path. Doing it per task from the browser meant one HTTP request
+    per finding, each holding a connection open for as long as the local model took, and no way to
+    see how far along it was — so it runs as a job, like a scan, and reports progress the same way.
+
+    Every stage stays the one the single-task path already uses (`generate_patch` runs the full
+    validation gate, `review_patch` records the approval, `apply_patch` does the git-safety checks),
+    so a bulk run cannot apply anything a careful operator could not have applied one at a time.
+    A task that fails is recorded and the run continues: one unmigratable finding in a plan of
+    twenty is not a reason to abandon the other nineteen.
+    """
+    from qubit_migrate.orchestrator import MigrationOrchestrator
+    from qubit_migrate.state import MigrationPlan, MigrationTask
+
+    plan_id = UUID(payload["plan_id"])
+    should_apply = bool(payload.get("apply", True))
+    generator = payload.get("generator", "auto")
+
+    with reporter.sf() as session:
+        plan = session.get(MigrationPlan, plan_id)
+        if not plan:
+            raise ValueError(f"Plan {plan_id} not found")
+        repo_root = _plan_repo_root(session, plan)
+        orch = MigrationOrchestrator(session)
+        tasks = list(
+            session.scalars(
+                select(MigrationTask)
+                .where(MigrationTask.plan_id == plan_id)
+                .where(MigrationTask.state == "ready")
+                .order_by(MigrationTask.rank)
+            ).all()
+        )
+
+        total = len(tasks)
+        generated = applied = failed = covered = 0
+        failures: list[dict[str, str]] = []
+
+        for index, task in enumerate(tasks, start=1):
+            reporter.update(
+                index / max(total, 1),
+                "migrate",
+                f"Migrating {index}/{total}: {task.rule_id or 'finding'}",
+            )
+            try:
+                patch = orch.generate_patch(task.id, generator=generator, repo_root=repo_root)
+                if patch.status != "proposed":
+                    raise ValueError("the validation gate rejected this patch")
+                generated += 1
+                orch.review_patch(patch.id, approve=True, note="bulk migration", actor="api")
+                if should_apply and repo_root is not None:
+                    orch.apply_patch(patch.id, repo_root=repo_root, actor="api")
+                    applied += 1
+            except Exception as exc:  # one bad finding must not end the run
+                message = str(exc)
+                # A rule rewrites the WHOLE file, so several findings in one file are all covered
+                # by the first patch and the orchestrator refuses the rest. That is work already
+                # done, not work that failed: counting it as a failure made a fully migrated
+                # auth.py read as "1 migrated, 2 could not be migrated".
+                if "already migrated by an earlier" in message or "already remediated" in message:
+                    covered += 1
+                else:
+                    failed += 1
+                    failures.append(
+                        {
+                            "task_id": str(task.id),
+                            "rule_id": task.rule_id or "",
+                            "detail": f"{type(exc).__name__}: {exc}".replace("\n", " ")[:300],
+                        }
+                    )
+                session.rollback()
+
+    return {
+        "plan_id": str(plan_id),
+        "total": total,
+        "generated": generated,
+        "applied": applied,
+        "covered": covered,
+        "failed": failed,
+        # Absent a repo root nothing was written, and a caller that only sees `applied: 0` cannot
+        # tell that apart from every patch failing.
+        "repo_root": str(repo_root) if repo_root else None,
+        "applied_to_disk": should_apply and repo_root is not None,
+        "failures": failures[:25],
+    }
+
+
 HANDLERS = {
     "scan": scan_handler,
     "risk": risk_handler,
+    "migrate": migrate_handler,
 }

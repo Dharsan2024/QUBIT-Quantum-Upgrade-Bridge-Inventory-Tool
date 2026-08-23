@@ -424,6 +424,126 @@ def test_deleting_a_scan_does_not_leave_a_plan_advertising_tasks_it_no_longer_ha
     assert other["plan"]["status"] == "active"
 
 
+def test_clearing_all_scans_empties_every_project_not_just_one(
+    client: TestClient, two_projects: dict[str, Any]
+) -> None:
+    """The main-panel "clear all scans" reset. Scope is every scan in every project — the single-
+    scan delete already proves the cascade and reconciliation per project; this proves it applies
+    across all of them in one call, not just the one a caller happened to pass."""
+    resp = client.delete("/api/v1/scans")
+    assert resp.status_code == 200
+    assert resp.json()["deleted"] == 2
+
+    rows = client.get("/api/v1/projects/overview").json()
+    by_name = {row["name"]: row for row in rows}
+    for name in ("alpha", "beta"):
+        assert by_name[name]["assets"] == 0
+        assert by_name[name]["scans"] == 0
+        assert by_name[name]["plan"]["status"] == "abandoned"
+
+    assert client.get(f"/api/v1/scans/{two_projects['a_scan']}").status_code == 404
+    assert client.get(f"/api/v1/scans/{two_projects['b_scan']}").status_code == 404
+    # Projects themselves survive a scan clear — only the scan history is what "clear all scans"
+    # promises, not the projects a fresh scan would need to land back into.
+    assert client.get(f"/api/v1/projects/{two_projects['a_project']}").status_code == 200
+
+    # Idempotent: clearing an already-empty scan list is a no-op, not an error.
+    again = client.delete("/api/v1/scans")
+    assert again.status_code == 200
+    assert again.json()["deleted"] == 0
+
+
+def test_resetting_removes_every_project_not_just_every_scan(
+    client: TestClient, two_projects: dict[str, Any]
+) -> None:
+    """The main-panel "Reset", one level stronger than "clear all scans".
+
+    `DELETE /scans` leaves project shells behind on purpose (a repeat scan needs somewhere to
+    land); `DELETE /projects` is the "start over" button next to New scan, and it takes the
+    projects themselves -- which cascades their scans, assets, tasks and plans the same way
+    deleting one project already does, just for all of them in one call.
+    """
+    resp = client.delete("/api/v1/projects")
+    assert resp.status_code == 200
+    assert resp.json()["deleted"] == 2
+
+    assert client.get("/api/v1/projects").json() == []
+    assert client.get("/api/v1/projects/overview").json() == []
+    assert client.get(f"/api/v1/projects/{two_projects['a_project']}").status_code == 404
+    assert client.get(f"/api/v1/projects/{two_projects['b_project']}").status_code == 404
+    assert client.get(f"/api/v1/scans/{two_projects['a_scan']}").status_code == 404
+
+    # Idempotent, like the scan reset.
+    again = client.delete("/api/v1/projects")
+    assert again.status_code == 200
+    assert again.json()["deleted"] == 0
+
+
+def _await_job(client: TestClient, job_id: str, timeout_s: float = 180.0) -> dict[str, Any]:
+    for _ in range(int(timeout_s * 10)):
+        job = client.get(f"/api/v1/jobs/{job_id}").json()
+        if job["status"] not in ("queued", "running"):
+            return job
+        time.sleep(0.1)
+    raise TimeoutError(f"job {job_id} did not finish")
+
+
+def test_initiate_migration_runs_the_whole_plan_and_writes_the_files(
+    client: TestClient, tmp_path: Path
+) -> None:
+    """ "Initiate migration": one call migrates every ready task and writes the result to disk.
+
+    Doing this per task meant one request per finding, each held open for as long as the generator
+    took. This is the bulk path -- dispatched as a job, so the caller polls instead of waiting --
+    and it must actually change the file on disk, not just record an approved patch.
+    """
+    target = tmp_path / "bulk"
+    target.mkdir()
+    source = target / "hashing.py"
+    source.write_text(PROJECT_A_SOURCE, encoding="utf-8")
+
+    project_id, scan_id = _scan(client, "bulk-migrate", target)
+    plan_id = client.post(
+        "/api/v1/migrate/plans", json={"min_risk": 0, "project_id": project_id, "scan_id": scan_id}
+    ).json()["id"]
+    ready_before = [
+        t
+        for t in client.get(f"/api/v1/migrate/plans/{plan_id}/queue").json()
+        if t["state"] == "ready"
+    ]
+    assert ready_before, "nothing to migrate, so this test would prove nothing"
+    assert "md5" in source.read_text(encoding="utf-8")
+
+    started = client.post(f"/api/v1/migrate/plans/{plan_id}/run", json={"apply": True})
+    assert started.status_code == 202, started.text
+    job = _await_job(client, started.json()["job"]["id"])
+    assert job["status"] == "succeeded", job
+
+    result = job["result"]
+    assert result["total"] == len(ready_before)
+    assert result["generated"] >= 1, result
+    assert result["applied"] >= 1, result
+    assert result["repo_root"] == str(target)
+
+    # The point of the whole thing: the working tree actually changed.
+    assert "md5" not in source.read_text(encoding="utf-8"), source.read_text(encoding="utf-8")
+    assert "sha256" in source.read_text(encoding="utf-8").lower()
+
+
+def test_running_a_plan_with_nothing_ready_is_a_conflict_not_a_silent_success(
+    client: TestClient, two_projects: dict[str, Any]
+) -> None:
+    """An empty run must not report success -- "migration complete" over zero work is a lie."""
+    plan_id = client.get(f"/api/v1/migrate/plans?project_id={two_projects['a_project']}").json()[0][
+        "id"
+    ]
+    assert client.delete(f"/api/v1/scans/{two_projects['a_scan']}").status_code == 204
+
+    resp = client.post(f"/api/v1/migrate/plans/{plan_id}/run", json={"apply": False})
+    assert resp.status_code == 409
+    assert "no ready tasks" in resp.json()["detail"]
+
+
 def test_generating_a_patch_twice_is_a_conflict_not_a_crash(
     client: TestClient, two_projects: dict[str, Any]
 ) -> None:
@@ -554,3 +674,49 @@ def test_advice_endpoint_explains_a_finding_that_cannot_be_patched(
     # Cached: a second call without `force` returns the same text rather than paying for the model.
     again = client.post(f"/api/v1/migrate/tasks/{task['id']}/advise", json={"force": False}).json()
     assert again["advice_text"] == advised["advice_text"]
+
+
+# ── Planning one scan twice is a duplicate, not a second opinion ──────────────
+
+
+def test_planning_the_same_scan_twice_returns_the_same_plan(
+    client: TestClient, two_projects: dict[str, Any]
+) -> None:
+    """Measured against the running app: one scan ended up with THREE plans.
+
+    A scan builds a plan automatically when it finishes, and every explicit POST built another --
+    each holding the same findings, with nothing to say which was the real one. On the polyglot
+    corpus that is two plans of 127 tasks each, and in the app it is reachable by clicking
+    "create plan" twice. `generate_patch` already guards the same double-click for a single task.
+    """
+    scan_id = two_projects["a_scan"]
+    first = client.post("/api/v1/migrate/plans", json={"min_risk": 0.0, "scan_id": scan_id}).json()
+    second = client.post("/api/v1/migrate/plans", json={"min_risk": 0.0, "scan_id": scan_id}).json()
+
+    assert first["id"] == second["id"], "planning the same scan twice created a duplicate plan"
+
+    plans = client.get("/api/v1/migrate/plans").json()
+    for_scan = [p for p in plans if p.get("scan_id") == scan_id]
+    assert len(for_scan) == 1, f"expected one plan for this scan, found {len(for_scan)}"
+
+
+def test_force_builds_a_second_plan_deliberately(
+    client: TestClient, two_projects: dict[str, Any]
+) -> None:
+    """Re-planning at a different threshold is legitimate; it just has to be asked for."""
+    scan_id = two_projects["a_scan"]
+    first = client.post("/api/v1/migrate/plans", json={"min_risk": 0.0, "scan_id": scan_id}).json()
+    forced = client.post(
+        "/api/v1/migrate/plans", json={"min_risk": 0.5, "scan_id": scan_id, "force": True}
+    ).json()
+
+    assert forced["id"] != first["id"]
+
+
+def test_a_plan_with_no_scan_is_never_deduplicated(
+    client: TestClient, two_projects: dict[str, Any]
+) -> None:
+    """An unscoped plan has no scan to be the duplicate OF, so the old behaviour must survive."""
+    first = client.post("/api/v1/migrate/plans", json={"min_risk": 0.0}).json()
+    second = client.post("/api/v1/migrate/plans", json={"min_risk": 0.0}).json()
+    assert first["id"] != second["id"]

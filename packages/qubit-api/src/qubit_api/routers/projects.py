@@ -221,6 +221,24 @@ def delete_project(
     session.commit()
 
 
+@router.delete("")
+def delete_all_projects(
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, int]:
+    """The main-panel "Reset" -- every project, in one call, not just every scan.
+
+    Clearing scans alone (`DELETE /scans`) leaves the project shells behind on purpose, so a
+    repeated scan of the same target has somewhere to land. Reset means something stronger: every
+    project's `id` -> `CASCADE` on scans, assets, tasks and migration plans already handles the
+    rest, the same as deleting one project does -- this is that, over all of them, in one commit.
+    """
+    projects = session.scalars(select(ProjectRow)).all()
+    for project in projects:
+        session.delete(project)
+    session.commit()
+    return {"deleted": len(projects)}
+
+
 @router.get("/{project_id}/trends", response_model=list[TrendPoint])
 def get_project_trends(
     project_id: UUID,

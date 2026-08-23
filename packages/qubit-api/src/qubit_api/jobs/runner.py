@@ -76,6 +76,9 @@ class JobRunner:
             "risk": asyncio.Semaphore(scan_slots),
             "patch": asyncio.Semaphore(llm_slots),
             "plan": asyncio.Semaphore(2),
+            # One bulk migration at a time: every task in a run writes to the same working tree, and
+            # two runs interleaving `git apply` on one checkout is how a half-applied patch happens.
+            "migrate": asyncio.Semaphore(1),
             "verify": asyncio.Semaphore(2),
             "cbom_import": asyncio.Semaphore(2),
         }
@@ -89,7 +92,13 @@ class JobRunner:
         startup we mark every such record failed with a clear message, so state is consistent and
         the work can simply be re-run — nothing is left silently 'running'. Returns per-kind counts.
         """
-        interrupted = {"status": "failed", "error": "interrupted by server restart"}
+        # `dict` keys are invariant and SQLAlchemy's `Query.update` accepts columns as well as
+        # names, so a `dict[str, ...]` is narrower than the parameter type however it is
+        # spelled. The values are column names here and nothing else.
+        interrupted: dict[Any, Any] = {
+            "status": "failed",
+            "error": "interrupted by server restart",
+        }
         active = ["queued", "running"]
         with self.sf() as session:
             jobs = (

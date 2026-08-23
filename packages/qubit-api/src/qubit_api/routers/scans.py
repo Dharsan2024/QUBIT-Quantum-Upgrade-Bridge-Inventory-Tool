@@ -121,6 +121,26 @@ def delete_scan(
     reconcile_project_plans(session, project_id)
 
 
+@router.delete("/scans")
+def delete_all_scans(
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, int]:
+    """Clear every scan, in every project — the "clear all scans" reset the main panel offers.
+
+    Same cascade the single-scan delete relies on (assets, then migration tasks, cascade from the
+    scan row); the difference is scope, so every affected project's plan gets the same
+    stats-reconciliation pass `delete_scan` already does, not just one.
+    """
+    scans = session.scalars(select(ScanRow)).all()
+    project_ids = {scan.project_id for scan in scans}
+    for scan in scans:
+        session.delete(scan)
+    session.commit()
+    for project_id in project_ids:
+        reconcile_project_plans(session, project_id)
+    return {"deleted": len(scans)}
+
+
 @router.get("/scans/{scan_id}/summary")
 def get_scan_summary(
     scan_id: UUID,

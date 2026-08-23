@@ -83,3 +83,24 @@ def test_scan_network_refuses_unauthorized_public_target(tmp_path) -> None:
                 audit_path=audit_file,
             )
         )
+
+
+class TestLinkLocalIsNotTreatedAsSafeLocal:
+    """169.254.0.0/16 carries the cloud instance-metadata service.
+
+    `ipaddress.is_private` returns True for link-local, so the auto-allow path let
+    169.254.169.254 — AWS/Azure/GCP IMDS, the classic SSRF credential-theft target — through with
+    `authorized=False` and no allowlist entry. Measured against the running app: the scan was
+    accepted and reported `succeeded`, while 8.8.8.8 and example.com were correctly refused.
+    """
+
+    def test_the_metadata_address_is_not_auto_allowed(self) -> None:
+        assert is_rfc1918_or_loopback("169.254.169.254") is False
+
+    def test_no_link_local_address_is_auto_allowed(self) -> None:
+        for host in ("169.254.0.1", "169.254.169.254", "169.254.255.255"):
+            assert is_rfc1918_or_loopback(host) is False, host
+
+    def test_genuinely_private_and_loopback_ranges_still_are(self) -> None:
+        for host in ("127.0.0.1", "localhost", "10.0.0.1", "192.168.1.1", "172.16.0.1"):
+            assert is_rfc1918_or_loopback(host) is True, host

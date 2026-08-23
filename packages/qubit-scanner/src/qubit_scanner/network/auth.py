@@ -19,12 +19,23 @@ AUDIT_LOG_PATH = Path.home() / ".local" / "state" / "qubit" / "scan-audit.log"
 
 
 def is_rfc1918_or_loopback(host: str) -> bool:
-    """Return True if host resolves to an RFC1918 private address or loopback."""
+    """Return True if host resolves to an RFC1918 private address or loopback.
+
+    Link-local is deliberately NOT included, even though `ipaddress.is_private` says it is.
+    169.254.0.0/16 carries the cloud instance-metadata service (169.254.169.254 on AWS, Azure and
+    GCP), which is the single most-targeted SSRF destination there is: reaching it from inside a
+    host is how instance credentials get stolen. Auto-allowing it because Python classes it as
+    "private" meant an unauthenticated `authorized: false` request scanned the metadata endpoint
+    and reported success -- measured against the running app. It now needs the same explicit
+    allowlist entry plus `authorized` that any other off-network target does.
+    """
     if host.lower() in ("localhost", "127.0.0.1", "::1"):
         return True
     try:
         ip_str = socket.gethostbyname(host)
         ip = ipaddress.ip_address(ip_str)
+        if ip.is_link_local:
+            return False
         return ip.is_private or ip.is_loopback
     except Exception:
         return False

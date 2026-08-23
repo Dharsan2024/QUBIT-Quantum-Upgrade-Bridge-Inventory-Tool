@@ -157,3 +157,36 @@ def test_rate_limit_can_be_disabled(tmp_path: Path) -> None:
             client.post("/api/v1/projects", json={"name": f"q{i}"}).status_code for i in range(12)
         ]
         assert 429 not in codes, codes
+
+
+class TestSecurityHeaders:
+    """Baseline response headers. The API serves the dashboard itself in desktop mode, so these
+    land on the HTML a real browser engine renders — not only on JSON.
+
+    Measured absent against the running app: no X-Content-Type-Options, X-Frame-Options,
+    Content-Security-Policy or Referrer-Policy on any response.
+    """
+
+    def test_every_response_carries_the_baseline_headers(self, tmp_path: Path) -> None:
+        response = _client(tmp_path).get("/api/v1/health")
+        assert response.status_code == 200
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+        assert response.headers["X-Frame-Options"] == "DENY"
+        assert response.headers["Referrer-Policy"] == "no-referrer"
+        assert "Content-Security-Policy" in response.headers
+
+    def test_the_policy_blocks_framing_objects_and_base_rewriting(self, tmp_path: Path) -> None:
+        csp = _client(tmp_path).get("/api/v1/health").headers["Content-Security-Policy"]
+        assert "frame-ancestors 'none'" in csp
+        assert "object-src 'none'" in csp
+        assert "base-uri 'none'" in csp
+        # No 'unsafe-eval': the bundle does not need it, and allowing it re-opens the class the
+        # policy exists to close.
+        assert "unsafe-eval" not in csp
+
+    def test_headers_are_present_on_an_error_response_too(self, tmp_path: Path) -> None:
+        """A 401 is exactly when a response is most likely to be rendered somewhere unexpected."""
+        client = _client(tmp_path)
+        response = client.get("/api/v1/projects", headers={"Authorization": "Bearer nope"})
+        assert response.status_code == 401
+        assert response.headers["X-Content-Type-Options"] == "nosniff"

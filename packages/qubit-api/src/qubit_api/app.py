@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from qubit_core.db import (
     Base,
     get_engine,
@@ -70,6 +70,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Baseline response hardening. The API serves the dashboard itself in desktop mode, so these
+    # headers land on the HTML a real browser engine renders, not only on JSON.
+    #
+    # Measured absent against the running app: no X-Content-Type-Options, X-Frame-Options,
+    # Content-Security-Policy or Referrer-Policy on any response. Cheap to add and each closes a
+    # concrete class: MIME sniffing turning a scanned file's contents into script, the window being
+    # framed by another origin, injected script reaching the network, and the token-bearing URL
+    # leaking through Referer.
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        # `connect-src` has to allow the loopback origin the dashboard was served from, whatever
+        # port the launcher managed to bind. 'self' covers it because the page and the API share an
+        # origin in desktop mode. No 'unsafe-eval'; the bundle does not need it.
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "font-src 'self' data:; "
+            "connect-src 'self' http://127.0.0.1:* http://localhost:*; "
+            "object-src 'none'; "
+            "base-uri 'none'; "
+            "frame-ancestors 'none'",
+        )
+        return response
 
     # Rate limiting on mutating verbs only (reads are never throttled — the dashboard polls them).
     # Added before the auth guard so an unauthenticated flood is rejected without touching the DB.

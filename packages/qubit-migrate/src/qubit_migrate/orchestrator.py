@@ -485,6 +485,7 @@ class MigrationOrchestrator:
         learned: LearnedPatch | None = None
         finding_line: int | None = None
         file_language = ""
+        security_notes: list[str] = []
 
         # A rule rewrites the WHOLE file, so once one of its patches has been applied to a file, any
         # other pending task for the same (rule, file) has nothing left to do. Checking that here
@@ -552,6 +553,9 @@ class MigrationOrchestrator:
                 else None
             )
 
+            def _capture_notes(text: str) -> None:
+                security_notes.append(text)
+
             def _generate_fresh(source: str) -> str:
                 try:
                     return generate_llm_source(
@@ -563,6 +567,7 @@ class MigrationOrchestrator:
                         timeout=self.config.llm_timeout,
                         verify=self._rescan_verifier(rule, asset, diff_path),
                         experience=experience,
+                        on_notes=_capture_notes,
                     )
                 except (OSError, OllamaError) as e:
                     self._fail_task(task, f"LLM generation failed: {e}")
@@ -668,7 +673,11 @@ class MigrationOrchestrator:
             file_path=diff_path,
             base_sha256=file_sha256(file_path),
             diff_text=diff,
-            validation_json=report.as_dict(),
+            validation_json=(
+                {**report.as_dict(), "security_notes": security_notes[-1]}
+                if security_notes
+                else report.as_dict()
+            ),
             status="proposed" if report.passed else "failed",
         )
         self.session.add(patch)

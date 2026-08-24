@@ -236,3 +236,65 @@ def test_auto_prefers_template_when_codemod_exists(tmp_path, monkeypatch) -> Non
     patch = orch.generate_patch(task.id, generator="auto")
     assert patch.generator == "template"
     assert patch.model_name is None
+
+
+# ── security reasoning ────────────────────────────────────────────────────────
+# A diff alone does not tell a reviewer whether the model understood the migration or
+# pattern-matched it. The prompt asks for the reasoning; these pin that it is captured from the
+# ACCEPTED attempt, never fabricated, and never fatal when absent.
+
+REWRITE_WITH_NOTES = (
+    "```python\n" + REWRITTEN + "```\n"
+    "SECURITY NOTES:\n"
+    "- Replaced MD5 with SHA-256; MD5 offers no collision resistance.\n"
+    "- Callers storing a 32-char digest must widen to 64.\n"
+)
+
+
+def test_security_notes_are_extracted_from_after_the_fence() -> None:
+    from qubit_migrate.transform.llm import extract_security_notes
+
+    notes = extract_security_notes(REWRITE_WITH_NOTES)
+    assert "Replaced MD5 with SHA-256" in notes
+    assert "widen to 64" in notes
+    assert "```" not in notes, "the code fence must never leak into the reasoning"
+
+
+def test_security_notes_absent_is_not_an_error() -> None:
+    """A perfect rewrite that forgets the heading is still a good patch."""
+    from qubit_migrate.transform.llm import extract_security_notes
+
+    assert extract_security_notes("```python\n" + REWRITTEN + "```") == ""
+
+
+def test_security_notes_inside_the_fence_are_ignored() -> None:
+    """Prose inside the fence is a defect the rewrite guards catch, not reasoning to display."""
+    from qubit_migrate.transform.llm import extract_security_notes
+
+    assert extract_security_notes("```\nSECURITY NOTES: this is code, not commentary\n```") == ""
+
+
+def test_orchestrator_stores_the_reasoning_beside_the_validation_record(tmp_path, monkeypatch):
+    orch, task = _seeded_orchestrator(tmp_path)
+    monkeypatch.setattr(
+        "qubit_migrate.transform.llm._ollama_generate",
+        lambda prompt, *, model, base_url="x", timeout=0: REWRITE_WITH_NOTES,
+    )
+    patch = orch.generate_patch(task.id, generator="llm")
+    assert patch.status == "proposed", patch.validation_json
+    assert "Replaced MD5 with SHA-256" in patch.validation_json["security_notes"]
+
+
+def test_prompt_asks_for_reasoning_after_the_fence(tmp_path, monkeypatch) -> None:
+    """The instruction has to survive prompt edits, or the reasoning silently stops arriving."""
+    orch, task = _seeded_orchestrator(tmp_path)
+    prompts: list[str] = []
+
+    def capture(prompt, *, model, base_url="x", timeout=0):
+        prompts.append(prompt)
+        return REWRITE_WITH_NOTES
+
+    monkeypatch.setattr("qubit_migrate.transform.llm._ollama_generate", capture)
+    orch.generate_patch(task.id, generator="llm")
+    assert "SECURITY NOTES:" in prompts[0]
+    assert "AFTER the closing fence" in prompts[0]

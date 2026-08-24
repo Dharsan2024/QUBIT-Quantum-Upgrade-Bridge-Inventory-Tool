@@ -370,6 +370,20 @@ function TaskRow({ task }: { task: MigrationTask }) {
             </div>
             {latest && (
               <div className="flex flex-col gap-3">
+                {/* The model's reasoning, beside its diff. A diff alone does not tell a reviewer
+                    whether the model understood the migration or pattern-matched it, and the
+                    most valuable line is usually the one admitting what it could NOT fix in this
+                    file — a caller, a column width, a stored key format. */}
+                {latest.validation?.security_notes && (
+                  <div className="rounded-lg border border-[color:var(--color-accent)]/30 bg-[color:var(--color-accent)]/8 px-3 py-2">
+                    <div className="metric-label mb-1 text-[color:var(--color-accent)]">
+                      Model's security reasoning
+                    </div>
+                    <pre className="whitespace-pre-wrap font-sans text-xs text-[color:var(--color-ink-dim)]">
+                      {latest.validation.security_notes}
+                    </pre>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-3 text-xs">
                   <StateChip state={latest.status} />
                   <span className="font-mono text-[color:var(--color-ink-faint)]">

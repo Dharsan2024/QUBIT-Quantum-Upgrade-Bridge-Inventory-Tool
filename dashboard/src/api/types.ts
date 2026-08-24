@@ -237,6 +237,9 @@ export interface MigrationPatch {
     passed?: boolean;
     partial?: boolean;
     stages?: Record<string, { status: string; detail: string }>;
+    /** The model's own account of what it changed and what it could NOT fix here. Present only
+     *  for LLM-generated patches whose accepted attempt included it. */
+    security_notes?: string;
   };
   status: string;
   review_note: string | null;

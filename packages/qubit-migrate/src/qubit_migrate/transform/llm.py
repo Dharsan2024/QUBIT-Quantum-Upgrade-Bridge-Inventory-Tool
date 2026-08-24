@@ -399,9 +399,16 @@ def _build_prompt(
     target_shape = _target_shape_block(rule, language)
     constraints = _scoped_constraints(rule, language, have_target_shape=bool(target_shape))
     return (
-        "You are a cryptographic migration codemod engine. Rewrite the file below to "
-        "migrate the flagged weak cryptography. Output ONLY the complete rewritten file "
-        "inside a single fenced code block. No explanations.\n\n"
+        "You are a cryptographic migration engineer. Rewrite the file below to migrate the "
+        "flagged weak cryptography.\n\n"
+        "Answer in EXACTLY this shape:\n"
+        "1. The complete rewritten file inside ONE fenced code block. Put nothing but code in "
+        "the fence — no prose, no commentary, no explanation inside it.\n"
+        "2. AFTER the closing fence, a section beginning `SECURITY NOTES:` with 2-4 short "
+        "bullets: what you changed and why it is quantum-safe, what an operator must change "
+        "OUTSIDE this file (storage widths, key formats, callers), and anything you could not "
+        "fix here. State this honestly — a note saying a change is incomplete is far more "
+        "useful than a claim that it is done.\n\n"
         f"Flagged asset: algorithm={asset.algorithm}, usage_context={asset.usage_context.value}, "
         f"line={asset.location.line if asset.location else '?'}\n"
         f"{_attack_note(asset)}"
@@ -591,6 +598,35 @@ _PROSE_OPENERS = (
     "okay",
     "ok,",
 )
+
+
+#: The rationale section the prompt asks for, after the closing fence.
+_NOTES_RE = re.compile(r"SECURITY\s+NOTES\s*:?\s*(?P<body>.+)\Z", re.IGNORECASE | re.DOTALL)
+
+
+def extract_security_notes(text: str) -> str:
+    """The model's own account of what it changed and what it could not, or "" if absent.
+
+    A patch is reviewed by a person, and a diff alone does not say whether the model UNDERSTOOD
+    the migration or merely pattern-matched it. Asking for the reasoning and keeping it beside the
+    diff is what lets a reviewer check semantic correctness — "did it move the whole flow, and does
+    it admit what it left behind" — rather than only that the target token now appears.
+
+    Deliberately optional and never fatal: a model that returns a perfect file and forgets the
+    section has still produced a good patch, and failing it over a missing heading would trade real
+    coverage for a formatting preference. Anything found inside the code fence is ignored, because
+    the fence is parsed for source first and prose there is a defect the existing guards catch.
+    """
+    tail = text
+    last_fence = text.rfind("```")
+    if last_fence != -1:
+        tail = text[last_fence + 3 :]
+    m = _NOTES_RE.search(tail)
+    if m is None:
+        return ""
+    body = m.group("body").strip()
+    # Keep it short: this is shown next to a diff, not a document.
+    return "\n".join(body.splitlines()[:8]).strip()
 
 
 def extract_code_block(text: str) -> str:
@@ -799,6 +835,7 @@ def generate_llm_source(
     timeout: float = 180.0,
     verify: Callable[[str], str | None] | None = None,
     experience: list[tuple[str, str]] | None = None,
+    on_notes: Callable[[str], None] | None = None,
 ) -> str:
     """Return the LLM-rewritten file content, or raise :class:`OllamaError`.
 
@@ -809,6 +846,11 @@ def generate_llm_source(
     ``experience``: this project's own previously-validated (before, after) line pairs for this
     same rule — the strongest grounding a fresh call can get short of retraining the model itself.
     See `_experience_examples`.
+
+    ``on_notes``: called with the model's SECURITY NOTES for the rewrite that was ACCEPTED, so a
+    reviewer sees the reasoning beside the diff. A callback rather than a second return value
+    because every existing caller and test treats this function as returning the file, and the
+    notes are supplementary — a rewrite is not worse for lacking them.
     """
     # `fallback_model` was configured and referenced by nothing, so a machine without the primary
     # model pulled had no safety net at all — just a 404 reported as "Ollama unreachable". It is
@@ -861,6 +903,13 @@ def generate_llm_source(
             # cannot correct a mistake nobody tells it about.
             reason = verify(new_source)
         if reason is None:
+            if on_notes is not None:
+                # Only the ACCEPTED attempt's reasoning is reported. Notes from a rejected
+                # rewrite describe a file that was thrown away, and showing those beside the
+                # diff that shipped would actively mislead the reviewer.
+                notes = extract_security_notes(raw)
+                if notes:
+                    on_notes(notes)
             return new_source
         last_reason = reason
         feedback = reason
@@ -882,6 +931,7 @@ __all__ = [
     "OllamaError",
     "check_rewrite",
     "extract_code_block",
+    "extract_security_notes",
     "generate_llm_source",
     "installed_models",
     "present_prefixes",

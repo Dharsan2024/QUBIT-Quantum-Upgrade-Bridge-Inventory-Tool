@@ -216,13 +216,29 @@ function TaskRow({ task }: { task: MigrationTask }) {
               </button>
             </span>
           )}
+          {/* Inert grey text here read as a dead end — every other row in this column offers an
+              action, so a row that offers none looks like the product giving up. There IS a next
+              step for a finding with no codemod: the local model can still explain what to change,
+              why, and how to verify it. Surfacing that as a real button turns "nothing we can do"
+              into "here is what to do by hand", which is the honest answer these findings already
+              had — it was just buried in the expanded panel below. */}
           {!task.rule_id && (
-            <span
-              className="text-xs text-[color:var(--color-ink-faint)]"
-              title="No migration rule matches this asset's language and algorithm, so QUBIT cannot propose a patch for it. It still counts towards the plan and its effort estimate."
+            <button
+              onClick={() => {
+                setOpen(true);
+                if (!task.advice_text) advise.mutate(false);
+              }}
+              disabled={advise.isPending}
+              className="hud-btn hud-btn-ghost px-3 py-1.5 text-xs"
+              title="No deterministic rule or LLM codemod matches this finding's language and algorithm. QUBIT can still explain what to change by hand, why, and how to verify it."
             >
-              manual change
-            </span>
+              {advise.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Lightbulb className="h-3.5 w-3.5" />
+              )}
+              {task.advice_text ? 'View guidance' : 'Get guidance'}
+            </button>
           )}
         </td>
       </tr>
@@ -926,6 +942,14 @@ function ProjectMigration({ projectId }: { projectId: string }) {
               <div className="metric-label mt-1 flex flex-wrap gap-x-3">
                 <span>{runOutcome.generated} generated</span>
                 <span>· {runOutcome.applied} applied</span>
+                {(runOutcome.from_cache ?? 0) > 0 && (
+                  <span
+                    className="text-[color:var(--color-accent)]"
+                    title="Answered from an earlier, already-validated fix for this exact finding — no model call needed."
+                  >
+                    · {runOutcome.from_cache} from learned cache
+                  </span>
+                )}
                 {(runOutcome.covered ?? 0) > 0 && (
                   <span title="Covered by a patch to the same file — a rule rewrites the whole file.">
                     · {runOutcome.covered} already covered

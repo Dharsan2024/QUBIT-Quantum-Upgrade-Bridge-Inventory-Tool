@@ -183,16 +183,24 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
   /* Escape hatch for panels where brackets would read as visual noise. */
   .no-ticks { background-image: none; }
 
-  /* Depth through light emittance: panels lift toward the viewer with a 0.5deg
-     tilt and bloom harder on hover (DESIGN.md "Interactive States"). */
+  /* Depth through light emittance: panels lift slightly and bloom harder on hover
+     (DESIGN.md "Interactive States").
+
+     A plain 2D translate, NOT a 3D tilt. `transform-style: preserve-3d` plus a
+     `perspective()/rotateX()` transform used to sit here, which leaves a live 3D rendering
+     context on every element it applies to — and `.glass-card` is the most-used class in the
+     app, so that context existed on every panel at rest. `AnimatedPage.tsx` documents the
+     exact failure this causes: inside a 3D context Chromium's compositor hit-testing and
+     `getBoundingClientRect()` stop agreeing, so a click at a control's visible centre can
+     land on nothing. That was tracked down and fixed once for page transitions; this was the
+     same mechanism, still live on every card. Keep this 2D. */
   .glass-card {
-    transform-style: preserve-3d;
     will-change: transform;
     transition: transform 0.32s var(--ease-out), border-color 0.24s ease, box-shadow 0.32s ease;
   }
   .glass-card:hover {
     --tick: rgba(56, 224, 255, 1);
-    transform: perspective(1200px) translate3d(0, -3px, 10px) rotateX(0.5deg);
+    transform: translateY(-3px);
     border-color: var(--edge-lume);
     box-shadow: var(--glow), var(--shadow-lg);
   }
@@ -234,8 +242,11 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
   .stagger > *:nth-child(5) { animation-delay: 0.22s; }
   .stagger > *:nth-child(6) { animation-delay: 0.27s; }
   .stagger > *:nth-child(n+7) { animation-delay: 0.32s; }
+  /* 2D only, for the reason documented on `.glass-card` above: a Z-axis component here put every
+     staggered child into a 3D rendering context while it animated in, which is exactly when a
+     user is most likely to click one. */
   @keyframes riseIn {
-    from { opacity: 0; transform: translate3d(0, 14px, -20px) scale(0.985); }
+    from { opacity: 0; transform: translateY(14px) scale(0.985); }
     to   { opacity: 1; transform: none; }
   }
   @media (prefers-reduced-motion: reduce) { .stagger > * { animation: none; } }

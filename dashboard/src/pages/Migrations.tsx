@@ -950,7 +950,7 @@ function ProjectMigration({ projectId }: { projectId: string }) {
             <div className="flex-1">
               <div className="text-sm font-semibold text-[color:var(--color-safe)]">
                 {runOutcome.applied > 0
-                  ? `Migration successful — ${runOutcome.applied + (runOutcome.covered ?? 0)} of ${runOutcome.total} finding${runOutcome.total === 1 ? '' : 's'} migrated and written to disk.`
+                  ? `Migration successful — ${runOutcome.applied + (runOutcome.covered ?? 0)} of ${runOutcome.total} finding${runOutcome.total === 1 ? '' : 's'} migrated and written to disk${(runOutcome.needs_guidance ?? 0) > 0 ? `, ${runOutcome.needs_guidance} routed to guided review` : ''}.`
                   : `Migration finished — ${runOutcome.generated} patch${runOutcome.generated === 1 ? '' : 'es'} generated, none written.`}
               </div>
               <div className="metric-label mt-1 flex flex-wrap gap-x-3">
@@ -967,6 +967,14 @@ function ProjectMigration({ projectId }: { projectId: string }) {
                 {(runOutcome.covered ?? 0) > 0 && (
                   <span title="Covered by a patch to the same file — a rule rewrites the whole file.">
                     · {runOutcome.covered} already covered
+                  </span>
+                )}
+                {/* Findings with no rule are NOT failures — they were never patch-eligible and
+                    the queue offers each a guidance button. Lumping them into "could not be
+                    migrated" reported 94 failures where there were 19. */}
+                {(runOutcome.needs_guidance ?? 0) > 0 && (
+                  <span title="No codemod or LLM rule matches these findings. Each has a guidance button in the queue — QUBIT explains what to change by hand, why, and how to verify it.">
+                    · {runOutcome.needs_guidance} need guided review
                   </span>
                 )}
                 {runOutcome.failed > 0 && (

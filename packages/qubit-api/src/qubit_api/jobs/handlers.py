@@ -491,7 +491,7 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
         )
 
         total = len(tasks)
-        generated = applied = failed = covered = from_cache = 0
+        generated = applied = failed = covered = from_cache = needs_guidance = 0
         failures: list[dict[str, str]] = []
 
         for index, task in enumerate(tasks, start=1):
@@ -500,6 +500,15 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
                 "migrate",
                 f"Migrating {index}/{total}: {task.rule_id or 'finding'}",
             )
+            if task.rule_id is None:
+                # No rule matches this finding, so there is no patch to attempt — the app routes it
+                # to migration advice instead. Counting it as a FAILURE was badly misleading: on the
+                # 21-app demo corpus 75 of 94 "could not be migrated" were these, findings that were
+                # never patch-eligible and already have an actionable path in the UI. That reads as
+                # the tool failing 94 times when it failed 19. Counted separately, and skipped
+                # rather than sent to `generate_patch` only to raise.
+                needs_guidance += 1
+                continue
             try:
                 patch = orch.generate_patch(task.id, generator=generator, repo_root=repo_root)
                 if patch.status != "proposed":
@@ -540,6 +549,7 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
         "applied": applied,
         "covered": covered,
         "from_cache": from_cache,
+        "needs_guidance": needs_guidance,
         "failed": failed,
         # Absent a repo root nothing was written, and a caller that only sees `applied: 0` cannot
         # tell that apart from every patch failing.

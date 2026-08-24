@@ -251,6 +251,7 @@ export interface MigrationRunResult {
   covered: number;
   failed: number;
   from_cache: number;
+  needs_guidance: number;
   repo_root: string | null;
   applied_to_disk: boolean;
   failures: { task_id: string; rule_id: string; detail: string }[];

@@ -327,8 +327,27 @@ def _attack_note(asset: CryptoAsset) -> str:
     return ""
 
 
+def _experience_examples(experience: list[tuple[str, str]] | None, language: str) -> str:
+    if not experience:
+        return ""
+    rendered = []
+    for i, (before, after) in enumerate(experience, 1):
+        rendered.append(
+            f"Learned Patch {i} — BEFORE:\n```{language}\n{before.rstrip()}\n```\n"
+            f"Learned Patch {i} — AFTER:\n```{language}\n{after.rstrip()}\n```\n"
+        )
+    return (
+        "QUBIT has previously verified the following successful patches for this rule. "
+        "Use them as a strong guide for your rewrite:\n\n" + "\n".join(rendered) + "\n"
+    )
+
+
 def _build_prompt(
-    source: str, rule: MigrationRule, asset: CryptoAsset, feedback: str | None = None
+    source: str,
+    rule: MigrationRule,
+    asset: CryptoAsset,
+    feedback: str | None = None,
+    experience: list[tuple[str, str]] | None = None,
 ) -> str:
     language = _prompt_language(rule, asset)
     target_shape = _target_shape_block(rule, language)
@@ -377,6 +396,7 @@ def _build_prompt(
         "reorganise, or drop code unrelated to the flagged algorithm.\n\n"
         f"{target_shape}"
         f"{_worked_examples(rule, language)}"
+        f"{_experience_examples(experience, language)}"
         f"{_repair_feedback(feedback)}"
         f"```{language}\n{source}\n```\n"
     )
@@ -731,12 +751,17 @@ def generate_llm_source(
     fallback_model: str | None = None,
     timeout: float = 180.0,
     verify: Callable[[str], str | None] | None = None,
+    experience: list[tuple[str, str]] | None = None,
 ) -> str:
     """Return the LLM-rewritten file content, or raise :class:`OllamaError`.
 
     Retries with the rejection reason fed back into the prompt (doc 03 §6.3's "repair loop", which
     the module previously described but did not implement — generation was strictly one-shot, so a
     truncated rewrite simply failed the task).
+
+    ``experience``: this project's own previously-validated (before, after) line pairs for this
+    same rule — the strongest grounding a fresh call can get short of retraining the model itself.
+    See `_experience_examples`.
     """
     # `fallback_model` was configured and referenced by nothing, so a machine without the primary
     # model pulled had no safety net at all — just a 404 reported as "Ollama unreachable". It is
@@ -763,7 +788,7 @@ def generate_llm_source(
         # user wait three times over for the same message.
         try:
             raw = _ollama_generate(
-                _build_prompt(source, rule, asset, feedback),
+                _build_prompt(source, rule, asset, feedback, experience),
                 model=model,
                 base_url=base_url,
                 timeout=timeout,

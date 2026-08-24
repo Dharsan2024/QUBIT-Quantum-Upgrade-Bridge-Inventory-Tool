@@ -171,4 +171,29 @@ class ApiToken(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
-__all__ = ["ApiToken", "AssetRow", "Base", "Job", "ProjectRow", "RiskRun", "ScanRow"]
+class LearnedPatch(Base):
+    """Stores successful LLM rewrites to guide future migrations."""
+
+    __tablename__ = "learned_patches"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    rule_id: Mapped[str] = mapped_column(String(64), index=True)
+    language: Mapped[str] = mapped_column(String(32))
+    source_pattern: Mapped[str] = mapped_column(String(1024))
+    replacement: Mapped[str] = mapped_column(String(1024))
+    validation_score: Mapped[float] = mapped_column(default=1.0)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+    __table_args__ = (Index("ix_learned_patches_rule_lang", "rule_id", "language"),)
+
+
+__all__ = [
+    "ApiToken",
+    "AssetRow",
+    "Base",
+    "Job",
+    "LearnedPatch",
+    "ProjectRow",
+    "RiskRun",
+    "ScanRow",
+]

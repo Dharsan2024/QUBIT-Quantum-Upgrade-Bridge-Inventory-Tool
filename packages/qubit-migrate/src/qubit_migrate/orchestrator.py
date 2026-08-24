@@ -528,6 +528,13 @@ class MigrationOrchestrator:
                     )
                     raise ValueError("already remediated by an earlier task in this plan")
             try:
+                from .transform.learn import get_experience_for_rule
+                from .transform.llm import _prompt_language
+                
+                experience = get_experience_for_rule(
+                    self.session, rule.id, _prompt_language(rule, asset)
+                )
+                
                 orig = file_path.read_text(encoding="utf-8")
                 new = generate_llm_source(
                     orig,
@@ -537,6 +544,7 @@ class MigrationOrchestrator:
                     fallback_model=self.config.fallback_model,
                     timeout=self.config.llm_timeout,
                     verify=self._rescan_verifier(rule, asset, diff_path),
+                    experience=experience,
                 )
                 model_name = self.config.model
             except (OSError, OllamaError) as e:
@@ -624,6 +632,16 @@ class MigrationOrchestrator:
         self.session.flush()
 
         if report.passed:
+            if use_llm:
+                from .transform.learn import record_learned_patch
+                from .transform.llm import _prompt_language
+                record_learned_patch(
+                    self.session,
+                    rule.id,
+                    _prompt_language(rule, asset),
+                    orig,
+                    new,
+                )
             self._transition(task, "validation_passed", detail={"patch_id": str(patch.id)})
         else:
             self._transition(task, "generators_exhausted", detail={"report": report.as_dict()})

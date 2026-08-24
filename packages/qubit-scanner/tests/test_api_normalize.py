@@ -61,6 +61,11 @@ def test_scan_paths_end_to_end(tmp_path: Path) -> None:
     assert res.stats.assets == 2
     # every asset carries a fingerprint and a quantum verdict
     assert all(a.fingerprint for a in res.assets)
+    # MD5 (Grover) and RSA-2048 (Shor) are both quantum-vulnerable, so here it equals `assets` —
+    # the point is that the figure is RECORDED, not derived by whoever displays it. Without it the
+    # only number the UI could show after a migration was `assets`, which a successful migration
+    # leaves nearly unchanged because it swaps one inventoried algorithm for another.
+    assert res.stats.vulnerable == 2
 
 
 def test_scan_paths_ignores_venv_and_git(tmp_path: Path) -> None:

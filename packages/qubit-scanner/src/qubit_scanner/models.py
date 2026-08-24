@@ -37,6 +37,14 @@ class ScanStats(BaseModel):
     parse_failures: int = 0
     detections: int = 0
     assets: int = 0
+    #: How many of `assets` are quantum-vulnerable. This is the number a migration actually moves,
+    #: and it was not recorded at all — so the only figure the UI could show after a migration was
+    #: `assets`, the CBOM total, which a *successful* migration leaves almost unchanged by design:
+    #: replacing MD5 with SHA-256 removes one asset and adds one back. Measured on the 21-app demo
+    #: corpus, a run that resolved 89 of 250 vulnerable findings moved `assets` from 325 to 322,
+    #: so the app reported a real 36% reduction in exposure as "3 fewer assets" and the migration
+    #: looked broken when it was working.
+    vulnerable: int = 0
     duration_s: float = 0.0
 
 

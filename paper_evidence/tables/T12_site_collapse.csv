@@ -1,6 +1,0 @@
-case,rule A constraints,A confidence,rule B constraints,B confidence,kept
-generic vs PQC-specific; same name,2,high,3,high,the specific rule
-generic vs PQC-specific; alias name,2,high,3,high,the specific rule
-same specificity; different confidence,3,medium,3,high,the higher confidence
-identical on both,3,high,3,high,the lower rule id (deterministic)
-more constrained but lower confidence,2,high,4,low,the more constrained rule

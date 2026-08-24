@@ -140,7 +140,7 @@ A Python monorepo managed by `uv`. Packages communicate strictly through `qubit-
 | 🌉 **`qubit-bridge`** | **Runtime validation.** Hybrid TLS terminator images, `openssl s_client` probe/verify, capture/diff, same-port classical↔hybrid swap. |
 | 🔌 **`qubit-api`** | **Control plane.** FastAPI normative REST registry, `JobRunner` with crash recovery, SSE progress, and **real bearer-token auth** (DB-backed, sha256-hashed, `ro`/`rw` scopes, revocable). |
 | 💻 **`qubit-cli`** | **Typer CLI.** The `qubit` entrypoint — scan, risk, migrate, bridge, cbom, demo, serve, tokens, rules. |
-| 🎨 **`dashboard`** | **UI.** React 19 + Vite 8 + TailwindCSS v4 + Plotly, shipped both as a web app and as a **native Windows desktop app** (Tauri 2 — see [docs/DESKTOP_APP.md](docs/DESKTOP_APP.md)). |
+| 🎨 **`dashboard`** | **UI.** React 19 + Vite 8 + TailwindCSS v4 + Plotly, shipped both as a web app and as a **native Windows desktop app** (Tauri 2). |
 
 ---
 
@@ -154,22 +154,20 @@ A Python monorepo managed by `uv`. Packages communicate strictly through `qubit-
 - **Ollama** *(optional)* — LLM-generated patches; deterministic templates work without it
   (`ollama pull qwen2.5-coder:7b-instruct-q4_K_M`)
 
-### Option A — full stack with Docker
+### Option A — the Windows desktop app
 
-```bash
-git clone https://github.com/Dharsan2024/QUBIT-Quantum-Upgrade-Bridge-Inventory-Tool.git
-cd QUBIT-Quantum-Upgrade-Bridge-Inventory-Tool
+Double-click **`qubit-desktop.bat`** (or run `./qubit-desktop.sh` on Linux/macOS). It installs the
+Python dependencies on first run, rebuilds the dashboard, starts the engine on a port it has
+verified it can actually bind, and opens the app window. Closing the console stops it.
 
-docker compose up
-```
+This is the supported way to run QUBIT: everything stays on the machine, and the scanner can read
+local paths and clone git repositories — which is the whole point of a tool you point at private
+source.
 
-- Dashboard: **<http://localhost:8080>**
-- API: same origin under **`/api/v1`** (the dashboard's nginx reverse-proxies it; the API container is
-  deliberately not published to the host)
-- Default bootstrap token: `dev_token` — override with `QUBIT_API_TOKEN`. It is honored only while the
-  token table is empty and self-disables the moment you mint a real one.
-
-Verified from a clean slate: **~9 seconds** from `docker compose up` to a working authenticated stack.
+> **Container deployment.** The API and dashboard images build cleanly and a compose stack was
+> verified from a clean slate, but the deployment scaffolding is kept out of this repository: it
+> carried environment-specific endpoints, and QUBIT's privacy claim rests on the offline local
+> default rather than a hosted one. The desktop path above is the one to use.
 
 ### Option B — from source
 
@@ -211,13 +209,12 @@ uv run qubit cbom validate out.json                   # validate against Cyclone
 
 Phases 0–2 are complete; the project is in its **Phase 3 hardening sprint** (deadline end of
 September 2026). It is a **research prototype** — see the honest-status note at the top for what the
-accuracy actually measures. Full detail: [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) and
-[docs/project-status/](docs/project-status/).
+accuracy actually measures.
 
 **Done and verified:** all five scanner sources · CBOM 1.7 export/import · the full risk engine ·
 LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
 extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
-governance gates) · real token auth with scopes · `docker compose up` from a clean slate ·
+governance gates) · real token auth with scopes ·
 **1851 tests passing** · **85.6% line+branch coverage** over `packages/` · CI green ·
 mypy clean across all seven packages · **WCAG 2.2 AA with zero axe-core violations**, pinned by
 real-browser tests.
@@ -363,7 +360,7 @@ network rather than exposed publicly.
 > post-quantum key establishment — a classical server key_share of **32 bytes** against
 > **1120 bytes** for X25519MLKEM768. QUBIT finds tshark on PATH, in the standard Wireshark install
 > directories, or via `QUBIT_TSHARK`.
-The three defects previously tracked in [BUILD_PLAN §Phase 3](docs/BUILD_PLAN.md) are now closed.
+The three defects previously tracked for Phase 3 are now closed.
 
 ### Performance
 
@@ -423,8 +420,7 @@ which is stated as a limitation rather than a footnote.
 QUBIT is the basis of a research paper on automated cryptographic agility. The paper and its four
 formal experiment suites (scanner precision/recall vs. baselines, risk calibration, LLM patch pass@k,
 hybrid-handshake overhead via `tc netem`) are **deliberately deferred** until after the product
-hardening deadline so they cannot compete with shipping. See
-[docs/RESEARCH_PAPER.md](docs/RESEARCH_PAPER.md).
+hardening deadline so they cannot compete with shipping.
 
 ---
 
@@ -460,8 +456,9 @@ Adding a detection rule needs **no Python** — drop a YAML file in
 `packages/qubit-scanner/src/qubit_scanner/catalog/rules/<language>/` with embedded positive/negative
 examples, and the test suite picks it up automatically.
 
-Design documents live in [docs/design/](docs/design/) and are the implementable specification behind
-every module; start with [00-architecture-frame.md](docs/design/00-architecture-frame.md).
+The implementable specification behind every module — the design documents, the build plan, the
+project-status reports and the paper draft — is maintained alongside this repository rather than
+inside it.
 
 ## 📜 License
 

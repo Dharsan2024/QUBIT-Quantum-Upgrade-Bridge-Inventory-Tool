@@ -133,4 +133,15 @@ demo-lab/
 
 # Coverage artifacts
 .coverage
-paper_evidence/coverage.json
+
+# Deployment and environment scaffolding: kept local (see unwanted/deployment/).
+Dockerfile.api
+docker-compose.yml
+.env.example
+.env
+
+# Design docs and internal specification: kept local (see unwanted/docs/).
+docs/
+
+# Bridge output: `qubit_bridge.compose` creates this at runtime.
+generated/

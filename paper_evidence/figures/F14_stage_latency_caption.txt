@@ -1,1 +1,0 @@
-Discovery throughput per repository, mean of 5 runs. Throughput varies by roughly an order of magnitude across the corpus, driven by file size and how many files the grammar actually parses rather than by language. Source: data/performance.csv.

@@ -1,1 +1,0 @@
-Wall-clock cost per repository against the number of findings, over 17 repositories, log-log. Cost is driven by repository size rather than by how much cryptography is in it, which is what makes the fifth detector's applicability gate worth having. Source: figures/F12_sweep_cost.csv.

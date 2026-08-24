@@ -1,3 +1,0 @@
-comparison,n,only_a_correct,only_b_correct,both,neither,mcnemar_p,holm_adjusted
-heuristic vs language model (3-class),64,1,8,45,10,0.03906,0.07812
-heuristic vs language model (ABSENT only),64,0,1,61,2,1,1

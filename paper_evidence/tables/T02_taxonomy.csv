@@ -1,5 +1,0 @@
-label,means,examples
-USE,"the named family is actually invoked, configured, or selected here","sha1.New(), Cipher.getInstance(""DESede/CBC/PKCS5Padding""), ssl_ecdh_curve X25519MLKEM768;, alg: ""RS256"" passed to a signer"
-MENTION,"the name appears, but as data or prose, not as an operation","a ban list, a severity table, a display label, a test fixture name, a comment, a doc string, an error message"
-ABSENT,the family is not referred to at all; the detector matched something else,"DES inside CODES, EC inside encode, a variable called rsaHelperTest in a file with no RSA"
-AMBIGUOUS,the line cannot be resolved from the evidence shown,"a bare identifier whose definition is elsewhere, a macro, a generated file"

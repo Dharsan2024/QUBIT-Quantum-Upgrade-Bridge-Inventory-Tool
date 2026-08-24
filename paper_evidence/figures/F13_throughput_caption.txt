@@ -1,1 +1,0 @@
-Discovery cost against repository size, 5 repetitions per point with a discarded warm-up, error bars one standard deviation. Cost tracks the number of files rather than the amount of cryptography in them, which is what makes an applicability gate worth having on an expensive detector. Source: data/performance.csv.

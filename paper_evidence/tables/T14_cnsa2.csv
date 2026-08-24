@@ -1,6 +1,0 @@
-milestone,deadline,weight,requirement
-Preparation Phase,2025-12-31,10,Inventory crypto assets; identify quantum-vulnerable systems; begin testing PQC.
-New NSS Systems,2027-01-01,30,ML-KEM for key establishment; ML-DSA/SLH-DSA for signatures; AES-256; SHA-384/512.
-TLS 1.3 Required,2030-01-02,25,TLS 1.3 mandatory; hybrid PQC key exchange required; RSA/ECDH no longer acceptable.
-Legacy System Update,2033-01-01,20,Complete migration of existing systems; PQC certificates widely deployed.
-Full PQC Transition,2035-01-01,15,Pure PQC (no hybrid required); classical algorithms fully retired.

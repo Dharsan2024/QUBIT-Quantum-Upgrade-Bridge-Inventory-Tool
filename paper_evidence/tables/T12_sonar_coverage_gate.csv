@@ -1,9 +1,0 @@
-repository,analysable,total files,share,>= files,>= share,verdict
-RxJava,2073,2184,94.9%,yes,yes,scan
-TheAlgorithms/Python,1385,1537,90.1%,yes,yes,scan
-conductor,1486,4171,35.6%,yes,yes,scan
-CymChad (mixed Kotlin),25,263,9.5%,yes,yes,scan
-openwrt (build scripts),25,11555,0.2%,yes,no,skip
-redis (build scripts),48,1887,2.5%,yes,no,skip
-libuv,3,509,0.6%,no,no,skip
-SwiftLint,0,988,0.0%,no,no,skip

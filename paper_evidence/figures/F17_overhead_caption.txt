@@ -1,1 +1,0 @@
-QUBIT's wall-clock cost against the same four baseline detectors the accuracy comparison uses, one real run per detector per repository (log scale -- the spread is more than an order of magnitude, not a small effect). sonar-cryptography is absent from repositories outside its Java/Python/Go applicability gate. Source: data/detector_overhead.csv.

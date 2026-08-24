@@ -1,4 +1,0 @@
-component,kind,artifact_present,headline_metric
-risk regressor,XGBoost + split conformal,yes,"test MAE 0.0021, coverage 90.51% at 90% target"
-sensitivity classifier,DistilBERT fine-tune,no,not trained in this checkout — no metric reported
-patch generator,qwen2.5-coder 7B via Ollama,external (Ollama),"acceptance measured over the 26-repository corpus, see T08/T09"

@@ -75,8 +75,14 @@ _TOML_PIN_RE = re.compile(
 
 
 def _floor_for(name: str) -> str | None:
-    """The PQC-capable floor for a package, or None if we have no verified one."""
-    return _MIN_PQC_VERSIONS.get(name.strip().lower().replace("_", "-"))
+    """The PQC-capable floor for a package, or None if we have no verified one.
+
+    Keyed on the last colon-delimited segment so Maven's `groupId:artifactId` form resolves to the
+    same entry as the bare artifact id — see `rules._library_key`, which is the matching half of
+    this and documents the measured cost of the two disagreeing.
+    """
+    key = name.rsplit(":", 1)[-1].strip().lower().replace("_", "-")
+    return _MIN_PQC_VERSIONS.get(key)
 
 
 def _below_floor(current: str, floor: str) -> bool:
@@ -180,6 +186,133 @@ def _apply_dependency_bump(source: str, filename: str) -> tuple[str, bool]:
         return _bump_maven(source)
     if name.endswith((".csproj", ".vbproj", ".fsproj")):
         return _bump_nuget(source)
+    return source, False
+
+
+# ---------------------------------------------------------------------------
+# Adding a PQC provider (manifests whose ecosystem has no in-library upgrade path)
+# ---------------------------------------------------------------------------
+# `bump_crypto_dependency` raises a floor, which only works where the SAME library gained PQC in a
+# later release (pyca/cryptography, BouncyCastle). In npm, Cargo, Composer and RubyGems there is no
+# such release: post-quantum support lives in a DIFFERENT package. A floor bump cannot express "add
+# a dependency", so those ecosystems had no rule at all and every finding in them was reported as
+# manual work — the largest single block of "no migration rule" on the 21-app demo corpus.
+#
+# Like `dep-pqc-01` this is a PREREQUISITE patch, not a migration on its own: it makes the PQC
+# primitives importable so the structural code rewrite has something to call. The rule says so.
+#
+# Every package and version below was verified against that ecosystem's own registry API at
+# authoring time rather than recalled — npm registry, crates.io and Packagist.
+#
+# ADOPTION IS PART OF THE BAR, not just existence. This tool tells people what to put in their
+# cryptographic dependency path, so an obscure package here is worse than no rule: it converts an
+# honest "no automated fix" into confident, automated bad advice, and the operator has no way to
+# know the difference. Each entry below was checked for real-world usage at authoring time, and
+# three candidates were REJECTED on that basis rather than included to raise a coverage number:
+#
+#   * RubyGems `ml_kem` — 836 downloads in total.
+#   * pub.dev `mlkem_native` — 107 downloads/30d, 0 likes; `custom_post_quantum` — 45/30d.
+#   * SwiftPM — no PQC provider established at all; `swift-crypto` 4.5.1 ships none.
+#
+# Ruby, Dart and Swift findings therefore stay on the guidance path, which says truthfully that no
+# vetted provider exists yet, rather than being handed a dependency nobody has vetted.
+_PQC_PROVIDERS: dict[str, tuple[str, str]] = {
+    # manifest filename (lowercased) -> (package, version constraint)
+    # npm 0.7.0, audited, ~346k downloads/week.
+    "package.json": ("@noble/post-quantum", "^0.7.0"),
+    # RustCrypto, crates.io 0.3.2, ~3.6M downloads/90d. Not independently audited — noted in the
+    # rule's semantic_note so the operator reviewing the patch is told.
+    "cargo.toml": ("ml-kem", "0.3.2"),
+    # Packagist v0.3.2. Adoption is modest (~1.3k/month), included because Paragon Initiative
+    # Enterprises is an established security vendor and this is the reference pure-PHP FIPS
+    # 203/204/205 implementation — there is no better-adopted alternative in the ecosystem.
+    "composer.json": ("paragonie/pqcrypto_compat", "^0.3.2"),
+}
+
+#: The `go` directive floor whose stdlib carries ML-KEM. Go is its own case: PQC arrived IN the
+#: standard library (`crypto/mlkem`, Go 1.24), so the transform is neither a package add nor a
+#: library floor but a LANGUAGE version bump. `crypto/mldsa` followed in 1.27; 1.24 is used here
+#: because it is what the KEM target needs, and demanding 1.27 for a key-exchange finding would
+#: force a toolchain upgrade this migration does not require.
+_GO_MLKEM_FLOOR = (1, 24)
+_GO_DIRECTIVE_RE = re.compile(
+    r"^(?P<indent>[ \t]*)go[ \t]+(?P<ver>\d+\.\d+(?:\.\d+)?)[ \t]*$", re.M
+)
+
+
+def _json_dep_insert(source: str, block: str, name: str, version: str) -> tuple[str, bool]:
+    """Insert `"name": "version"` as the first entry of a JSON manifest's dependency object.
+
+    Textual rather than `json.loads` + `json.dumps`: re-serialising reformats the whole file and
+    produces a diff nobody can review. Inserting FIRST means the new entry always carries a
+    trailing comma, which is valid whenever an entry follows; an empty object is handled separately
+    because there the comma would be a syntax error.
+    """
+    if f'"{name}"' in source:
+        return source, False  # already declared — idempotent
+    m = re.search(rf'"{re.escape(block)}"\s*:\s*\{{', source)
+    if m is None:
+        return source, False
+    brace = m.end() - 1
+    close = source.find("}", brace)
+    if close == -1:
+        return source, False
+    body = source[brace + 1 : close]
+    existing = re.search(r"\n(?P<indent>[ \t]+)\S", body)
+    indent = existing.group("indent") if existing else "    "
+    entry = f'"{name}": "{version}"'
+    injected = f"\n{indent}{entry}," if body.strip() else f"\n{indent}{entry}\n"
+    return source[: brace + 1] + injected + source[brace + 1 :], True
+
+
+def _add_cargo_dependency(source: str, name: str, version: str) -> tuple[str, bool]:
+    """Append to Cargo.toml's `[dependencies]` table, before the next section header."""
+    if re.search(rf"^[ \t]*{re.escape(name)}[ \t]*=", source, re.M):
+        return source, False
+    m = re.search(r"^\[dependencies\][ \t]*$", source, re.M)
+    if m is None:
+        return source, False
+    rest = source[m.end() :]
+    nxt = re.search(r"^\[", rest, re.M)
+    cut = m.end() + (nxt.start() if nxt else len(rest))
+    head, tail = source[:cut], source[cut:]
+    # Preserve the blank line that separated this table from the next section. Appending after it
+    # instead leaves the new pin abutting `[dev-dependencies]` — valid TOML, but it reads as a
+    # mistake in the diff a reviewer has to approve.
+    head = head.rstrip("\n") + "\n"
+    entry = f'{name} = "{version}"  # QUBIT: FIPS-203 ML-KEM provider\n'
+    separator = "\n" if tail.strip() else ""
+    return head + entry + separator + tail.lstrip("\n"), True
+
+
+def _bump_go_directive(source: str) -> tuple[str, bool]:
+    """Raise go.mod's `go` directive to the release whose stdlib carries `crypto/mlkem`."""
+    m = _GO_DIRECTIVE_RE.search(source)
+    if m is None:
+        return source, False
+    current = tuple(int(p) for p in m.group("ver").split(".")[:2])
+    if current >= _GO_MLKEM_FLOOR:
+        return source, False  # already at or past the floor
+    floor = ".".join(str(p) for p in _GO_MLKEM_FLOOR)
+    line = f"{m.group('indent')}go {floor}  // QUBIT: stdlib crypto/mlkem needs Go {floor}+"
+    return source[: m.start()] + line + source[m.end() :], True
+
+
+def _apply_add_pqc_dependency(source: str, filename: str) -> tuple[str, bool]:
+    """Make PQC primitives importable in a manifest whose ecosystem needs a new package."""
+    name = filename.lower()
+    if name == "go.mod":
+        return _bump_go_directive(source)
+    provider = _PQC_PROVIDERS.get(name)
+    if provider is None:
+        return source, False
+    pkg, version = provider
+    if name == "package.json":
+        return _json_dep_insert(source, "dependencies", pkg, version)
+    if name == "composer.json":
+        return _json_dep_insert(source, "require", pkg, version)
+    if name == "cargo.toml":
+        return _add_cargo_dependency(source, pkg, version)
     return source, False
 
 
@@ -487,6 +620,7 @@ _CODEMOD_REGISTRY: dict[str, str] = {
     "weakhash_to_sha256": "non-Python weak hash -> SHA-256 (line-scoped token swap)",
     "harden_tls_config": "nginx/Apache/OpenSSH -> hybrid-PQC, AEAD-only posture",
     "bump_crypto_dependency": "manifest pin -> a version that provides PQC primitives",
+    "add_pqc_dependency": "manifest -> declares a PQC provider (or raises go.mod's go directive)",
 }
 
 
@@ -525,6 +659,8 @@ def run_codemod(
         new_source, changed = _apply_hash_swap(source, lang)
     elif codemod_name == "bump_crypto_dependency":
         new_source, changed = _apply_dependency_bump(source, file_path.name.lower())
+    elif codemod_name == "add_pqc_dependency":
+        new_source, changed = _apply_add_pqc_dependency(source, file_path.name.lower())
     else:  # pragma: no cover - registry and dispatch are kept in sync by test_codemod_registry
         return None
 

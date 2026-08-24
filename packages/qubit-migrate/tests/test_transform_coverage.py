@@ -132,13 +132,21 @@ def test_asset_routes_to_expected_rule(
         ("cryptography", "requirements.txt", "dep-pqc-01"),
         ("cryptography", "pyproject.toml", "dep-pqc-01"),
         ("bcprov-jdk18on", "pom.xml", "dep-pqc-01"),
-        # A package with no established floor must NOT be claimed: the rule would match, the
-        # codemod would find nothing to bump, and the app's Generate button would answer 422.
+        # Maven reports `groupId:artifactId`, which never string-equalled the bare artifact id the
+        # rule and the floor table are keyed on — so this rule was unreachable for EVERY Maven
+        # project despite having a verified floor for this exact artifact on file.
+        ("org.bouncycastle:bcprov-jdk18on", "pom.xml", "dep-pqc-01"),
+        # A package with no established floor, in a manifest whose ecosystem also has no separate
+        # provider to add, must NOT be claimed: the rule would match, the codemod would find
+        # nothing to bump, and the app's Generate button would answer 422.
         ("pyjwt", "requirements.txt", None),
-        # A manifest format the codemod cannot parse at all. Matching `.toml` by suffix claimed
-        # Cargo.toml and produced exactly that 422.
-        ("md-5", "Cargo.toml", None),
-        ("jsonwebtoken", "package.json", None),
+        # These two used to be unclaimable for the same reason, and are now handled by dep-pqc-02.
+        # npm and Cargo never gained PQC in a later release of the flagged library — it lives in a
+        # separate package — so "raise a floor" could not express the change and the honest answer
+        # was to match nothing. `add_pqc_dependency` CAN express it, and produces a real patch
+        # (`ml-kem` / `@noble/post-quantum`), so claiming them no longer leads to that 422.
+        ("md-5", "Cargo.toml", "dep-pqc-02"),
+        ("jsonwebtoken", "package.json", "dep-pqc-02"),
     ],
 )
 def test_dependency_rule_only_claims_packages_it_can_actually_bump(
@@ -163,6 +171,40 @@ def test_dependency_rule_only_claims_packages_it_can_actually_bump(
         )
     )
     assert (rule.id if rule else None) == expected
+
+
+@pytest.mark.parametrize(
+    ("algorithm", "usage"),
+    [
+        ("MD5", UsageContext.hash),
+        ("SHA-1", UsageContext.hash),
+        ("3DES", UsageContext.encryption_at_rest),
+    ],
+)
+def test_pqc_provider_rule_does_not_claim_symmetric_or_hash_findings(
+    algorithm: str, usage: UsageContext
+) -> None:
+    """Declaring an ML-KEM provider must not be offered as the fix for a weak hash or cipher.
+
+    `dep-pqc-02` adds a post-quantum KEM/signature package. That is a real answer for a
+    Shor-breakable dependency and no answer at all for `md-5` or a DES crate: the finding is a
+    weak primitive in use, and the fix is to stop using it, not to make ML-KEM importable
+    alongside it. Claiming these would produce a patch that applies cleanly, passes review and
+    leaves the finding exactly where it was — the most damaging kind of wrong, because it looks
+    like progress. The rule's algorithm list is deliberately confined to Shor-breakable
+    primitives; this pins that boundary.
+    """
+    load_rules.cache_clear()
+    rule = match_rule(
+        _asset(
+            algorithm,
+            source=SourceScanner.config,
+            usage=usage,
+            path="Cargo.toml",
+            library="md-5",
+        )
+    )
+    assert (rule.id if rule else None) != "dep-pqc-02"
 
 
 def test_config_rules_do_not_claim_source_code_assets() -> None:

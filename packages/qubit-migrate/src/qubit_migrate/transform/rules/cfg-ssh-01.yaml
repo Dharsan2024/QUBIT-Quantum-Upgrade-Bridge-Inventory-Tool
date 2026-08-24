@@ -11,7 +11,11 @@ matches:
   file_name: ["sshd_config", "ssh_config", "sshd_config.*", "*.sshd_config"]
   algorithm:
     ["ssh-rsa", "ssh-dss", "DH-1024-group1", "DH-2048-group14", "HMAC-SHA1", "HMAC-MD5",
-     "3DES", "AES-128", "RC4", "ECDSA-P256"]
+     "3DES", "AES-128", "RC4", "ECDSA-P256",
+     # The ECDH curves an sshd_config names in KexAlgorithms. These are exactly the directives
+     # `harden_ssh` rewrites to sntrup761x25519-sha512, but only ECDSA-P256 (a HOST KEY algorithm)
+     # was listed, so the key-exchange findings this rule exists to fix matched nothing.
+     "ECDH-P256", "ECDH-P384", "ECDH-P521", "X25519"]
   usage_context: ["kex", "signature", "token", "encryption-at-rest"]
   library_name: [null]
 target:

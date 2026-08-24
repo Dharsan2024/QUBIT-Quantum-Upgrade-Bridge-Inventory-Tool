@@ -1,0 +1,66 @@
+id: dep-pqc-02
+language: manifest
+title: "Ecosystem with no in-library PQC path → declare a post-quantum provider"
+matches:
+  source_scanner: [config]
+  # The manifests whose ecosystem gained PQC in a SEPARATE package rather than in a later release
+  # of a library the project already has. `dep-pqc-01` covers the opposite case (pyca/cryptography,
+  # BouncyCastle), and the two must not both claim a file — these names are disjoint from its list.
+  #
+  # `go.mod` is here for a third reason again: Go put ML-KEM in the STANDARD LIBRARY
+  # (`crypto/mlkem`, Go 1.24), so the transform is a language-version bump, not a package add.
+  # `add_pqc_dependency` dispatches on the filename and handles that case.
+  # Gemfile, pubspec.yaml and Package.swift are deliberately ABSENT: no PQC provider with real
+  # adoption exists in those ecosystems yet (see `codemods._PQC_PROVIDERS` for the numbers that
+  # decided it), and claiming them would mean auto-adding an unvetted crypto dependency. Those
+  # findings take the guidance path instead, which can say so honestly.
+  file_name: ["package.json", "Cargo.toml", "composer.json", "go.mod"]
+  # SCA findings for a quantum-vulnerable primitive reached through a dependency. Matched broadly
+  # on purpose: unlike a floor bump, declaring a provider is correct regardless of WHICH
+  # Shor-breakable primitive the dependency exposes, because the point is to make the replacement
+  # importable rather than to fix one call.
+  algorithm:
+    ["RSA", "RSA-1024", "RSA-2048", "RSA-3072", "RSA-4096",
+     "DSA", "EC", "ECDSA-P256", "ECDSA-P384", "ECDSA-P521", "ECDSA-secp256k1", "ECDSA",
+     "ECDH-P256", "ECDH-P384", "X25519", "Ed25519", "Ed448", "DH",
+     "RS256", "RS384", "RS512", "PS256", "ES256", "ES384", "ES512", "EdDSA"]
+  usage_context: ["kex", "signature", "token", "encryption-at-rest", "tls", "unknown"]
+target:
+  algorithm: ML-KEM-768
+  mode: hybrid
+  hybrid_group: X25519MLKEM768
+  category: 3
+  fips: FIPS-203
+data_compat: in_place
+semantic_note: >
+  A PREREQUISITE patch, not a migration on its own — exactly like dep-pqc-01, and it is described
+  that way in the app so nobody mistakes it for the finding being fixed. In npm, Cargo, Composer
+  and RubyGems there is no later release of the flagged library that adds post-quantum support:
+  the primitives live in a different package entirely, so "raise the floor" cannot express the
+  change and these findings previously had no rule at all. Declaring the provider is what makes
+  the structural code rewrite possible; the call sites still have to be migrated afterwards, and
+  the finding stays open until they are. Go is the exception: ML-KEM is in the standard library
+  from 1.24, so there the patch raises the `go` directive instead of adding a dependency.
+  Every package and version was verified against its own registry API, not recalled.
+codemod: add_pqc_dependency
+# The correct output is a constant — one known package at one known version, or one version floor —
+# so the codemod is authoritative and a model must never replace it, even under `--generator llm`.
+codemod_authoritative: true
+prompt_constraints:
+  - "Only ever ADD a dependency or RAISE a version; never remove or downgrade one."
+  - "Never change an unrelated dependency."
+example:
+  before: |
+    {
+      "dependencies": {
+        "jsonwebtoken": "^9.0.0"
+      }
+    }
+  after: |
+    {
+      "dependencies": {
+        "@noble/post-quantum": "^0.7.0",
+        "jsonwebtoken": "^9.0.0"
+      }
+    }
+rescan_expect: null

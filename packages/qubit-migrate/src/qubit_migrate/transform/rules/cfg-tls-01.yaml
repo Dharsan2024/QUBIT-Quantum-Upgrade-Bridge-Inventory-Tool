@@ -5,8 +5,17 @@ matches:
   # Config-scanner assets ONLY. These algorithm names also occur in application code, and
   # without this the config codemod would be pointed at a source file it cannot edit.
   source_scanner: [config]
-  # Web-server config filenames only — see cfg-ssh-01 on why source_scanner alone is insufficient.
-  file_name: ["nginx.conf", "*.nginx.conf", "httpd.conf", "apache2.conf", "ssl.conf", "*-ssl.conf", "default.conf", "*.vhost"]
+  # Web-server config filenames — see cfg-ssh-01 on why source_scanner alone is insufficient.
+  #
+  # `*.conf` is deliberate rather than a fixed allowlist. Real deployments do not name their vhosts
+  # `nginx.conf`: measured on the 21-app demo corpus, 14 of 113 unmatched findings were nginx
+  # configs called `edge.conf`, `mgmt-vhost.conf` and `nginx-classical.conf`, each reported as
+  # "no migration rule" purely because of its filename. `harden_config_file` dispatches on file
+  # CONTENT (an Apache directive regex, else nginx), so a `.conf` that is neither simply produces
+  # no change and the task is parked as "nothing left to change" — an honest outcome, not a crash.
+  # The dependency scanner also reports manifests as `config`, which is what `library_name: [null]`
+  # below excludes; a manifest has a library name and a vhost does not.
+  file_name: ["*.conf", "*.vhost", "nginx.conf", "httpd.conf", "apache2.conf"]
   # Detections from the config scanner (nginx/Apache CFG-*-PROTO/CIPHERS rules) and from the C
   # OpenSSL legacy-method rule all normalize to these protocol identities.
   algorithm:

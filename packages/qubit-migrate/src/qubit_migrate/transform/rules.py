@@ -155,10 +155,36 @@ def match_rule(
         lib_list = m.get("library_name")
         if lib_list is not None:
             asset_lib = asset.library.name if asset.library else None
-            if None not in lib_list and asset_lib not in lib_list:
+            if None not in lib_list and not _library_matches(asset_lib, lib_list):
                 continue
         return rule
     return None
+
+
+def _library_key(name: str) -> str:
+    """A package name reduced to the form rules are written in.
+
+    Ecosystems qualify a package differently and the scanner reports what the manifest says, so an
+    exact string comparison silently fails on whole ecosystems. Maven names a dependency
+    `org.bouncycastle:bcprov-jdk18on` (groupId:artifactId) while the rule — and the version floor
+    table in `codemods._MIN_PQC_VERSIONS` — is keyed on `bcprov-jdk18on`. That mismatch made
+    `dep-pqc-01` unreachable for every Maven project: measured on the 21-app demo corpus, 4
+    BouncyCastle findings in `pom.xml` reported "no migration rule" even though a verified PQC
+    floor for that exact artifact was already on file.
+
+    Reduced to the last colon-delimited segment, lowercased, with `_` normalised to `-` (pip treats
+    the two as equivalent). npm scopes are deliberately NOT stripped: `@noble/post-quantum` and a
+    hypothetical unscoped `post-quantum` are different packages, and `/` is not a separator here.
+    """
+    return name.rsplit(":", 1)[-1].strip().lower().replace("_", "-")
+
+
+def _library_matches(asset_lib: str | None, lib_list: list[Any]) -> bool:
+    """True when the asset's library is one the rule names, comparing on `_library_key`."""
+    if asset_lib is None:
+        return False
+    key = _library_key(asset_lib)
+    return any(isinstance(x, str) and _library_key(x) == key for x in lib_list)
 
 
 __all__ = ["MigrationRule", "load_rules", "match_rule"]

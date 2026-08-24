@@ -71,11 +71,34 @@ class KBEntry(BaseModel):
         )
 
 
+class KBArtifactImpact(BaseModel):
+    """What migrating TO one PQC algorithm does to sizes, storage and compatibility.
+
+    The migration facts that are NOT visible from the flagged line. An ML-DSA-65 signature is 3309
+    bytes where RSA-2048 gave 256, so the column holding it breaks even though the call site now
+    looks correct. Rendered into the generator prompt so a patch addresses the whole change rather
+    than the one line the scanner pointed at.
+    """
+
+    fips: str | None = None
+    #: "kem" | "signature" — a KEM cannot be dropped in where a cipher was called.
+    kind: str = ""
+    #: Artifact name -> size in bytes, e.g. {"signature": 3309}.
+    sizes: dict[str, int] = Field(default_factory=dict)
+    #: Classical algorithm -> its corresponding sizes, for the before/after comparison.
+    replaces: dict[str, str] = Field(default_factory=dict)
+    #: Concrete consequences a correct patch has to handle.
+    breaks: list[str] = Field(default_factory=list)
+
+
 class MigrationKB(BaseModel):
     """Full knowledge base (versioned)."""
 
     version: str
     entries: list[KBEntry] = Field(default_factory=list)
+    #: Target algorithm -> its wire/storage impact, keyed by the same names the entries'
+    #: `target.algorithm` uses so a target resolves to its impact without a second mapping.
+    artifact_impact: dict[str, KBArtifactImpact] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +142,25 @@ def lookup_kb(
     return None
 
 
+def lookup_impact(algorithm: str, path: Path | None = None) -> KBArtifactImpact | None:
+    """The wire/storage impact of migrating TO ``algorithm``, or None if none is recorded.
+
+    Keyed on the TARGET algorithm, not the vulnerable one: the consequences belong to what the code
+    is moving to, so every RSA-signature and every ECDSA-signature finding heading for ML-DSA-65
+    inherits the same 3309-byte signature problem regardless of where it started.
+    """
+    if not algorithm:
+        return None
+    impact = load_migration_kb(path).artifact_impact
+    direct = impact.get(algorithm)
+    if direct is not None:
+        return direct
+    wanted = algorithm.casefold()
+    return next((v for k, v in impact.items() if k.casefold() == wanted), None)
+
+
 __all__ = [
+    "KBArtifactImpact",
     "KBEntry",
     "KBLibraries",
     "KBLibrary",
@@ -128,5 +169,6 @@ __all__ = [
     "MigrationKB",
     "kb_file_hash",
     "load_migration_kb",
+    "lookup_impact",
     "lookup_kb",
 ]

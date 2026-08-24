@@ -20,6 +20,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ..kb import lookup_impact
 from .languages import (
     LANGUAGE_TO_EXT,
     SUFFIX_TO_LANGUAGE,
@@ -327,6 +328,51 @@ def _attack_note(asset: CryptoAsset) -> str:
     return ""
 
 
+def _impact_block(rule: MigrationRule) -> str:
+    """Tell the model what this migration BREAKS, not just what to call instead.
+
+    The biggest gap between a QUBIT patch and a real migration was that the prompt asked for a
+    primitive swap and got one — which is also the reason a reviewer could fairly ask what the tool
+    adds over a developer doing the same substitution by hand. An ML-DSA-65 signature is 3309 bytes
+    where RSA-2048 gave 256, so the `VARCHAR(256)` column, the `[64]byte` array and the 4 KB cookie
+    holding it are all broken by a patch that looks correct at the call site — and none of that is
+    visible from the flagged line, which is exactly why it is missed by hand.
+
+    Sourced from the KB's `artifact_impact` (`params/migration_kb.yaml`) rather than written into
+    the prompt, so the numbers have one home and cite their FIPS parameter tables. Renders empty
+    for a target with no recorded impact (a weak-hash swap genuinely IS a small change), so this
+    never manufactures gravity a migration does not have.
+    """
+    target = str((rule.target or {}).get("algorithm", ""))
+    impact = lookup_impact(target) if target else None
+    if impact is None:
+        return ""
+
+    parts = [
+        f"This migration targets {target}"
+        + (f" ({impact.fips})" if impact.fips else "")
+        + ". Migrating to it is NOT a rename — it changes sizes and shapes:\n"
+    ]
+    if impact.sizes:
+        sizes = ", ".join(f"{k.replace('_', ' ')} {v} bytes" for k, v in impact.sizes.items())
+        parts.append(f"- {target} sizes: {sizes}.\n")
+    for classical, was in impact.replaces.items():
+        parts.append(f"- It replaces {classical}, which had: {was}.\n")
+    if impact.breaks:
+        parts.append(
+            "\nA correct patch handles ALL of the following. Where a consequence lives outside "
+            "this file, still fix what you can here and leave a clear comment naming what else "
+            "must change:\n"
+        )
+        parts.extend(f"- {b.strip()}\n" for b in impact.breaks)
+    parts.append(
+        "\nDo not produce a one-line substitution. Migrate the whole flow present in this file: "
+        "key generation, serialisation, storage widths, length fields, and the verify/decrypt "
+        "path.\n\n"
+    )
+    return "".join(parts)
+
+
 def _experience_examples(experience: list[tuple[str, str]] | None, language: str) -> str:
     if not experience:
         return ""
@@ -394,6 +440,7 @@ def _build_prompt(
         f"The file below has {len(source.splitlines())} lines. Your output must contain all of "
         "them, in order, changing only what this migration requires. Do not summarise, "
         "reorganise, or drop code unrelated to the flagged algorithm.\n\n"
+        f"{_impact_block(rule)}"
         f"{target_shape}"
         f"{_worked_examples(rule, language)}"
         f"{_experience_examples(experience, language)}"

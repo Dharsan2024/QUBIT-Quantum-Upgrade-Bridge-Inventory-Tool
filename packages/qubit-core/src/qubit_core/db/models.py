@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import JSON, Uuid
 
@@ -172,19 +172,38 @@ class ApiToken(Base):
 
 
 class LearnedPatch(Base):
-    """Stores successful LLM rewrites to guide future migrations."""
+    """A validated LLM line-fix, kept so the next occurrence costs less than the first.
+
+    Serves two paths, both offline (see ``qubit_migrate.transform.learn``):
+
+    * **Exact reuse** — keyed by ``snippet_key`` = sha256(rule_id + the stripped flagged line), so
+      an identical finding in another file, another project or a later scan is answered from here
+      instead of a model call. The reused patch still passes the full validation gate before it is
+      proposed; only the LLM round-trip is skipped.
+    * **Experience grounding** — the highest-``hit_count`` fixes for a rule are replayed into the
+      generator prompt, so a *non*-identical finding is still conditioned on work this project has
+      already had verified rather than starting cold.
+
+    ``snippet_before``/``snippet_after`` are Text, not String(1024): a flagged line in minified or
+    generated code can exceed any bound worth guessing at, and truncating one silently would poison
+    both paths above with a fix that no longer reproduces.
+    """
 
     __tablename__ = "learned_patches"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     rule_id: Mapped[str] = mapped_column(String(64), index=True)
     language: Mapped[str] = mapped_column(String(32))
-    source_pattern: Mapped[str] = mapped_column(String(1024))
-    replacement: Mapped[str] = mapped_column(String(1024))
-    validation_score: Mapped[float] = mapped_column(default=1.0)
+    algorithm: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    snippet_key: Mapped[str] = mapped_column(String(64), index=True)
+    snippet_before: Mapped[str] = mapped_column(Text)
+    snippet_after: Mapped[str] = mapped_column(Text)
+    source_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    hit_count: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
-    __table_args__ = (Index("ix_learned_patches_rule_lang", "rule_id", "language"),)
+    __table_args__ = (UniqueConstraint("rule_id", "snippet_key", name="uq_learned_patch_key"),)
 
 
 __all__ = [

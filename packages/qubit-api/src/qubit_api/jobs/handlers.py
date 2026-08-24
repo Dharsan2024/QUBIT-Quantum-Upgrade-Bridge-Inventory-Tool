@@ -491,7 +491,7 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
         )
 
         total = len(tasks)
-        generated = applied = failed = covered = 0
+        generated = applied = failed = covered = from_cache = 0
         failures: list[dict[str, str]] = []
 
         for index, task in enumerate(tasks, start=1):
@@ -505,6 +505,11 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
                 if patch.status != "proposed":
                     raise ValueError("the validation gate rejected this patch")
                 generated += 1
+                if patch.model_name and patch.model_name.startswith("cache:"):
+                    # Answered from the learned-patch store (transform/learn.py) instead of a
+                    # fresh model call — an identical finding was already fixed and validated
+                    # earlier in this run, an earlier plan, or an earlier scan entirely.
+                    from_cache += 1
                 orch.review_patch(patch.id, approve=True, note="bulk migration", actor="api")
                 if should_apply and repo_root is not None:
                     orch.apply_patch(patch.id, repo_root=repo_root, actor="api")
@@ -534,6 +539,7 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
         "generated": generated,
         "applied": applied,
         "covered": covered,
+        "from_cache": from_cache,
         "failed": failed,
         # Absent a repo root nothing was written, and a caller that only sees `applied: 0` cannot
         # tell that apart from every patch failing.

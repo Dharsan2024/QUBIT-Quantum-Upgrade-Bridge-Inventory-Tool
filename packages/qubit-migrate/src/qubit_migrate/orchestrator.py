@@ -12,6 +12,7 @@ from uuid import UUID
 
 from qubit_core import CryptoAsset
 from qubit_core.db import AssetRow
+from qubit_core.db.models import LearnedPatch
 from qubit_core.mapping import row_to_asset
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -479,6 +480,11 @@ class MigrationOrchestrator:
         if use_llm and rule.codemod and rule.codemod_authoritative:
             use_llm = False
         model_name: str | None = None
+        # Only the LLM branch populates these; the codemod branch leaves them at their defaults so
+        # the shared validation/record code below can read them unconditionally.
+        learned: LearnedPatch | None = None
+        finding_line: int | None = None
+        file_language = ""
 
         # A rule rewrites the WHOLE file, so once one of its patches has been applied to a file, any
         # other pending task for the same (rule, file) has nothing left to do. Checking that here
@@ -527,29 +533,51 @@ class MigrationOrchestrator:
                         resolution=RESOLUTION_SATISFIED,
                     )
                     raise ValueError("already remediated by an earlier task in this plan")
-            try:
-                from .transform.learn import get_experience_for_rule
-                from .transform.llm import _prompt_language
-                
-                experience = get_experience_for_rule(
-                    self.session, rule.id, _prompt_language(rule, asset)
-                )
-                
-                orig = file_path.read_text(encoding="utf-8")
-                new = generate_llm_source(
-                    orig,
-                    rule,
-                    asset,
-                    model=self.config.model,
-                    fallback_model=self.config.fallback_model,
-                    timeout=self.config.llm_timeout,
-                    verify=self._rescan_verifier(rule, asset, diff_path),
-                    experience=experience,
-                )
+            from .transform import learn
+            from .transform.llm import _prompt_language
+
+            file_language = _prompt_language(rule, asset)
+            orig = file_path.read_text(encoding="utf-8")
+            finding_line = asset.location.line if asset.location else None
+
+            # This project's own previously-validated fixes for this rule and language. Used
+            # whether or not the exact-match store hits: a fresh call is grounded in verified
+            # work rather than prose alone. See transform/learn and llm._experience_examples.
+            experience = learn.get_experience_for_rule(self.session, rule.id, file_language)
+
+            learned = learn.lookup(self.session, rule_id=rule.id, orig=orig, line=finding_line)
+            reused = (
+                learn.apply(orig, finding_line, learned)
+                if learned is not None and finding_line is not None
+                else None
+            )
+
+            def _generate_fresh(source: str) -> str:
+                try:
+                    return generate_llm_source(
+                        source,
+                        rule,
+                        asset,
+                        model=self.config.model,
+                        fallback_model=self.config.fallback_model,
+                        timeout=self.config.llm_timeout,
+                        verify=self._rescan_verifier(rule, asset, diff_path),
+                        experience=experience,
+                    )
+                except (OSError, OllamaError) as e:
+                    self._fail_task(task, f"LLM generation failed: {e}")
+                    raise ValueError(f"LLM generation failed: {e}") from e
+
+            if reused is not None and learned is not None:
+                # An identical finding was already fixed and validated — replay it and skip the
+                # model. This still passes the same validation gate below before it can be
+                # proposed; only the LLM round-trip is skipped, never the validator.
+                new = reused.new_source
+                model_name = f"cache:{learned.source_model or self.config.model}"
+            else:
+                new = _generate_fresh(orig)
                 model_name = self.config.model
-            except (OSError, OllamaError) as e:
-                self._fail_task(task, f"LLM generation failed: {e}")
-                raise ValueError(f"LLM generation failed: {e}") from e
+                learned = None
         else:
             if not rule.codemod:
                 self._fail_task(task, "Rule has no codemod")
@@ -593,30 +621,45 @@ class MigrationOrchestrator:
                 self._fail_task(task, f"Codemod error: {e}")
                 raise
 
+        def _validate(candidate: str) -> ValidationReport:
+            return validate_patch(
+                diff_text=old_new_to_diff(diff_path, orig, candidate),
+                patched_source=candidate,
+                rule=rule,
+                repo_root=repo_root,
+                language=rule.language,
+                # ALWAYS pass the path, not only when a repo root was supplied. `target_rel_path`
+                # is used by `_effective_language` purely to read the file's SUFFIX, which needs no
+                # repo — but it was gated on `repo_root`, and generating from the app supplies none.
+                # So for every cross-language rule (`language: multi`) the validator fell back to
+                # "multi", found no grammar for it, and skipped BOTH the syntax check and the
+                # rescan. Measured across 20 generated patches: only the one Python patch was
+                # validated at all; the other 18 were accepted with every stage `skipped`.
+                # `repo_root` still gates the `applies` stage on its own, which is the stage that
+                # genuinely needs a git repo.
+                target_rel_path=diff_path,
+                no_docker=self.config.no_docker,
+                asset_algorithm=asset.algorithm,
+                original_source=orig,
+                # This task owns ONE finding. Other occurrences of the same algorithm in the
+                # same file are other tasks; judging this patch on theirs made every task in a
+                # mixed file fail. Measured: 3 MD5 findings in one SQL file, 2 in one C# file.
+                asset_line=asset.location.line if asset.location else None,
+            )
+
+        report = _validate(new)
+
+        if use_llm and not report.passed and learned is not None:
+            # The replayed fix did not generalise to this occurrence — fall back to a real
+            # generation, grounded in the same validated experience the store entry came from,
+            # rather than failing a finding the model could still solve. Reuse is an
+            # optimisation; it must never cost coverage.
+            new = _generate_fresh(orig)
+            model_name = self.config.model
+            learned = None
+            report = _validate(new)
+
         diff = old_new_to_diff(diff_path, orig, new)
-        report = validate_patch(
-            diff_text=diff,
-            patched_source=new,
-            rule=rule,
-            repo_root=repo_root,
-            language=rule.language,
-            # ALWAYS pass the path, not only when a repo root was supplied. `target_rel_path` is
-            # used by `_effective_language` purely to read the file's SUFFIX, which needs no repo —
-            # but it was gated on `repo_root`, and generating from the app supplies none. So for
-            # every cross-language rule (`language: multi`) the validator fell back to "multi",
-            # found no grammar for it, and skipped BOTH the syntax check and the rescan. Measured
-            # across 20 generated patches: only the one Python patch was validated at all; the
-            # other 18 were accepted with every stage `skipped`. `repo_root` still gates the
-            # `applies` stage on its own, which is the stage that genuinely needs a git repo.
-            target_rel_path=diff_path,
-            no_docker=self.config.no_docker,
-            asset_algorithm=asset.algorithm,
-            original_source=orig,
-            # This task owns ONE finding. Other occurrences of the same algorithm in the
-            # same file are other tasks; judging this patch on theirs made every task in a
-            # mixed file fail. Measured: 3 MD5 findings in one SQL file, 2 in one C# file.
-            asset_line=asset.location.line if asset.location else None,
-        )
 
         patch = PatchProposal(
             task_id=task.id,
@@ -632,16 +675,25 @@ class MigrationOrchestrator:
         self.session.flush()
 
         if report.passed:
-            if use_llm:
-                from .transform.learn import record_learned_patch
-                from .transform.llm import _prompt_language
-                record_learned_patch(
-                    self.session,
-                    rule.id,
-                    _prompt_language(rule, asset),
-                    orig,
-                    new,
-                )
+            if use_llm and finding_line is not None:
+                if learned is not None:
+                    # A replayed fix passed validation again on a new file — it has now earned
+                    # its place, which is what ranks it for future prompt grounding.
+                    learn.touch(learned)
+                else:
+                    # A fresh model call passed the gate: remember this line's fix so the next
+                    # identical occurrence — any file, any project, any later scan — skips the
+                    # model, and so this rule's grounding gets one more verified example.
+                    learn.record(
+                        self.session,
+                        rule_id=rule.id,
+                        language=file_language,
+                        algorithm=asset.algorithm,
+                        orig=orig,
+                        new=new,
+                        line=finding_line,
+                        model_name=model_name,
+                    )
             self._transition(task, "validation_passed", detail={"patch_id": str(patch.id)})
         else:
             self._transition(task, "generators_exhausted", detail={"report": report.as_dict()})
@@ -702,8 +754,19 @@ class MigrationOrchestrator:
         import subprocess
 
         try:
+            # `-- .` restricts the report to `repo_root`, not the whole repository it sits in.
+            # Without it, a `repo_root` that is a SUBDIRECTORY of a larger git working tree (any
+            # scan target that is not its own repo — a copied folder, an extracted archive, a
+            # subproject) had that OUTER repo's unrelated dirty state reported as this migration's
+            # own. Measured: migrating a plain copy of the 21-app demo corpus that happened to sit
+            # inside this monorepo's working tree failed 246 of 250 real findings with "Dirty git
+            # tree", entirely because of edits elsewhere in the monorepo that `repo_root` had
+            # nothing to do with. Pinned by
+            # `test_apply_e2e.py::test_apply_ignores_dirty_state_outside_repo_root`.
             r = subprocess.run(
-                ["git", "status", "--porcelain"], capture_output=True, cwd=str(repo_root)
+                ["git", "status", "--porcelain", "--", "."],
+                capture_output=True,
+                cwd=str(repo_root),
             )
             if r.stdout.strip():
                 raise ValueError("Dirty git tree; commit or stash changes before applying")

@@ -243,3 +243,75 @@ entries:
     guidance: >
       MD5 is classically broken (collision + pre-image attacks) and provides negligible
       post-quantum security. Replace with SHA3-256 (FIPS-202) immediately.
+
+# ---------------------------------------------------------------------------
+# Wire-format and storage impact of each PQC target.
+# ---------------------------------------------------------------------------
+# WHY THIS EXISTS. A PQC migration is not a token swap, and treating it as one is how a migration
+# compiles, passes review, and then fails in production. ML-DSA-65 signatures are 3309 bytes where
+# RSA-2048 gave 256 and Ed25519 gave 64 — so a `VARCHAR(256)` signature column, a `[64]byte` array,
+# a `uint16` length prefix and a 4 KB session cookie are all broken by a patch that looks perfectly
+# correct at the call site. None of that is visible from the line the scanner flagged, which is
+# exactly why it gets missed by hand too.
+#
+# These facts are rendered into the generator prompt (`transform/llm._impact_block`) so the model is
+# asked for a COMPLETE migration — the primitive swap plus its storage, framing and compatibility
+# consequences — rather than a one-line substitution.
+#
+# Sizes are from the FIPS 203 and FIPS 204 parameter tables. Classical baselines are definitional
+# rather than looked up: an RSA signature is exactly the modulus length (2048/8 = 256 bytes), an
+# ECDSA P-256 raw signature is r||s = 2x32 = 64 bytes, and Ed25519 is 64 bytes per RFC 8032 §5.1.6.
+artifact_impact:
+  ML-KEM-768:
+    fips: FIPS-203
+    kind: kem
+    sizes:
+      encapsulation_key: 1184
+      decapsulation_key: 2400
+      ciphertext: 1088
+      shared_secret: 32
+    replaces:
+      RSA-2048: "256-byte ciphertext, ~294-byte SPKI public key"
+      X25519: "32-byte public key, 32-byte shared secret"
+    breaks:
+      - >
+        ML-KEM is a KEM, NOT a cipher. There is no `mlkem.encrypt(plaintext)`. Code that called
+        `rsa.encrypt(data)` or `PKCS1_OAEP.encrypt(data)` must be RESTRUCTURED into KEM-DEM:
+        encapsulate to obtain a 32-byte shared secret, derive a data key from it, then encrypt the
+        payload with AES-256-GCM or ChaCha20-Poly1305. A patch that swaps the call name and keeps a
+        single encrypt(plaintext) shape is wrong and will not run.
+      - >
+        Wrapped-key storage grows from 256 to 1088 bytes plus the DEM ciphertext. Any column, fixed
+        buffer or length field sized for an RSA-wrapped key must widen.
+      - >
+        Data already encrypted to an RSA public key cannot be read with an ML-KEM key. The
+        transition needs a dual path — unwrap with the old RSA key, re-wrap with ML-KEM. That is a
+        data migration, not a code change, and it must be called out rather than silently skipped.
+  ML-DSA-65:
+    fips: FIPS-204
+    kind: signature
+    sizes:
+      public_key: 1952
+      private_key: 4032
+      signature: 3309
+    replaces:
+      RSA-2048: "256-byte signature, ~294-byte SPKI public key"
+      ECDSA-P256: "64-byte raw signature (~70-72 DER), 65-byte uncompressed public key"
+      Ed25519: "64-byte signature, 32-byte public key"
+    breaks:
+      - >
+        The signature grows to 3309 bytes — 13x RSA-2048 and 52x Ed25519. Every fixed-width store
+        breaks: `VARCHAR(256)`/`VARCHAR(512)`/`BINARY(64)` signature columns, `[64]byte` and
+        `[256]byte` arrays, and any length prefix narrower than 16 bits. Widen them in the same
+        patch, and name what must change where the consequence lives outside this file.
+      - >
+        Base64 of a 3309-byte signature is 4412 characters, so a JWT/JWS signed with ML-DSA-65 no
+        longer fits in a 4 KB cookie or a default 4-8 KB HTTP header budget. A token carried in a
+        cookie must move to a request body or a server-side session.
+      - >
+        The public key grows to 1952 bytes, changing certificate, keystore, JWK and pinned-key
+        sizes.
+      - >
+        Signatures already issued under RSA or ECDSA cannot be verified with an ML-DSA key. Keep
+        the old VERIFY path alive alongside the new one until every outstanding signature has
+        expired — remove the old SIGNING path immediately, but not the old verify path.

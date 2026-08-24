@@ -165,3 +165,54 @@ def test_migrating_one_project_does_not_block_another_with_the_same_relative_pat
     orch.review_patch(patch_two.id, approve=True)
     assert orch.apply_patch(patch_two.id, repo_root=second).status == "applied"
     assert "md5" not in (second / "app.py").read_text(encoding="utf-8")
+
+
+def test_apply_ignores_dirty_state_outside_repo_root(tmp_path: Path) -> None:
+    """A dirty file OUTSIDE `repo_root` must not block applying a patch INSIDE it.
+
+    `git status --porcelain` reports the whole repository it is run in, not the directory it is run
+    from. So whenever `repo_root` is a SUBDIRECTORY of a larger working tree — any scan target that
+    is not its own repo: a copied folder, an extracted archive, a subproject — unrelated edits
+    elsewhere in that outer tree were reported as this migration's own dirty state and every apply
+    was refused.
+
+    Measured: migrating a plain copy of the 21-app demo corpus that happened to sit inside this
+    monorepo's working tree failed 246 of 250 real findings with "Dirty git tree", entirely because
+    of edits in the monorepo that `repo_root` had nothing to do with. The fix is the `-- .`
+    pathspec; this test is what keeps it.
+    """
+    outer = tmp_path / "outer"
+    (outer / "sub").mkdir(parents=True)
+    _git(outer, "init")
+    _git(outer, "config", "user.email", "test@example.com")
+    _git(outer, "config", "user.name", "Test")
+
+    repo_root = outer / "sub"
+    (repo_root / "app.py").write_text(VULN_SOURCE, encoding="utf-8")
+    (outer / "unrelated.txt").write_text("committed\n", encoding="utf-8")
+    _git(outer, "add", ".")
+    _git(outer, "commit", "-m", "init")
+
+    # Dirty the OUTER tree only. `repo_root` itself stays clean.
+    (outer / "unrelated.txt").write_text("edited after the commit\n", encoding="utf-8")
+
+    # Precondition: unscoped status sees the outer edit, scoped status does not. If this ever
+    # stops holding, the guard is no longer testing what it claims to.
+    assert _git(repo_root, "status", "--porcelain").stdout.strip(), "expected outer tree dirty"
+    assert not _git(repo_root, "status", "--porcelain", "--", ".").stdout.strip()
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    _seed(session, repo_root)
+
+    orch = MigrationOrchestrator(session)
+    plan = orch.build_plan()
+    task = orch.get_queue(plan.id)[0]
+    patch = orch.generate_patch(task.id, repo_root=repo_root)
+    assert patch.status == "proposed", patch.validation_json
+    orch.review_patch(patch.id, approve=True)
+
+    applied = orch.apply_patch(patch.id, repo_root=repo_root)
+    assert applied.status == "applied"
+    assert "md5" not in (repo_root / "app.py").read_text(encoding="utf-8")

@@ -19,7 +19,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from .languages import LANGUAGE_TO_EXT, TS_GRAMMAR, parse_error
+from .languages import (
+    LANGUAGE_TO_EXT,
+    TS_GRAMMAR,
+    _import_names,
+    parse_error,
+    unresolved_qualifiers,
+    unused_imports,
+)
 from .languages import SUFFIX_TO_LANGUAGE as _SUFFIX_TO_LANGUAGE
 from .scanner_cli import cli_command
 
@@ -117,7 +124,10 @@ def _stage_applies(
 # _effective_language resolves it to a concrete language from the file extension before this is
 # consulted. Listing it made every cross-language patch skip syntax validation entirely.
 _NON_CODE_LANGUAGES = frozenset(
-    {"nginx", "apache", "httpd", "sshd_config", "ssh_config", "config", "manifest", ""}
+    # `x509` joins these for the same reason the others are here: a certificate is not source, has
+    # no grammar to parse it, and nothing in the syntax or sandbox stages can say anything true
+    # about it. cert-pqc-01 resolves to a guided path, never to a patch.
+    {"nginx", "apache", "httpd", "sshd_config", "ssh_config", "config", "manifest", "x509", ""}
 )
 
 # Rule language -> tree-sitter grammar name. Imported rather than restated: this used to be a
@@ -181,6 +191,104 @@ def _stage_parses(
     return StageResult("fail", problem, time.monotonic() - t0)
 
 
+#: Every stage `validate_patch` reports, in the order it runs them.
+#:
+#: Declared once so anything describing the gate reads it from here rather than restating it. The
+#: evidence pack's truth table enumerates 3**len(STAGE_NAMES) combinations and was hardcoded to five
+#: stages, so it silently kept asserting soundness over 243 of the 729 that exist once `symbols` was
+#: added — a documented "all combinations were evaluated" claim that had quietly stopped being true.
+STAGE_NAMES: tuple[str, ...] = ("applies", "parses", "symbols", "compiles", "tests", "rescan")
+
+#: Languages whose compiler REFUSES a source file with an import it never uses. Everywhere else
+#: this is a lint warning at most (Python F401, Java/Rust/C# warnings), so it must not fail a
+#: patch — see `_stage_symbols`. A language property, deliberately not a judgement about style.
+_UNUSED_IMPORT_IS_AN_ERROR = frozenset({"go"})
+
+
+def _stage_symbols(
+    patched_source: str,
+    language: str = "python",
+    original_source: str | None = None,
+) -> StageResult:
+    """Does the patch still resolve its own names? The semantic check that is not language-locked.
+
+    `compiles` needs a toolchain in a Docker image, and `_COMPILE_SANDBOX` has five entries — so
+    for Go, Java, Rust, C#, Kotlin, Swift, Scala, Dart and TypeScript it SKIPS, and a skipped
+    stage counts as a pass. That left `parses` as the only real check for those languages, and
+    tree-sitter answers a much weaker question than it appears to: `mldsa65.PublicKey` is
+    syntactically perfect whether or not `mldsa65` is imported.
+
+    Measured on the go-ethereum ML-DSA migration, which QUBIT reported as "31 changes prepared and
+    validated": 23 of the 27 written files did not compile. The dominant failure was the model
+    "removing ECDSA" by deleting the `ecdsa`/`elliptic`/`big` import lines while leaving every
+    call that used them, plus imports it added and never referenced — in Go an unused import is a
+    compile ERROR, not a warning. Every one of those passed `applies`, `parses` and `rescan`.
+
+    Both halves are diffed against the ORIGINAL file rather than judged absolutely, which is what
+    makes this safe to run on real code: `t.Run`, `err.Error` and `conn.Read` look exactly like
+    package references to any regex, but they appear in both versions and cancel out. Only what
+    the patch newly broke is reported.
+    """
+    t0 = time.monotonic()
+    lang = (language or "").lower()
+    if lang in _NON_CODE_LANGUAGES or lang not in TS_GRAMMAR:
+        return StageResult(
+            "skipped",
+            f"{lang or 'unknown'} has no grammar to resolve symbols against",
+            time.monotonic() - t0,
+        )
+    if original_source is None:
+        # Without a baseline this cannot separate "the patch broke it" from "it was always so".
+        return StageResult(
+            "skipped", "no original source to compare against", time.monotonic() - t0
+        )
+
+    # Safety valve. If import extraction finds nothing in a file that plainly imports something,
+    # this grammar's import nodes are not mapped well enough to judge it — and then EVERY newly
+    # added qualifier looks unresolved, so a perfectly correct patch that adds a package and its
+    # import would be rejected. Skipping is the honest answer; the alternative is a confident
+    # wrong one.
+    if not _import_names(original_source, lang) and not _import_names(patched_source, lang):
+        return StageResult(
+            "skipped",
+            f"no imports could be read from this {lang} file, so symbol resolution cannot judge it",
+            time.monotonic() - t0,
+        )
+
+    new_unresolved = sorted(
+        unresolved_qualifiers(patched_source, lang) - unresolved_qualifiers(original_source, lang)
+    )
+    new_unused = sorted(
+        unused_imports(patched_source, lang) - unused_imports(original_source, lang)
+    )
+
+    problems = []
+    # An unresolved name is a hard error in EVERY language: the compiler, interpreter or runtime
+    # has nothing to bind it to.
+    if new_unresolved:
+        problems.append(
+            f"uses {', '.join(new_unresolved)} but the patch does not import "
+            f"{'it' if len(new_unresolved) == 1 else 'them'} — if you replace an algorithm you "
+            f"must add its import, and if you keep using one you must not delete its import"
+        )
+    # An unused import is NOT universally an error, and failing a working migration over a lint
+    # nit is the same over-strict-gate mistake that wasted three model attempts per finding
+    # elsewhere. Measured: the argon2 codemod correctly rewrites the only `hashlib.sha1` call and
+    # leaves `import hashlib` behind — dead, untidy, and completely valid Python. Rejecting that
+    # patch would throw away a correct migration. In Go the same leftover will not compile.
+    if new_unused and lang in _UNUSED_IMPORT_IS_AN_ERROR:
+        problems.append(
+            f"imports {', '.join(new_unused)} without ever using "
+            f"{'it' if len(new_unused) == 1 else 'them'}, which {lang} rejects at compile time"
+        )
+    if problems:
+        return StageResult("fail", "; ".join(problems), time.monotonic() - t0)
+    note = "every name the patch introduces resolves"
+    if new_unused:
+        note += f" (leaves {', '.join(new_unused)} imported but unused, which {lang} allows)"
+    return StageResult("pass", note, time.monotonic() - t0)
+
+
 def _scan_command(target: Path) -> list[str]:
     """The command that runs the scanner's public CLI over ``target``.
 
@@ -196,7 +304,12 @@ def _scan_source(source: str, ext: str) -> list[dict[str, Any]]:
     """Scan one in-memory source through the scanner's public CLI. [] when it cannot be read."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_file = Path(tmpdir) / f"probe{ext}"
-        tmp_file.write_text(source, encoding="utf-8")
+        # `newline="\n"` — every reader in this codebase uses `Path.read_text()`, whose universal
+        # newline translation strips `\r`, so `source` is always LF-only here. Without pinning the
+        # write side too, `write_text`'s default (`newline=None`) re-encodes those `\n` as
+        # `os.linesep` — CRLF on Windows — which the scanner/tree-sitter would then read back
+        # differently than the real repo file this probe is meant to stand in for.
+        tmp_file.write_text(source, encoding="utf-8", newline="\n")
         try:
             result = subprocess.run(
                 _scan_command(tmp_file),
@@ -314,7 +427,7 @@ def _stage_rescan(
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_file = Path(tmpdir) / f"patched{ext}"
-        tmp_file.write_text(patched_source, encoding="utf-8")
+        tmp_file.write_text(patched_source, encoding="utf-8", newline="\n")
 
         try:
             result = subprocess.run(
@@ -381,6 +494,36 @@ def _stage_rescan(
                         time.monotonic() - t0,
                         expectation="gone",
                         expected=gone_prefix,
+                    )
+            # `weakness_gone`: the expectation for a rule whose finding is a property of the
+            # CALL rather than the algorithm. An ECB migration leaves AES in the file - that is
+            # the point, AES is not the problem - so neither `gone` nor `present` can express
+            # "this is no longer ECB". Checking the weakness the scanner re-derives from the
+            # patched source is the only expectation that actually verifies such a fix.
+            for weakness_id in _prefixes(expect.get("weakness_gone", "")):
+                surviving_weak = [
+                    a
+                    for a in assets
+                    if weakness_id
+                    in {
+                        w.get("id")
+                        for w in (
+                            ((a.get("evidence") or {}).get("context") or {}).get("extra") or {}
+                        ).get("weaknesses", [])
+                        if isinstance(w, dict)
+                    }
+                ]
+                if surviving_weak:
+                    lines = sorted(
+                        str((a.get("location") or {}).get("line")) for a in surviving_weak
+                    )
+                    return StageResult(
+                        "fail",
+                        f"Expected the {weakness_id!r} weakness to be gone, but it is still "
+                        f"present at line(s) {', '.join(lines)}",
+                        time.monotonic() - t0,
+                        expectation="weakness_gone",
+                        expected=weakness_id,
                     )
             # Any ONE of the listed prefixes satisfies the expectation: a rule may offer several
             # acceptable targets (ML-KEM or a hybrid group), and requiring all of them at once would
@@ -485,7 +628,12 @@ def _stage_compiles(patched_source: str, language: str = "python") -> StageResul
         )
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        (Path(tmpdir) / filename).write_text(patched_source, encoding="utf-8")
+        # `newline="\n"` — without it, `write_text`'s default re-encodes `patched_source`'s `\n`
+        # as `os.linesep` (CRLF on Windows) before this file is bind-mounted into the Linux
+        # sandbox. A shell script then fails with a bogus syntax error on every `do`/`then`
+        # keyword (`$'do\r''`) — the CRLF is an artifact of the HOST write, not a defect in the
+        # patch. Found live on OpenSSL's `util/analyze-contention-log.sh`.
+        (Path(tmpdir) / filename).write_text(patched_source, encoding="utf-8", newline="\n")
         try:
             result = subprocess.run(
                 [
@@ -550,7 +698,7 @@ def _stage_tests(
         shutil.copytree(repo_root, work, ignore=shutil.ignore_patterns(".git", "__pycache__"))
         target = work / target_rel_path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(patched_source, encoding="utf-8")
+        target.write_text(patched_source, encoding="utf-8", newline="\n")
 
         def _run_in_sandbox(cmd: str) -> subprocess.CompletedProcess:
             return subprocess.run(
@@ -597,7 +745,7 @@ def _stage_tests(
         # SHA-256 patch was rejected for it. Re-running the untouched tree is what tells those
         # apart, and it costs an extra sandbox run only when something already failed.
         if original_source is not None:
-            target.write_text(original_source, encoding="utf-8")
+            target.write_text(original_source, encoding="utf-8", newline="\n")
             try:
                 baseline_code, _ = _run_suite()
             except subprocess.TimeoutExpired:
@@ -637,6 +785,9 @@ def validate_patch(
 
     stages["applies"] = _stage_applies(diff_text, repo_root)
     stages["parses"] = _stage_parses(patched_source, language, original_source)
+    # Runs for EVERY language with a grammar, unlike `compiles` — which is what makes it the only
+    # semantic check most languages ever get. See `_stage_symbols` for what it caught.
+    stages["symbols"] = _stage_symbols(patched_source, language, original_source)
     if no_docker:
         stages["compiles"] = StageResult("skipped", "no_docker configured")
         stages["tests"] = StageResult("skipped", "no_docker configured")
@@ -654,10 +805,14 @@ def validate_patch(
         asset_line=asset_line,
     )
 
+    # The gate's reported surface must match its declared one. Adding a stage without declaring it
+    # is how the evidence pack's "all 243 combinations were evaluated" claim silently went stale.
+    assert tuple(stages) == STAGE_NAMES, f"stages {tuple(stages)} != declared {STAGE_NAMES}"
+
     passed = all(v.status in ("pass", "skipped") for v in stages.values())
     partial = any(v.status == "skipped" for v in stages.values())
 
     return ValidationReport(stages=stages, passed=passed, partial=partial)
 
 
-__all__ = ["StageResult", "ValidationReport", "validate_patch"]
+__all__ = ["STAGE_NAMES", "StageResult", "ValidationReport", "validate_patch"]

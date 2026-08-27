@@ -145,3 +145,8 @@ docs/
 
 # Bridge output: `qubit_bridge.compose` creates this at runtime.
 generated/
+
+# One-off Playwright drivers written while verifying a change through the real app. They are
+# session scratch, not project code — the durable browser tests live in dashboard/e2e/.
+dashboard/.tmp_*.mjs
+dashboard/_qubit_*_tmp.mjs

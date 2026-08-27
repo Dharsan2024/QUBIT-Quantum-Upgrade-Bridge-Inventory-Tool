@@ -1,16 +1,19 @@
 import { createBrowserRouter } from 'react-router';
 import { Layout } from './components/Layout';
-import { LazyChartPage } from './components/LazyChartPage';
+import { LazyPage } from './components/LazyPage';
 import { Projects } from './pages/Projects';
-import { Inventory } from './pages/Inventory';
-import { Migrations } from './pages/Migrations';
-import { Scans } from './pages/Scans';
-import { Cbom } from './pages/Cbom';
-import { Compliance } from './pages/Compliance';
-import { Report } from './pages/Report';
-import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
-import { Risk, Timeline } from './pages/lazy';
+import {
+  Cbom,
+  Compliance,
+  Inventory,
+  Migrations,
+  Report,
+  Risk,
+  Scans,
+  Settings,
+  Timeline,
+} from './pages/lazy';
 
 export const router = createBrowserRouter([
   {
@@ -27,84 +30,132 @@ export const router = createBrowserRouter([
       },
       {
         path: 'settings',
-        element: <Settings />,
+        element: (
+          <LazyPage>
+            <Settings />
+          </LazyPage>
+        ),
       },
       // In a real implementation these would be nested under /p/:pid
       {
         path: 'inventory',
-        element: <Inventory />,
+        element: (
+          <LazyPage>
+            <Inventory />
+          </LazyPage>
+        ),
       },
       {
         path: 'p/:pid/inventory',
-        element: <Inventory />,
+        element: (
+          <LazyPage>
+            <Inventory />
+          </LazyPage>
+        ),
       },
       {
         path: 'risk',
         element: (
-          <LazyChartPage>
+          <LazyPage>
             <Risk />
-          </LazyChartPage>
+          </LazyPage>
         ),
       },
       {
         path: 'p/:pid/risk',
         element: (
-          <LazyChartPage>
+          <LazyPage>
             <Risk />
-          </LazyChartPage>
+          </LazyPage>
         ),
       },
       {
         path: 'timeline',
         element: (
-          <LazyChartPage>
+          <LazyPage>
             <Timeline />
-          </LazyChartPage>
+          </LazyPage>
         ),
       },
       {
         path: 'p/:pid/timeline',
         element: (
-          <LazyChartPage>
+          <LazyPage>
             <Timeline />
-          </LazyChartPage>
+          </LazyPage>
         ),
       },
       {
         path: 'migrations',
-        element: <Migrations />,
+        element: (
+          <LazyPage>
+            <Migrations />
+          </LazyPage>
+        ),
       },
       {
         path: 'p/:pid/migrations',
-        element: <Migrations />,
+        element: (
+          <LazyPage>
+            <Migrations />
+          </LazyPage>
+        ),
       },
       {
         path: 'scans',
-        element: <Scans />,
+        element: (
+          <LazyPage>
+            <Scans />
+          </LazyPage>
+        ),
       },
       {
         path: 'p/:pid/scans',
-        element: <Scans />,
+        element: (
+          <LazyPage>
+            <Scans />
+          </LazyPage>
+        ),
       },
       {
         path: 'compliance',
-        element: <Compliance />,
+        element: (
+          <LazyPage>
+            <Compliance />
+          </LazyPage>
+        ),
       },
       {
         path: 'p/:pid/compliance',
-        element: <Compliance />,
+        element: (
+          <LazyPage>
+            <Compliance />
+          </LazyPage>
+        ),
       },
       {
         path: 'cbom',
-        element: <Cbom />,
+        element: (
+          <LazyPage>
+            <Cbom />
+          </LazyPage>
+        ),
       },
       {
         path: 'p/:pid/cbom',
-        element: <Cbom />,
+        element: (
+          <LazyPage>
+            <Cbom />
+          </LazyPage>
+        ),
       },
       {
         path: 'report/:scanId',
-        element: <Report />,
+        element: (
+          <LazyPage>
+            <Report />
+          </LazyPage>
+        ),
       },
     ],
   },

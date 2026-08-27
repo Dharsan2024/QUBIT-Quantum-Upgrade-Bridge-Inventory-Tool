@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatedPage } from '../components/AnimatedPage';
+import { LearningPanel } from '../components/LearningPanel';
+import type { ThreatIntelSnapshot } from '../api/types';
 import {
   Settings as SettingsIcon,
   Server,
@@ -14,8 +16,24 @@ import {
   WifiOff,
   Code2,
   RefreshCw,
+  Radar,
+  Clock,
 } from 'lucide-react';
-import { fetchHealth, fetchHealthDeps, fetchLanguages, getToken, setToken, whoami, getApiBase, setApiBase } from '../api/client';
+import {
+  fetchHealth,
+  fetchHealthDeps,
+  fetchLanguages,
+  fetchThreatIntelConfig,
+  fetchThreatIntelSnapshots,
+  getToken,
+  setToken,
+  whoami,
+  getApiBase,
+  setApiBase,
+  patchThreatIntelConfig,
+  runThreatIntelCheckNow,
+  reviewThreatIntelSnapshot,
+} from '../api/client';
 
 /** One labelled readout row inside a HUD panel. */
 function Row({
@@ -23,11 +41,13 @@ function Row({
   label,
   value,
   tone = 'var(--color-accent-soft)',
+  valueTestId,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   tone?: string;
+  valueTestId?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-4 border-b border-[color:var(--edge)] py-2.5 last:border-b-0">
@@ -35,7 +55,7 @@ function Row({
         {icon}
         {label}
       </span>
-      <span className="font-mono text-sm" style={{ color: tone }}>
+      <span className="font-mono text-sm" style={{ color: tone }} data-testid={valueTestId}>
         {value}
       </span>
     </div>
@@ -86,13 +106,55 @@ export function Settings() {
     staleTime: Infinity,
   });
 
+  // Threat-intel: off by default, so both queries return instantly (a config row and an empty
+  // snapshot list) even for a user who never opts in.
+  const tiConfig = useQuery({ queryKey: ['threat-intel-config'], queryFn: fetchThreatIntelConfig });
+  const tiSnapshots = useQuery({
+    queryKey: ['threat-intel-snapshots'],
+    queryFn: () => fetchThreatIntelSnapshots(10),
+  });
+  const [tiBusy, setTiBusy] = useState(false);
+
+  const toggleThreatIntel = async () => {
+    setTiBusy(true);
+    try {
+      await patchThreatIntelConfig({ enabled: !tiConfig.data?.enabled });
+      await tiConfig.refetch();
+    } finally {
+      setTiBusy(false);
+    }
+  };
+
+  const checkThreatIntelNow = async () => {
+    setTiBusy(true);
+    try {
+      await runThreatIntelCheckNow();
+      await Promise.all([tiConfig.refetch(), tiSnapshots.refetch()]);
+    } finally {
+      setTiBusy(false);
+    }
+  };
+
+  const markSnapshotReviewed = async (id: string) => {
+    await reviewThreatIntelSnapshot(id);
+    await tiSnapshots.refetch();
+  };
+
+  // Newest snapshot per source, for the compact per-source status list.
+  const latestSnapshotBySource = new Map<string, ThreatIntelSnapshot>();
+  for (const snap of tiSnapshots.data ?? []) {
+    if (!latestSnapshotBySource.has(snap.source_id)) latestSnapshotBySource.set(snap.source_id, snap);
+  }
+
   const verify = async () => {
     setToken(token.trim());
     setApiBase(apiBase.trim());
     setStatus('checking');
     try {
       const who = await whoami();
-      setDetail(`${who.name} · scopes: ${who.scopes}`);
+      // The team is named first: on a shared engine it is the fact that decides whether the
+      // projects you are about to act on are yours.
+      setDetail(`${who.tenant} · ${who.name} · scopes: ${who.scopes}`);
       setStatus('ok');
     } catch (e) {
       setDetail(e instanceof Error ? e.message : 'connection failed');
@@ -261,6 +323,107 @@ export function Settings() {
             </button>
           </div>
 
+          {/* Same component as the Migrations tab (../components/LearningPanel) — the standing
+              claim that QUBIT keeps getting better with use belongs beside the offline/local
+              guarantees below, not just embedded in an active run's page. */}
+          <LearningPanel />
+
+          <div className="glass-card p-6" data-testid="threat-intel-card">
+            <h2 className="mb-1 flex items-center gap-2">
+              <Radar className="h-5 w-5 text-[color:var(--color-accent)]" /> Threat intelligence
+            </h2>
+            <p className="mb-3 text-xs text-[color:var(--color-ink-faint)]">
+              Off by default. When enabled, checks a fixed, curated set of NIST PQC reference pages
+              for changes — nothing about your code or scans is ever sent. A changed source is
+              staged below for you to read; it never auto-updates the CRQC timeline or Mosca
+              parameters on its own.
+            </p>
+
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="label-caps">Automatic checks</span>
+              <button
+                onClick={toggleThreatIntel}
+                disabled={tiBusy || tiConfig.isLoading}
+                className="hud-btn px-4"
+                data-testid="threat-intel-toggle"
+                style={{
+                  color: tiConfig.data?.enabled ? 'var(--color-safe)' : 'var(--color-ink-faint)',
+                }}
+              >
+                {tiConfig.data?.enabled ? 'Enabled' : 'Disabled'}
+              </button>
+            </div>
+
+            <Row
+              icon={<Clock className="h-3.5 w-3.5" />}
+              label="Last checked"
+              value={
+                tiConfig.data?.last_checked_at
+                  ? new Date(tiConfig.data.last_checked_at).toLocaleString()
+                  : 'never'
+              }
+              valueTestId="threat-intel-last-checked"
+            />
+            <Row
+              icon={<RefreshCw className="h-3.5 w-3.5" />}
+              label="Interval"
+              value={`every ${tiConfig.data?.check_interval_hours ?? 24}h`}
+            />
+
+            <button
+              onClick={checkThreatIntelNow}
+              disabled={tiBusy}
+              className="hud-btn mt-3 w-full justify-center"
+              data-testid="threat-intel-check-now"
+            >
+              {tiBusy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Radar className="h-3.5 w-3.5" />
+              )}
+              Check now
+            </button>
+
+            <div className="mt-4 flex flex-col gap-2">
+              {(tiConfig.data?.sources ?? []).map((source) => {
+                const snap = latestSnapshotBySource.get(source.id);
+                const needsReview = Boolean(snap?.changed_from_previous && !snap.reviewed);
+                return (
+                  <div
+                    key={source.id}
+                    data-testid={`threat-intel-source-${source.id}`}
+                    className="rounded-[3px] border border-[color:var(--edge)] px-3 py-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-[color:var(--color-ink)]">{source.label}</span>
+                      {needsReview && (
+                        <span className="rounded-[3px] bg-[color:var(--color-warn)]/15 px-1.5 py-0.5 text-[10px] text-[color:var(--color-warn)]">
+                          changed
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[color:var(--color-ink-faint)]">
+                      {snap
+                        ? snap.fetch_error
+                          ? `fetch failed: ${snap.fetch_error}`
+                          : `checked ${new Date(snap.fetched_at).toLocaleString()}`
+                        : 'not checked yet'}
+                    </p>
+                    {needsReview && snap && (
+                      <button
+                        onClick={() => markSnapshotReviewed(snap.id)}
+                        data-testid={`threat-intel-review-${source.id}`}
+                        className="mt-1.5 text-[color:var(--color-accent-soft)] underline"
+                      >
+                        Mark reviewed
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="glass-card p-6">
             <h2 className="mb-3 flex items-center gap-2">
               <WifiOff className="h-5 w-5 text-[color:var(--color-safe)]" /> Local &amp; offline
@@ -275,6 +438,9 @@ export function Settings() {
               </li>
               <li>
                 Docker is used only as a throwaway sandbox to validate generated patches.
+              </li>
+              <li>
+                One opt-in exception: Threat intelligence above, off unless you enable it.
               </li>
             </ul>
           </div>

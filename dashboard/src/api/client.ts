@@ -9,6 +9,9 @@ import type {
   ProjectOverview,
   RiskSummary,
   ScanSummary,
+  LearningStats,
+  ThreatIntelConfig,
+  ThreatIntelSnapshot,
   TimelineResponse,
 } from "./types";
 
@@ -95,8 +98,17 @@ async function send<T>(path: string, method = "GET", body?: unknown): Promise<T>
 }
 
 // ── Auth / projects ───────────────────────────────────────────────────────────
-export async function whoami(): Promise<{ name: string; scopes: string }> {
-  return send<{ name: string; scopes: string }>("/auth/whoami");
+/** The current token's identity, including the team it speaks for.
+ *
+ *  `tenant` matters on a shared engine: a token is bound to exactly one team, so this is how a
+ *  user confirms whose projects they are about to act on before acting on them. */
+export async function whoami(): Promise<{
+  name: string;
+  scopes: string;
+  tenant: string;
+  tenant_id: string;
+}> {
+  return send<{ name: string; scopes: string; tenant: string; tenant_id: string }>("/auth/whoami");
 }
 
 /** Engine liveness + version. Anonymous endpoint — no token needed. */
@@ -245,6 +257,9 @@ export async function resetAllProjects(): Promise<{ deleted: number }> {
 // ── Bulk migration ───────────────────────────────────────────────────────────
 export interface MigrationRunResult {
   plan_id: string;
+  /** Which half ran. `generate` prepared patches and wrote nothing; `apply` wrote prepared
+   *  patches and ran no model; `full` is the single-shot run that does both. */
+  mode?: "generate" | "apply" | "full";
   total: number;
   generated: number;
   applied: number;
@@ -252,6 +267,8 @@ export interface MigrationRunResult {
   failed: number;
   from_cache: number;
   needs_guidance: number;
+  /** `apply` runs only: findings with no patch prepared, so nothing was written for them. */
+  no_patch?: number;
   repo_root: string | null;
   applied_to_disk: boolean;
   failures: { task_id: string; rule_id: string; detail: string }[];
@@ -268,14 +285,23 @@ export interface JobStatus {
   result?: MigrationRunResult | null;
 }
 
-/** "Initiate migration": migrate every ready task in the plan. Returns the job to poll — the run
- *  happens off the request path because a plan of twenty findings takes minutes. */
+/** Run one or both halves of a plan's migration. Returns the job to poll — the work happens off
+ *  the request path because a plan of twenty findings takes minutes.
+ *
+ *  - `{ generate: true, apply: false }` — "Build plan": prepare a patch per finding, touch nothing.
+ *  - `{ generate: false, apply: true }` — "Initiate migration": write the prepared patches in.
+ *  - neither — the single-shot run, which is what every caller got before the split. */
 export async function runPlan(
   planId: string,
-  opts: { apply?: boolean; generator?: "auto" | "llm" | "template" } = {},
+  opts: {
+    apply?: boolean;
+    generate?: boolean;
+    generator?: "auto" | "llm" | "template";
+  } = {},
 ): Promise<{ job: { id: string; kind: string }; tasks: number; warning: string }> {
   return send(`/migrate/plans/${planId}/run`, "POST", {
     apply: opts.apply ?? true,
+    generate: opts.generate ?? true,
     generator: opts.generator ?? "auto",
   });
 }
@@ -342,6 +368,11 @@ export async function fetchRiskSummary(scanId: string): Promise<RiskSummary> {
 /** Migration plans, newest first. With `projectId`, only that project's — plans built before
  *  plans carried a scope have a null `project_id` and are excluded by the filter rather than
  *  being silently attributed to a project they were not built from. */
+/** What the engine has learned from its own migrations. Local; nothing here leaves the machine. */
+export async function fetchLearning(): Promise<LearningStats> {
+  return send<LearningStats>("/migrate/learning");
+}
+
 export async function fetchPlans(projectId?: string): Promise<MigrationPlan[]> {
   const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
   return send<MigrationPlan[]>(`/migrate/plans${q}`);
@@ -442,4 +473,36 @@ export async function fetchReportPdf(scanId: string): Promise<Uint8Array> {
     throw new ApiError(res.status, detail ?? `${res.status} ${res.statusText}`);
   }
   return new Uint8Array(await res.arrayBuffer());
+}
+
+// ── Threat intelligence (optional, off by default) ─────────────────────────────
+// A fixed, curated allowlist of NIST reference pages — never "the whole web" — checked only when
+// the user opts in. A changed source is staged as a snapshot for review, never auto-applied to the
+// CRQC/Mosca parameters. See qubit_risk.threat_intel for the full rationale.
+export async function fetchThreatIntelConfig(): Promise<ThreatIntelConfig> {
+  return send<ThreatIntelConfig>("/threat-intel/config");
+}
+
+export async function patchThreatIntelConfig(
+  patch: Partial<Pick<ThreatIntelConfig, "enabled" | "check_interval_hours">>,
+): Promise<ThreatIntelConfig> {
+  return send<ThreatIntelConfig>("/threat-intel/config", "PATCH", patch);
+}
+
+/** Fetches every allowlisted source right now, regardless of the configured interval. */
+export async function runThreatIntelCheckNow(): Promise<ThreatIntelSnapshot[]> {
+  return send<ThreatIntelSnapshot[]>("/threat-intel/check-now", "POST");
+}
+
+export async function fetchThreatIntelSnapshots(limit = 20): Promise<ThreatIntelSnapshot[]> {
+  return send<ThreatIntelSnapshot[]>(`/threat-intel/snapshots?limit=${limit}`);
+}
+
+export async function reviewThreatIntelSnapshot(
+  snapshotId: string,
+  note?: string,
+): Promise<ThreatIntelSnapshot> {
+  return send<ThreatIntelSnapshot>(`/threat-intel/snapshots/${snapshotId}/review`, "POST", {
+    note: note ?? null,
+  });
 }

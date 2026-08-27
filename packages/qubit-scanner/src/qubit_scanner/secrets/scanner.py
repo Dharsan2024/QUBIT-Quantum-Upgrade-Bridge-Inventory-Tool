@@ -13,6 +13,7 @@ calls do). Patterns are chosen for high precision — a noisy secret scanner is 
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -357,7 +358,18 @@ _PATTERNS: list[SecretPattern] = [
             #
             # A SUFFIX still blocks the match, which is deliberate: `PASSWORD_HASH = "..."` is a
             # digest, not a credential, and the trailing `\b` is what keeps it out.
-            r"""(?i)(?:[A-Za-z0-9]+[_-])?(password|passwd|pwd|secret|api[_-]?key"""
+            # The prefix is BOUNDED. Unbounded, `[A-Za-z0-9]+[_-]` is catastrophic on any file
+            # with long alphanumeric runs: at every offset the engine consumes the whole run, then
+            # backtracks one character at a time looking for a `_` or `-` that is not there, which
+            # is quadratic in the run length.
+            #
+            # Measured on OpenSSL's own ML-KEM test vectors -- megabytes of unbroken hex -- this
+            # single pattern took 22.34s of a 22.50s file scan and matched NOTHING. Twenty such
+            # files in `30-test_evp_data` is what made a 6,162-file scan appear to hang at 86%.
+            #
+            # 32 is far past any real identifier prefix (`DB_`, `AWS_SECRET_`, `MY_APP_`), so the
+            # bound costs no recall while capping the work per offset at a constant.
+            r"""(?i)(?:[A-Za-z0-9]{1,32}[_-])?(password|passwd|pwd|secret|api[_-]?key"""
             r"""|access[_-]?token)\b\s*[:=]\s*['"][^'"\s]{6,}['"]"""
         ),
         "secret",
@@ -435,10 +447,30 @@ class SecretScanner:
         out: list[Detection] = []
         claimed: set[tuple[int, int]] = set()  # (line, col) already reported — most-specific wins
         claimed_lines: set[int] = set()  # any line a specific rule took; generic rules yield to it
+
+        # Offset of the first character of every line, computed ONCE, so a match's line number is
+        # a binary search rather than a re-scan of everything before it.
+        #
+        # `text.count("\n", 0, m.start())` is O(n) in the file size, and it ran per MATCH, before
+        # any of the filters below could discard that match. On a file whose every line looks
+        # secret-ish that is O(matches x n) -- quadratic in practice.
+        #
+        # Measured on OpenSSL's own ML-KEM test vectors, which are megabytes of hex and match the
+        # generic high-entropy patterns on nearly every line: 342 KB took 3.5s and 1,292 KB took
+        # 27.9s (3.8x the input for 8x the time), and BOTH produced zero findings. The
+        # `30-test_evp_data` directory holds around twenty such files, so a single OpenSSL scan
+        # spent roughly ten minutes computing line numbers for matches it then threw away. It is
+        # what made a 6,162-file scan appear to hang at 86%.
+        line_starts = [0]
+        line_starts.extend(i + 1 for i, ch in enumerate(text) if ch == "\n")
+
         for pat in _PATTERNS:
             for m in pat.regex.finditer(text):
-                line_no = text.count("\n", 0, m.start()) + 1
-                line_start = text.rfind("\n", 0, m.start()) + 1
+                # `bisect_right - 1` gives the index of the last line start at or before the match,
+                # which is its 0-based line; +1 for the 1-based line numbers everything else uses.
+                line_index = bisect_right(line_starts, m.start()) - 1
+                line_no = line_index + 1
+                line_start = line_starts[line_index]
                 col = m.start() - line_start
                 if (line_no, col) in claimed:
                     continue

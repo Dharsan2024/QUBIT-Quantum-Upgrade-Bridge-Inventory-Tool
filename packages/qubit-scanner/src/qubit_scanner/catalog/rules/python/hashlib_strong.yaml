@@ -112,6 +112,12 @@ rules:
         - { capture: fn, equals: pbkdf2_hmac }
     extract:
       algorithm: { literal: PBKDF2 }
+      iterations:
+        from: call
+        resolve: kdf-iterations
+      prf:
+        from: call
+        resolve: kdf-prf
     asset: { asset_type: algorithm-use, usage_context: password }
     confidence: high
     examples:

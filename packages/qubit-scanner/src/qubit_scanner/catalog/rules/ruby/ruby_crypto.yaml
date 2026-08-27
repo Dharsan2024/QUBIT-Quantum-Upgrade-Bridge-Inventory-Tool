@@ -73,6 +73,9 @@ rules:
         - { capture: meth, equals: new }
     extract:
       algorithm: { from: algo, resolve: string-constant }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:

@@ -77,6 +77,9 @@ rules:
       # MODE is what the source states here. Reporting bare AES keeps the Grover verdict without
       # asserting a key size the call site never names.
       algorithm: { literal: AES }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: medium
     dedupe: per-file
@@ -100,6 +103,9 @@ rules:
         - { capture: cls, regex: "^(AES|Salsa20|Fernet|RSA)$" }
     extract:
       algorithm: { from: cls, resolve: capture-text }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: medium
     dedupe: per-file

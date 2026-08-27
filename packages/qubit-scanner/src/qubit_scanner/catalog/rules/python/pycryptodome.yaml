@@ -69,6 +69,9 @@ rules:
         - { capture: meth, equals: new }
     extract:
       algorithm: { literal: DES }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -92,6 +95,9 @@ rules:
         - { capture: meth, equals: new }
     extract:
       algorithm: { literal: 3DES }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -129,3 +135,68 @@ rules:
         - |
           from Crypto.Hash import SHA256
           digest = SHA256.new(data)
+
+  # `AES.new` had no rule at all, so `AES.new(key, AES.MODE_ECB)` produced NO finding: measured on
+  # the demo corpus, atlas-hr-portal/hr/vault.py encrypts deterministic PII fields under AES-ECB
+  # and the scan reported only the RSA keygen and the MD5 digest in the same file. DES and 3DES
+  # were covered because they are broken primitives; AES is not, which is exactly why the MODE has
+  # to be read - the weakness is in how it is called, not in what it is.
+  - id: PY-PYCRYPTODOME-AES-NEW
+    title: Crypto.Cipher.AES.new
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)) @call
+      where:
+        - { capture: mod, equals: AES }
+        - { capture: meth, equals: new }
+    extract:
+      algorithm: { literal: AES }
+      mode:
+        from: call
+        resolve: cipher-mode
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from Crypto.Cipher import AES
+          cipher = AES.new(key, AES.MODE_ECB)
+        - |
+          from Crypto.Cipher import AES
+          cipher = AES.new(key, AES.MODE_GCM, nonce=n)
+      negative:
+        - |
+          from Crypto.Cipher import DES
+          cipher = DES.new(key, DES.MODE_CBC, iv)
+
+  - id: PY-PYCRYPTODOME-LEGACY-STREAM
+    title: Crypto.Cipher.ARC4 / Blowfish / CAST / DES-derived stream ciphers
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)) @call
+      where:
+        - { capture: mod, in: [ARC4, ARC2, Blowfish, CAST, XOR] }
+        - { capture: meth, equals: new }
+    extract:
+      algorithm:
+        from: mod
+        resolve: capture-text
+      mode:
+        from: call
+        resolve: cipher-mode
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from Crypto.Cipher import ARC4
+          cipher = ARC4.new(key)
+        - |
+          from Crypto.Cipher import Blowfish
+          cipher = Blowfish.new(key, Blowfish.MODE_ECB)
+      negative:
+        - |
+          from Crypto.Cipher import AES
+          cipher = AES.new(key, AES.MODE_GCM, nonce=n)

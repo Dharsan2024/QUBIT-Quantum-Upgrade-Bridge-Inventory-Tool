@@ -24,6 +24,37 @@ class RuleLoadError(Exception):
     """Raised when a rule file is malformed or a query fails to compile."""
 
 
+def _required_literal_groups(rule: Rule) -> tuple[tuple[bytes, ...], ...]:
+    """Literals the source MUST contain for this rule to produce any detection.
+
+    Each returned group is a set of alternatives: for the rule to match, EVERY group must have at
+    least one of its members present somewhere in the file. That follows directly from how the
+    filters are applied -- `_where_ok` is called under `all(...)`, so a single unsatisfiable
+    `where` clause makes the whole rule unsatisfiable, and it compares `resolve.node_text(node)`,
+    which is by construction a verbatim slice of the source.
+
+    So `{capture: meth, equals: createHash}` means a file that never contains the bytes
+    `createHash` cannot yield a single detection from this rule -- yet the rule's tree-sitter query
+    (a generic `call_expression` pattern) would still be run over the whole tree, match every call
+    in the file, and have each match rejected one at a time.
+
+    Measured on node-forge, warm: 3,179 query executions across 115 files produced 79,066 candidate
+    matches and 3 findings, with 73% of scan time inside `QueryCursor.matches`. A substring test is
+    orders of magnitude cheaper than walking a parse tree, and it is exact rather than heuristic --
+    see `matchable_against` for why this can only ever skip work that was provably wasted.
+
+    `regex` clauses contribute nothing (a pattern's literal core is not safely extractable), and a
+    rule with no usable clause returns an empty tuple, meaning "always run me".
+    """
+    groups: list[tuple[bytes, ...]] = []
+    for where in rule.match.where:
+        if where.equals is not None:
+            groups.append((where.equals.encode("utf-8"),))
+        elif where.in_:
+            groups.append(tuple(value.encode("utf-8") for value in where.in_))
+    return tuple(groups)
+
+
 @dataclass(frozen=True)
 class CompiledRule:
     rule: Rule
@@ -32,6 +63,17 @@ class CompiledRule:
     library_name: str
     detect_imports: tuple[str, ...]
     source_file: Path
+    #: Precomputed once per rule, not per file — see `_required_literal_groups`.
+    required_literals: tuple[tuple[bytes, ...], ...] = ()
+
+    def matchable_against(self, source: bytes) -> bool:
+        """Could this rule match `source` at all? A conservative, exact pre-filter.
+
+        Only ever returns False when the rule is PROVABLY unable to produce a detection, so
+        skipping is not an approximation and scan results are byte-for-byte identical with it on
+        or off (`test_scan_prefilter.py` asserts exactly that over the real rule catalog).
+        """
+        return all(any(literal in source for literal in group) for group in self.required_literals)
 
 
 @lru_cache(maxsize=8)
@@ -131,6 +173,7 @@ class RuleCatalog:
                         library_name=rf.library.name,
                         detect_imports=tuple(rf.library.detect_imports),
                         source_file=path,
+                        required_literals=_required_literal_groups(rule),
                     )
                 )
         return out

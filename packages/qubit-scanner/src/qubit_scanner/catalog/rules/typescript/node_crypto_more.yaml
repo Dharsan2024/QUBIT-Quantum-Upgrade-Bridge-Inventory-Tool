@@ -27,6 +27,9 @@ rules:
         - { capture: meth, in: [createCipher, createDecipher] }
     extract:
       algorithm: { from: alg, resolve: capture-text }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -52,6 +55,12 @@ rules:
         - { capture: meth, in: [pbkdf2, pbkdf2Sync] }
     extract:
       algorithm: { literal: PBKDF2 }
+      iterations:
+        from: call
+        resolve: kdf-iterations
+      prf:
+        from: call
+        resolve: kdf-prf
     asset: { asset_type: algorithm-use, usage_context: password }
     confidence: high
     examples:

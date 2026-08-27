@@ -76,6 +76,12 @@ rules:
         - { capture: fn, in: [GenerateFromPassword, Key, IDKey, CompareHashAndPassword] }
     extract:
       algorithm: { from: pkg, resolve: capture-text }
+      iterations:
+        from: call
+        resolve: kdf-iterations
+      prf:
+        from: call
+        resolve: kdf-prf
     asset: { asset_type: algorithm-use, usage_context: password }
     confidence: high
     examples:
@@ -134,6 +140,9 @@ rules:
         - { capture: fn, in: [NewCipher, NewCipherWithRounds] }
     extract:
       algorithm: { from: pkg, resolve: capture-text }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -315,6 +324,76 @@ rules:
           package main
           import "crypto/ecdh"
           func f() { ecdh.X25519() }
+
+  - id: GO-CIRCL-MLDSA
+    title: CIRCL ML-DSA signature use (Go's post-quantum signature path, quantum-safe)
+    # The counterpart to GO-CRYPTO-MLKEM, and it was missing entirely. ML-DSA is not in the Go
+    # standard library, so `code-signature-01` tells the model to use
+    # `github.com/cloudflare/circl/sign/mldsa/mldsa65` — an algorithm the scanner could not see.
+    # That made the migration UNWINNABLE by construction, not merely under-counted: stage-5 asserts
+    # `present: ML-DSA`, so a perfectly correct CIRCL rewrite reported no PQC at all and the gate
+    # rejected it after three attempts. Measured on go-ethereum: 0 of 107 findings could pass, and
+    # 4 recorded failures name this exact cause ("QUBIT ships no verified ML-DSA shape for go").
+    match:
+      query: |
+        (call_expression
+          function: (selector_expression
+            operand: (identifier) @pkg
+            field: (field_identifier) @fn)) @call
+      where:
+        - { capture: pkg, regex: "^mldsa(44|65|87)$" }
+        - { capture: fn, in: [GenerateKey, NewKeyFromSeed, SignTo, Sign, Verify, Scheme] }
+    extract:
+      algorithm: { from: pkg, resolve: go-mldsa-pkg }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          package main
+          import "github.com/cloudflare/circl/sign/mldsa/mldsa65"
+          func f() { mldsa65.GenerateKey(nil) }
+        - |
+          package main
+          import "github.com/cloudflare/circl/sign/mldsa/mldsa87"
+          func f(pk *mldsa87.PublicKey, m, s []byte) bool { return mldsa87.Verify(pk, m, nil, s) }
+      negative:
+        - |
+          package main
+          import "crypto/ecdsa"
+          func f() { ecdsa.GenerateKey(nil, nil) }
+
+  - id: GO-CIRCL-MLDSA-TYPE
+    title: CIRCL ML-DSA key-material type reference (ML-DSA key USE, not just generation)
+    # Same "key use vs key generation" gap GO-CRYPTO-MLKEM-TYPE closes for ML-KEM: a function that
+    # RECEIVES an ML-DSA key and signs with it names only the type, never a constructor, so it was
+    # invisible to the rule above. This is the shape a real migration produces most often, because
+    # the key is normally created once and passed in.
+    match:
+      query: |
+        (qualified_type
+          package: (package_identifier) @pkg
+          name: (type_identifier) @kind) @call
+      where:
+        - { capture: pkg, regex: "^mldsa(44|65|87)$" }
+        - { capture: kind, in: [PublicKey, PrivateKey] }
+    extract:
+      algorithm: { from: pkg, resolve: go-mldsa-pkg }
+    asset: { asset_type: key, usage_context: signature }
+    confidence: high
+    # A file naming the type a dozen times states one fact, matching GO-CRYPTO-MLKEM-TYPE.
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          package main
+          import "github.com/cloudflare/circl/sign/mldsa/mldsa65"
+          func sign(sk *mldsa65.PrivateKey, m []byte) {}
+      negative:
+        - |
+          package main
+          import "crypto/rsa"
+          func f(key *rsa.PrivateKey) {}
 
   - id: GO-XCRYPTO-SHA3
     title: x/crypto sha3 (quantum-safe, inventoried)

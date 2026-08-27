@@ -62,6 +62,9 @@ rules:
         - { capture: meth, in: [createCipheriv, createDecipheriv] }
     extract:
       algorithm: { from: alg, resolve: capture-text }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:

@@ -98,6 +98,12 @@ rules:
             ]
     extract:
       algorithm: { from: cls, resolve: capture-text }
+      iterations:
+        from: call
+        resolve: kdf-iterations
+      prf:
+        from: call
+        resolve: kdf-prf
     asset: { asset_type: algorithm-use, usage_context: password }
     confidence: high
     examples:
@@ -248,6 +254,9 @@ rules:
         - { capture: scheme, in: [OAEP, PKCS1v15, PSS] }
     extract:
       algorithm: { literal: RSA }
+      padding:
+        from: scheme
+        resolve: padding-scheme
     asset: { asset_type: algorithm-use, usage_context: kex }
     confidence: high
     examples:

@@ -52,6 +52,12 @@ rules:
         - { capture: meth, equals: getInstance }
     extract:
       algorithm: { from: algo, resolve: jca-transformation }
+      mode:
+        from: call
+        resolve: cipher-mode
+      padding:
+        from: call
+        resolve: padding-scheme
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -172,6 +178,9 @@ rules:
         - { capture: algo, regex: "PBKDF" }
     extract:
       algorithm: { literal: PBKDF2 }
+      prf:
+        from: call
+        resolve: kdf-prf
     asset: { asset_type: algorithm-use, usage_context: kdf }
     confidence: high
     examples:
@@ -209,3 +218,26 @@ rules:
       negative:
         - |
           object A { def f(): Unit = { val d = MessageDigest.getInstance("SHA-256") } }
+
+  # See JAVA-JCA-PBEKEYSPEC: the work factor lives at the PBEKeySpec call, not at getInstance.
+  - id: SCALA-JCA-PBEKEYSPEC
+    title: new PBEKeySpec(password, salt, iterations, keyLength)
+    match:
+      query: |
+        (instance_expression (type_identifier) @cls) @call
+      where:
+        - { capture: cls, equals: PBEKeySpec }
+    extract:
+      algorithm: { literal: PBKDF2 }
+      iterations:
+        from: call
+        resolve: kdf-iterations
+    asset: { asset_type: algorithm-use, usage_context: password }
+    confidence: high
+    examples:
+      positive:
+        - |
+          object A { def f(): Unit = { val s = new PBEKeySpec(pw, salt, 1000, 128) } }
+      negative:
+        - |
+          object A { def f(): Unit = { val s = new SecretKeySpec(key, "AES") } }

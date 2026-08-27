@@ -24,6 +24,9 @@ rules:
         - { capture: alg, equals: AES }
     extract:
       algorithm: { literal: AES }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -50,6 +53,9 @@ rules:
         - { capture: alg, equals: TripleDES }
     extract:
       algorithm: { literal: 3DES }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -76,6 +82,9 @@ rules:
         - { capture: alg, equals: ARC4 }
     extract:
       algorithm: { literal: RC4 }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -102,6 +111,9 @@ rules:
         - { capture: alg, equals: Blowfish }
     extract:
       algorithm: { literal: Blowfish }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:

@@ -21,6 +21,9 @@ rules:
         - { capture: fn, in: [SignPKCS1v15, VerifyPKCS1v15, SignPSS, VerifyPSS] }
     extract:
       algorithm: { literal: RSA }
+      padding:
+        from: fn
+        resolve: padding-scheme
     asset: { asset_type: algorithm-use, usage_context: signature }
     confidence: high
     examples:
@@ -60,6 +63,9 @@ rules:
             ]
     extract:
       algorithm: { literal: RSA }
+      padding:
+        from: fn
+        resolve: padding-scheme
     asset: { asset_type: algorithm-use, usage_context: kex }
     confidence: high
     examples:

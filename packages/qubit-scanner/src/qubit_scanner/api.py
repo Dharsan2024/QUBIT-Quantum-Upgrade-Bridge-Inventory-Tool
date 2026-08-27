@@ -87,7 +87,10 @@ def _count_vulnerable(assets: list[CryptoAsset]) -> int:
     This, not `assets`, is the figure a migration moves. Counted here rather than derived in the
     UI so every consumer (app, CLI, evidence pack) reads the same number from the same place.
     """
-    return sum(1 for a in assets if a.quantum_vulnerable and a.quantum_vulnerable.vulnerable)
+    # `len([...])` rather than `sum(1 for ...)`: mypy resolves the generator form to the
+    # `sum(Iterable[bool])` overload when this module is checked alongside qubit-core and
+    # reports the int as an incompatible item type. Same result, no overload ambiguity.
+    return len([a for a in assets if a.quantum_vulnerable and a.quantum_vulnerable.vulnerable])
 
 
 def scan_paths(

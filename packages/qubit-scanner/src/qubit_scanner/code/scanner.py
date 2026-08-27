@@ -149,7 +149,12 @@ class CodeScanner:
             return []
 
         imports = resolve.extract_imports(root, language)
-        shortlist = [r for r in rules if _import_gate(r, imports)]
+        # Two gates, cheapest first. `_import_gate` drops rules for libraries this file never
+        # imports; `matchable_against` then drops rules whose own `where` filters name an
+        # identifier the file does not contain anywhere, which cannot match by construction (see
+        # `CompiledRule.matchable_against`). Both are exact, so the surviving work is identical --
+        # only the wasted work is gone.
+        shortlist = [r for r in rules if _import_gate(r, imports) and r.matchable_against(source)]
 
         detections: list[tuple[CompiledRule, Detection]] = []
         # Rules declaring `dedupe: per-file` contribute at most one finding per algorithm per file
@@ -198,6 +203,22 @@ class CodeScanner:
         snippet = _snippet(source, anchor)
         confidence = "low" if raw_algo in ("UNRESOLVED",) else rule.confidence
         context = _extract_context(anchor, imports or set())
+        # Everything the rule extracts BEYOND algorithm/key_size is a property of the finding
+        # rather than of the algorithm: the cipher MODE (`AES/ECB/...`), the padding scheme
+        # (`RSA/ECB/PKCS1Padding`), a KDF's iteration count. None of them change what the
+        # algorithm *is*, so folding them into the canonical name would corrupt the registry —
+        # but each is a real, separately-remediable weakness, and without them a scan of
+        # `AES.new(key, AES.MODE_ECB)` is indistinguishable from `AES.MODE_GCM`.
+        #
+        # They land in `evidence.context.extra`, which is already a declared free-form dict that
+        # survives the round trip through the DB, so no schema change is needed and migration
+        # rules can match on them (see `MigrationRule.matches.evidence_extra`).
+        for key, extractor in rule.extract.items():
+            if key in ("algorithm", "key_size"):
+                continue
+            value = _extract(extractor, caps, root)
+            if value is not None and str(value) != "":
+                context["extra"][key] = str(value)
 
         return Detection(
             scanner="code",
@@ -284,6 +305,75 @@ def _identifiers_under(node: Node, limit: int) -> list[str]:
     return out
 
 
+#: Method names that say what is DONE with a key, and therefore what the key is for.
+#:
+#: This is the signal CogniCrypt and CryptoGuard get from typestate and data-flow analysis: not
+#: what the object is called, but which operations are performed on it. A full flow-sensitive
+#: analysis is well beyond a tree-sitter query, but the operations invoked inside the same
+#: function are cheap to collect and carry most of the same information - a key that is passed to
+#: `SignData` is a signing key whatever the surrounding code is named.
+_CRYPTO_OPERATIONS: dict[str, str] = {
+    # signing
+    "sign": "signature",
+    "signdata": "signature",
+    "signhash": "signature",
+    "createsignature": "signature",
+    "verifydata": "signature",
+    "verifyhash": "signature",
+    "verifysignature": "signature",
+    "signpkcs1v15": "signature",
+    "verifypkcs1v15": "signature",
+    "signpss": "signature",
+    "verifypss": "signature",
+    # key transport / encapsulation
+    "encrypt": "kex",
+    "decrypt": "kex",
+    "encryptoaep": "kex",
+    "decryptoaep": "kex",
+    "wrapkey": "kex",
+    "unwrapkey": "kex",
+    "encapsulate": "kex",
+    "decapsulate": "kex",
+}
+
+#: Node types that carry a name in the grammars this scans. A method call reads as a
+#: `field_identifier` in Go and Java, a `property_identifier` in JS and TS.
+_NAME_NODE_TYPES = frozenset(
+    {"identifier", "field_identifier", "property_identifier", "type_identifier"}
+)
+
+#: How many nodes of the enclosing function to walk looking for those operations. Bounded because
+#: this runs per finding; a function longer than this has usually said what it does already.
+_SCOPE_SCAN_LIMIT = 400
+
+
+def _scope_operations(*scopes: Node | None) -> list[str]:
+    """The cryptographic operations invoked inside any of ``scopes``, in the vocabulary above.
+
+    Both the enclosing function AND the enclosing class are scanned, because the two answer
+    different halves of the question. A key built in a constructor and held as a field is USED in
+    a sibling method: scanning only the innermost function finds the constructor, which performs
+    no operation at all and says nothing. The class is where the evidence lives.
+
+    Returned as the operation NAMES rather than a verdict, so the classifier decides and this
+    stays a fact about the code.
+    """
+    found: list[str] = []
+    stack = [scope for scope in scopes if scope is not None]
+    if not stack:
+        return []
+    seen = 0
+    while stack and seen < _SCOPE_SCAN_LIMIT:
+        node = stack.pop()
+        seen += 1
+        if node.type in _NAME_NODE_TYPES:
+            text = resolve.node_text(node)
+            if text and text.lower() in _CRYPTO_OPERATIONS:
+                found.append(text.lower())
+        stack.extend(node.children)
+    return sorted(set(found))
+
+
 def _extract_context(anchor: Node | None, imports: set[str]) -> dict:
     """Capture the enclosing function/class + data-flow identifiers around a crypto finding.
 
@@ -316,6 +406,12 @@ def _extract_context(anchor: Node | None, imports: set[str]) -> dict:
         if cname:
             defined.append(cname)
             ctx["extra"]["enclosing_class"] = cname
+    # What is actually DONE with the key in this scope. The strongest available signal for the
+    # families that both sign and encrypt, and the one that would have prevented a C# signing key
+    # being migrated to a key-encapsulation mechanism.
+    operations = _scope_operations(fn, cls)
+    if operations:
+        ctx["extra"]["scope_operations"] = ",".join(operations)
     ctx["symbols"]["defined"] = sorted(set(defined))
     ctx["symbols"]["used"] = sorted(set(_identifiers_under(anchor, 30)))
     return ctx
@@ -416,6 +512,16 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
             # `GenerateKey768` -> "ML-KEM-768", `GenerateKey1024` -> "ML-KEM-1024".
             text = resolve.node_text(node)
             return "ML-KEM-1024" if "1024" in text else "ML-KEM-768"
+        case "go-mldsa-pkg":
+            # CIRCL spells the parameter set in the PACKAGE name, not the function:
+            # `mldsa44` -> "ML-DSA-44", `mldsa65` -> "ML-DSA-65", `mldsa87` -> "ML-DSA-87".
+            # ML-DSA is not in the Go standard library, so CIRCL is what `code-signature-01`
+            # tells the model to use and therefore what has to be detectable here.
+            text = resolve.node_text(node)
+            for level in ("44", "65", "87"):
+                if level in text:
+                    return f"ML-DSA-{level}"
+            return "ML-DSA-65"
         case "jca-signature":
             # `"SHA256withRSA"` -> "RSA": report the KEY algorithm, which is the Shor-relevant half.
             # The digest half is inventoried separately by the MessageDigest rules.
@@ -431,6 +537,35 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
             # `"AES/GCM/NoPadding"` -> "AES": the mode and padding are not quantum-relevant.
             value = _string_value(node, root)
             return value.split("/", 1)[0] if value is not None else None
+        case "cipher-mode":
+            # The block-cipher MODE named anywhere in the captured text. One resolver covers every
+            # ecosystem because they all spell the mode the same way, only the surrounding
+            # punctuation differs: JCA `"AES/ECB/PKCS5Padding"`, PyCryptodome `AES.MODE_ECB`,
+            # OpenSSL `EVP_aes_128_ecb`, Node/PHP/Ruby `"aes-128-ecb"`, .NET `CipherMode.ECB`.
+            # ECB is the one that matters (deterministic, leaks plaintext structure — OWASP
+            # Cryptographic Storage Cheat Sheet), but the others are recorded too so a rule can
+            # tell "already AEAD" from "unknown".
+            return _cipher_mode(_string_value(node, root) or resolve.node_text(node))
+        case "padding-scheme":
+            # The public-key padding scheme named in the captured text: JCA
+            # `"RSA/ECB/PKCS1Padding"`, Go `SignPKCS1v15` / `EncryptOAEP`, pyca
+            # `padding.PKCS1v15()`. PKCS#1 v1.5 encryption is Bleichenbacher-attackable and v1.5
+            # signatures are forgeable under weak verifiers; OAEP and PSS are the replacements.
+            return _padding_scheme(_string_value(node, root) or resolve.node_text(node))
+        case "jwt-verification":
+            # Which way a JWT call bypasses signature checking. Two spellings mean the same thing
+            # and the remedy differs slightly, so the finding records which one it found.
+            return _jwt_verification(_string_value(node, root) or resolve.node_text(node))
+        case "kdf-prf":
+            # Which PRF a password-based KDF was configured with. It decides the iteration floor
+            # that applies (OWASP publishes a different number per PRF), so without it the
+            # weakness check has to fall back to the lowest floor and under-reports.
+            return _kdf_prf(_string_value(node, root) or resolve.node_text(node))
+        case "kdf-iterations":
+            # The iteration/work factor a password-based KDF was called with. Read from the CALL
+            # text because that is where the number lives in every ecosystem, and reported only
+            # when the argument position or keyword is unambiguous — see `_kdf_iterations`.
+            return _kdf_iterations(_string_value(node, root) or resolve.node_text(node))
         case "go-key-package":
             # `rsa.PrivateKey` -> "RSA", `ed25519.PublicKey` -> "Ed25519". The Go package name is
             # lowercase; the registry is case-insensitive but "ed25519" must not be left to match
@@ -639,6 +774,244 @@ _OPENSSL_LEGACY_PREFIXES: tuple[tuple[str, str], ...] = (
     ("md4_", "MD4"),
     ("sha1_", "SHA-1"),
 )
+
+
+#: Block-cipher modes, longest-first so `GCM-SIV` is not read as `GCM` and `CBC` is not found
+#: inside `CBC-MAC`. Matched on token boundaries against the captured text.
+_CIPHER_MODES: tuple[str, ...] = (
+    "GCM_SIV",
+    "GCM-SIV",
+    "CCM",
+    "GCM",
+    "XTS",
+    "OCB",
+    "EAX",
+    "SIV",
+    "CTR",
+    "CFB8",
+    "CFB",
+    "OFB",
+    "CBC",
+    "ECB",
+)
+
+#: Modes that provide authenticated encryption. A rule asking "is this ECB?" also wants to know
+#: the answer is not simply "unknown", so the verdict is recorded, not just the bad case.
+AEAD_MODES = frozenset({"GCM", "CCM", "OCB", "EAX", "SIV", "GCM-SIV", "GCM_SIV"})
+
+_MODE_SPLIT_RE = re.compile(r"[^A-Za-z0-9]+")
+
+
+def _cipher_mode(text: str | None) -> str | None:
+    """The block-cipher mode named in ``text``, or None.
+
+    Every ecosystem spells the mode identically and differs only in punctuation, so one tokenizer
+    covers them all: JCA `"AES/ECB/PKCS5Padding"`, PyCryptodome `AES.MODE_ECB`, OpenSSL
+    `EVP_aes_128_ecb`, Node/PHP/Ruby `"aes-128-ecb"`, .NET `CipherMode.ECB`.
+
+    Tokenized rather than substring-matched: `"aes-128-cbc"` contains no `ECB`, but a naive
+    substring search for `CBC` also fires on `CBC_MAC`, and one for `ECB` fires on a variable
+    named `recbuf`. Splitting on non-alphanumerics and comparing whole tokens avoids both.
+    """
+    if not text:
+        return None
+    tokens = {t.upper() for t in _MODE_SPLIT_RE.split(text) if t}
+    for mode in _CIPHER_MODES:
+        # `GCM_SIV` survives the split as two tokens, so check the joined spellings too.
+        if mode in tokens or mode.replace("-", "_") in tokens:
+            return mode.replace("_", "-")
+    return None
+
+
+#: Public-key padding schemes, in the spellings the ecosystems use.
+_PADDING_ALIASES: tuple[tuple[str, str], ...] = (
+    ("OAEP", "OAEP"),
+    ("PSS", "PSS"),
+    ("PKCS1V15", "PKCS1v15"),
+    ("PKCS1_V1_5", "PKCS1v15"),
+    ("PKCS1PADDING", "PKCS1v15"),
+    ("SIGNPKCS1V15", "PKCS1v15"),
+    ("VERIFYPKCS1V15", "PKCS1v15"),
+    ("DECRYPTPKCS1V15", "PKCS1v15"),
+    ("ENCRYPTPKCS1V15", "PKCS1v15"),
+    ("NOPADDING", "NONE"),
+)
+
+
+def _padding_scheme(text: str | None) -> str | None:
+    """The public-key padding scheme named in ``text``, or None.
+
+    Reads `"RSA/ECB/PKCS1Padding"` (JCA), `SignPKCS1v15` / `EncryptOAEP` (Go),
+    `padding.PKCS1v15()` (pyca), `OPENSSL_PKCS1_PADDING` (PHP/C). PKCS#1 v1.5 is the finding:
+    v1.5 *encryption* is Bleichenbacher-attackable and v1.5 *signatures* are the classic
+    forgery target, while OAEP and PSS are the modern replacements (NIST SP 800-56B rev 2,
+    OWASP Cryptographic Storage Cheat Sheet).
+
+    `PKCS5Padding` is deliberately NOT listed: in JCA that names symmetric block padding, which
+    is not a public-key weakness and would make every `AES/CBC/PKCS5Padding` a false positive.
+    """
+    if not text:
+        return None
+    flat = re.sub(r"[^A-Za-z0-9]", "", text).upper()
+    for needle, canonical in _PADDING_ALIASES:
+        if needle.replace("_", "") in flat:
+            return canonical
+    return None
+
+
+#: Argument INDEX (0-based) holding the iteration count, per password-KDF entry point. Positional
+#: rather than "the biggest integer": `new PBEKeySpec(pw, salt, 100, 256)` has a key length larger
+#: than its (badly weak) iteration count, so a largest-integer heuristic would report 256 and
+#: describe the wrong parameter. Keyed on the callee's own name, lowercased.
+_KDF_ITERATION_ARG: dict[str, int] = {
+    "pbkdf2_hmac": 3,  # hashlib.pbkdf2_hmac(hash_name, password, salt, iterations)
+    "pbkdf2": 2,  # crypto.pbkdf2(password, salt, iterations, keylen, digest, cb)
+    "pbkdf2sync": 2,
+    "pbekeyspec": 2,  # new PBEKeySpec(password, salt, iterationCount, keyLength)
+    "rfc2898derivebytes": 2,  # new Rfc2898DeriveBytes(password, salt, iterations, hash)
+    "passwordderivebytes": 2,
+}
+
+#: Keyword spellings that name the iteration count directly. Checked first: a keyword argument is
+#: unambiguous, and Python/JS/Ruby callers routinely pass it that way.
+_KDF_ITERATION_KW_RE = re.compile(
+    r"\b(?:iterations?|iteration_?count|rounds|work_?factor)\b\s*[:=]\s*([0-9][0-9_]*)",
+    re.IGNORECASE,
+)
+
+_CALLEE_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+
+#: Digest spellings a KDF call site uses to name its PRF, longest first so `SHA-512` is not read
+#: as `SHA-51` and `SHA1` is not found inside `SHA-1`-prefixed longer names.
+_PRF_SPELLINGS: tuple[str, ...] = (
+    "SHA3-512",
+    "SHA3-256",
+    "SHA-512",
+    "SHA512",
+    "SHA-384",
+    "SHA384",
+    "SHA-256",
+    "SHA256",
+    "SHA-224",
+    "SHA224",
+    "SHA-1",
+    "SHA1",
+    "MD5",
+)
+
+
+def _jwt_verification(text: str | None) -> str | None:
+    """How a JWT call avoids checking the signature, or None if it does not.
+
+    Three shapes, all meaning "the claims are trusted without the signature being verified":
+    PyJWT's `options={"verify_signature": False}` and its older `verify=False`, an `algorithms`
+    list containing `none`, and `jsonwebtoken`'s `jwt.decode` — which reads a token WITHOUT
+    verifying it, and whose result reaching an authorization decision is the most common way this
+    goes wrong in JavaScript.
+
+    Reported as which one, because the remedy differs: turning verification back on, removing
+    `none` from the accepted list, or replacing `decode` with `verify`.
+    """
+    if not text:
+        return None
+    flat = re.sub(r"\s+", "", text)
+    if 'verify_signature":False' in flat or "verify_signature':False" in flat:
+        return "signature-check-disabled"
+    if re.search(r"\bverify\s*=\s*False", text):
+        return "signature-check-disabled"
+    if re.search(r"""["']none["']""", text):
+        return "alg-none-accepted"
+    if ".decode(" in flat:
+        return "decoded-without-verifying"
+    return None
+
+
+def _kdf_prf(text: str | None) -> str | None:
+    """The PRF named in a password-KDF call, or None.
+
+    Reads `"PBKDF2WithHmacSHA1"` (JCA), `hashlib.pbkdf2_hmac("sha256", ...)` (Python),
+    `crypto.pbkdf2(pw, salt, n, len, "sha512", cb)` (Node). Returned in the source spelling; the
+    weakness catalogue normalises it before choosing an iteration floor.
+    """
+    if not text:
+        return None
+    upper = text.upper()
+    for spelling in _PRF_SPELLINGS:
+        if spelling in upper:
+            return spelling
+    return None
+
+
+def _split_top_level_args(text: str) -> list[str]:
+    """Split a call's argument list on top-level commas, or [] when it cannot be read.
+
+    Nested calls (`pbkdf2_hmac("sha256", pw, salt, int(cfg.get("n", 1000)))`) and strings
+    containing commas both break a naive `split(",")`, and a mis-split argument list would put the
+    iteration count at the wrong index. Depth- and quote-aware, and returns nothing at all rather
+    than a guess when the brackets do not balance.
+    """
+    start = text.find("(")
+    if start < 0:
+        return []
+    depth = 0
+    quote: str | None = None
+    args: list[str] = []
+    current: list[str] = []
+    for ch in text[start:]:
+        if quote is not None:
+            current.append(ch)
+            if ch == quote:
+                quote = None
+            continue
+        if ch in "\"'`":
+            quote = ch
+            current.append(ch)
+            continue
+        if ch in "([{":
+            depth += 1
+            if depth == 1:
+                continue
+        elif ch in ")]}":
+            depth -= 1
+            if depth == 0:
+                args.append("".join(current))
+                return [a.strip() for a in args]
+        elif ch == "," and depth == 1:
+            args.append("".join(current))
+            current = []
+            continue
+        current.append(ch)
+    return []
+
+
+def _kdf_iterations(text: str | None) -> str | None:
+    """The iteration count a password-based KDF was called with, or None if it is not stated.
+
+    OWASP's Password Storage Cheat Sheet puts the floor at 600 000 for PBKDF2-HMAC-SHA256,
+    220 000 for SHA-512 and 1 300 000 for SHA-1; real code routinely ships four-digit counts. The
+    algorithm name alone cannot distinguish a correctly-configured PBKDF2 from a broken one, so
+    without this the finding is unactionable in either direction.
+
+    Returns None whenever the count is not a literal in this call — a variable, a constant, a
+    config lookup. That is the honest answer: reporting "unknown" lets the migration ask, while a
+    guess would either raise a false alarm or hide a real one.
+    """
+    if not text:
+        return None
+    kw = _KDF_ITERATION_KW_RE.search(text)
+    if kw:
+        return kw.group(1).replace("_", "")
+    callee = _CALLEE_RE.search(text)
+    if callee is None:
+        return None
+    index = _KDF_ITERATION_ARG.get(callee.group(1).lower())
+    if index is None:
+        return None
+    args = _split_top_level_args(text)
+    if len(args) <= index:
+        return None
+    value = args[index].strip().rstrip("Ll")  # Java/C# long suffix
+    return value.replace("_", "") if value.replace("_", "").isdigit() else None
 
 
 def _openssl_legacy_algorithm(fn_name: str) -> str:

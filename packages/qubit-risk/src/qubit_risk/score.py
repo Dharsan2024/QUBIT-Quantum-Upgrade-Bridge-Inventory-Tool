@@ -10,7 +10,9 @@ XGBoost + Bayesian net are M2; CI here is a simple honest band.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 
 from qubit_core import CryptoAsset, QuantumAttack, SourceScanner
 
@@ -20,6 +22,40 @@ from .sensitivity import SensitivityResult
 from .timeline import TimelineCurve
 
 _GROVER_MARGINAL = 0.15  # fixed small score for AES-128/3DES-class (halved symmetric strength)
+
+#: Directory names that mean "this file is not the running system".
+_TEST_DIR_SEGMENTS = frozenset(
+    {
+        "test",
+        "tests",
+        "spec",
+        "specs",
+        "__tests__",
+        "testing",
+        "fixtures",
+        "fixture",
+        "testdata",
+        "test_data",
+        "mocks",
+        "__mocks__",
+        "examples",
+        "example",
+        "demo",
+        "demos",
+        "samples",
+        "benchmarks",
+    }
+)
+
+#: Filename shapes that mean the same thing, for repositories that keep tests beside the code
+#: they exercise (Go's `foo_test.go`, JS's `foo.spec.ts`, pytest's `test_foo.py`).
+_TEST_FILE_PATTERNS = (
+    re.compile(r"^test_.+", re.IGNORECASE),
+    re.compile(r".+_test\.[^.]+$", re.IGNORECASE),
+    re.compile(r".+\.test\.[^.]+$", re.IGNORECASE),
+    re.compile(r".+\.spec\.[^.]+$", re.IGNORECASE),
+    re.compile(r"^conftest\.py$", re.IGNORECASE),
+)
 
 
 @dataclass(frozen=True)
@@ -31,7 +67,32 @@ class ScoreResult:
     p_decrypt: float
 
 
+def looks_like_test_path(file_path: str | None) -> bool:
+    """True when a finding's file is test/fixture/example code rather than the running system.
+
+    Whole path SEGMENTS are matched, never substrings: ``contest/``, ``latest/`` and ``protests/``
+    all contain "test" and none of them is a test directory. Getting that wrong would silently
+    discount real production findings, which is a far worse failure than the one this fixes.
+    """
+    if not file_path:
+        return False
+    parts = PurePosixPath(file_path.replace("\\", "/")).parts
+    if not parts:
+        return False
+    if any(segment.lower() in _TEST_DIR_SEGMENTS for segment in parts[:-1]):
+        return True
+    name = parts[-1]
+    return any(pattern.match(name) for pattern in _TEST_FILE_PATTERNS)
+
+
 def exposure_of(asset: CryptoAsset) -> str:
+    # A key in a test fixture is not reachable by an adversary harvesting live traffic, so it
+    # belongs in the lowest exposure tier no matter which algorithm it names. Measured as the
+    # single largest source of this pass's false positives: it previously scored a throwaway
+    # RSA key in `tests/fixtures/` exactly like one terminating production TLS.
+    if looks_like_test_path(asset.location.file_path):
+        return "offline"
+
     is_net = asset.source_scanner == SourceScanner.network or asset.usage_context.value in (
         "tls",
         "kex",
@@ -87,4 +148,4 @@ def score_asset(
     )
 
 
-__all__ = ["ScoreResult", "exposure_of", "score_asset"]
+__all__ = ["ScoreResult", "exposure_of", "looks_like_test_path", "score_asset"]

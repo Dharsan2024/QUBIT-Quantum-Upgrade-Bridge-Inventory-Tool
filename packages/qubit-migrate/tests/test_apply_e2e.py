@@ -105,6 +105,49 @@ def test_generate_approve_apply_verify(tmp_path: Path) -> None:
     assert report is not None and report.passed
 
 
+def test_generate_approve_apply_verify_when_the_file_is_crlf(tmp_path: Path) -> None:
+    """OpenSSL's `apps/passwd.c` is CRLF as OpenSSL itself committed it (confirmed via
+    ``git show HEAD:apps/passwd.c``, independent of any local checkout config) — this is not a
+    Windows/autocrlf artifact, so a repo whose tracked file is genuinely CRLF must patch cleanly
+    on any platform. Before the fix, `old_new_to_diff` always built an LF diff (every reader in
+    this codebase normalizes on read), which `git apply --check` correctly rejected against the
+    real CRLF bytes — the patch's status became "failed" and the task parked, unwritable, forever.
+    """
+    repo = tmp_path / "repo_crlf"
+    repo.mkdir(parents=True)
+    (repo / "app.py").write_text(VULN_SOURCE.replace("\n", "\r\n"), encoding="utf-8", newline="")
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    # Isolated from checkout conversion on purpose: the CRLF here is the file's OWN committed
+    # content, exactly like OpenSSL's, not something a local `core.autocrlf=true` introduced.
+    _git(repo, "config", "core.autocrlf", "false")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "init")
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    _seed(session, repo)
+
+    orch = MigrationOrchestrator(session)
+    plan = orch.build_plan()
+    task = orch.get_queue(plan.id)[0]
+    assert task.rule_id == "py-weakhash-01"
+
+    patch = orch.generate_patch(task.id, repo_root=repo)
+    assert patch.status == "proposed", patch.validation_json
+    assert "\r\n" in patch.diff_text  # the diff matches the file's real on-disk bytes
+
+    orch.review_patch(patch.id, approve=True, note="crlf e2e")
+    applied = orch.apply_patch(patch.id, repo_root=repo, branch="pqc-migration")
+    assert applied.status == "applied"
+
+    new_bytes = (repo / "app.py").read_bytes()
+    assert b"\r\n" in new_bytes  # still CRLF — the fix doesn't rewrite the file's convention
+    assert b"md5" not in new_bytes.lower()
+
+
 def _seed_named(session: Session, repo: Path, name: str):
     """A second project whose vulnerable file has the SAME repo-relative path as the first."""
     project = ProjectRow(name=name, slug=name)

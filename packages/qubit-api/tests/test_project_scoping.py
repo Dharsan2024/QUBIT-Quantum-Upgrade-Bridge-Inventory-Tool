@@ -143,6 +143,57 @@ def test_overview_reports_each_project_separately(
         assert 0.0 <= row["mean_risk"] <= 1.0
 
 
+def test_overview_reports_where_each_plan_has_actually_got_to(
+    client: TestClient, two_projects: dict[str, Any]
+) -> None:
+    """The plan's progress counts, which the Migration Hub's two progress sections are built on.
+
+    `tasks` and the rule-kind counts describe what a plan was BUILT as and never move. Separating
+    "ongoing" from "successful" needs to know where the work actually GOT to, which nothing on this
+    payload reported -- so the hub had no way to draw that distinction without fetching every
+    plan's whole queue. These come from the tasks' own FSM states, so a card can never disagree
+    with the queue it links to.
+    """
+    plan_id = client.get(f"/api/v1/migrate/plans?project_id={two_projects['a_project']}").json()[0][
+        "id"
+    ]
+    queue = client.get(f"/api/v1/migrate/plans/{plan_id}/queue").json()
+    assert queue, "the fixture must produce a plan with tasks for this to prove anything"
+
+    def plan_of(name: str) -> dict[str, Any]:
+        rows = client.get("/api/v1/projects/overview").json()
+        return next(r for r in rows if r["name"] == name)["plan"]
+
+    before = plan_of("alpha")
+    # Every field is present and adds up to the plan, rather than being absent or double-counting.
+    accounted = (
+        before["written"]
+        + before["prepared"]
+        + before["outstanding"]
+        + before["guided"]
+        + before["satisfied"]
+    )
+    assert accounted == len(queue), (
+        f"every task must land in exactly one progress bucket: {before} vs {len(queue)} tasks"
+    )
+    assert before["written"] == 0, "nothing has been generated or written yet"
+    assert before["prepared"] == 0
+    assert before["outstanding"] > 0, "a freshly built plan is entirely outstanding work"
+
+    # Generate one patch. That task must move out of `outstanding` and into `prepared` -- the exact
+    # transition that decides whether the hub calls this migration ongoing or finished.
+    task = next(t for t in queue if t["has_codemod"])
+    generated = client.post(
+        f"/api/v1/migrate/tasks/{task['id']}/generate", json={"generator": "template"}
+    )
+    assert generated.status_code == 200, generated.text
+
+    after = plan_of("alpha")
+    assert after["prepared"] == before["prepared"] + 1, after
+    assert after["outstanding"] == before["outstanding"] - 1, after
+    assert after["written"] == 0, "generating must not report anything as written to disk"
+
+
 def test_overview_is_empty_before_anything_is_scanned(client: TestClient) -> None:
     assert client.get("/api/v1/projects/overview").json() == []
 
@@ -544,6 +595,89 @@ def test_running_a_plan_with_nothing_ready_is_a_conflict_not_a_silent_success(
     assert "no ready tasks" in resp.json()["detail"]
 
 
+def test_writing_before_anything_was_generated_says_so(
+    client: TestClient, two_projects: dict[str, Any]
+) -> None:
+    """ "Initiate migration" with nothing prepared must point at the step that prepares it.
+
+    The readiness check is asked a different question by each half. A writing run needs PREPARED
+    PATCHES, not `ready` tasks -- checking `ready` would have refused the button on exactly the
+    plan it is meant for, one whose findings have all been generated and are waiting to be read.
+    """
+    plan_id = client.get(f"/api/v1/migrate/plans?project_id={two_projects['a_project']}").json()[0][
+        "id"
+    ]
+
+    resp = client.post(
+        f"/api/v1/migrate/plans/{plan_id}/run", json={"generate": False, "apply": True}
+    )
+
+    assert resp.status_code == 409
+    detail = resp.json()["detail"]
+    assert "no prepared changes" in detail.lower(), detail
+    assert "Build the plan" in detail, "the message has to name the step that fixes it"
+
+
+def test_running_a_plan_with_only_unresolved_tasks_retries_instead_of_409ing(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The BULK run endpoint must see the same retryable work the per-task one already does.
+
+    `migrate_handler` resumes every `deferred`/`unresolved` task before generating for it — that
+    is the whole point of the resume mechanism ("the engine learns between runs"). But this
+    endpoint's own pre-check only counted `state == "ready"`, so once a plan's last `ready` task
+    was consumed, it 409'd "no ready tasks" forever afterwards, even with genuinely retryable
+    work sitting in `unresolved`. Found live on OpenSSL: 1912/1912 tasks had settled into terminal
+    states (0 left `ready`) while 98 sat `unresolved` after a code fix made them retryable — from
+    that point on, "Rebuild Plan" refused every click, and those 98 findings were permanently
+    unreachable from the UI.
+    """
+    from qubit_migrate.transform import llm
+
+    src_dir = tmp_path / "hashonly"
+    src_dir.mkdir()
+    (src_dir / "app.py").write_text(
+        "import hashlib\ndigest = hashlib.md5(data)\n", encoding="utf-8"
+    )
+    project_id, scan_id = _scan(client, "hashonly", src_dir)
+    plan_id = client.post(
+        "/api/v1/migrate/plans", json={"min_risk": 0, "project_id": project_id, "scan_id": scan_id}
+    ).json()["id"]
+    task_id = client.get(f"/api/v1/migrate/plans/{plan_id}/queue").json()[0]["id"]
+
+    def refuse(prompt, *, model, base_url="x", timeout=0, **_):
+        raise llm.OllamaError("the model returned the file unchanged")
+
+    monkeypatch.setattr(llm, "_ollama_generate", refuse)
+    failed = client.post(f"/api/v1/migrate/tasks/{task_id}/generate", json={"generator": "llm"})
+    assert failed.status_code == 422, failed.text
+
+    queue = client.get(f"/api/v1/migrate/plans/{plan_id}/queue").json()
+    assert [t["state"] for t in queue] == ["deferred"]
+    assert queue[0]["resolution"] == "unresolved"
+    assert not [t for t in queue if t["state"] == "ready"], "the plan must have zero ready tasks"
+
+    monkeypatch.setattr(
+        llm,
+        "_ollama_generate",
+        lambda prompt, *, model, base_url="x", timeout=0, **_: (
+            "```python\nimport hashlib\ndigest = hashlib.sha256(data)\n```"
+        ),
+    )
+    resp = client.post(
+        f"/api/v1/migrate/plans/{plan_id}/run", json={"generate": True, "apply": False}
+    )
+    assert resp.status_code == 202, (
+        f"a bulk run with only unresolved tasks must dispatch, not 409: {resp.text[:300]}"
+    )
+    job = _await_job(client, resp.json()["job"]["id"])
+    assert job["status"] == "succeeded", job
+    assert job["result"]["generated"] >= 1, job["result"]
+
+    retried = client.get(f"/api/v1/migrate/plans/{plan_id}/queue").json()[0]
+    assert retried["state"] == "proposed"
+
+
 def test_generating_a_patch_twice_is_a_conflict_not_a_crash(
     client: TestClient, two_projects: dict[str, Any]
 ) -> None:
@@ -577,6 +711,60 @@ def test_generating_a_patch_twice_is_a_conflict_not_a_crash(
     # And exactly one patch was stored — a second would leave two conflicting diffs for one task.
     patches = client.get(f"/api/v1/migrate/tasks/{task['id']}/patches").json()
     assert len(patches) == 1
+
+
+def test_generate_on_a_previously_failed_task_retries_instead_of_409ing(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A task whose last attempt FAILED must be retryable through the very same endpoint.
+
+    A failed generation parks the task `deferred`/`unresolved`, and the FSM has no `generate`
+    event from `deferred` -- so calling this endpoint again used to raise `InvalidTransition`,
+    which the route maps to 409 "this task already has a generated patch, review or reject it".
+    That message is simply wrong here: the task has no patch, only a rejection. The orchestrator
+    now resumes a failed task before generating, so this is the row's "Retry" button working
+    through the real API, not just the orchestrator layer `test_llm_generation.py` already pins.
+    """
+    from qubit_migrate.transform import llm
+
+    src_dir = tmp_path / "hashonly"
+    src_dir.mkdir()
+    (src_dir / "app.py").write_text(
+        "import hashlib\ndigest = hashlib.md5(data)\n", encoding="utf-8"
+    )
+    project_id, scan_id = _scan(client, "hashonly", src_dir)
+    plan_id = client.post(
+        "/api/v1/migrate/plans", json={"min_risk": 0, "project_id": project_id, "scan_id": scan_id}
+    ).json()["id"]
+    queue = client.get(f"/api/v1/migrate/plans/{plan_id}/queue").json()
+    task = queue[0]
+
+    def refuse(prompt, *, model, base_url="x", timeout=0, **_):
+        raise llm.OllamaError("the model returned the file unchanged")
+
+    monkeypatch.setattr(llm, "_ollama_generate", refuse)
+    failed = client.post(f"/api/v1/migrate/tasks/{task['id']}/generate", json={"generator": "llm"})
+    assert failed.status_code == 422, failed.text
+
+    queue_after_failure = client.get(f"/api/v1/migrate/plans/{plan_id}/queue").json()
+    parked = next(t for t in queue_after_failure if t["id"] == task["id"])
+    assert parked["state"] == "deferred"
+    assert parked["resolution"] == "unresolved"
+
+    monkeypatch.setattr(
+        llm,
+        "_ollama_generate",
+        lambda prompt, *, model, base_url="x", timeout=0, **_: (
+            "```python\nimport hashlib\ndigest = hashlib.sha256(data)\n```"
+        ),
+    )
+    retried = client.post(f"/api/v1/migrate/tasks/{task['id']}/generate", json={"generator": "llm"})
+    assert retried.status_code == 200, (
+        f"a retry on a failed task must succeed or fail on its own merits, not 409: "
+        f"{retried.text[:300]}"
+    )
+    assert "already has a generated patch" not in retried.text
+    assert "sha256" in retried.json()["diff_text"]
 
 
 def test_a_plan_built_before_the_split_still_reports_it(

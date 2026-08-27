@@ -15,7 +15,13 @@ matches:
      # The ECDH curves an sshd_config names in KexAlgorithms. These are exactly the directives
      # `harden_ssh` rewrites to sntrup761x25519-sha512, but only ECDSA-P256 (a HOST KEY algorithm)
      # was listed, so the key-exchange findings this rule exists to fix matched nothing.
-     "ECDH-P256", "ECDH-P384", "ECDH-P521", "X25519"]
+     "ECDH-P256", "ECDH-P384", "ECDH-P521", "X25519",
+     # Host-key and KEX names the scanner reports verbatim from the directive. Measured on the
+     # corpus: `rsa-sha2` host-key findings and `DH-4096-group16` KEX findings matched no rule at
+     # all, in the very file this rule's codemod already knows how to harden.
+     "rsa-sha2", "rsa-sha2-256", "rsa-sha2-512", "ssh-ed25519", "Ed25519", "Ed448",
+     "DH-4096-group16",
+     "ECDSA-P384", "ECDSA-P521", "HMAC-SHA2-256", "HMAC-SHA2-512"]
   usage_context: ["kex", "signature", "token", "encryption-at-rest"]
   library_name: [null]
 target:

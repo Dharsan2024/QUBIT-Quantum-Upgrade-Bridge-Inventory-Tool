@@ -1,0 +1,134 @@
+id: code-ecb-01
+language: multi
+title: "Block cipher in ECB mode → AES-256-GCM (authenticated encryption)"
+matches:
+  source_scanner: [code]
+  # Every language whose cipher rules capture the mode. This rule sorts before code-weakcipher-01
+  # and py-weakcipher-01, which is deliberate: for a finding that carries the ECB weakness, the
+  # mode is the defect, and this rule says so precisely instead of describing it as a weak cipher.
+  file_suffix:
+    [".py", ".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp",
+    ".hpp", ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart", ".sh",
+    ".bash", ".ps1", ".psm1", ".sql"]
+  # The clause that makes this rule possible. AES-256 is a sound cipher and AES-256/ECB is not,
+  # and they are the same asset by every other field — same algorithm, same key size, same usage.
+  # Without a weakness clause an ECB rule would have to claim every AES finding in the corpus.
+  weakness: [ecb-mode]
+  usage_context: ["encryption-at-rest", "unknown"]
+  library_name: [null]
+target:
+  algorithm: AES-256-GCM
+  mode: pure
+  parameter_set: AES-256-GCM
+  category: 1
+  fips: FIPS-197
+# ECB ciphertext and GCM ciphertext are different objects: GCM prepends a nonce and appends a tag,
+# so nothing already stored can be read by the new path.
+data_compat: reencrypt_required
+semantic_note: >
+  ECB encrypts every block independently under the same key, so identical plaintext blocks produce
+  identical ciphertext blocks. Over low-cardinality data - a national insurance number, a sort code,
+  a status column, a small set of clinical codes - that leaks the plaintext structure directly, and
+  equal values are visibly equal without breaking anything. It also provides no integrity at all, so
+  ciphertext can be reordered, truncated or spliced undetected. NIST SP 800-38A discusses this in
+  Appendix A and OWASP's Cryptographic Storage Cheat Sheet says to use authenticated encryption.
+  The fix is not a mode constant: AES-GCM needs a 12-byte nonce that must NEVER repeat under a given
+  key, it returns an authentication tag the ECB call site has nowhere to put, and the stored layout
+  therefore changes from bare ciphertext to nonce-plus-ciphertext-plus-tag. Existing records must be
+  re-encrypted, so the old ECB decrypt path has to survive until they have been.
+prompt_constraints:
+  - "Use an AEAD mode - AES-256-GCM, or ChaCha20-Poly1305 where AES hardware acceleration is absent. Never CBC as the replacement for ECB: it fixes the pattern leak but still provides no integrity."
+  - "Generate a FRESH random nonce for every encryption. Do not derive it from the plaintext, do not use a counter that resets, and do not hardcode it - nonce reuse under GCM is catastrophic and reveals the authentication key."
+  - "Store the nonce with the ciphertext. It is not secret; it is required to decrypt."
+  - "Store and VERIFY the authentication tag. Discarding it silently removes the integrity guarantee that is half the reason for this change."
+  - "Keep a decrypt path for the existing ECB ciphertext so stored data stays readable while it is re-encrypted. Removing it makes this migration a data-loss event."
+  - "If the encryption was relied on to make equal plaintexts compare equal - a deterministic lookup or a de-duplication key - that property is GONE. Say so in the security notes and use a keyed hash (HMAC-SHA-256) for the lookup column instead."
+example_language: python
+example:
+  before: |
+    from Crypto.Cipher import AES
+
+    def encrypt_field(key: bytes, value: str) -> bytes:
+        cipher = AES.new(key, AES.MODE_ECB)
+        padded = value.ljust(((len(value) // 16) + 1) * 16).encode()
+        return cipher.encrypt(padded)
+  after: |
+    import os
+
+    from Crypto.Cipher import AES
+
+    def encrypt_field(key: bytes, value: str) -> bytes:
+        """AES-256-GCM. Returns nonce || ciphertext || tag, so the stored layout differs from the
+        ECB version and existing rows must be re-encrypted via decrypt_field_legacy."""
+        nonce = os.urandom(12)
+        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+        ciphertext, tag = cipher.encrypt_and_digest(value.encode())
+        return nonce + ciphertext + tag
+
+    def decrypt_field(key: bytes, blob: bytes) -> str:
+        nonce, ciphertext, tag = blob[:12], blob[12:-16], blob[-16:]
+        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+        return cipher.decrypt_and_verify(ciphertext, tag).decode()
+
+    def decrypt_field_legacy(key: bytes, blob: bytes) -> str:
+        """Reads rows written by the old ECB path. Remove once every row is re-encrypted."""
+        return AES.new(key, AES.MODE_ECB).decrypt(blob).decode().rstrip()
+example_java:
+  before: |
+    Cipher c = Cipher.getInstance("AES/ECB/PKCS5Padding");
+    c.init(Cipher.ENCRYPT_MODE, key);
+    byte[] ct = c.doFinal(plaintext);
+  after: |
+    // AES-256-GCM. The nonce is fresh per message and stored with the ciphertext; the 128-bit tag
+    // is appended by doFinal and verified on decrypt.
+    byte[] nonce = new byte[12];
+    SecureRandom.getInstanceStrong().nextBytes(nonce);
+    Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+    c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+    byte[] ct = c.doFinal(plaintext);
+    byte[] stored = ByteBuffer.allocate(nonce.length + ct.length).put(nonce).put(ct).array();
+example_javascript:
+  before: |
+    import crypto from "node:crypto";
+
+    const c = crypto.createCipheriv("aes-256-ecb", key, null);
+    const ct = Buffer.concat([c.update(plaintext), c.final()]);
+  after: |
+    import crypto from "node:crypto";
+
+    // Fresh 12-byte nonce per message; the tag must be stored and passed to setAuthTag on decrypt.
+    const nonce = crypto.randomBytes(12);
+    const c = crypto.createCipheriv("aes-256-gcm", key, nonce);
+    const ct = Buffer.concat([c.update(plaintext), c.final()]);
+    const tag = c.getAuthTag();
+    const stored = Buffer.concat([nonce, ct, tag]);
+example_go:
+  before: |
+    block, _ := aes.NewCipher(key)
+    out := make([]byte, len(plaintext))
+    for i := 0; i < len(plaintext); i += block.BlockSize() {
+        block.Encrypt(out[i:], plaintext[i:])
+    }
+  after: |
+    // Encrypting block-by-block with the raw Block IS ECB. crypto/cipher's GCM wrapper adds the
+    // nonce and tag; Seal returns nonce-prefixed output when given the nonce as the dst prefix.
+    block, err := aes.NewCipher(key)
+    if err != nil {
+        return nil, err
+    }
+    aead, err := cipher.NewGCM(block)
+    if err != nil {
+        return nil, err
+    }
+    nonce := make([]byte, aead.NonceSize())
+    if _, err := rand.Read(nonce); err != nil {
+        return nil, err
+    }
+    return aead.Seal(nonce, nonce, plaintext, nil), nil
+rescan_expect:
+  # The algorithm does NOT change - AES stays, and demanding it disappear would reject every
+  # correct fix. What must change is the mode, which the scanner re-derives from the patched
+  # source into the same weakness the rule matched on.
+  weakness_gone: ["ecb-mode"]
+  present:
+    algorithm_prefix: ["AES", "ChaCha20"]

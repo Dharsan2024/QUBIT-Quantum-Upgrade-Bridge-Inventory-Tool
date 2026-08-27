@@ -1,0 +1,45 @@
+id: dep-legacy-01
+language: manifest
+title: "Manifest declares a library offering a broken primitive → guided path to the call sites"
+matches:
+  source_scanner: [config]
+  file_name:
+    ["requirements.txt", "pyproject.toml", "package.json", "package-lock.json", "composer.json",
+    "Cargo.toml", "go.mod", "pom.xml", "build.gradle", "build.gradle.kts", "build.sbt",
+    "*.csproj", "*.fsproj", "*.vbproj", "Package.swift", "pubspec.yaml", "Gemfile", "*.gemspec"]
+  # Classically-broken or undersized primitives ONLY. The Shor-breakable ones are dep-pqc-01/02/03's
+  # job and their remedy is a provider; these have a different remedy entirely, which is why they
+  # need their own rule rather than a wider algorithm list on an existing one.
+  algorithm:
+    ["MD5", "MD4", "MD2", "SHA-1", "SHA-224", "RIPEMD-160", "DES", "3DES", "RC4", "RC2",
+    "Blowfish", "CAST5", "IDEA", "SEED", "AES", "AES-128", "AES-192", "HMAC", "HMAC-MD5",
+    "HMAC-SHA1", "PBKDF2"]
+  usage_context: ["hash", "encryption-at-rest", "mac", "kdf", "password", "signature", "token",
+    "unknown"]
+  library_name: null
+target:
+  algorithm: SHA-256
+  mode: pure
+  parameter_set: "SHA-256 / AES-256-GCM, per the usage at each call site"
+  category: 2
+  fips: FIPS-180-4
+data_compat: in_place
+# Guided, and for a reason that has nothing to do with difficulty: there is no correct edit to
+# make HERE. Adding or bumping a package does not stop the code calling MD5, and removing the
+# dependency breaks every other thing it is used for.
+remediation: guided
+semantic_note: >
+  A dependency-scanner finding on a manifest means the project DECLARES a library that provides
+  this algorithm. It is evidence of capability, not of use - the manifest has no call site to
+  rewrite, and no version of the library will refuse to compute MD5 if the code asks it to.
+  So the remedy is not in this file. It is at the call sites, which QUBIT reports as their own
+  findings with their own patches, and this entry exists to say so rather than leave the manifest
+  finding looking unactionable. Two things are worth checking here even so: whether the library is
+  still needed at all once the weak calls are gone, and whether it is pinned to a version that
+  still ships the broken primitive as a default rather than an opt-in.
+  The exception is when the manifest is the ONLY evidence - a library declared and never called.
+  That is dead weight carrying attack surface, and removing the dependency resolves the finding
+  outright.
+prompt_constraints:
+  - "Never propose adding a post-quantum package as the fix for a broken hash or cipher. It does not stop the code calling MD5, and it reads as progress while changing nothing."
+rescan_expect: null

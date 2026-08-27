@@ -25,7 +25,7 @@ matches:
       "DSA-2048",
       "DSA-3072",
       "EC",
-      "ECDSA-P256",
+      "ECDSA", "ECDSA-P256",
       "ECDSA-P384",
       "ECDSA-P521",
       "ECDSA-secp256k1",

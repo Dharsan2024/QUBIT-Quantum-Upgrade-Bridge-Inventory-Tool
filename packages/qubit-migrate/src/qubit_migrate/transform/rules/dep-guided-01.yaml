@@ -1,0 +1,44 @@
+id: dep-guided-01
+language: manifest
+title: "Dart and Ruby manifests → guided path (no adequately-backed PQC provider)"
+matches:
+  source_scanner: [config]
+  file_name: ["pubspec.yaml", "pubspec.yml", "Gemfile", "*.gemspec", "Gemfile.lock"]
+  algorithm:
+    ["RSA", "RSA-1024", "RSA-2048", "RSA-3072", "RSA-4096", "DSA", "EC", "ECDSA",
+    "ECDSA-P256", "ECDSA-P384", "ECDSA-P521", "ECDH", "ECDH-P256", "ECDH-P384",
+    "X25519", "X448", "Ed25519", "Ed448", "DH", "DH-2048",
+    "RS256", "RS384", "RS512", "PS256", "ES256", "ES384", "ES512", "EdDSA"]
+  usage_context: ["kex", "signature", "token", "encryption-at-rest", "tls", "unknown"]
+  library_name: null
+target:
+  algorithm: ML-KEM-768
+  mode: hybrid
+  hybrid_group: X25519MLKEM768
+  category: 3
+  fips: FIPS-203
+data_compat: in_place
+# The honest outcome. There IS a candidate on pub.dev, and QUBIT names it with its numbers and its
+# risks rather than pretending the ecosystem is empty — but it will not add it to a user's app on
+# their behalf, and it will not silently fail either.
+remediation: guided
+semantic_note: >
+  No post-quantum provider on pub.dev has institutional backing. The best-adopted candidate,
+  pqcrypto 0.4.1, scores 150 of 160 pub points, has 11,800 downloads in 30 days and checks in the
+  NIST ACVP vectors it claims to pass — but it is published by an unverified uploader, is a
+  from-scratch pure-Dart implementation of ML-KEM, ML-DSA and SLH-DSA, and states plainly that no
+  algorithm in it claims CMVP or FIPS 140 validation. Automatically writing that into a user's
+  pubspec.yaml would put an unaudited, unattributed implementation of three primitives into their
+  app without them deciding to, and this rule will not do that.
+  RubyGems is the same story with smaller numbers. The best-adopted candidate, pq_crypto, has
+  7,708 downloads in total - not per month - and ml_kem has 836; neither carries the institutional
+  backing that makes an automatic dependency edit defensible.
+  What a Dart or Ruby project CAN do today is real: call platform crypto through FFI so the primitive comes
+  from an audited implementation (Apple CryptoKit on iOS and macOS, BoringSSL or liboqs elsewhere),
+  or terminate the quantum-vulnerable exchange at a server you control, where the X25519MLKEM768
+  hybrid group is a configuration change rather than a code change. For a client talking to your
+  own backend the second option removes the harvest-now-decrypt-later exposure entirely without
+  a single line of Dart crypto.
+prompt_constraints:
+  - "Do not add a pub.dev or RubyGems post-quantum package automatically. State the options and let the operator choose."
+rescan_expect: null

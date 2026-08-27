@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import shutil
 import subprocess
@@ -13,7 +14,7 @@ from qubit_core import asset_to_row
 from qubit_core.db import AssetRow, ProjectRow, ScanRow
 from qubit_risk.pipeline import RiskPipeline
 from qubit_scanner import SCANNER_NAMES, scan_paths
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ..services import autobuild_migration_plan, is_git_url
 from .runner import ProgressReporter
@@ -131,7 +132,11 @@ def scan_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[st
         # In chunks of 500
         chunk: list[AssetRow] = []
         for asset in result.assets:
-            chunk.append(asset_to_row(asset, scan_id=scan.id, project_id=project_id))
+            chunk.append(
+                asset_to_row(
+                    asset, scan_id=scan.id, project_id=project_id, tenant_id=scan.tenant_id
+                )
+            )
             if len(chunk) >= 500:
                 session.add_all(chunk)
                 session.commit()
@@ -200,7 +205,11 @@ def _persist_scan_result(
             raise ValueError("Scan deleted during run")
         chunk: list[AssetRow] = []
         for asset in result.assets:
-            chunk.append(asset_to_row(asset, scan_id=scan_id, project_id=project_id))
+            chunk.append(
+                asset_to_row(
+                    asset, scan_id=scan_id, project_id=project_id, tenant_id=scan.tenant_id
+                )
+            )
             if len(chunk) >= 500:
                 session.add_all(chunk)
                 session.commit()
@@ -455,12 +464,119 @@ def _plan_repo_root(session, plan) -> Path | None:
     return None
 
 
-def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[str, Any]:
-    """Run a whole plan: generate a patch per ready task, approve it, and write it to the tree.
+def _write_prepared_patches(
+    session: Any,
+    orch: Any,
+    plan_id: UUID,
+    repo_root: Path | None,
+    reporter: ProgressReporter,
+) -> dict[str, Any]:
+    """Write already-generated patches into the original files. The "Initiate migration" half.
 
-    This is the "Initiate migration" path. Doing it per task from the browser meant one HTTP request
-    per finding, each holding a connection open for as long as the local model took, and no way to
-    see how far along it was — so it runs as a job, like a scan, and reports progress the same way.
+    Nothing is decided here and no model runs: every patch in this set has already been through
+    the validation gate, and the operator has had the diff in front of them. All that is left is
+    the irreversible part, which is why it is its own act.
+
+    A patch still `proposed` is approved on the way past — pressing "Initiate migration" IS the
+    approval for anything the operator did not reject by hand. One already `approved` (by the row's
+    own Approve button) is written as it stands.
+    """
+    from qubit_migrate.state import MigrationTask, PatchProposal
+
+    if repo_root is None:
+        # Not a failure of any individual patch: there is nowhere to write. Raising makes the job
+        # fail loudly with the reason, rather than reporting "0 applied" and leaving the operator
+        # to guess whether every patch was rejected.
+        raise ValueError(
+            "No repository root could be derived from this plan, so there is nowhere to write "
+            "the changes. Set the project's root path and try again."
+        )
+
+    prepared = list(
+        session.scalars(
+            select(PatchProposal)
+            .join(MigrationTask, PatchProposal.task_id == MigrationTask.id)
+            .where(MigrationTask.plan_id == plan_id)
+            .where(PatchProposal.status.in_(("proposed", "approved")))
+            .order_by(MigrationTask.rank)
+        ).all()
+    )
+    # Findings that were never generated for. Reported rather than quietly generated: "write the
+    # changes" is not a licence to spend ten minutes of model time the operator did not ask for.
+    no_patch = int(
+        session.scalar(
+            select(func.count())
+            .select_from(MigrationTask)
+            .where(MigrationTask.plan_id == plan_id)
+            .where(MigrationTask.state == "ready")
+        )
+        or 0
+    )
+
+    total = len(prepared)
+    applied = failed = 0
+    failures: list[dict[str, str]] = []
+
+    for index, patch in enumerate(prepared, start=1):
+        task = session.get(MigrationTask, patch.task_id)
+        reporter.update(
+            index / max(total, 1),
+            "apply",
+            f"Writing {index}/{total}: {patch.file_path}",
+        )
+        try:
+            if patch.status == "proposed":
+                orch.review_patch(patch.id, approve=True, note="initiate migration", actor="api")
+            orch.apply_patch(patch.id, repo_root=repo_root, actor="api")
+            applied += 1
+        except Exception as exc:  # one unwritable patch must not abandon the rest
+            failed += 1
+            failures.append(
+                {
+                    "task_id": str(patch.task_id),
+                    "rule_id": (task.rule_id if task else None) or "",
+                    "detail": f"{type(exc).__name__}: {exc}".replace(chr(10), " ")[:300],
+                }
+            )
+            session.rollback()
+
+    return {
+        "plan_id": str(plan_id),
+        "mode": "apply",
+        "total": total,
+        "generated": 0,
+        "applied": applied,
+        "covered": 0,
+        "from_cache": 0,
+        "needs_guidance": 0,
+        "no_patch": no_patch,
+        "failed": failed,
+        "repo_root": str(repo_root),
+        "applied_to_disk": True,
+        "failures": failures[:25],
+    }
+
+
+def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict[str, Any]:
+    """Run a whole plan. Two independent halves, selected by `generate` and `apply`.
+
+    The two halves are what the app's two buttons do, and they are deliberately separate:
+
+    * **`generate` only** — "Build plan". Write a patch for every ready finding, run each through
+      the full validation gate, and leave it PROPOSED. Nothing on disk changes, so the operator
+      gets the whole set of diffs to read before anything is committed to.
+    * **`apply` only** — "Initiate migration". Take the patches that are already prepared and
+      write them into the original files. No model runs; there is nothing left to decide.
+    * **both** — the original single-shot behaviour, still the default, and what the CLI and the
+      API's own callers get when they say nothing.
+
+    Splitting them is the difference between a tool that asks for trust and one that earns it: the
+    long, expensive, uncertain half now finishes before the operator is asked to approve anything,
+    and the irreversible half is a separate, deliberate act on diffs they have seen.
+
+    Doing it per task from the browser meant one HTTP request per finding, each holding a
+    connection open for as long as the local model took, and no way to see how far along it was —
+    so it runs as a job, like a scan, and reports progress the same way.
 
     Every stage stays the one the single-task path already uses (`generate_patch` runs the full
     validation gate, `review_patch` records the approval, `apply_patch` does the git-safety checks),
@@ -468,11 +584,18 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
     A task that fails is recorded and the run continues: one unmigratable finding in a plan of
     twenty is not a reason to abandon the other nineteen.
     """
-    from qubit_migrate.orchestrator import MigrationOrchestrator
+    from qubit_migrate.orchestrator import (
+        RESOLUTION_UNRESOLVED,
+        AlreadySatisfied,
+        GuidedRemediation,
+        MigrationOrchestrator,
+    )
     from qubit_migrate.state import MigrationPlan, MigrationTask
+    from qubit_migrate.state.machine import InvalidTransition
 
     plan_id = UUID(payload["plan_id"])
     should_apply = bool(payload.get("apply", True))
+    should_generate = bool(payload.get("generate", True))
     generator = payload.get("generator", "auto")
 
     with reporter.sf() as session:
@@ -481,6 +604,37 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
             raise ValueError(f"Plan {plan_id} not found")
         repo_root = _plan_repo_root(session, plan)
         orch = MigrationOrchestrator(session)
+
+        if not should_generate:
+            return _write_prepared_patches(session, orch, plan_id, repo_root, reporter)
+
+        # Ready work, PLUS anything a previous run failed on.
+        #
+        # The engine learns between runs - a rewrite validated on one file grounds the next
+        # attempt at the same shape, and a rejection is retained so it is not repeated blind. None
+        # of that reached the findings that most needed it, because a failed task parks in
+        # `deferred` and only `ready` was ever selected. Measured on this corpus: 9 findings sat
+        # at `deferred/unresolved` across three subsequent runs, each of which had a better engine
+        # than the one that failed them, and not one was tried again.
+        #
+        # `satisfied` and `guided` are deliberately NOT resumed. Both are resolved outcomes - one
+        # is finished work, the other a written remediation - and re-running them would undo the
+        # distinction the resolution field exists to make.
+        retryable = list(
+            session.scalars(
+                select(MigrationTask)
+                .where(MigrationTask.plan_id == plan_id)
+                .where(MigrationTask.state == "deferred")
+                .where(MigrationTask.resolution == RESOLUTION_UNRESOLVED)
+                .order_by(MigrationTask.rank)
+            ).all()
+        )
+        for task in retryable:
+            with contextlib.suppress(InvalidTransition):
+                orch.resume_task(task.id)
+        if retryable:
+            session.commit()
+
         tasks = list(
             session.scalars(
                 select(MigrationTask)
@@ -501,12 +655,17 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
                 f"Migrating {index}/{total}: {task.rule_id or 'finding'}",
             )
             if task.rule_id is None:
-                # No rule matches this finding, so there is no patch to attempt — the app routes it
-                # to migration advice instead. Counting it as a FAILURE was badly misleading: on the
-                # 21-app demo corpus 75 of 94 "could not be migrated" were these, findings that were
-                # never patch-eligible and already have an actionable path in the UI. That reads as
-                # the tool failing 94 times when it failed 19. Counted separately, and skipped
-                # rather than sent to `generate_patch` only to raise.
+                # No rule matches this finding, so there is no patch to attempt. Counting it as a
+                # FAILURE was badly misleading: on the 21-app demo corpus 75 of 94 "could not be
+                # migrated" were these, findings that were never patch-eligible. That reads as the
+                # tool failing 94 times when it failed 19.
+                #
+                # Skipping was only half the fix. The task is now given a real remediation plan —
+                # built offline from the knowledge base and the verified provider playbook — so
+                # the queue shows steps and sources instead of an empty guidance panel waiting on
+                # a model call the user has to ask for.
+                with contextlib.suppress(Exception):  # guidance must never end a bulk run
+                    orch.resolve_guided(task.id)
                 needs_guidance += 1
                 continue
             try:
@@ -519,31 +678,62 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
                     # fresh model call — an identical finding was already fixed and validated
                     # earlier in this run, an earlier plan, or an earlier scan entirely.
                     from_cache += 1
-                orch.review_patch(patch.id, approve=True, note="bulk migration", actor="api")
-                if should_apply and repo_root is not None:
-                    orch.apply_patch(patch.id, repo_root=repo_root, actor="api")
-                    applied += 1
-            except Exception as exc:  # one bad finding must not end the run
-                message = str(exc)
-                # A rule rewrites the WHOLE file, so several findings in one file are all covered
-                # by the first patch and the orchestrator refuses the rest. That is work already
-                # done, not work that failed: counting it as a failure made a fully migrated
-                # auth.py read as "1 migrated, 2 could not be migrated".
-                if "already migrated by an earlier" in message or "already remediated" in message:
-                    covered += 1
-                else:
-                    failed += 1
-                    failures.append(
-                        {
-                            "task_id": str(task.id),
-                            "rule_id": task.rule_id or "",
-                            "detail": f"{type(exc).__name__}: {exc}".replace("\n", " ")[:300],
-                        }
-                    )
+                # Approval is withheld on a generate-only run. Approving a patch nobody has
+                # read, and then not writing it, would strip the queue of the Approve/Reject
+                # buttons that are the entire point of generating ahead of applying.
+                if should_apply:
+                    orch.review_patch(patch.id, approve=True, note="bulk migration", actor="api")
+                    if repo_root is not None:
+                        orch.apply_patch(patch.id, repo_root=repo_root, actor="api")
+                        applied += 1
+            except GuidedRemediation:
+                # A verdict, not an error: the rule says no edit QUBIT can make is the right answer
+                # here, and `generate_patch` has already stored the plan that says what is. Counted
+                # with the other guided findings so the completion banner separates "handled by a
+                # guided path" from "we could not do this".
+                needs_guidance += 1
+                continue
+            except AlreadySatisfied:
+                # Nothing left to do, because the outcome the rule exists to reach is already
+                # true: an earlier patch in this plan rewrote the whole file, or the dependency
+                # pin already meets the PQC floor. Work already done, not work that failed -
+                # counting it as a failure made a fully migrated auth.py read as
+                # "1 migrated, 2 could not be migrated".
+                #
+                # Matched on the EXCEPTION TYPE, not on words in the message. The string test this
+                # replaced recognised two of the four satisfied paths, so "nothing left for
+                # weakhash_to_sha256 to change" and "no bump needed" were both counted as
+                # failures: 19 findings in one measured run, every one of them finished work.
+                covered += 1
                 session.rollback()
+            except Exception as exc:  # one bad finding must not end the run
+                failed += 1
+                failures.append(
+                    {
+                        "task_id": str(task.id),
+                        "rule_id": task.rule_id or "",
+                        "detail": f"{type(exc).__name__}: {exc}".replace(chr(10), " ")[:300],
+                    }
+                )
+                session.rollback()
+                # A failed generation is still a finding that needs handling. Without this the
+                # queue row carried a rejection reason and nothing else — which is the same dead
+                # end as "manual change", reached by a different route.
+                #
+                # `code-kex-01` is why this matters rather than being a nicety: replacing RSA key
+                # transport with a KEM changes the shape of the protocol, and across two measured
+                # runs and eleven languages the local 7B model solved 0 of them. That is a ceiling
+                # on the MODEL, not a reason to leave the user with a stack trace. The plan is
+                # built with the rejection reason in it, so it opens by saying what the automated
+                # attempt could not do.
+                with contextlib.suppress(Exception):
+                    # The plan is written, but the finding is NOT claimed as resolved: a better
+                    # engine on the next run has to be able to pick it back up.
+                    orch.resolve_guided(task.id, force=True, claim_resolved=False)
 
     return {
         "plan_id": str(plan_id),
+        "mode": "full" if should_apply else "generate",
         "total": total,
         "generated": generated,
         "applied": applied,

@@ -22,6 +22,7 @@ from qubit_core.schemas import (
 )
 from qubit_migrate.orchestrator import MigrationOrchestrator
 from qubit_migrate.transform.llm import OllamaError, extract_code_block
+from qubit_migrate.transform.validate import StageResult, ValidationReport
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -137,6 +138,7 @@ def test_weak_hash_resolves_to_a_language_appropriate_rule(path: str, expected: 
 def test_rsa_kex_resolves_per_language() -> None:
     """The same guard on the other rule that was missing it — RSA key transport outside Python."""
     from qubit_migrate.transform import match_rule
+    from qubit_migrate.transform.rules import load_rules
 
     def rsa_at(path: str) -> str | None:
         asset = CryptoAsset(
@@ -161,13 +163,24 @@ def test_rsa_kex_resolves_per_language() -> None:
     ):
         assert rsa_at(path) == "code-kex-01", path
 
-    # Shell, PowerShell and SQL deliberately match NO key-exchange rule. `openssl genrsa` and
-    # `ssh-keygen -t rsa` have no ML-KEM equivalent to be rewritten into — the post-quantum answer
-    # for SSH is a KexAlgorithms config change, which cfg-ssh-01 makes against sshd_config. Claiming
-    # them spent three local-model attempts per finding on something the tooling cannot express;
-    # measured on the polyglot corpus, the model correctly returned the file unchanged every time.
+    # Shell, PowerShell and SQL must never reach the MODEL. `openssl genrsa` and
+    # `ssh-keygen -t rsa` have no ML-KEM equivalent to be rewritten into: the post-quantum answer
+    # for SSH is a KexAlgorithms config change, which cfg-ssh-01 makes against sshd_config.
+    # Claiming them for an LLM rewrite spent three local-model attempts per finding on something
+    # the tooling cannot express; measured on the polyglot corpus, the model correctly returned
+    # the file unchanged every time.
+    #
+    # They used to match NO rule at all, which kept them away from the model at the cost of
+    # leaving them with no answer either. `code-shell-01` gives the same protection with a
+    # result: a guided path naming the config change. So the property under test is "never
+    # generated", not "never matched".
     for path in ("bin/provision.sh", "bin/Provision.ps1", "migrations/V3__keys.sql"):
-        assert rsa_at(path) is None, f"{path} should be manual work, not an LLM rewrite"
+        matched_id = rsa_at(path)
+        if matched_id is not None:
+            rule = next(r for r in load_rules() if r.id == matched_id)
+            assert rule.remediation == "guided", (
+                f"{path} must never be sent to the model; it matched {matched_id}"
+            )
 
 
 def _seeded_orchestrator(tmp_path) -> tuple[MigrationOrchestrator, object]:
@@ -206,7 +219,7 @@ def test_llm_generator_produces_validated_patch(tmp_path, monkeypatch) -> None:
     orch, task = _seeded_orchestrator(tmp_path)
     monkeypatch.setattr(
         "qubit_migrate.transform.llm._ollama_generate",
-        lambda prompt, *, model, base_url="x", timeout=0: "```python\n" + REWRITTEN + "```",
+        lambda prompt, *, model, base_url="x", timeout=0, **_: "```python\n" + REWRITTEN + "```",
     )
     patch = orch.generate_patch(task.id, generator="llm")
     assert patch.generator == "llm"
@@ -218,12 +231,97 @@ def test_llm_generator_produces_validated_patch(tmp_path, monkeypatch) -> None:
 def test_llm_failure_fails_task_cleanly(tmp_path, monkeypatch) -> None:
     orch, task = _seeded_orchestrator(tmp_path)
 
-    def boom(prompt, *, model, base_url="x", timeout=0):
+    def boom(prompt, *, model, base_url="x", timeout=0, **_):
         raise OllamaError("server down")
 
     monkeypatch.setattr("qubit_migrate.transform.llm._ollama_generate", boom)
     with pytest.raises(ValueError, match="LLM generation failed"):
         orch.generate_patch(task.id, generator="llm")
+
+
+def test_llm_validation_failure_fails_task_cleanly(tmp_path, monkeypatch) -> None:
+    """A patch that the MODEL returns successfully but that fails the validation gate must still
+    park the task as `deferred`/`unresolved` with a `last_error`, exactly like a transport failure
+    does above — not silently leave both fields `None` forever.
+
+    Found live on a real OpenSSL migration: a `code-weakhash-02` patch's ``applies`` stage failed
+    because an earlier task had already rewritten the same file, shifting the context lines this
+    diff was built against. `generate_patch`'s ``else`` branch (patch produced, validation failed)
+    called bare `_transition(task, "generators_exhausted", ...)` instead of `_fail_task`, so
+    `task.resolution` stayed NULL — neither retryable (the bulk-retry query selects only
+    `unresolved`) nor countable as handled (the Migration Hub's progress split reads the same
+    field). This reproduces that exact shape without needing a second colliding task: the LLM call
+    succeeds and returns real content, but `validate_patch` is patched to report a failing
+    ``applies`` stage, which is what any genuinely-failing validation looks like from
+    `generate_patch`'s point of view.
+    """
+    orch, task = _seeded_orchestrator(tmp_path)
+
+    monkeypatch.setattr(
+        "qubit_migrate.transform.llm._ollama_generate",
+        lambda prompt, *, model, base_url="x", timeout=0, **_: "```python\n" + REWRITTEN + "```",
+    )
+
+    failing_report = ValidationReport(
+        stages={
+            "applies": StageResult(
+                "fail", "patch does not apply: context lines already changed by an earlier task"
+            )
+        },
+        passed=False,
+    )
+    monkeypatch.setattr(
+        "qubit_migrate.orchestrator.validate_patch", lambda *args, **kwargs: failing_report
+    )
+
+    patch = orch.generate_patch(task.id, generator="llm")
+
+    assert patch.status == "failed"
+    orch.session.refresh(task)
+    assert task.state == "deferred"
+    assert task.resolution == "unresolved"
+    assert task.last_error is not None
+    assert "applies failed" in task.last_error
+    assert "context lines already changed" in task.last_error
+
+
+def test_a_failed_task_can_be_generated_for_again_without_a_manual_resume(
+    tmp_path, monkeypatch
+) -> None:
+    """A single retry click must not require the caller to know about `resume_task`.
+
+    `generate_patch`'s own FSM transition (`ready -> generating`) has no `generate` event from
+    `deferred`, the state a failed task parks in - so calling it again on the SAME task, exactly
+    as a user clicking "Retry" on that row does, used to raise `InvalidTransition`. The API mapped
+    that to a 409 saying "this task already has a generated patch, review or reject it", which is
+    false: the task has no patch at all, only a rejection. `generate_patch` now resumes a
+    `deferred`/`unresolved` task itself before generating, so the exact same call that starts a
+    fresh migration also retries a failed one.
+    """
+    orch, task = _seeded_orchestrator(tmp_path)
+
+    def boom(prompt, *, model, base_url="x", timeout=0, **_):
+        raise OllamaError("server down")
+
+    monkeypatch.setattr("qubit_migrate.transform.llm._ollama_generate", boom)
+    with pytest.raises(ValueError, match="LLM generation failed"):
+        orch.generate_patch(task.id, generator="llm")
+
+    from qubit_migrate.orchestrator import RESOLUTION_UNRESOLVED
+
+    orch.session.refresh(task)
+    assert task.state == "deferred"
+    assert task.resolution == RESOLUTION_UNRESOLVED
+
+    # The engine (or the code) has since improved - the retry now succeeds. No InvalidTransition,
+    # and no manual `resume_task` call in this test: the retry path handles that itself.
+    monkeypatch.setattr(
+        "qubit_migrate.transform.llm._ollama_generate",
+        lambda prompt, *, model, base_url="x", timeout=0, **_: "```python\n" + REWRITTEN + "```",
+    )
+    patch = orch.generate_patch(task.id, generator="llm")
+    assert patch.status == "proposed", patch.validation_json
+    assert "sha256" in patch.diff_text
 
 
 def test_auto_prefers_template_when_codemod_exists(tmp_path, monkeypatch) -> None:
@@ -278,7 +376,7 @@ def test_orchestrator_stores_the_reasoning_beside_the_validation_record(tmp_path
     orch, task = _seeded_orchestrator(tmp_path)
     monkeypatch.setattr(
         "qubit_migrate.transform.llm._ollama_generate",
-        lambda prompt, *, model, base_url="x", timeout=0: REWRITE_WITH_NOTES,
+        lambda prompt, *, model, base_url="x", timeout=0, **_: REWRITE_WITH_NOTES,
     )
     patch = orch.generate_patch(task.id, generator="llm")
     assert patch.status == "proposed", patch.validation_json
@@ -290,11 +388,14 @@ def test_prompt_asks_for_reasoning_after_the_fence(tmp_path, monkeypatch) -> Non
     orch, task = _seeded_orchestrator(tmp_path)
     prompts: list[str] = []
 
-    def capture(prompt, *, model, base_url="x", timeout=0):
+    def capture(prompt, *, model, base_url="x", timeout=0, **_):
         prompts.append(prompt)
         return REWRITE_WITH_NOTES
 
     monkeypatch.setattr("qubit_migrate.transform.llm._ollama_generate", capture)
     orch.generate_patch(task.id, generator="llm")
-    assert "SECURITY NOTES:" in prompts[0]
-    assert "AFTER the closing fence" in prompts[0]
+    # The first prompt is now the PLAN for a structural rule, which asks for prose and not
+    # for a file. The generation prompt is the one that has to demand the reasoning.
+    generation = next(p for p in prompts if "Rewrite the file below" in p)
+    assert "SECURITY NOTES:" in generation
+    assert "AFTER the closing fence" in generation

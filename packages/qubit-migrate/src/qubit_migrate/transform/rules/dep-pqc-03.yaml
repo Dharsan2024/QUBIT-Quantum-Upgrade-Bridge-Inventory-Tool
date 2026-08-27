@@ -1,0 +1,79 @@
+id: dep-pqc-03
+language: manifest
+title: "JVM, .NET, Swift and Python manifests without a PQC provider → add one"
+matches:
+  source_scanner: [config]
+  # The manifests `dep-pqc-01` (bump an existing pin) and `dep-pqc-02` (npm/Cargo/Composer/Go)
+  # do not reach. Gradle, sbt and Package.swift had NO dependency rule at all: measured on the
+  # corpus, every finding in build.sbt and Package.swift reported "no migration rule".
+  file_name:
+    ["pom.xml", "build.gradle", "build.gradle.kts", "build.sbt", "*.csproj", "*.fsproj",
+    "*.vbproj", "Package.swift", "requirements.txt", "pyproject.toml"]
+  # Shor-breakable only. A manifest declaring a library that offers MD5 is a real finding, but a
+  # post-quantum provider is not its remedy — the fix is at the call sites, and adding ML-KEM to
+  # the manifest would be a change that looks like progress and is not. Those findings take the
+  # guided path, which says exactly that.
+  algorithm:
+    ["RSA", "RSA-1024", "RSA-2048", "RSA-3072", "RSA-4096", "DSA", "DSA-1024", "DSA-2048",
+    "EC", "ECDSA", "ECDSA-P256", "ECDSA-P384", "ECDSA-P521", "ECDSA-secp256k1",
+    "ECDH", "ECDH-P256", "ECDH-P384", "ECDH-P521", "X25519", "X448", "Ed25519", "Ed448",
+    "DH", "DH-1024", "DH-2048", "DH-3072", "DH-4096",
+    "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512", "EdDSA"]
+  usage_context: ["kex", "signature", "token", "encryption-at-rest", "tls", "unknown"]
+  library_name: null
+target:
+  algorithm: ML-KEM-768
+  mode: hybrid
+  hybrid_group: X25519MLKEM768
+  category: 3
+  fips: FIPS-203
+data_compat: in_place
+codemod: add_pqc_dependency
+# The correct output is a constant — a package coordinate and a version floor that were verified
+# against the ecosystem's own registry. A model can only lose information here.
+codemod_authoritative: true
+semantic_note: >
+  This manifest declares a quantum-vulnerable algorithm but no library that can provide the
+  post-quantum replacement, so every code-level migration in the project is blocked before it
+  starts: the import would not resolve. Adding the provider is the change that unblocks the rest.
+  What gets added is verified, not guessed. The JVM manifests get BouncyCastle
+  org.bouncycastle:bcprov-jdk18on 1.79, the first release carrying ML-KEM, ML-DSA and SLH-DSA
+  (latest seen 1.80). A project already on JDK 25 needs no third-party provider at all — JEP 496
+  and JEP 497 finalise ML-KEM and ML-DSA in the platform JCA there, and they are preview features
+  in JDK 24. .NET gets BouncyCastle.Cryptography 2.5.0 (latest seen 2.7.0). Package.swift gets
+  apple/swift-crypto 4.5.1, whose released tag carries MLKEM.swift, MLDSA.swift and XWing.swift —
+  worth stating because the 4.5.x release notes do not mention post-quantum at all, so searching
+  the changelog suggests Swift has no provider when Apple's own package has had one all along.
+  requirements.txt gets cryptography>=48.0.0, the first version whose published wheels can actually
+  run ML-KEM: 47.0.0 added the modules but only against AWS-LC or BoringSSL.
+  Adding a dependency does not migrate any code. It makes the migration possible, which is why this
+  runs ahead of the structural rewrites in the plan.
+prompt_constraints:
+  - "Never invent a package name or version. The provider and its floor come from QUBIT's verified playbook."
+rescan_expect: null
+example_language: xml
+example:
+  before: |
+    <project>
+      <dependencies>
+        <dependency>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+      </dependencies>
+    </project>
+  after: |
+    <project>
+      <dependencies>
+        <!-- QUBIT: FIPS 203/204 provider -->
+        <dependency>
+          <groupId>org.bouncycastle</groupId>
+          <artifactId>bcprov-jdk18on</artifactId>
+          <version>1.79</version>
+        </dependency>
+        <dependency>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+      </dependencies>
+    </project>

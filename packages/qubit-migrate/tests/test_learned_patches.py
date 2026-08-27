@@ -262,7 +262,14 @@ def test_second_identical_finding_skips_the_model(tmp_path, monkeypatch) -> None
 
     calls = {"n": 0}
 
-    def fake(prompt, *, model, base_url="x", timeout=0):
+    def fake(prompt, *, model, base_url="x", timeout=0, **_):
+        if "Before writing any code, plan the change" in prompt:
+            return "1. Swap the digest.\n2. Nothing new.\n3. Nothing.\n4. Nothing.\n5. Names."
+        # The self-review pass calls the same server a second time. It is not a
+        # GENERATION, and counting it here would assert something this test does
+        # not care about.
+        if "You are reviewing a cryptographic migration patch" in prompt:
+            return "VERDICT: OK"
         calls["n"] += 1
         return "```python\n" + REWRITTEN + "```"
 
@@ -276,7 +283,11 @@ def test_second_identical_finding_skips_the_model(tmp_path, monkeypatch) -> None
     rows = orch.session.query(LearnedPatch).all()
     assert len(rows) == 1 and rows[0].hit_count == 0
 
-    def must_not_be_called(prompt, *, model, base_url="x", timeout=0):
+    def must_not_be_called(prompt, *, model, base_url="x", timeout=0, **_):
+        if "Before writing any code, plan the change" in prompt:
+            return "1. Swap the digest.\n2. Nothing new.\n3. Nothing.\n4. Nothing.\n5. Names."
+        if "You are reviewing a cryptographic migration patch" in prompt:
+            return "VERDICT: OK"
         raise AssertionError("an identical finding must be served from the store")
 
     monkeypatch.setattr("qubit_migrate.transform.llm._ollama_generate", must_not_be_called)
@@ -308,7 +319,11 @@ def test_a_different_finding_is_grounded_in_the_earlier_fix(tmp_path, monkeypatc
         ]
     )
 
-    def fake(prompt, *, model, base_url="x", timeout=0):
+    def fake(prompt, *, model, base_url="x", timeout=0, **_):
+        if "Before writing any code, plan the change" in prompt:
+            return "1. Swap the digest.\n2. Nothing new.\n3. Nothing.\n4. Nothing.\n5. Names."
+        if "You are reviewing a cryptographic migration patch" in prompt:
+            return "VERDICT: OK"
         prompts.append(prompt)
         return next(outputs)
 
@@ -321,8 +336,13 @@ def test_a_different_finding_is_grounded_in_the_earlier_fix(tmp_path, monkeypatc
     assert patch2.model_name == orch.config.model
 
     assert len(prompts) == 2
-    marker = "QUBIT has previously verified the following successful patches"
-    assert marker not in prompts[0], "nothing was learned yet on the first call"
-    assert marker in prompts[1], "the second call must be grounded in the first fix"
+    # The two findings differ only in their variable names, so the SHAPE key matches even though
+    # the exact-line cache does not - which is the whole reason the experience base exists. The
+    # second prompt is grounded in a rewrite QUBIT has already had validated.
+    assert "Verified patch 1" not in prompts[0], "nothing was learned yet on the first call"
+    assert "Verified patch 1" in prompts[1], "the second call must be grounded in the first fix"
+    assert "already migrated code of EXACTLY this shape" in prompts[1], (
+        "a structurally identical rewrite is the strongest grounding there is and must say so"
+    )
     assert "digest = hashlib.md5(data)" in prompts[1]
     assert "digest = hashlib.sha256(data)" in prompts[1]

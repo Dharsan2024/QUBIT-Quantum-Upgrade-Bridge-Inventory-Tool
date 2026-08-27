@@ -131,13 +131,16 @@ def test_prompt_states_the_knowledge_base_target_when_no_rule_matches() -> None:
     vulnerable-family + usage-context -> PQC target, and the advice path was not consulting it, so
     the model was asked to invent one. It invented RSA-2048.
     """
-    asset = _asset("RSA-1024", UsageContext.kex, "bin/provision.sh")
+    # Erlang: a language the rule pack genuinely does not cover, which is what this test needs.
+    # `bin/provision.sh` used to serve that purpose and no longer can — shell provisioning now
+    # matches `code-shell-01`, a guided rule, which is the outcome that replaced its dead end.
+    asset = _asset("RSA-1024", UsageContext.kex, "bin/provision.erl")
     rule = match_rule(asset, load_rules())
     assert rule is None, "this fixture is only meaningful for a finding with no rule"
 
     prompt = build_advice_prompt(SHELL_SOURCE, asset, rule)
     assert "ML-KEM-768" in prompt, "the knowledge base's target never reached the model"
-    assert "provision.sh" in prompt
+    assert "provision.erl" in prompt
     assert "openssl genrsa" in prompt, (
         "the real code must be in the prompt, not a description of it"
     )
@@ -189,7 +192,7 @@ def test_live_advice_never_recommends_a_broken_algorithm() -> None:
     quantum-vulnerable target survived — but it is asserted again here, because the whole point is
     that this specific output can never ship.
     """
-    asset = _asset("RSA-1024", UsageContext.kex, "bin/provision.sh")
+    asset = _asset("RSA-1024", UsageContext.kex, "bin/provision.erl")
     advice = generate_migration_advice(
         SHELL_SOURCE, asset, match_rule(asset, load_rules()), model=MODEL
     )

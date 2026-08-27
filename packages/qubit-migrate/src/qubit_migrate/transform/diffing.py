@@ -37,12 +37,40 @@ def apply_edits(
     return new_source
 
 
+def detect_line_ending(file_path: Path | str) -> str:
+    """The line ending the file's OWN on-disk bytes use — `"\\r\\n"` if any appear, else `"\\n"`.
+
+    Every reader in this codebase uses `Path.read_text()`, whose universal newline translation
+    silently strips `\\r`, so `original_source`/`new_source` are always LF-only in memory even when
+    the real file is CRLF. Sampling is enough — a file's line-ending convention is essentially
+    always consistent throughout, and the first 64KB is plenty to see one.
+    """
+    try:
+        raw = Path(file_path).read_bytes()[:65536]
+    except OSError:
+        return "\n"
+    return "\r\n" if b"\r\n" in raw else "\n"
+
+
 def old_new_to_diff(
     file_path: Path | str,
     original_source: str,
     new_source: str,
+    *,
+    line_ending: str = "\n",
 ) -> str:
-    """Produce a unified diff from original_source → new_source for file_path."""
+    """Produce a unified diff from original_source → new_source for file_path.
+
+    `line_ending="\\r\\n"` re-injects the file's real convention before diffing. Without it, a
+    diff built from the LF-normalized strings this module always receives cannot `git apply`
+    against a file whose stored bytes are CRLF — every context line differs by a trailing `\\r`
+    that git won't ignore. Found on OpenSSL's `apps/passwd.c`: CRLF as OpenSSL itself committed
+    it (confirmed via `git show HEAD:apps/passwd.c`, independent of any local checkout config),
+    so this is not a Windows/autocrlf artifact — any platform hits it applying to this file.
+    """
+    if line_ending == "\r\n":
+        original_source = original_source.replace("\n", "\r\n")
+        new_source = new_source.replace("\n", "\r\n")
     original_lines = original_source.splitlines(keepends=True)
     new_lines = new_source.splitlines(keepends=True)
     fname = str(file_path)
@@ -82,6 +110,7 @@ def git_apply_check(diff_text: str, repo_root: Path) -> tuple[bool, str]:
 __all__ = [
     "EditApplyError",
     "apply_edits",
+    "detect_line_ending",
     "git_apply_check",
     "old_new_to_diff",
     "sha256_of",

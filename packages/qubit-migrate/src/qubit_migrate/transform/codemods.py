@@ -299,21 +299,28 @@ def _bump_go_directive(source: str) -> tuple[str, bool]:
 
 
 def _apply_add_pqc_dependency(source: str, filename: str) -> tuple[str, bool]:
-    """Make PQC primitives importable in a manifest whose ecosystem needs a new package."""
+    """Make PQC primitives importable in a manifest whose ecosystem needs a new package.
+
+    npm, Composer, Cargo and Go are handled here because their edits are one-liners with
+    ecosystem-specific quirks already solved above. Everything else — Maven, Gradle, sbt, NuGet,
+    SwiftPM, pip — lives in `dependency_codemods`, which reads the same verified playbook the
+    guided paths quote.
+    """
     name = filename.lower()
     if name == "go.mod":
         return _bump_go_directive(source)
     provider = _PQC_PROVIDERS.get(name)
-    if provider is None:
-        return source, False
-    pkg, version = provider
-    if name == "package.json":
-        return _json_dep_insert(source, "dependencies", pkg, version)
-    if name == "composer.json":
-        return _json_dep_insert(source, "require", pkg, version)
-    if name == "cargo.toml":
-        return _add_cargo_dependency(source, pkg, version)
-    return source, False
+    if provider is not None:
+        pkg, version = provider
+        if name == "package.json":
+            return _json_dep_insert(source, "dependencies", pkg, version)
+        if name == "composer.json":
+            return _json_dep_insert(source, "require", pkg, version)
+        if name == "cargo.toml":
+            return _add_cargo_dependency(source, pkg, version)
+    from .dependency_codemods import add_dependency_for_manifest
+
+    return add_dependency_for_manifest(source, filename)
 
 
 # ---------------------------------------------------------------------------

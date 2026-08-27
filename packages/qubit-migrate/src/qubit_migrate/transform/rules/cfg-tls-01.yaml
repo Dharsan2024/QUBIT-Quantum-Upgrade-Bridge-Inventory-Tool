@@ -19,7 +19,11 @@ matches:
   # Detections from the config scanner (nginx/Apache CFG-*-PROTO/CIPHERS rules) and from the C
   # OpenSSL legacy-method rule all normalize to these protocol identities.
   algorithm:
-    ["TLSv1.0", "TLSv1.1", "SSLv3", "SSLv2", "RSA", "DH", "ECDH-P256", "AES-128", "3DES", "RC4"]
+    ["TLSv1.0", "TLSv1.1", "SSLv3", "SSLv2", "RSA", "DH", "ECDH-P256", "AES-128", "3DES", "RC4",
+    # The other curve names an `ssl_ecdh_curve` / `SSLECDHCurve` directive can carry. `ECDH-P256`
+    # was listed but `X25519` was not, so a vhost already modernised to X25519 — still entirely
+    # classical, and exactly what this codemod exists to make hybrid — matched no rule at all.
+    "X25519", "X448", "ECDH-P384", "ECDH-P521", "DH-2048", "DH-4096"]
   # `kex` covers the ssl_ecdh_curve / SSLECDHCurve group findings, which are the very directives this
   # rule rewrites to X25519MLKEM768 — without it the most important asset it fixes did not match it.
   usage_context: ["tls", "kex"]

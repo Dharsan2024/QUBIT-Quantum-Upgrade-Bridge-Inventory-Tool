@@ -93,6 +93,24 @@ class ProjectPlanRef(BaseModel):
     #: as though it were current.
     stale: bool = False
 
+    # ── Live progress ────────────────────────────────────────────────────────
+    # `tasks` and the three rule-kind counts above describe what the plan was BUILT as; they never
+    # move once it exists. These describe where the work has actually GOT to, which is what lets
+    # the Migration Hub separate a migration still in flight from one that is done. Derived from
+    # the tasks' own FSM states, so they cannot drift from the queue the operator sees.
+    #: Written to disk: `applied`, `verifying` and `verified`.
+    written: int = 0
+    #: Written AND proven by a rescan.
+    verified: int = 0
+    #: Prepared and waiting to be written: a diff exists and has not been rejected.
+    prepared: int = 0
+    #: Not yet attempted, or attempted and still to be retried. What is left to do.
+    outstanding: int = 0
+    #: Resolved by a written remediation procedure rather than an edit QUBIT can make.
+    guided: int = 0
+    #: Nothing left to migrate — an earlier patch covered it, or it already met the PQC floor.
+    satisfied: int = 0
+
 
 class ProjectOverview(BaseModel):
     """One project's headline numbers, for the project-wise landing on every tab.
@@ -251,3 +269,44 @@ class TrendPoint(BaseModel):
     vulnerable: int
     median_risk: float | None = None
     negative_mosca: int
+
+
+class ThreatIntelSourceOut(BaseModel):
+    """One entry of the fixed, curated allowlist — not user-editable, just displayed."""
+
+    id: str
+    url: str
+    label: str
+    note: str
+
+
+class ThreatIntelConfigOut(BaseModel):
+    enabled: bool
+    check_interval_hours: int
+    last_checked_at: UtcDateTime | None = None
+    sources: list[ThreatIntelSourceOut]
+
+
+class ThreatIntelConfigPatch(BaseModel):
+    """Both fields optional so a client can flip just the toggle without re-sending the interval."""
+
+    enabled: bool | None = None
+    check_interval_hours: int | None = Field(default=None, ge=1, le=24 * 30)
+
+
+class ThreatIntelSnapshotOut(BaseModel):
+    id: UUID
+    source_id: str
+    source_url: str
+    fetched_at: UtcDateTime
+    content_hash: str | None = None
+    excerpt: str
+    fetch_error: str | None = None
+    changed_from_previous: bool
+    reviewed: bool
+    reviewed_at: UtcDateTime | None = None
+    reviewer_note: str | None = None
+
+
+class ThreatIntelReviewRequest(BaseModel):
+    note: str | None = None

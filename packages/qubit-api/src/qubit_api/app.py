@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -17,7 +20,44 @@ from .routers.jobs import router as jobs_router
 from .routers.migrate import router as migrate_router
 from .routers.recommendation import router as recommendation_router
 from .routers.risk import router as risk_router
+from .routers.threat_intel import router as threat_intel_router
 from .settings import Settings
+
+logger = logging.getLogger(__name__)
+
+# Poll granularity for the opt-in threat-intel background check, not the check interval itself
+# (that's ThreatIntelConfig.check_interval_hours, user-set, minimum 1 hour). Waking this often
+# just means "due" is noticed within 15 minutes of the configured interval elapsing.
+_THREAT_INTEL_POLL_SECONDS = 900
+
+
+async def _threat_intel_poll_loop(sf) -> None:
+    """Runs a threat-intel check when the user has opted in and the configured interval has
+    elapsed. This is the one deliberate exception to QUBIT's offline stance (see
+    ``qubit_risk.threat_intel``), so a failure here — DNS down, NIST unreachable, whatever — must
+    never take the app down with it; it just tries again next poll."""
+    from qubit_core.db.models import ThreatIntelConfig
+    from qubit_core.schemas import utcnow
+    from qubit_risk.threat_intel import check_now
+
+    while True:
+        await asyncio.sleep(_THREAT_INTEL_POLL_SECONDS)
+        try:
+            with sf() as session:
+                config = session.get(ThreatIntelConfig, 1)
+                if not config or not config.enabled:
+                    continue
+                elapsed = (
+                    None
+                    if config.last_checked_at is None
+                    else (utcnow() - config.last_checked_at).total_seconds()
+                )
+                if elapsed is not None and elapsed < config.check_interval_hours * 3600:
+                    continue
+                check_now(session, config)
+                session.commit()
+        except Exception:
+            logger.exception("threat_intel: background check failed")
 
 
 @asynccontextmanager
@@ -34,7 +74,13 @@ async def lifespan(app: FastAPI):
     # Crash recovery: nothing may stay stuck in queued/running after a kill -9 (M2 acceptance).
     runner.recover_orphaned()
 
+    poll_task = asyncio.create_task(_threat_intel_poll_loop(sf))
+
     yield
+
+    poll_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await poll_task
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -56,6 +102,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         else:
             Base.metadata.create_all(engine)
             stamp_head(settings.db_url)
+
+        # Every scoped table has a NOT NULL tenant_id, so the default team's row must exist before
+        # the first request. Seeded here rather than only in the migration, because the
+        # `create_all()` branch above never runs a migration body — a fresh desktop install would
+        # otherwise fail its first project insert on a foreign-key violation.
+        from qubit_core.db.tenants import ensure_default_tenant
+
+        with app.state.session_factory() as session:
+            ensure_default_tenant(session)
 
     # CORS: the desktop app's WebView loads the dashboard from tauri://localhost (or
     # http://tauri.localhost on Windows WebView2), which is a DIFFERENT origin from the API on
@@ -128,6 +183,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(risk_router, prefix=settings.api_prefix, dependencies=guard)
     app.include_router(migrate_router, prefix=settings.api_prefix, dependencies=guard)
     app.include_router(recommendation_router, prefix=settings.api_prefix, dependencies=guard)
+    app.include_router(threat_intel_router, prefix=settings.api_prefix, dependencies=guard)
 
     _mount_dashboard(app, settings)
     return app

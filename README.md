@@ -78,7 +78,9 @@ Findings normalize into the frozen `CryptoAsset` schema against a canonical regi
 A **Monte-Carlo simulation** of CRQC arrival blended with an expert-survey prior, a Bayesian network for HNDL exposure, a sensitivity classifier (PII/PHI/financial/credentials), an XGBoost regressor with split-conformal confidence intervals, and **Mosca's Inequality** (`margin = Z − (X + Y)`). A separate **CNSA 2.0 milestone evaluator** scores an inventory against NSA's regulatory deadlines (2025 → 2035) — a deterministic deadline source alongside the probabilistic one.
 
 ### 4. Automated Migration
-A dependency graph plus WSJF prioritization feeds a 12-state FSM. **14 transform rules** cover every asset class QUBIT discovers — web-server and OpenSSH configuration, dependency manifests, and code across Python/Go/C/JS/TS/Java — each declaring its target, its `data_compat` hazard (`in_place` / `dual_read` / `reencrypt_required`), and a worked example that doubles as few-shot prompt content. Coverage is measured rather than asserted: a guard test sweeps **every detection rule's own positive examples** and requires that every vulnerable asset the scanner can produce has a transform rule that matches it — currently **100%** (it was 31% before this was measured). The classes deliberately excluded are the ones no code patch can fix, each with the operational action it needs instead: certificate reissue, HSM/Vault key rotation, and live-endpoint findings that are remediated by hardening the server's own config.
+A dependency graph plus WSJF prioritization feeds a 12-state FSM. **24 transform rules** cover every asset class QUBIT discovers — web-server and OpenSSH configuration, dependency manifests, and code across Python/Go/C/JS/TS/Java — each declaring its target, its `data_compat` hazard (`in_place` / `dual_read` / `reencrypt_required`), and a worked example that doubles as few-shot prompt content. Coverage is measured rather than asserted: a guard test sweeps **every detection rule's own positive examples** and requires that every vulnerable asset the scanner can produce has a transform rule that matches it — currently **100%** (it was 31% before this was measured). The classes no code patch can fix are no longer *excluded* — they are matched by rules that declare `remediation: guided` and resolve to the operational action they actually need: certificate re-issuance, secret rotation at the issuer, and the configuration change that closes a shell-generated key's real exposure.
+
+Preparing the changes and writing them are **two separate acts**. **Build plan** queues every vulnerable finding *and* generates a validated patch for each one, touching nothing on disk; **Initiate migration** writes those prepared patches into the original files, running no model and deciding nothing. The reason is what the operator is asked to trust: with one button the model's work arrived one row at a time and "migrate" meant "generate something and apply it, sight unseen", so the only way to review a plan was to click through it finding by finding. Now the slow, uncertain half finishes first and the whole set of diffs is on screen before anything irreversible is offered — and the per-row **Generate** button still exists for anyone who wants to work a single asset. Writing several patches into one repository also required narrowing the dirty-tree guard: it now recognises the files QUBIT itself wrote earlier in the same plan, because refusing to continue on the grounds of one's own edit made bulk apply impossible in any real git repository (it went unnoticed because the demo corpus is not one). Dirt from anyone else still stops the write, and the per-file `sha256` guard — which is stricter, and independent of git — is untouched. When the write finishes, a dialog offers the rescan: until the project is scanned again every finding on screen describes the code as it was *before* the migration.
 
 Weak-hash remediation is deterministic in **all 19 scanned languages** — Ruby, PHP, C#, Rust, Kotlin, Scala, Swift, Dart, Bash, PowerShell, SQL and the rest — with each swap table written against that ecosystem's own reference documentation (cited in `codemods.py`) rather than from memory. Two of them need more than a rename and would otherwise produce code that compiles and then misbehaves: C# is statically typed, so the declared type moves with the factory call (`using (MD5 h = MD5.Create())` → `using (SHA256 h = SHA256.Create())`), and Swift's CommonCrypto path needs the digest **length constant** to move with the function or a 32-byte digest lands in a 20-byte buffer. Correctness is measured, not reviewed: every swap is run over a real fixture and the **output is rescanned by QUBIT's own scanner**, which must report the weak algorithm gone, SHA-256 present, and zero parse errors.
 
@@ -86,11 +88,45 @@ The LLM tier is exercised against a **real local model**, not a mocked HTTP resp
 
 The division of labour between deterministic codemods and the **local, sandboxed LLM** is explicit rather than incidental. Where the correct output is a *constant* — `ssl_ecdh_curve X25519MLKEM768`, `KexAlgorithms sntrup761x25519-sha512@openssh.com`, a dependency version floor — the codemod is marked `codemod_authoritative` and an LLM never replaces it, even when one is explicitly requested: a 7B model asked to harden an nginx.conf produced a config that *looked* modern (TLS 1.2+1.3, AEAD suites) while silently omitting the hybrid group, which is the one line that actually makes the deployment quantum-safe. The LLM is used where the transform needs judgement about surrounding code (key lengths, nonce handling, call-site changes), behind a repair loop that feeds rejections back for up to 3 attempts and a preservation guard that refuses a rewrite which drops unrelated code or fails to parse.
 
-For the findings QUBIT **cannot** patch — a structural protocol change, a dialect a token swap cannot express — the queue no longer just says "manual change". It asks the local model to read that file and explain the change under five headings: what the code does, why it is a problem, what to change here, what it breaks, and how to verify. The advice is generated per finding, not templated — two RSA findings in different files get different answers — but the *facts* come from QUBIT: the target algorithm and parameter set are taken from the migration knowledge base, and the finished advice is resolved against the algorithm registry so it can never recommend something the scanner itself rates quantum-vulnerable. That guard exists because the first thing the model suggested, for a 1024-bit RSA key, was RSA-2048 and ECDSA-P256 — both Shor-breakable.
+For the findings QUBIT **cannot** patch, the answer is a **guided path**, and it is a result rather than a failure. Three kinds of finding reach it: a rule that declares no edit is correct (a certificate is a signed object — editing the bytes invalidates the CA signature), a finding no rule covers, and a generation the model could not complete. All three get a plan built from shipped data — the rule pack, the migration knowledge base, the weakness catalogue and the verified provider playbook — so it exists with Ollama stopped and states facts rather than recalling them: the target and its parameter set, the package and version floor that provides it with the registry figure behind that claim, the artefact sizes the change breaks, and how to confirm it on the next scan. When the local model IS running it adds a reading of that specific file underneath, under its own heading, so a reader can tell a verified fact from a model's opinion of their code.
+
+That split exists because the model, asked what to do about a 1024-bit RSA key, first suggested RSA-2048 and ECDSA-P256 — both Shor-breakable. Facts QUBIT is authoritative about are no longer asked of it.
+
+Measured on the 21-app demo corpus: **75 of 251 findings (30%) previously matched no rule at all**, and every one of them was reported as a failed migration. That number is now **0** — every finding in the corpus resolves to a codemod, an LLM rewrite, or a written remediation path, and the completion banner counts those three separately instead of calling the last two failures.
 
 Patches are validated in a Docker sandbox with **no network**, using each language's own parser where one can check a single file — `php -l`, `ruby -c`, `node --check`, `bash -n`, Python's `compile()`. The sandbox **never pulls an image**: a tool whose promise is that your code never leaves the machine must not make an unrequested network call, so a missing image skips the stage and names the `docker pull` command instead of fetching it.
 
 Because remediation output is also scanner *input*, hardened files are re-scanned and asserted on: the algorithms the codemods write must resolve in the canonical registry and must be rated quantum-safe, so a migration can prove where it landed instead of reporting its own output as `UNKNOWN`. A versioned migration knowledge base (`migration_kb.yaml`) and crypto-agility policy decide each target. Governance gates require sign-off before a patch can be applied.
+
+### 4a. The weakness catalogue, and where its facts come from
+
+Two questions decide whether a finding is actionable, and the algorithm registry can only answer
+the first. *Is this primitive broken?* is a property of the name. *Is this USE of an unbroken
+primitive broken?* is a property of the call, and in real code it accounts for a large share of
+what any scanner reports. AES-256 is a sound cipher; `AES-256/ECB` leaks the structure of every
+plaintext it encrypts. RSA-3072 is a sound key; `RSA/ECB/PKCS1Padding` is Bleichenbacher-
+attackable. PBKDF2 is an approved KDF; PBKDF2 at 1 000 iterations is a password table waiting to
+be cracked offline.
+
+So the scanner now reads the **mode**, the **padding scheme**, the **iteration count** and the
+**PRF** at the call site, and `qubit_core.weaknesses` derives the classical weaknesses those
+facts imply — each carrying its CWE, the publication that says it is a weakness, and its remedy.
+One tokenizer covers every ecosystem, because they all spell the mode identically and differ only
+in punctuation: JCA `"AES/ECB/PKCS5Padding"`, PyCryptodome `AES.MODE_ECB`, OpenSSL
+`EVP_aes_128_ecb`, Node `"aes-128-ecb"`, .NET `CipherMode.ECB`. The negative cases are the ones
+that matter: JCA spells RSA as `RSA/ECB/PKCS1Padding`, where "ECB" is an artefact of the provider
+interface and not a mode of operation at all, and reading it literally would report a false
+weakness on nearly every Java RSA call site in existence.
+
+The version floors and package names QUBIT writes into a manifest, and the ones it quotes in a
+guided path, come from **one file**: `params/remediation_playbook.yaml`. Every row records the
+registry API that answered, the date it answered, and the adoption figure it returned, because a
+floor with no provenance is a number somebody remembered — this project has already shipped one of
+those, an npm package called `ml-kem` that does not exist, carried forward from a note whose real
+subject was the crates.io crate of that name. Where an ecosystem has no provider QUBIT is willing
+to install on the user's behalf, the file says so and says why, with sources: Dart's best-adopted
+candidate is published by an unverified uploader and claims no CMVP validation, and RubyGems' best
+has 7 708 downloads in total.
 
 ### 4b. Reports — one format per audience
 
@@ -404,7 +440,34 @@ artifacts themselves, are in `paper_evidence/MODELS.md`.
 |---|---|---|
 | **XGBoost risk regressor** + split conformal | Distils the closed-form HNDL score so the app returns a score *and* a calibrated interval without re-running the Monte-Carlo timeline per asset | Trained. Test MAE **0.0021** on a 0–1 score; **90.51%** empirical interval coverage against a 90% target; 34 features; 50,000 synthetic assets |
 | **DistilBERT sensitivity classifier** | Decides what *kind* of data a finding protects (PHI, PII, financial, credentials, IP, ephemeral, public) — the input that sets shelf-life, and therefore the Mosca margin | Harness present, **not trained in this checkout**, so no accuracy is claimed for it |
-| **Local code-rewriting model** (`qwen2.5-coder:7b`) | Writes patches for rules with no deterministic codemod, entirely on-device through Ollama | Greedy decoding, pinned seed, 3-attempt repair loop, every attempt re-validated |
+| **Local code-rewriting model** (`qwen2.5-coder:7b`) | Writes patches for rules with no deterministic codemod, entirely on-device through Ollama | Greedy decoding, pinned seed. Four passes per structural rewrite — plan, draft, rescan, self-review — then a reasoning check, behind a 3-attempt repair loop with every attempt re-validated |
+| **The experience base** (no model, no training) | Retains every validated migration — the hunk, the model's reasoning, and the rejections — keyed by a structural shape, so later findings of the same shape start from proven work | Written only by the validation gate; visible in the app under *What QUBIT has learned* |
+
+### How the engine gets better with use
+
+Two stores, and the second exists because the first was learning the wrong half of the problem.
+
+The **line cache** replays an exact validated line with no model call at all. It works, and it only
+ever learns the easiest fixes: it refuses any rewrite whose line count moved, which is precisely
+the multi-statement change the generator prompt asks for. Measured on this installation, it held
+**21 rows against 59 accepted LLM patches** — roughly two thirds of everything the model got
+*right* taught it nothing, and the harder the rewrite the more certain it was to be discarded. A
+second defect compounded it: **17 of those 21 rows carried the rule's `multi` as their language**
+while every lookup passes the file's, so they could never be retrieved for grounding at all.
+
+The **experience base** keeps what the cache could not. Retrieval is by a **structural shape key**
+— identifiers and literals folded out — so `hashlib.md5(payload)` and `hashlib.md5(data)` are one
+problem rather than two, while `MODE_ECB` and `MODE_GCM` stay firmly apart. Against that key it
+stores the changed *hunk*, the model's own reasoning for a patch that passed, and the **rejections**,
+which nothing retained before: a shape that has already defeated the model is now said out loud in
+the next prompt instead of being rediscovered over three more calls.
+
+Two consequences follow. A structural rewrite plans before it writes — the model answers *what
+changes, what new values appear, what stops being readable, what must not move* before it is asked
+for a file, so its own answers are in its context while it writes. And a finding that FAILED in an
+earlier run is picked back up by the next one: the engine that failed it is not the engine that
+runs next, and 9 findings on this corpus had sat unresolved across three subsequent runs without
+ever being tried again.
 
 The regressor's coverage figure is the one that matters: split-conformal prediction gives a
 distribution-free guarantee that the interval contains the true value at the target rate, and 90.51%

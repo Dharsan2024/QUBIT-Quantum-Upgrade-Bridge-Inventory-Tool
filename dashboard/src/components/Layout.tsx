@@ -131,7 +131,7 @@ export function Layout() {
             }}
             className="hud-btn w-full"
             data-testid="sidebar-initiate-migration"
-            title="Generate, approve and apply every ready patch in the open plan"
+            title="Write every prepared change in the open plan into its original file. Build the plan first — that is what generates the changes."
           >
             <Rocket className="h-3.5 w-3.5" />
             Initiate migration

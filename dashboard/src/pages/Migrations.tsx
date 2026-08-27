@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatedPage } from '../components/AnimatedPage';
 import { ProjectGrid } from '../components/ProjectGrid';
 import { ProjectScopeBar } from '../components/ProjectScopeBar';
+import { GuidancePanel } from '../components/GuidancePanel';
+import { LearningPanel } from '../components/LearningPanel';
 import { useActiveScan } from '../hooks/useActiveScan';
 import { useUiStore } from '../stores/ui';
 import {
@@ -37,14 +40,16 @@ import {
   fetchPlanQueue,
   fetchPlans,
   fetchProjects,
+  fetchProjectsOverview,
   fetchScans,
   fetchTaskGovernance,
   fetchTaskPatches,
   generatePatch,
   reviewPatch,
 } from '../api/client';
+import { ApiError } from '../api/client';
 import type { JobStatus, MigrationRunResult } from '../api/client';
-import type { MigrationPlan, MigrationTask } from '../api/types';
+import type { MigrationPlan, MigrationTask, ProjectOverview } from '../api/types';
 import { displayAlgorithm } from '../lib/assetLabels';
 
 function StateChip({ state, resolution }: { state: string; resolution?: string | null }) {
@@ -53,6 +58,19 @@ function StateChip({ state, resolution }: { state: string; resolution?: string |
   // verified" — so the resolution is the only thing that separates them.
   if (state === 'deferred' && resolution === 'satisfied') {
     return <span className="chip chip-safe">already compliant</span>;
+  }
+  // A generation attempt that failed is not a dead end — it is retried automatically the next
+  // time the plan is rebuilt, and can be retried right now from this row. "deferred" alone read
+  // as inert, giving no sign that anything would ever happen to this row again.
+  if (state === 'deferred' && resolution === 'unresolved') {
+    return (
+      <span
+        className="chip chip-warn"
+        title="The last attempt did not produce a valid patch. It will be retried automatically the next time the plan is rebuilt, grounded in whatever QUBIT has learned since — or retry it now from this row."
+      >
+        needs retry
+      </span>
+    );
   }
   const cls =
     state === 'ready'
@@ -157,14 +175,25 @@ function TaskRow({ task }: { task: MigrationTask }) {
             <span className="flex flex-col gap-1">
               <span className="font-mono text-[color:var(--color-ink-dim)]">{task.rule_id}</span>
               <span
-                className={task.has_codemod ? 'chip chip-safe' : 'chip chip-info'}
+                className={
+                  task.is_guided
+                    ? 'chip chip-warn'
+                    : task.has_codemod
+                      ? 'chip chip-safe'
+                      : 'chip chip-info'
+                }
                 title={
-                  task.has_codemod
-                    ? 'Deterministic codemod — runs offline and produces the same diff every time.'
-                    : 'No codemod for this rule; the patch is written by the local Ollama model and must be reviewed.'
+                  task.is_guided
+                    ? 'No edit QUBIT can make is the right answer here — a certificate has to be re-issued, an ecosystem has no provider trustworthy enough to install for you, or the fix lives in configuration outside this file. The steps, commands and sources are in the row below.'
+                    : task.has_codemod
+                      ? 'Deterministic codemod — runs offline and produces the same diff every time.'
+                      : 'No codemod for this rule; the patch is written by the local Ollama model and must be reviewed.'
                 }
               >
-                {task.has_codemod ? 'automatic' : 'LLM-assisted'}
+                {/* Three kinds of row, not two. A `dep-legacy-01` finding was labelled
+                    "LLM-assisted" while its only control said GET GUIDANCE — the badge and the
+                    button were describing different products. */}
+                {task.is_guided ? 'guided' : task.has_codemod ? 'automatic' : 'LLM-assisted'}
               </span>
             </span>
           ) : (
@@ -183,46 +212,77 @@ function TaskRow({ task }: { task: MigrationTask }) {
           <StateChip state={task.state} resolution={task.resolution} />
         </td>
         <td className="px-4 py-3 text-right">
-          {task.rule_id && task.state === 'ready' && (
-            <span className="inline-flex items-center gap-2">
-              {/* `template` is only offered when the rule actually has a codemod. Offering it
+          {/* `is_guided` gates this too. A certificate finding HAS a rule and IS ready, so it
+              rendered a Generate button whose only possible answer was "this resolves to a guided
+              path" — a round trip to learn something the rule pack already knew.
+
+              A task that FAILED its last attempt (`deferred`/`unresolved`) gets the same control
+              rather than nothing. It used to have no way back except rebuilding the whole plan —
+              the backend's own FSM refused a direct retry (`generate` is not a legal event from
+              `deferred`) and the API surfaced that as "this task already has a generated patch",
+              which is simply false for a task that has none. `orch.generate_patch` now resumes a
+              failed task before generating, so the same click that starts a fresh migration also
+              retries one — grounded in whatever QUBIT has learned since the last attempt, not a
+              blind repeat of it. */}
+          {task.rule_id &&
+            !task.is_guided &&
+            (task.state === 'ready' ||
+              (task.state === 'deferred' && task.resolution === 'unresolved')) && (
+              <span className="inline-flex items-center gap-2">
+                {/* `template` is only offered when the rule actually has a codemod. Offering it
                   unconditionally meant choosing it on any of the ten LLM-only rules returned
                   422 "has no codemod fallback" — after the click. */}
-              <select
-                value={generator}
-                onChange={(e) => setGenerator(e.target.value as 'auto' | 'llm' | 'template')}
-                className="glass-input px-2 py-1.5 text-xs"
-                title={
-                  task.has_codemod
-                    ? 'auto = the deterministic codemod; llm = local Ollama model'
-                    : 'This rule has no codemod, so generation goes to the local Ollama model.'
-                }
-              >
-                <option value="auto">auto</option>
-                {task.has_codemod && <option value="template">template</option>}
-                <option value="llm">llm</option>
-              </select>
-              <button
-                onClick={() => gen.mutate()}
-                disabled={gen.isPending}
-                className="hud-btn px-3 py-1.5"
-              >
-                {gen.isPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Wand2 className="h-3.5 w-3.5" />
-                )}
-                Generate
-              </button>
-            </span>
-          )}
+                <select
+                  value={generator}
+                  onChange={(e) => setGenerator(e.target.value as 'auto' | 'llm' | 'template')}
+                  className="glass-input px-2 py-1.5 text-xs"
+                  title={
+                    task.has_codemod
+                      ? 'auto = the deterministic codemod; llm = local Ollama model'
+                      : 'This rule has no codemod, so generation goes to the local Ollama model.'
+                  }
+                >
+                  <option value="auto">auto</option>
+                  {task.has_codemod && <option value="template">template</option>}
+                  <option value="llm">llm</option>
+                </select>
+                <button
+                  onClick={() => gen.mutate()}
+                  disabled={gen.isPending}
+                  className="hud-btn px-3 py-1.5"
+                  title={
+                    task.state === 'deferred'
+                      ? (task.last_error ?? 'The last attempt did not produce a valid patch.')
+                      : undefined
+                  }
+                >
+                  {gen.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : task.state === 'deferred' ? (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  ) : (
+                    <Wand2 className="h-3.5 w-3.5" />
+                  )}
+                  {task.state === 'deferred' ? 'Retry' : 'Generate'}
+                </button>
+              </span>
+            )}
           {/* Inert grey text here read as a dead end — every other row in this column offers an
               action, so a row that offers none looks like the product giving up. There IS a next
               step for a finding with no codemod: the local model can still explain what to change,
               why, and how to verify it. Surfacing that as a real button turns "nothing we can do"
               into "here is what to do by hand", which is the honest answer these findings already
               had — it was just buried in the expanded panel below. */}
-          {!task.rule_id && (
+          {/* Offered whenever this task will NOT produce a patch, not just when its RULE is a
+              guided one. Measured in the running app: 29 rows had an empty actions cell — 8
+              `code-kex-01` tasks that fell back to a written plan after generation failed, and
+              9 whose generation failed before that fallback existed. Every one of them had (or
+              deserved) a remediation path and offered no way to reach it, which is the dead end
+              this work exists to remove, arriving by a different route. */}
+          {(task.is_guided ||
+            task.advice_text !== null ||
+            task.resolution === 'guided' ||
+            task.resolution === 'unresolved') && (
             <button
               onClick={() => {
                 setOpen(true);
@@ -230,7 +290,7 @@ function TaskRow({ task }: { task: MigrationTask }) {
               }}
               disabled={advise.isPending}
               className="hud-btn hud-btn-ghost px-3 py-1.5 text-xs"
-              title="No deterministic rule or LLM codemod matches this finding's language and algorithm. QUBIT can still explain what to change by hand, why, and how to verify it."
+              title="This finding is remediated by a procedure rather than an edit — re-issuing a certificate, choosing a provider QUBIT will not install for you, or a configuration change outside this file. QUBIT gives the steps, the commands and the sources behind them."
             >
               {advise.isPending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -314,8 +374,10 @@ function TaskRow({ task }: { task: MigrationTask }) {
             {!patches?.length && (
               <div className="text-xs text-[color:var(--color-ink-faint)]">
                 {task.rule_id
-                  ? 'No patches yet — generate one.'
-                  : 'No migration rule matches this asset, so no patch can be generated. Change it by hand, then rescan to confirm it is gone.'}
+                  ? task.is_guided
+                    ? 'This finding is resolved by a guided path rather than a patch — the remediation is a procedure QUBIT cannot make as an edit. The steps are below.'
+                    : 'No patches yet — generate one.'
+                  : 'No migration rule covers this finding, so QUBIT builds the remediation path instead of a patch. The steps, commands and sources are below.'}
               </div>
             )}
 
@@ -330,6 +392,14 @@ function TaskRow({ task }: { task: MigrationTask }) {
                   <Lightbulb className="h-3.5 w-3.5" />
                   How to migrate this
                 </span>
+                {task.advice_model === 'qubit-guided' && (
+                  <span
+                    className="metric-label"
+                    title="Assembled from QUBIT's rule pack, migration knowledge base and verified provider playbook. Every version number and adoption figure here was checked against that ecosystem's own registry — none of it is model output."
+                  >
+                    verified sources
+                  </span>
+                )}
                 <button
                   onClick={() => advise.mutate(Boolean(task.advice_text))}
                   disabled={advise.isPending}
@@ -356,14 +426,14 @@ function TaskRow({ task }: { task: MigrationTask }) {
               )}
 
               {task.advice_text ? (
-                <div className="whitespace-pre-wrap rounded-[3px] border border-[color:var(--edge)] bg-black/30 p-3 text-xs leading-relaxed text-[color:var(--color-ink-dim)]">
-                  {task.advice_text}
-                </div>
+                <GuidancePanel text={task.advice_text} />
               ) : (
                 !advise.isPending && (
                   <p className="text-xs text-[color:var(--color-ink-faint)]">
-                    Reads this file with the local model and explains what to change, what it
-                    breaks, and how to verify it. Requires Ollama.
+                    Builds the remediation path for this finding — the target, the library that
+                    provides it with its verified version floor, what the change breaks, and how
+                    to confirm it. Works offline; with Ollama running it also reads this file and
+                    explains the change in its own terms.
                   </p>
                 )
               )}
@@ -384,6 +454,48 @@ function TaskRow({ task }: { task: MigrationTask }) {
                     </pre>
                   </div>
                 )}
+                {/* Which checks did NOT run. `partial` was carried by the API and shown nowhere,
+                    so a patch validated only by a syntax parse and a rescan looked identical to
+                    one that compiled and passed a test suite. Measured on a real accepted patch:
+                    an RSA-to-ML-KEM rewrite in Rust parsed, satisfied the rescan, and would not
+                    have compiled - it returned a tuple from a function declared to return one
+                    value. `compiles` was skipped because the sandbox has no Rust toolchain, and a
+                    tree-sitter parse is not a type-check. The reviewer has to be told that. */}
+                {latest.validation?.partial && latest.validation?.stages && (
+                  <div className="rounded-lg border border-[color:var(--color-warn)]/30 bg-[color:var(--color-warn)]/8 px-3 py-2">
+                    <div className="metric-label mb-1 text-[color:var(--color-warn)]">
+                      Partly validated — read the diff
+                    </div>
+                    <p className="text-xs text-[color:var(--color-ink-dim)]">
+                      {(() => {
+                        const skipped = Object.entries(latest.validation.stages)
+                          .filter(([, s]) => s.status === 'skipped')
+                          .map(([n]) => n);
+                        const ran = Object.entries(latest.validation.stages)
+                          .filter(([, s]) => s.status === 'pass')
+                          .map(([n]) => n);
+                        return `Passed: ${ran.join(', ') || 'nothing'}. Did not run: ${skipped.join(', ')}. A syntax parse is not a type-check and a rescan only asks whether the algorithm changed — neither can tell you this compiles or that the behaviour is preserved.`;
+                      })()}
+                    </p>
+                  </div>
+                )}
+                {/* What the model says its own patch does NOT do. Shown as warnings rather than
+                    used to reject: a patch whose notes admit a gap is more useful than one that
+                    stays quiet about the same gap, and rejecting the honest one would train the
+                    prompt in exactly the wrong direction. */}
+                {latest.validation?.security_caveats &&
+                  latest.validation.security_caveats.length > 0 && (
+                    <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2">
+                      <div className="metric-label mb-1 text-amber-200">
+                        Not covered by this patch
+                      </div>
+                      <ul className="list-disc space-y-0.5 pl-4 text-xs text-amber-100/90">
+                        {latest.validation.security_caveats.map((c, i) => (
+                          <li key={i}>{c.replace(/^[-*]\s*/, '')}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 <div className="flex flex-wrap items-center gap-3 text-xs">
                   <StateChip state={latest.status} />
                   <span className="font-mono text-[color:var(--color-ink-faint)]">
@@ -695,10 +807,12 @@ function PlanSummary({ plan }: { plan: MigrationPlan }) {
       hint: 'A rule with a target and constraints, but the patch is written by the local Ollama model and must be reviewed.',
     },
     {
-      label: 'Manual',
+      // Renamed from "Manual", which was the old dead-end state. These findings have a rule, a
+      // target and a written remediation path; what they do not have is an edit QUBIT can make.
+      label: 'Guided',
       value: String(manual),
       color: 'var(--color-warn)',
-      hint: 'No migration rule matches this asset — change it by hand, then rescan to confirm it is gone.',
+      hint: 'The remediation is a procedure rather than an edit — re-issuing a certificate, choosing a provider QUBIT will not install for you, or a configuration change outside this file. QUBIT writes the steps, the commands and the sources.',
     },
     {
       label: 'Estimated effort',
@@ -776,17 +890,63 @@ function ProjectMigration({ projectId }: { projectId: string }) {
     enabled: !!plan && plan.status === 'active',
   });
 
+  const [runJobId, setRunJobId] = useState<string | null>(null);
+  //: Which half is in flight. The two share one job poller because they are the same job kind;
+  //: only the wording differs, and a run that is preparing changes must not say it is writing them.
+  const [runMode, setRunMode] = useState<'generate' | 'apply'>('apply');
+  const [runOutcome, setRunOutcome] = useState<MigrationRunResult | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  //: Set when "Build plan" answers 409 — every finding is already migrated, parked, or there were
+  //: none to begin with. Found on a project with zero vulnerable findings (spring-security, in a
+  //: real run): the click produced no job, so `runOutcome` never got set, and nothing else on
+  //: this page said anything either — no banner, no toast, nothing. A queue that had rendered
+  //: "Queue is empty" further down the page was the only confirmation the click had done
+  //: anything, and a reader has no reason to scroll to it after a button click that appeared to
+  //: do nothing. The backend already writes a precise, honest reason for a 409; this is what
+  //: shows it, rather than discarding it the moment it is caught.
+  const [nothingToPrepare, setNothingToPrepare] = useState<string | null>(null);
+  //: Raised when a WRITING run finishes, to ask about the rescan. Separate from `runOutcome`, which
+  //: also holds the result of a preparing run — that one has changed nothing, so it must not ask.
+  const [rescanPrompt, setRescanPrompt] = useState<MigrationRunResult | null>(null);
+
+  // "Build plan" queues the findings AND prepares a patch for every one of them, writing nothing.
+  // Planning alone produced a list of problems and no answers: every diff still had to be asked
+  // for a row at a time, which meant the operator met the model's work one finding at a time and
+  // had nothing to review as a whole. Generating here moves the slow, uncertain half to the front,
+  // so by the time "Initiate migration" is offered, every change it would make can already be read.
   const build = useMutation({
-    mutationFn: (scope: 'scan' | 'project') =>
-      createPlan(0, {
+    mutationFn: async (scope: 'scan' | 'project') => {
+      const created = await createPlan(0, {
         projectId,
         // Default to the displayed scan: nothing dedupes assets across scans, so a project-wide
         // plan over a directory scanned three times carries three copies of every task.
         scanId: scope === 'scan' ? (activeScan?.id ?? undefined) : undefined,
-      }),
-    onSuccess: () => {
+      });
+      try {
+        const started = await runPlan(created.id, { generate: true, apply: false });
+        return { plan: created, jobId: started.job.id as string | null, note: null as string | null };
+      } catch (e) {
+        // 409 is the engine saying there is nothing ready to prepare — every finding is already
+        // migrated or parked. That is a complete answer to "build me a plan", not a failure, and
+        // the plan itself was created. Anything else is a real error and must still surface.
+        if (e instanceof ApiError && e.status === 409) {
+          return { plan: created, jobId: null, note: e.message || null };
+        }
+        throw e;
+      }
+    },
+    onSuccess: ({ jobId, note }) => {
       qc.invalidateQueries({ queryKey: ['migrate-plans', projectId] });
       qc.invalidateQueries({ queryKey: ['projects-overview'] });
+      if (jobId) {
+        setRunOutcome(null);
+        setRunError(null);
+        setNothingToPrepare(null);
+        setRunMode('generate');
+        setRunJobId(jobId);
+      } else {
+        setNothingToPrepare(note ?? 'Nothing to prepare — every finding here is already handled.');
+      }
     },
   });
 
@@ -795,18 +955,20 @@ function ProjectMigration({ projectId }: { projectId: string }) {
     ? projectScans.find((s) => s.id === plan.scan_id)?.seq
     : undefined;
 
-  // ── "Initiate migration": run the whole plan, then report and offer a rescan ──────────────
-  const [runJobId, setRunJobId] = useState<string | null>(null);
-  const [runOutcome, setRunOutcome] = useState<MigrationRunResult | null>(null);
-  const [runError, setRunError] = useState<string | null>(null);
   const migrationRequest = useUiStore((s) => s.migrationRequest);
   const openScan = useUiStore((s) => s.openScan);
 
+  // "Initiate migration" writes the prepared patches into the original files. It runs no model and
+  // decides nothing: every diff in the set has already been through the validation gate and has
+  // been sitting in the queue to be read. Keeping the irreversible half as its own act is the
+  // point — approving happens by pressing this, on changes already seen.
   const startRun = useMutation({
-    mutationFn: () => runPlan(plan!.id, { apply: true }),
+    mutationFn: () => runPlan(plan!.id, { generate: false, apply: true }),
     onSuccess: (r) => {
       setRunOutcome(null);
       setRunError(null);
+      setNothingToPrepare(null);
+      setRunMode('apply');
       setRunJobId(r.job.id);
     },
     onError: (e) => setRunError(e instanceof Error ? e.message : 'could not start the migration'),
@@ -830,6 +992,12 @@ function ProjectMigration({ projectId }: { projectId: string }) {
     setRunJobId(null);
     if (job.status === 'succeeded' && job.result) {
       setRunOutcome(job.result);
+      // Only a run that actually wrote something invalidates the inventory. A preparing run left
+      // the tree exactly as it found it, so asking to rescan after it would be asking the operator
+      // to redo the scan for no reason.
+      if (job.result.mode === 'apply' || job.result.mode === 'full') {
+        if ((job.result.applied ?? 0) > 0) setRescanPrompt(job.result);
+      }
     } else {
       setRunError(job.error || `migration ${job.status}`);
     }
@@ -857,52 +1025,78 @@ function ProjectMigration({ projectId }: { projectId: string }) {
     },
     onSuccess: (s) => {
       setRunOutcome(null);
+      setNothingToPrepare(null);
+      setRescanPrompt(null);
       if (s?.project_id && s?.id) openScan(s.project_id, s.id);
       qc.invalidateQueries({ queryKey: ['scans'] });
       qc.invalidateQueries({ queryKey: ['projects-overview'] });
     },
   });
 
-  const running = !!runJobId || startRun.isPending;
+  // The two halves are told apart everywhere they are shown. A run that is preparing changes must
+  // never say it is writing them — that is the one sentence an operator would act on wrongly.
+  const preparing = build.isPending || (!!runJobId && runMode === 'generate');
+  const writing = startRun.isPending || (!!runJobId && runMode === 'apply');
+  const running = preparing || writing;
+  // What "Initiate migration" would actually write: patches that exist and have not been rejected.
+  // Counting `ready` tasks instead would offer the button over findings with no diff behind them.
+  const preparedCount = tasks.filter(
+    (t) => t.state === 'proposed' || t.state === 'approved',
+  ).length;
+  // Findings a previous attempt could not migrate. "Build plan" retries every one of these
+  // automatically — resumed and regenerated with whatever QUBIT has learned since — so a failure
+  // is a pause, not a dead end. Counted here so the button can say so, instead of leaving the
+  // operator to discover it by re-reading the completion banner from the last run.
+  const retryableCount = tasks.filter(
+    (t) => t.state === 'deferred' && t.resolution === 'unresolved',
+  ).length;
 
   return (
     <>
       <ProjectScopeBar>
         <button
           onClick={() => startRun.mutate()}
-          disabled={running || plan?.status !== 'active' || tasks.length === 0}
+          disabled={running || plan?.status !== 'active' || preparedCount === 0}
           className="hud-btn"
           data-testid="initiate-migration"
-          title="Generate, approve and apply every ready patch in this plan"
+          title={
+            preparedCount > 0
+              ? `Write ${preparedCount} prepared change${preparedCount === 1 ? '' : 's'} into the original files`
+              : 'Nothing is prepared yet — build the plan first, which generates the changes'
+          }
         >
-          {running ? (
+          {writing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Rocket className="h-3.5 w-3.5" />
           )}
-          {running ? 'Migrating…' : 'Initiate migration'}
+          {writing
+            ? 'Writing changes…'
+            : `Initiate migration${preparedCount > 0 ? ` (${preparedCount})` : ''}`}
         </button>
         <button
           onClick={() => build.mutate('scan')}
-          disabled={build.isPending || !activeScan}
+          disabled={running || !activeScan}
           className="hud-btn"
           data-testid="build-plan"
           title={
             activeScan
-              ? `Build a plan from scan #${activeScan.seq}`
+              ? `Queue every vulnerable finding in scan #${activeScan.seq} and generate a change for each. Nothing is written to disk.${retryableCount > 0 ? ` Also retries ${retryableCount} finding${retryableCount === 1 ? '' : 's'} that could not be migrated last time, grounded in whatever QUBIT has learned since.` : ''}`
               : 'This project has no scan to plan from'
           }
         >
-          {build.isPending ? (
+          {preparing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Play className="h-3.5 w-3.5" />
           )}
-          {plan ? 'Rebuild plan' : 'Build plan'}
+          {preparing
+            ? 'Preparing changes…'
+            : `${plan ? 'Rebuild plan' : 'Build plan'}${retryableCount > 0 ? ` (retry ${retryableCount})` : ''}`}
         </button>
         <button
           onClick={() => build.mutate('project')}
-          disabled={build.isPending}
+          disabled={running}
           className="hud-btn hud-btn-ghost"
           title="Plan across every scan in this project. Repeated scans of the same target will appear more than once."
         >
@@ -920,10 +1114,13 @@ function ProjectMigration({ projectId }: { projectId: string }) {
           <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-[color:var(--color-accent)]" />
           <div>
             <div className="text-[color:var(--color-ink)]">
-              {runJobQ.data?.message ?? 'Starting migration…'}
+              {runJobQ.data?.message ??
+                (preparing ? 'Preparing changes…' : 'Starting migration…')}
             </div>
             <div className="metric-label mt-0.5">
-              Each finding is generated, validated and written to the working tree.
+              {preparing
+                ? 'Each finding is being rewritten and put through the validation gate. Nothing is written to disk until you initiate the migration.'
+                : 'Each prepared change is being written into its original file.'}
             </div>
           </div>
         </div>
@@ -938,6 +1135,28 @@ function ProjectMigration({ projectId }: { projectId: string }) {
         </div>
       )}
 
+      {/* "Build plan" produced no job — every finding here is already migrated, parked, or there
+          were none to begin with. Without this, that click left NOTHING on screen: no banner, no
+          job, no confirmation the click had registered at all. The queue table further down does
+          render an accurate "Queue is empty" once its own query settles, but a reader who just
+          watched a button do nothing has no reason to scroll down looking for it. */}
+      {nothingToPrepare && !runOutcome && (
+        <div
+          className="glass-card flex items-start gap-3 border-[color:var(--color-safe)]/40 bg-[color:var(--color-safe)]/8 p-4 text-sm"
+          data-testid="nothing-to-prepare"
+        >
+          <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-[color:var(--color-safe)]" />
+          <div className="flex-1 text-[color:var(--color-ink)]">{nothingToPrepare}</div>
+          <button
+            onClick={() => setNothingToPrepare(null)}
+            className="hud-btn hud-btn-ghost px-2 py-1 text-xs"
+            data-testid="dismiss-nothing-to-prepare"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* The result notification, and the rescan the user is most likely to want next: the files
           just changed, so the inventory this plan was built from now describes the old code. */}
       {runOutcome && (
@@ -949,13 +1168,28 @@ function ProjectMigration({ projectId }: { projectId: string }) {
             <PartyPopper className="mt-0.5 h-5 w-5 flex-shrink-0 text-[color:var(--color-safe)]" />
             <div className="flex-1">
               <div className="text-sm font-semibold text-[color:var(--color-safe)]">
-                {runOutcome.applied > 0
-                  ? `Migration successful — ${runOutcome.applied + (runOutcome.covered ?? 0)} of ${runOutcome.total} finding${runOutcome.total === 1 ? '' : 's'} migrated and written to disk${(runOutcome.needs_guidance ?? 0) > 0 ? `, ${runOutcome.needs_guidance} routed to guided review` : ''}.`
-                  : `Migration finished — ${runOutcome.generated} patch${runOutcome.generated === 1 ? '' : 'es'} generated, none written.`}
+                {runOutcome.mode === 'generate'
+                  ? `${runOutcome.generated} change${runOutcome.generated === 1 ? '' : 's'} prepared and validated${(runOutcome.needs_guidance ?? 0) > 0 ? `, ${runOutcome.needs_guidance} routed to guided review` : ''}. Nothing has been written yet — read the diffs below, then initiate the migration.`
+                  : runOutcome.applied > 0
+                    ? `Migration successful — ${runOutcome.applied + (runOutcome.covered ?? 0)} of ${runOutcome.total} finding${runOutcome.total === 1 ? '' : 's'} migrated and written to disk${(runOutcome.needs_guidance ?? 0) > 0 ? `, ${runOutcome.needs_guidance} routed to guided review` : ''}.`
+                    : `Migration finished — ${runOutcome.generated} patch${runOutcome.generated === 1 ? '' : 'es'} generated, none written.`}
               </div>
               <div className="metric-label mt-1 flex flex-wrap gap-x-3">
-                <span>{runOutcome.generated} generated</span>
-                <span>· {runOutcome.applied} applied</span>
+                {runOutcome.mode === 'apply' ? (
+                  <span>{runOutcome.applied} written</span>
+                ) : (
+                  <>
+                    <span>{runOutcome.generated} generated</span>
+                    <span>· {runOutcome.applied} applied</span>
+                  </>
+                )}
+                {/* Findings this plan holds no diff for. Naming them is what turns "12 written"
+                    from a total into a fraction the operator can act on. */}
+                {(runOutcome.no_patch ?? 0) > 0 && (
+                  <span title="These findings had no prepared change, so nothing was written for them. Build the plan again to generate them.">
+                    · {runOutcome.no_patch} not prepared
+                  </span>
+                )}
                 {(runOutcome.from_cache ?? 0) > 0 && (
                   <span
                     className="text-[color:var(--color-accent)]"
@@ -978,8 +1212,11 @@ function ProjectMigration({ projectId }: { projectId: string }) {
                   </span>
                 )}
                 {runOutcome.failed > 0 && (
-                  <span className="text-[color:var(--color-danger)]">
-                    · {runOutcome.failed} could not be migrated
+                  <span
+                    className="text-[color:var(--color-danger)]"
+                    title="Each one now has a guidance panel built from the specific reason it failed, and each is retried automatically the next time the plan is rebuilt — grounded in whatever QUBIT has learned since. Not a dead end; a pause."
+                  >
+                    · {runOutcome.failed} could not be migrated (will retry on rebuild)
                   </span>
                 )}
                 {runOutcome.repo_root && <span>· {runOutcome.repo_root}</span>}
@@ -1004,7 +1241,10 @@ function ProjectMigration({ projectId }: { projectId: string }) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 border-t border-[color:var(--edge)] pt-3">
+          <div
+            className="flex flex-wrap items-center gap-3 border-t border-[color:var(--edge)] pt-3"
+            hidden={runOutcome.mode === 'generate'}
+          >
             <span className="text-xs text-[color:var(--color-ink-dim)]">
               The code on disk has changed. Rescan this project to see what is left?
             </span>
@@ -1043,7 +1283,18 @@ function ProjectMigration({ projectId }: { projectId: string }) {
             const e = build.error ?? plansQ.error;
             return e instanceof Error ? e.message : 'request failed';
           })()}
-          <span className="text-[color:var(--color-ink-faint)]"> Is the API reachable?</span>
+          {/* A 5xx means the request reached the engine and it failed there — "is the API
+              reachable?" is the wrong question to leave someone with. Distinguished from a real
+              network failure, which IS what that hint is for. Building a plan across several
+              projects at once can hit real, transient database contention (the engine retries
+              this itself now, but retries are bounded); the fix here is the same action, again. */}
+          <span className="text-[color:var(--color-ink-faint)]">
+            {' '}
+            {(build.error ?? plansQ.error) instanceof ApiError &&
+            ((build.error ?? plansQ.error) as ApiError).status >= 500
+              ? 'The engine hit an error handling this. Try again.'
+              : 'Is the API reachable?'}
+          </span>
         </div>
       )}
 
@@ -1098,6 +1349,11 @@ function ProjectMigration({ projectId }: { projectId: string }) {
       {plan?.status === 'active' && (
         <>
           <PlanSummary plan={plan} />
+
+          {/* What the engine has learned from its own validated migrations. Placed above the queue
+              because it is the answer to "does this get better, or does it just run again" — and
+              until it existed the evidence was a row count in a table nobody could see. */}
+          <LearningPanel />
 
           <div className="flex gap-1 self-start rounded-[3px] border border-[color:var(--edge)] bg-black/40 p-1">
             {(
@@ -1167,6 +1423,89 @@ function ProjectMigration({ projectId }: { projectId: string }) {
             </div>
           )}
         </>
+      )}
+
+      {/* The rescan question, asked as a dialog rather than a notice further down the page.
+          A migration that has just rewritten files leaves every number on screen describing code
+          that no longer exists, and rescanning is the only thing that makes them true again — so
+          it is put in front of the operator rather than left to be noticed. Dismissing is a real
+          answer: the same offer stays in the completion banner underneath. */}
+      {rescanPrompt && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rescan-dialog-title"
+          data-testid="rescan-dialog"
+        >
+          <motion.div
+            className="absolute inset-0 bg-black/65 backdrop-blur-sm"
+            onClick={() => setRescanPrompt(null)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.18 }}
+          />
+          <motion.div
+            className="relative z-10 w-full max-w-md rounded-2xl border border-[color:var(--edge-lume)] bg-[#0b0e14]/97 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.65)] backdrop-blur-2xl"
+            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+          >
+            <div className="flex items-start gap-3">
+              <RefreshCw className="mt-0.5 h-5 w-5 flex-shrink-0 text-[color:var(--color-accent)]" />
+              <div>
+                <h2
+                  id="rescan-dialog-title"
+                  className="text-base font-semibold text-[color:var(--color-ink)]"
+                >
+                  Rescan to confirm the fix?
+                </h2>
+                <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
+                  {rescanPrompt.applied} change
+                  {rescanPrompt.applied === 1 ? ' was' : 's were'} written into your files. Until
+                  this project is scanned again, every finding on screen describes the code as it
+                  was <em>before</em> the migration.
+                </p>
+                {(rescanPrompt.no_patch ?? 0) > 0 && (
+                  <p className="mt-2 text-sm text-[color:var(--color-ink-faint)]">
+                    {rescanPrompt.no_patch} finding
+                    {rescanPrompt.no_patch === 1 ? ' had' : 's had'} no prepared change and{' '}
+                    {rescanPrompt.no_patch === 1 ? 'was' : 'were'} left alone. Build the plan again
+                    to generate {rescanPrompt.no_patch === 1 ? 'it' : 'them'}.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+              <button
+                onClick={() => setRescanPrompt(null)}
+                className="hud-btn hud-btn-ghost"
+                data-testid="rescan-dialog-dismiss"
+              >
+                Not now
+              </button>
+              <button
+                onClick={() => rescan.mutate()}
+                disabled={rescan.isPending}
+                className="hud-btn"
+                data-testid="rescan-dialog-confirm"
+                autoFocus
+              >
+                {rescan.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+                Rescan now
+              </button>
+            </div>
+            {rescan.isError && (
+              <p className="mt-3 text-right text-xs text-[color:var(--color-danger)]">
+                {rescan.error instanceof Error ? rescan.error.message : 'rescan failed'}
+              </p>
+            )}
+          </motion.div>
+        </div>
       )}
     </>
   );
@@ -1247,6 +1586,156 @@ function RecentScans() {
   );
 }
 
+/** A project whose migration has started but is not finished, or one whose changes have landed.
+ *
+ *  Split from the plain project grid because "what is still moving" and "what is done" are the two
+ *  questions someone opens this hub to answer, and a single grid sorted by asset count answered
+ *  neither. The numbers come from the tasks' own FSM states (see `ProjectPlanRef`'s progress
+ *  fields), so a card can never disagree with the queue it links to. */
+function MigrationCard({
+  project,
+  onOpen,
+}: {
+  project: ProjectOverview;
+  onOpen: () => void;
+}) {
+  const plan = project.plan;
+  if (!plan) return null;
+  // Everything that has reached a resolved outcome, by any route: written to disk, resolved by a
+  // guided procedure, or already compliant. Deliberately not just `written` — a certificate that
+  // needs re-issuing is genuinely handled, and counting it as unfinished would make a completed
+  // migration look stuck forever.
+  const settled = plan.written + plan.guided + plan.satisfied;
+  const total = settled + plan.outstanding + plan.prepared;
+  const pct = total > 0 ? Math.round((settled / total) * 100) : 0;
+
+  return (
+    <button
+      onClick={onOpen}
+      data-testid={`migration-project-${project.slug}`}
+      className="glass-card flex flex-col gap-2 p-4 text-left transition-colors hover:border-[color:var(--color-accent)]/60"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate font-semibold text-[color:var(--color-accent-soft)]">
+          {project.name}
+        </span>
+        <span className="metric-label flex-shrink-0 tabular-nums">{pct}%</span>
+      </div>
+
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[color:var(--edge)]">
+        <div
+          className="h-full rounded-full bg-[color:var(--color-safe)] transition-[width] duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      <div className="metric-label mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+        {plan.written > 0 && (
+          <span className="text-[color:var(--color-safe)]" title="Written into the original files.">
+            {plan.written} written
+          </span>
+        )}
+        {plan.verified > 0 && (
+          <span
+            className="text-[color:var(--color-safe)]"
+            title="Written and then proven by a rescan."
+          >
+            {plan.verified} verified
+          </span>
+        )}
+        {plan.prepared > 0 && (
+          <span
+            className="text-[color:var(--color-accent)]"
+            title="A validated diff exists and is waiting to be written."
+          >
+            {plan.prepared} prepared
+          </span>
+        )}
+        {plan.outstanding > 0 && (
+          <span title="Not yet attempted, or awaiting a retry.">{plan.outstanding} to go</span>
+        )}
+        {plan.guided > 0 && (
+          <span title="Remediated by a written procedure rather than an edit QUBIT can make.">
+            {plan.guided} guided
+          </span>
+        )}
+        {plan.satisfied > 0 && (
+          <span title="Nothing left to migrate — already covered, or already meeting the PQC floor.">
+            {plan.satisfied} already compliant
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+/** The two progress sections between "Recent scans" and the full project grid. */
+function MigrationProgressSections() {
+  const setProjectId = useUiStore((s) => s.setProjectId);
+  const { data } = useQuery({ queryKey: ['projects-overview'], queryFn: fetchProjectsOverview });
+
+  const withPlans = (data ?? []).filter((p) => p.plan && p.plan.tasks > 0);
+  // A migration is ONGOING while anything still has a step left — work not yet attempted, or a
+  // prepared diff not yet written. Everything else with a plan that actually resolved something
+  // is COMPLETE. Mutually exclusive, so a project appears in exactly one section and the two
+  // never double-count the same work.
+  const ongoing = withPlans.filter((p) => p.plan!.outstanding + p.plan!.prepared > 0);
+  const complete = withPlans.filter(
+    (p) =>
+      p.plan!.outstanding + p.plan!.prepared === 0 &&
+      p.plan!.written + p.plan!.guided + p.plan!.satisfied > 0,
+  );
+
+  return (
+    <>
+      <div className="flex flex-col gap-3" data-testid="ongoing-migrations">
+        <h2 className="flex items-center gap-2">
+          <Rocket className="h-5 w-5 text-[color:var(--color-accent)]" />
+          Ongoing migrations
+        </h2>
+        <p className="-mt-1 text-xs text-[color:var(--color-ink-faint)]">
+          Plans with work still to do — findings waiting to be generated, or diffs prepared and
+          waiting to be written.
+        </p>
+        {ongoing.length === 0 ? (
+          <div className="glass-card p-6 text-center text-sm text-[color:var(--color-ink-dim)]">
+            Nothing in flight. Open a scan above and press{' '}
+            <span className="font-mono">Build plan</span> to start one.
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {ongoing.map((p) => (
+              <MigrationCard key={p.id} project={p} onOpen={() => setProjectId(p.id)} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3" data-testid="successful-migrations">
+        <h2 className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-[color:var(--color-safe)]" />
+          Successful migrations
+        </h2>
+        <p className="-mt-1 text-xs text-[color:var(--color-ink-faint)]">
+          Plans where every finding has reached an outcome — written to the files, routed to a
+          guided procedure, or already compliant.
+        </p>
+        {complete.length === 0 ? (
+          <div className="glass-card p-6 text-center text-sm text-[color:var(--color-ink-dim)]">
+            None finished yet. A plan lands here once nothing is left waiting in its queue.
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {complete.map((p) => (
+              <MigrationCard key={p.id} project={p} onOpen={() => setProjectId(p.id)} />
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 export function Migrations() {
   const projectId = useUiStore((s) => s.projectId);
 
@@ -1263,7 +1752,11 @@ export function Migrations() {
 
       {!projectId ? (
         <>
+          {/* Ordered as the work actually flows: what was found, what is being migrated, what is
+              done. The grid stays last as the catch-all — it lists every project including ones
+              with no plan yet, which the two progress sections deliberately exclude. */}
           <RecentScans />
+          <MigrationProgressSections />
           <ProjectGrid
             metric="migration"
             title="Or browse by project"

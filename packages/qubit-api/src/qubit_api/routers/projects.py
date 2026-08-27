@@ -5,11 +5,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from qubit_core.db import AssetRow, ProjectRow, ScanRow
-from qubit_migrate.state import MigrationPlan
+from qubit_migrate.state import MigrationPlan, MigrationTask
 from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..auth import get_current_tenant
 from ..deps import get_session
 from ..schemas import (
     ProjectCreate,
@@ -26,14 +27,22 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 @router.get("", response_model=list[ProjectOut])
-def list_projects(session: Annotated[Session, Depends(get_session)]) -> list[ProjectOut]:
-    rows = session.scalars(select(ProjectRow).order_by(ProjectRow.created_at.asc())).all()
+def list_projects(
+    session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+) -> list[ProjectOut]:
+    rows = session.scalars(
+        select(ProjectRow)
+        .where(ProjectRow.tenant_id == tenant_id)
+        .order_by(ProjectRow.created_at.asc())
+    ).all()
     return [ProjectOut.model_validate(row, from_attributes=True) for row in rows]
 
 
 @router.get("/overview", response_model=list[ProjectOverview])
 def projects_overview(
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> list[ProjectOverview]:
     """Every project with the headline numbers each tab's landing grid needs.
 
@@ -42,8 +51,16 @@ def projects_overview(
 
     Four aggregate queries, not one per project — the counts come back grouped, so the cost does
     not grow with the number of projects on screen.
+
+    Every aggregate is filtered by tenant. Filtering only the project list and letting the rollups
+    span the whole table would be the subtle version of the leak: the names would be right and the
+    counts would quietly include another team's findings.
     """
-    projects = session.scalars(select(ProjectRow).order_by(ProjectRow.created_at.asc())).all()
+    projects = session.scalars(
+        select(ProjectRow)
+        .where(ProjectRow.tenant_id == tenant_id)
+        .order_by(ProjectRow.created_at.asc())
+    ).all()
     if not projects:
         return []
 
@@ -59,7 +76,9 @@ def projects_overview(
                 func.sum(case((AssetRow.qv_attack == "grover", 1), else_=0)).label("grover"),
                 func.avg(AssetRow.risk_score).label("mean_risk"),
                 func.max(AssetRow.risk_score).label("max_risk"),
-            ).group_by(AssetRow.project_id)
+            )
+            .where(AssetRow.tenant_id == tenant_id)
+            .group_by(AssetRow.project_id)
         ).all()
     }
 
@@ -68,7 +87,7 @@ def projects_overview(
     top_algorithms: dict[UUID, list[str]] = {}
     for pid, algorithm, _count in session.execute(
         select(AssetRow.project_id, AssetRow.algorithm, func.count().label("n"))
-        .where(AssetRow.qv_vulnerable.is_(True))
+        .where(AssetRow.qv_vulnerable.is_(True), AssetRow.tenant_id == tenant_id)
         .group_by(AssetRow.project_id, AssetRow.algorithm)
         .order_by(AssetRow.project_id, func.count().desc(), AssetRow.algorithm)
     ).all():
@@ -79,7 +98,9 @@ def projects_overview(
     scan_counts = {
         pid: n
         for pid, n in session.execute(
-            select(ScanRow.project_id, func.count()).group_by(ScanRow.project_id)
+            select(ScanRow.project_id, func.count())
+            .where(ScanRow.tenant_id == tenant_id)
+            .group_by(ScanRow.project_id)
         ).all()
     }
 
@@ -87,17 +108,57 @@ def projects_overview(
     # scan / per plan, capped by history), so they are walked in Python rather than being turned
     # into a correlated subquery that SQLite would run once per project anyway.
     latest_scan: dict[UUID, ScanRow] = {}
-    for scan_row in session.scalars(select(ScanRow).order_by(ScanRow.created_at.desc())).all():
+    for scan_row in session.scalars(
+        select(ScanRow).where(ScanRow.tenant_id == tenant_id).order_by(ScanRow.created_at.desc())
+    ).all():
         latest_scan.setdefault(scan_row.project_id, scan_row)
 
     latest_plan: dict[UUID, MigrationPlan] = {}
     for plan_row in session.scalars(
         select(MigrationPlan)
-        .where(MigrationPlan.project_id.is_not(None))
+        .where(MigrationPlan.project_id.is_not(None), MigrationPlan.tenant_id == tenant_id)
         .order_by(MigrationPlan.created_at.desc())
     ).all():
         if plan_row.project_id is not None:
             latest_plan.setdefault(plan_row.project_id, plan_row)
+
+    # Where each plan's work has actually got to, grouped in ONE query rather than one per plan.
+    # `stats_json` records what the plan was built as and never moves; this is what separates a
+    # migration still in flight from one that is finished, which is what the Migration Hub's
+    # "ongoing" and "completed" sections are built on. Read from the tasks' own FSM states so the
+    # sections can never disagree with the queue they link to.
+    #
+    # `deferred` is three different outcomes sharing one state, so it is split by `resolution`:
+    # a finding parked as `guided` or `satisfied` is RESOLVED and must not read as outstanding
+    # work, while `unresolved` is a failed attempt that is retried on the next build and must.
+    progress: dict[UUID, dict[str, int]] = {}
+    for plan_id, state, resolution, count in session.execute(
+        select(
+            MigrationTask.plan_id,
+            MigrationTask.state,
+            MigrationTask.resolution,
+            func.count(),
+        )
+        # Tasks carry no tenant of their own; they inherit it from the plan one hop up.
+        .join(MigrationPlan, MigrationPlan.id == MigrationTask.plan_id)
+        .where(MigrationPlan.tenant_id == tenant_id)
+        .group_by(MigrationTask.plan_id, MigrationTask.state, MigrationTask.resolution)
+    ).all():
+        moved_counts = progress.setdefault(plan_id, {})
+        if state in ("applied", "verifying", "verified"):
+            moved_counts["written"] = moved_counts.get("written", 0) + count
+            if state == "verified":
+                moved_counts["verified"] = moved_counts.get("verified", 0) + count
+        elif state in ("proposed", "approved"):
+            moved_counts["prepared"] = moved_counts.get("prepared", 0) + count
+        elif state == "deferred" and resolution == "guided":
+            moved_counts["guided"] = moved_counts.get("guided", 0) + count
+        elif state == "deferred" and resolution == "satisfied":
+            moved_counts["satisfied"] = moved_counts.get("satisfied", 0) + count
+        else:
+            # `ready`, `pending`, `generating`, and `deferred/unresolved` — work that still has
+            # something left to happen to it.
+            moved_counts["outstanding"] = moved_counts.get("outstanding", 0) + count
 
     out: list[ProjectOverview] = []
     for project in projects:
@@ -111,6 +172,7 @@ def projects_overview(
             from ..routers.migrate import _plan_split
 
             plan_stats = {**(plan.stats_json or {}), **_plan_split(plan)}
+            moved = progress.get(plan.id, {})
             plan_ref = ProjectPlanRef(
                 id=plan.id,
                 status=plan.status,
@@ -120,6 +182,12 @@ def projects_overview(
                 with_llm_rule=int(plan_stats.get("with_llm_rule", 0)),
                 manual=int(plan_stats.get("manual", 0)),
                 automatable=int(plan_stats.get("automatable", 0)),
+                written=moved.get("written", 0),
+                verified=moved.get("verified", 0),
+                prepared=moved.get("prepared", 0),
+                outstanding=moved.get("outstanding", 0),
+                guided=moved.get("guided", 0),
+                satisfied=moved.get("satisfied", 0),
                 created_at=plan.created_at,
                 scan_id=plan.scan_id,
                 # A plan is stale once a scan finished after it was built — its queue describes a
@@ -163,8 +231,10 @@ def projects_overview(
 def create_project(
     payload: ProjectCreate,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> ProjectOut:
     row = ProjectRow(
+        tenant_id=tenant_id,
         name=payload.name,
         slug=slugify(payload.name),
         root_path=payload.root_path,
@@ -187,8 +257,9 @@ def create_project(
 def get_project(
     project_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> ProjectOut:
-    project = require_project(session, project_id)
+    project = require_project(session, project_id, tenant_id)
     return ProjectOut.model_validate(project, from_attributes=True)
 
 
@@ -197,8 +268,9 @@ def patch_project(
     project_id: UUID,
     payload: ProjectPatch,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> ProjectOut:
-    project = require_project(session, project_id)
+    project = require_project(session, project_id, tenant_id)
     if payload.root_path is not None:
         project.root_path = payload.root_path
     if payload.description is not None:
@@ -215,8 +287,9 @@ def patch_project(
 def delete_project(
     project_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> None:
-    project = require_project(session, project_id)
+    project = require_project(session, project_id, tenant_id)
     session.delete(project)
     session.commit()
 
@@ -224,15 +297,19 @@ def delete_project(
 @router.delete("")
 def delete_all_projects(
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> dict[str, int]:
-    """The main-panel "Reset" -- every project, in one call, not just every scan.
+    """The main-panel "Reset" -- every project of THIS team, in one call, not just every scan.
 
     Clearing scans alone (`DELETE /scans`) leaves the project shells behind on purpose, so a
     repeated scan of the same target has somewhere to land. Reset means something stronger: every
     project's `id` -> `CASCADE` on scans, assets, tasks and migration plans already handles the
     rest, the same as deleting one project does -- this is that, over all of them, in one commit.
+
+    Tenant-filtered, and this is the endpoint where that matters most on a shared engine: an
+    unscoped "Reset" would wipe every other team's work from a button one team pressed.
     """
-    projects = session.scalars(select(ProjectRow)).all()
+    projects = session.scalars(select(ProjectRow).where(ProjectRow.tenant_id == tenant_id)).all()
     for project in projects:
         session.delete(project)
     session.commit()
@@ -243,8 +320,9 @@ def delete_all_projects(
 def get_project_trends(
     project_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> list[TrendPoint]:
-    require_project(session, project_id)
+    require_project(session, project_id, tenant_id)
     return scan_trends(session, project_id)
 
 
@@ -252,8 +330,9 @@ def get_project_trends(
 def list_project_scans(
     project_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> list[dict[str, object]]:
-    require_project(session, project_id)
+    require_project(session, project_id, tenant_id)
     scans = session.scalars(
         select(ScanRow).where(ScanRow.project_id == project_id).order_by(ScanRow.seq.desc())
     ).all()

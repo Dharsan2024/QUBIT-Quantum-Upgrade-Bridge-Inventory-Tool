@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from qubit_core import row_to_asset
 from sqlalchemy.orm import Session
 
+from ..auth import get_current_tenant
 from ..deps import get_session
 from ..services import require_asset
 
@@ -48,6 +49,7 @@ def _family_from_algorithm(algorithm: str) -> str:
 def get_asset_recommendation(
     asset_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> AssetRecommendation:
     """Return the PQC migration recommendation for a single cryptographic asset (E1).
 
@@ -58,7 +60,7 @@ def get_asset_recommendation(
 
     Returns 404 if the asset is not found or not quantum-vulnerable (no action needed).
     """
-    row = require_asset(session, asset_id)
+    row = require_asset(session, asset_id, tenant_id)
     asset = row_to_asset(row)
 
     # Not vulnerable → no recommendation needed

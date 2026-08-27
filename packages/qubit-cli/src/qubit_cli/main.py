@@ -31,6 +31,7 @@ from qubit_scanner import RuleCatalog, scan_paths
 from qubit_scanner.catalog import RuleLoadError
 from rich.console import Console
 from rich.table import Table
+from sqlalchemy import func, select
 
 from qubit_cli.commands.demo import demo_app
 from qubit_cli.commands.risk import risk_app
@@ -588,6 +589,70 @@ def serve(
 token_app = typer.Typer(help="Create, list, and revoke API tokens (doc 05 §6.6).")
 serve_app.add_typer(token_app, name="token")
 
+team_app = typer.Typer(
+    help="Teams sharing this installation. A single-team install never needs these — it already "
+    "has one default team, and every token belongs to it."
+)
+serve_app.add_typer(team_app, name="team")
+
+
+@team_app.command("create")
+def team_create(
+    name: Annotated[str, typer.Argument(help="Display name, e.g. 'Platform Team'.")],
+    slug: Annotated[
+        str | None,
+        typer.Option("--slug", help="Short id used with `token create --team`. Derived from name."),
+    ] = None,
+    db: Annotated[str | None, _db_opt()] = None,
+) -> None:
+    """Add a team, isolating its projects, scans and migrations from every other team's."""
+    import re
+    import uuid as _uuid
+
+    from qubit_core.db.models import Tenant
+
+    resolved = slug or re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-")
+    if not resolved:
+        err_console.print("[red]error:[/red] could not derive a slug; pass --slug explicitly")
+        raise typer.Exit(code=1)
+
+    with _token_session(db) as session:
+        if session.scalar(select(Tenant).where(Tenant.slug == resolved)) is not None:
+            err_console.print(f"[red]error:[/red] a team with slug {resolved!r} already exists")
+            raise typer.Exit(code=1)
+        session.add(Tenant(id=_uuid.uuid4(), slug=resolved, name=name))
+        session.commit()
+
+    console.print(f"[green]Created[/green] team [bold]{name}[/bold] (slug: {resolved})")
+    console.print(
+        f"Give it a token with: [dim]qubit serve token create <name> --team {resolved}[/dim]"
+    )
+
+
+@team_app.command("list")
+def team_list(
+    db: Annotated[str | None, _db_opt()] = None,
+) -> None:
+    """List the teams on this installation, with how many tokens each holds."""
+    from qubit_core.db.models import ApiToken, Tenant
+
+    with _token_session(db) as session:
+        teams = session.scalars(select(Tenant).order_by(Tenant.created_at.asc())).all()
+        counts = {
+            tenant_id: n
+            for tenant_id, n in session.execute(
+                select(ApiToken.tenant_id, func.count()).group_by(ApiToken.tenant_id)
+            ).all()
+        }
+
+    table = Table()
+    table.add_column("Slug", style="bold")
+    table.add_column("Name")
+    table.add_column("Tokens", justify="right")
+    for team in teams:
+        table.add_row(team.slug, team.name, str(counts.get(team.id, 0)))
+    console.print(table)
+
 
 def _token_session(db: str | None):  # type: ignore[no-untyped-def]
     """Open a session against the resolved DB, ensuring the schema exists (idempotent)."""
@@ -605,20 +670,40 @@ def token_create(
     scope: Annotated[
         str, typer.Option("--scope", help="Token scope: 'ro' (read-only) or 'rw' (read-write).")
     ] = "rw",
+    team: Annotated[
+        str | None,
+        typer.Option(
+            "--team",
+            help="Team slug this token speaks for (see `qubit serve team list`). "
+            "Omit for the default team, which is what a single-team install always wants.",
+        ),
+    ] = None,
     db: Annotated[str | None, _db_opt()] = None,
 ) -> None:
     """Mint a new API token. The raw token is printed ONCE — store it now."""
     from qubit_core.db import create_token
+    from qubit_core.db.models import Tenant
 
     with _token_session(db) as session:
+        tenant_id = None
+        if team is not None:
+            row = session.scalar(select(Tenant).where(Tenant.slug == team))
+            if row is None:
+                err_console.print(
+                    f"[red]error:[/red] no team with slug {team!r}. "
+                    f"Create it first: qubit serve team create {team}"
+                )
+                raise typer.Exit(code=1)
+            tenant_id = row.id
         try:
-            created = create_token(session, name, scopes=scope)
+            created = create_token(session, name, scopes=scope, tenant_id=tenant_id)
         except ValueError as exc:
             err_console.print(f"[red]error:[/red] {exc}")
             raise typer.Exit(code=1) from exc
 
     console.print(
-        f"[green]Created[/green] token [bold]{created.name}[/bold] (scope: {created.scopes})"
+        f"[green]Created[/green] token [bold]{created.name}[/bold] "
+        f"(scope: {created.scopes}, team: {team or 'default'})"
     )
     console.print("Store this token now — it is shown only once:\n")
     console.print(f"  [bold cyan]{created.raw}[/bold cyan]\n")

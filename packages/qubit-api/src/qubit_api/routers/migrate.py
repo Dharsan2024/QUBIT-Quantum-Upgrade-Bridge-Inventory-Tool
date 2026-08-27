@@ -14,15 +14,21 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
-from qubit_core.db import AssetRow, ProjectRow
-from qubit_migrate.orchestrator import MigrationOrchestrator
+from qubit_core.db import AssetRow, commit_with_retry, retry_write_on_lock
+from qubit_migrate.orchestrator import (
+    RESOLUTION_UNRESOLVED,
+    GuidedRemediation,
+    MigrationOrchestrator,
+)
 from qubit_migrate.state import MigrationPlan, MigrationTask, PatchProposal
 from qubit_migrate.state.machine import InvalidTransition
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
+from ..auth import get_current_tenant
 from ..deps import get_session
 from ..schemas import UtcDateTime
+from ..services import require_plan, require_project, require_task
 
 router = APIRouter(tags=["migrate"])
 
@@ -69,6 +75,12 @@ class TaskOut(BaseModel):
     #: True when `rule_id` names a rule with a deterministic codemod. Without it the app cannot
     #: know that picking the "template" generator will 422, so it offered the option anyway.
     has_codemod: bool = False
+    #: True when this finding's rule says the right answer is a guided path, not an edit — a
+    #: certificate that must be re-issued, an ecosystem with no provider trustworthy enough to
+    #: install automatically, a shell script whose post-quantum answer lives in configuration.
+    #: The queue reads it to offer the guidance directly instead of a Generate button that would
+    #: only come back saying the same thing.
+    is_guided: bool = False
     priority: float
     rank: int
     effort_points: int
@@ -120,6 +132,41 @@ class PatchOut(BaseModel):
     applied_commit: str | None
 
 
+class LearnedRuleStat(BaseModel):
+    """How this rule has fared, per language, across every run on this machine."""
+
+    rule_id: str
+    language: str
+    passed: int
+    failed: int
+    #: Verified rewrites retained for this rule, hunks included - the grounding a fresh call gets.
+    proven: int
+    #: Distinct rejections retained, replayed as warnings so an attempt is not repeated blind.
+    warnings: int
+
+
+class LearningOut(BaseModel):
+    """What QUBIT has learned from its own migrations.
+
+    Reported because a system that claims to improve with use has to be able to show it. The line
+    cache and the experience base are counted separately: the first answers an identical line
+    without a model call, the second grounds a fresh call on structurally similar work.
+    """
+
+    #: Exact line replacements available for instant replay.
+    cached_lines: int
+    #: How many times a cached line has answered a finding instead of the model.
+    cache_hits: int
+    #: Verified rewrites retained WITH their reasoning, including the multi-line ones the cache
+    #: cannot hold.
+    proven_rewrites: int
+    #: Rejections retained, so the same dead end is not walked into twice.
+    retained_failures: int
+    #: How many times stored experience has been replayed into a prompt.
+    grounding_uses: int
+    by_rule: list[LearnedRuleStat]
+
+
 class ReviewRequest(BaseModel):
     approve: bool
     note: str = ""
@@ -150,12 +197,16 @@ def _plan_split(plan: MigrationPlan) -> dict[str, int]:
             "manual": int(stats.get("manual", 0)),
         }
     codemod_rules = _codemod_rule_ids()
+    guided_rules = _guided_rule_ids()
     with_codemod = sum(1 for t in plan.tasks if t.rule_id in codemod_rules)
     with_rule = sum(1 for t in plan.tasks if t.rule_id)
+    # See `MigrationOrchestrator.build_plan`: guided is its own category, and leaving it inside
+    # the LLM count made the tiles claim work the model is never asked to do.
+    guided = sum(1 for t in plan.tasks if t.rule_id is None or t.rule_id in guided_rules)
     return {
         "with_codemod": with_codemod,
-        "with_llm_rule": with_rule - with_codemod,
-        "manual": len(plan.tasks) - with_rule,
+        "with_llm_rule": max(0, with_rule - with_codemod - guided),
+        "manual": guided,
     }
 
 
@@ -183,6 +234,19 @@ def _codemod_rule_ids() -> frozenset[str]:
     return frozenset(r.id for r in load_rules() if r.codemod)
 
 
+@lru_cache(maxsize=1)
+def _guided_rule_ids() -> frozenset[str]:
+    """Ids of the rules whose answer is a guided path rather than a patch.
+
+    The queue needs this BEFORE the user clicks anything. Offering Generate on a certificate
+    finding and then answering "this resolves to a guided path" wastes a round trip to say
+    something the rule pack already knew.
+    """
+    from qubit_migrate.transform import load_rules
+
+    return frozenset(r.id for r in load_rules() if r.remediation == "guided")
+
+
 def _task_out(task: MigrationTask, row: AssetRow | None) -> TaskOut:
     loc = (row.location or {}) if row else {}
     effort = task.effort_json or {}
@@ -195,6 +259,7 @@ def _task_out(task: MigrationTask, row: AssetRow | None) -> TaskOut:
         state=task.state,
         rule_id=task.rule_id,
         has_codemod=task.rule_id in _codemod_rule_ids(),
+        is_guided=task.rule_id in _guided_rule_ids() or task.rule_id is None,
         priority=task.priority,
         rank=task.rank,
         effort_points=task.effort_points,
@@ -241,9 +306,10 @@ def _patch_out(patch: PatchProposal) -> PatchOut:
 def create_plan(
     payload: PlanCreate,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> PlanOut:
-    if payload.project_id is not None and not session.get(ProjectRow, payload.project_id):
-        raise HTTPException(status_code=404, detail="Project not found")
+    if payload.project_id is not None:
+        require_project(session, payload.project_id, tenant_id)
 
     # Planning the same scan twice is a duplicate, not a second opinion. Measured against the
     # running app: one scan of demo-lab/vulnapp-python ended up with THREE plans -- one built
@@ -258,7 +324,10 @@ def create_plan(
     if payload.scan_id is not None and not payload.force:
         existing = (
             session.query(MigrationPlan)
-            .filter(MigrationPlan.scan_id == payload.scan_id)
+            .filter(
+                MigrationPlan.scan_id == payload.scan_id,
+                MigrationPlan.tenant_id == tenant_id,
+            )
             .order_by(MigrationPlan.created_at.desc())
             .first()
         )
@@ -266,17 +335,87 @@ def create_plan(
             return _plan_out(existing)
 
     orch = MigrationOrchestrator(session)
-    plan = orch.build_plan(
-        min_risk=payload.min_risk,
-        project_id=payload.project_id,
-        scan_id=payload.scan_id,
+    # `build_plan` adds a plan, its units and every task across a loop with several of its OWN
+    # intermediate `flush()` calls before its final commit -- any one of which can be where a
+    # concurrent writer's lock is hit. Measured live, driving the app against five real
+    # repositories scanned and migrated at once: this call got a genuine `sqlite3.OperationalError:
+    # database is locked` and a bare 500, no plan created. `retry_write_on_lock` redoes the WHOLE
+    # call on that error rather than patching up a partial write -- see its docstring for why that
+    # is the correct unit of retry here, unlike `commit_with_retry`'s fixed-object-list shape.
+    plan = retry_write_on_lock(
+        session,
+        lambda: orch.build_plan(
+            min_risk=payload.min_risk,
+            project_id=payload.project_id,
+            scan_id=payload.scan_id,
+            tenant_id=tenant_id,
+        ),
     )
     return _plan_out(plan)
+
+
+@router.get("/migrate/learning", response_model=LearningOut)
+def get_learning(session: Annotated[Session, Depends(get_session)]) -> LearningOut:
+    """What this installation has learned from its own validated migrations.
+
+    Everything here is local and was written by the validation gate, not by the model: a rewrite
+    only becomes "proven" after it passed, and a rejection is only retained after the gate refused
+    it. Nothing in this endpoint reaches the network.
+    """
+    from qubit_core.db.models import LearnedOutcome, LearnedPatch
+
+    cached_lines = session.scalar(select(func.count()).select_from(LearnedPatch)) or 0
+    cache_hits = session.scalar(select(func.coalesce(func.sum(LearnedPatch.hit_count), 0))) or 0
+
+    rows = session.execute(
+        select(
+            LearnedOutcome.rule_id,
+            LearnedOutcome.language,
+            LearnedOutcome.outcome,
+            func.count().label("n"),
+            func.coalesce(func.sum(LearnedOutcome.hit_count), 0).label("uses"),
+        ).group_by(LearnedOutcome.rule_id, LearnedOutcome.language, LearnedOutcome.outcome)
+    ).all()
+
+    per: dict[tuple[str, str], dict[str, int]] = {}
+    proven = failures = uses = 0
+    for rule_id, language, outcome, n, row_uses in rows:
+        entry = per.setdefault((rule_id, language), {"proven": 0, "warnings": 0})
+        uses += int(row_uses)
+        if outcome == "passed":
+            entry["proven"] += int(n)
+            proven += int(n)
+        else:
+            entry["warnings"] += int(n)
+            failures += int(n)
+
+    by_rule = [
+        LearnedRuleStat(
+            rule_id=rule_id,
+            language=language,
+            passed=counts["proven"],
+            failed=counts["warnings"],
+            proven=counts["proven"],
+            warnings=counts["warnings"],
+        )
+        for (rule_id, language), counts in sorted(
+            per.items(), key=lambda kv: -(kv[1]["proven"] + kv[1]["warnings"])
+        )
+    ]
+    return LearningOut(
+        cached_lines=int(cached_lines),
+        cache_hits=int(cache_hits),
+        proven_rewrites=proven,
+        retained_failures=failures,
+        grounding_uses=int(uses),
+        by_rule=by_rule,
+    )
 
 
 @router.get("/migrate/plans", response_model=list[PlanOut])
 def list_plans(
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
     project_id: UUID | None = None,
     limit: int = Query(50, ge=1, le=200),
 ) -> list[PlanOut]:
@@ -286,7 +425,12 @@ def list_plans(
     unscoped ones built before plans carried a project — the caller can tell them apart by
     `project_id` being null rather than having them silently folded into some project's list.
     """
-    stmt = select(MigrationPlan).order_by(MigrationPlan.created_at.desc()).limit(limit)
+    stmt = (
+        select(MigrationPlan)
+        .where(MigrationPlan.tenant_id == tenant_id)
+        .order_by(MigrationPlan.created_at.desc())
+        .limit(limit)
+    )
     if project_id is not None:
         stmt = stmt.where(MigrationPlan.project_id == project_id)
     plans = session.scalars(stmt).all()
@@ -294,7 +438,12 @@ def list_plans(
 
 
 class RunPlanRequest(BaseModel):
+    #: Write the resulting patches into the working tree.
     apply: bool = True
+    #: Produce the patches. Off means "write what is already prepared" — the app's "Initiate
+    #: migration" button, which runs no model and decides nothing, it only makes the edits real.
+    #: Both default to on, so every existing caller keeps the single-shot behaviour it had.
+    generate: bool = True
     generator: Literal["auto", "llm", "template"] = "auto"
 
 
@@ -304,28 +453,71 @@ def run_plan(
     payload: RunPlanRequest,
     request: Request,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> dict[str, object]:
-    """Migrate every ready task in this plan — the "Initiate migration" button.
+    """Run one or both halves of this plan's migration.
+
+    `generate` writes the patches and leaves them to be read; `apply` writes those patches into
+    the files. The app drives them separately — "Build plan" prepares, "Initiate migration"
+    writes — and a caller that asks for neither flag gets both, which is what it always got.
 
     Dispatched to the job runner rather than run here: a plan of twenty findings can hold the
     request open for minutes while the local model works, and the caller needs progress, not a
     timeout. Poll `GET /jobs/{id}` for status and the per-task result.
     """
-    plan = session.get(MigrationPlan, plan_id)
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
+    plan = require_plan(session, plan_id, tenant_id)
 
-    ready = session.scalar(
-        select(func.count())
-        .select_from(MigrationTask)
-        .where(MigrationTask.plan_id == plan_id)
-        .where(MigrationTask.state == "ready")
-    )
-    if not ready:
-        raise HTTPException(
-            status_code=409,
-            detail="This plan has no ready tasks — every finding is already migrated or parked.",
+    # What this run can actually work on, which is not the same question for the two halves: a
+    # generating run needs READY tasks, a writing run needs PREPARED PATCHES. Asking the wrong one
+    # would refuse "Initiate migration" on a plan whose every finding is generated and waiting,
+    # because generating had already moved all of them out of `ready`.
+    if payload.generate:
+        # `ready` alone undercounted what this run will actually do: `migrate_handler` resumes
+        # every `deferred`/`unresolved` task before generating (that is the whole point of the
+        # resume mechanism bug #10 added — "the engine learns between runs"), but this check did
+        # not know that, so it 409'd "no ready tasks" the moment a plan's last `ready` task was
+        # consumed, even with genuinely retryable work still sitting in `unresolved`. Found live
+        # on OpenSSL: 1912/1912 tasks settled into terminal states (1734 guided, 80 satisfied, 98
+        # unresolved, 0 ready) — from that point on, "Rebuild Plan" 409'd forever, and the 98
+        # findings a code fix had just made retryable were permanently unreachable from the UI.
+        pending = session.scalar(
+            select(func.count())
+            .select_from(MigrationTask)
+            .where(MigrationTask.plan_id == plan_id)
+            .where(
+                or_(
+                    MigrationTask.state == "ready",
+                    and_(
+                        MigrationTask.state == "deferred",
+                        MigrationTask.resolution == RESOLUTION_UNRESOLVED,
+                    ),
+                )
+            )
         )
+        if not pending:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This plan has no ready tasks — every finding is already migrated or parked."
+                ),
+            )
+    else:
+        pending = session.scalar(
+            select(func.count())
+            .select_from(PatchProposal)
+            .join(MigrationTask, PatchProposal.task_id == MigrationTask.id)
+            .where(MigrationTask.plan_id == plan_id)
+            .where(PatchProposal.status.in_(("proposed", "approved")))
+        )
+        if not pending:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "There are no prepared changes to write. Build the plan first — that is what "
+                    "generates the patches this step applies."
+                ),
+            )
+    ready = pending
 
     runner = getattr(request.app.state, "job_runner", None)
     if runner is None:
@@ -343,19 +535,26 @@ def run_plan(
         payload={
             "plan_id": str(plan_id),
             "apply": payload.apply,
+            "generate": payload.generate,
             "generator": payload.generator,
         },
     )
-    session.add(job)
-    session.commit()
+    # Retried, not a bare commit: measured live, driving the app against five real repositories
+    # scanned and migrated at once, a click here while another project's bulk migration was mid-run
+    # (committing once per task, in a loop that can run for minutes) got a genuine
+    # `sqlite3.OperationalError: database is locked` on this exact INSERT — a bare 500, no job
+    # created. `commit_with_retry` re-adds `job` on every attempt; see its docstring for why a
+    # naive rollback-then-recommit would have silently dropped it instead of raising.
+    commit_with_retry(session, job)
     session.refresh(job)
     runner.submit(job.id)
     return {
         "job": {"id": str(job.id), "kind": "migrate"},
         "tasks": int(ready),
         "warning": (
-            f"Migrating {ready} finding(s) in the background. Poll GET /api/v1/jobs/{job.id} "
-            "for progress; the result carries per-task outcomes."
+            f"{'Preparing changes for' if not payload.apply else 'Migrating'} {ready} "
+            f"finding(s) in the background. Poll GET /api/v1/jobs/{job.id} for progress; "
+            "the result carries per-task outcomes."
         ),
     }
 
@@ -364,9 +563,9 @@ def run_plan(
 def get_queue(
     plan_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> list[TaskOut]:
-    if not session.get(MigrationPlan, plan_id):
-        raise HTTPException(status_code=404, detail="Plan not found")
+    require_plan(session, plan_id, tenant_id)
     tasks = session.scalars(
         select(MigrationTask).where(MigrationTask.plan_id == plan_id).order_by(MigrationTask.rank)
     ).all()
@@ -399,6 +598,17 @@ def generate_patch(
                 "generating another."
             ),
         ) from e
+    except GuidedRemediation as e:
+        # Not an error. The rule says no edit QUBIT can correctly make is the right answer for this
+        # finding — a certificate is a signed object, an unverified-publisher package should not be
+        # installed on the user's behalf — and the remediation plan is already stored on the task.
+        # 409 was tempting and wrong: nothing conflicts, the request succeeded and the answer is a
+        # different shape. 303 points the caller at the resource that now holds it.
+        raise HTTPException(
+            status_code=303,
+            detail=str(e),
+            headers={"Location": f"/migrate/tasks/{task_id}"},
+        ) from e
     except (ValueError, NotImplementedError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return _patch_out(patch)
@@ -427,7 +637,14 @@ def advise_task(
     try:
         task = orch.advise_task(task_id, force=payload.force)
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
+        # The model is optional; an answer is not. Ollama being down, or the file being unreadable,
+        # used to make this a 422 and the guidance panel stayed empty — the app's answer to "what
+        # do I do about this?" depended on a side-car the user may not be running. The deterministic
+        # plan is built from shipped data and always exists, so fall back to it and say so.
+        try:
+            task = orch.resolve_guided(task_id, force=payload.force)
+        except ValueError as inner:
+            raise HTTPException(status_code=422, detail=str(inner)) from e
     return _task_out(task, session.get(AssetRow, task.asset_id))
 
 
@@ -448,6 +665,7 @@ def list_task_patches(
 def get_plan_graph(
     plan_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> dict:
     from qubit_core import row_to_asset
     from qubit_core.db import AssetRow
@@ -455,9 +673,7 @@ def get_plan_graph(
     from qubit_migrate.graph.export import serialize_graph
     from qubit_migrate.graph.order import migration_order
 
-    plan = session.get(MigrationPlan, plan_id)
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
+    plan = require_plan(session, plan_id, tenant_id)
 
     asset_ids = [t.asset_id for t in plan.tasks]
     if not asset_ids:
@@ -477,13 +693,11 @@ def get_plan_graph(
 def get_task_governance(
     task_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> dict:
     from qubit_migrate.governance import evaluate_gate
-    from qubit_migrate.state.models import MigrationTask
 
-    task = session.get(MigrationTask, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+    task = require_task(session, task_id, tenant_id)
 
     return evaluate_gate(task, session)
 

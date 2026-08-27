@@ -13,6 +13,7 @@ from qubit_api.app import create_app
 from qubit_api.settings import Settings
 from qubit_core.db import Base as CoreBase
 from qubit_core.db import create_token, get_engine, session_factory
+from qubit_core.db.models import DEFAULT_TENANT_ID
 
 
 def _settings(tmp_path: Path) -> Settings:
@@ -39,7 +40,12 @@ def test_bootstrap_dev_token_when_table_empty(tmp_path: Path) -> None:
     )
     r = client.get("/api/v1/auth/whoami")
     assert r.status_code == 200
-    assert r.json() == {"name": "bootstrap-dev-token", "scopes": "rw"}
+    body = r.json()
+    assert body["name"] == "bootstrap-dev-token"
+    assert body["scopes"] == "rw"
+    # `whoami` also names the team the token speaks for. The bootstrap token is bound to the
+    # default team, which is what makes a single-team install behave exactly as it always did.
+    assert body["tenant_id"] == str(DEFAULT_TENANT_ID)
 
 
 def test_bootstrap_disabled_once_real_token_exists(tmp_path: Path) -> None:
@@ -105,7 +111,9 @@ def test_rw_token_can_read_and_write(tmp_path: Path) -> None:
     raw = _mint(settings, "writer", "rw")
     client = TestClient(create_app(settings), headers={"Authorization": f"Bearer {raw}"})
 
-    assert client.get("/api/v1/auth/whoami").json() == {"name": "writer", "scopes": "rw"}
+    who = client.get("/api/v1/auth/whoami").json()
+    assert who["name"] == "writer"
+    assert who["scopes"] == "rw"
     assert client.get("/api/v1/projects").status_code == 200
     created = client.post("/api/v1/projects", json={"name": "p1"})
     assert created.status_code == 201, created.text

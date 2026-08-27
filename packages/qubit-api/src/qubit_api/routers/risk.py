@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
-from qubit_core.db import AssetRow, Job, RiskRun, ScanRow
+from qubit_core.db import Job, RiskRun
 from qubit_core.mapping import row_to_asset
 from qubit_risk import CRQCTimelineSimulator
 from qubit_risk.config import load_config
@@ -15,8 +15,10 @@ from qubit_risk.score import exposure_of
 from qubit_risk.timeline.survey import BlendedTimeline
 from sqlalchemy.orm import Session
 
+from ..auth import get_current_tenant
 from ..deps import get_session
 from ..jobs.runner import JobRunner
+from ..services import require_asset, require_risk_run, require_scan
 
 router = APIRouter(tags=["risk"])
 logger = logging.getLogger(__name__)
@@ -46,10 +48,9 @@ async def run_risk_for_scan(
     request: Request,
     payload: RiskRunRequest,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> dict[str, str]:
-    scan = session.get(ScanRow, scan_id)
-    if not scan:
-        raise HTTPException(status_code=404, detail="Scan not found")
+    scan = require_scan(session, scan_id, tenant_id)
 
     # Check for concurrent running risk jobs on this scan
     existing = (
@@ -64,6 +65,7 @@ async def run_risk_for_scan(
 
     job = Job(
         kind="risk",
+        tenant_id=tenant_id,
         project_id=scan.project_id,
         ref_id=scan_id,
         payload={
@@ -85,18 +87,19 @@ async def run_risk_for_scan(
 def get_risk_run(
     risk_run_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> RiskRun:
-    risk_run = session.get(RiskRun, risk_run_id)
-    if not risk_run:
-        raise HTTPException(status_code=404, detail="Risk run not found")
-    return risk_run
+    return require_risk_run(session, risk_run_id, tenant_id)
 
 
 @router.get("/scans/{scan_id}/risk/summary")
 def get_risk_summary(
     scan_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> dict:
+    # The scan check is what scopes this: a run is only reachable through a scan the caller owns.
+    require_scan(session, scan_id, tenant_id)
     risk_run = (
         session.query(RiskRun)
         .filter(RiskRun.scan_id == scan_id)
@@ -112,7 +115,9 @@ def get_risk_summary(
 def get_risk_timeline(
     scan_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> dict:
+    require_scan(session, scan_id, tenant_id)
     risk_run = (
         session.query(RiskRun)
         .filter(RiskRun.scan_id == scan_id)
@@ -187,10 +192,9 @@ def get_algorithm_timeline(
 def get_asset_hndl(
     asset_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> dict:
-    row = session.get(AssetRow, asset_id)
-    if row is None:
-        raise HTTPException(status_code=404, detail="Asset not found")
+    row = require_asset(session, asset_id, tenant_id)
     asset = row_to_asset(row)
 
     if not asset.quantum_vulnerable.vulnerable:

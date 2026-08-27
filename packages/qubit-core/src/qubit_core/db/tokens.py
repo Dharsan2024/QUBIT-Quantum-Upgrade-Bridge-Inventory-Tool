@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+import uuid
 from dataclasses import dataclass
 from datetime import UTC
 
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from ..schemas import utcnow
 from .models import ApiToken
+from .tenants import ensure_default_tenant
 
 VALID_SCOPES = ("ro", "rw")
 
@@ -36,8 +38,14 @@ class CreatedToken:
     raw: str
 
 
-def create_token(session: Session, name: str, scopes: str = "rw") -> CreatedToken:
-    """Mint a new token, persist its hash, and return the raw value once.
+def create_token(
+    session: Session, name: str, scopes: str = "rw", tenant_id: uuid.UUID | None = None
+) -> CreatedToken:
+    """Mint a new token for one team, persist its hash, and return the raw value once.
+
+    ``tenant_id`` omitted means the default tenant, which keeps every existing caller — the CLI's
+    ``qubit serve token create`` and the whole test suite — working unchanged on a single-team
+    install. Pass it explicitly to onboard a second team.
 
     Raises ``ValueError`` on an invalid scope or a duplicate name.
     """
@@ -46,8 +54,14 @@ def create_token(session: Session, name: str, scopes: str = "rw") -> CreatedToke
     existing = session.scalar(select(ApiToken).where(ApiToken.name == name))
     if existing is not None:
         raise ValueError(f"a token named {name!r} already exists")
+    if tenant_id is None:
+        # The CLI builds its own engine with `Base.metadata.create_all()` and never runs a
+        # migration body, so the default tenant row may genuinely not exist yet. SQLite enforces
+        # foreign keys here (session.py sets PRAGMA foreign_keys=ON), so this would be a hard
+        # insert failure rather than a NULL.
+        tenant_id = ensure_default_tenant(session).id
     raw = secrets.token_urlsafe(32)
-    row = ApiToken(name=name, token_hash=hash_token(raw), scopes=scopes)
+    row = ApiToken(name=name, token_hash=hash_token(raw), scopes=scopes, tenant_id=tenant_id)
     session.add(row)
     session.commit()
     return CreatedToken(name=name, scopes=scopes, raw=raw)

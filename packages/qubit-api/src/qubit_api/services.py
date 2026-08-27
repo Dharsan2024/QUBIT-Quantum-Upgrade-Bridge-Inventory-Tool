@@ -9,8 +9,9 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from qubit_core import asset_to_row, row_to_asset
 from qubit_core.cbom import export_cbom
-from qubit_core.db import AssetRow, ProjectRow, ScanRow
+from qubit_core.db import AssetRow, ProjectRow, RiskRun, ScanRow
 from qubit_core.schemas import utcnow
+from qubit_migrate.state import MigrationPlan, MigrationTask
 from qubit_scanner import scan_paths
 from sqlalchemy import Integer, Select, String, case, cast, func, select
 from sqlalchemy.orm import Session
@@ -25,25 +26,88 @@ def slugify(value: str) -> str:
     return slug or "project"
 
 
-def require_project(session: Session, project_id: UUID) -> ProjectRow:
-    project = session.get(ProjectRow, project_id)
+# Every `require_*` below takes the caller's tenant and filters on it.
+#
+# 404, never 403, when the row exists but belongs to another team: a 403 would confirm the id is
+# real, which tells team B that team A has a project by that id. From outside a tenant, another
+# tenant's data is indistinguishable from data that does not exist, and that is the intended answer.
+#
+# `tenant_id` is deliberately a REQUIRED parameter rather than an optional one defaulting to "no
+# filter". An optional scope is a scope somebody forgets, and the failure mode is silent
+# cross-tenant reads; required means the type checker names every call site that has not been
+# updated.
+
+
+def require_project(session: Session, project_id: UUID, tenant_id: UUID) -> ProjectRow:
+    project = session.scalar(
+        select(ProjectRow).where(ProjectRow.id == project_id, ProjectRow.tenant_id == tenant_id)
+    )
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
     return project
 
 
-def require_scan(session: Session, scan_id: UUID) -> ScanRow:
-    scan = session.get(ScanRow, scan_id)
+def require_scan(session: Session, scan_id: UUID, tenant_id: UUID) -> ScanRow:
+    scan = session.scalar(
+        select(ScanRow).where(ScanRow.id == scan_id, ScanRow.tenant_id == tenant_id)
+    )
     if scan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="scan not found")
     return scan
 
 
-def require_asset(session: Session, asset_id: UUID) -> AssetRow:
-    asset = session.get(AssetRow, asset_id)
+def require_asset(session: Session, asset_id: UUID, tenant_id: UUID) -> AssetRow:
+    asset = session.scalar(
+        select(AssetRow).where(AssetRow.id == asset_id, AssetRow.tenant_id == tenant_id)
+    )
     if asset is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="asset not found")
     return asset
+
+
+def require_plan(session: Session, plan_id: UUID, tenant_id: UUID) -> MigrationPlan:
+    """A migration plan owned by this team."""
+    plan = session.scalar(
+        select(MigrationPlan).where(
+            MigrationPlan.id == plan_id, MigrationPlan.tenant_id == tenant_id
+        )
+    )
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="plan not found")
+    return plan
+
+
+def require_task(session: Session, task_id: UUID, tenant_id: UUID) -> MigrationTask:
+    """A migration task, scoped through the plan that owns it.
+
+    Tasks carry no tenant of their own — one join up to `migration_plans` is the same boundary the
+    codebase already uses for project scoping, so the tenant is read there rather than duplicated.
+    """
+    task = session.scalar(
+        select(MigrationTask)
+        .join(MigrationPlan, MigrationPlan.id == MigrationTask.plan_id)
+        .where(MigrationTask.id == task_id, MigrationPlan.tenant_id == tenant_id)
+    )
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="task not found")
+    return task
+
+
+def require_risk_run(session: Session, risk_run_id: UUID, tenant_id: UUID) -> RiskRun:
+    """A risk run, scoped through the scan that owns it.
+
+    `risk_runs` carries no `tenant_id` of its own — it is one join below `scans`, which is the same
+    boundary the codebase already uses for project scoping, so the tenant is read from there rather
+    than duplicated onto every run.
+    """
+    run = session.scalar(
+        select(RiskRun)
+        .join(ScanRow, ScanRow.id == RiskRun.scan_id)
+        .where(RiskRun.id == risk_run_id, ScanRow.tenant_id == tenant_id)
+    )
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="risk run not found")
+    return run
 
 
 def to_asset_out(row: AssetRow) -> CryptoAssetOut:
@@ -154,7 +218,7 @@ def autobuild_migration_plan(session: Session, scan_id: UUID) -> UUID | None:
         return None
     try:
         plan = MigrationOrchestrator(session).build_plan(
-            project_id=scan.project_id, scan_id=scan_id
+            project_id=scan.project_id, scan_id=scan_id, tenant_id=scan.tenant_id
         )
     except Exception:
         logger.exception("Auto-building a migration plan failed for scan %s", scan_id)
@@ -260,6 +324,7 @@ def run_scan(
     asynchronous API with no way to tell a caller what was running.
     """
     scan = ScanRow(
+        tenant_id=project.tenant_id,
         project_id=project.id,
         seq=next_scan_sequence(session, project.id),
         label=label,
@@ -287,6 +352,7 @@ def run_scan(
 
         job = Job(
             kind="scan",
+            tenant_id=project.tenant_id,
             project_id=project.id,
             ref_id=scan.id,
             payload={
@@ -311,7 +377,9 @@ def run_scan(
             # default set regardless of what the caller asked for.
             result = scan_paths(resolved_targets, repo=project.slug, scanners=set(scanners))
             rows = [
-                asset_to_row(asset, scan_id=scan.id, project_id=project.id)
+                asset_to_row(
+                    asset, scan_id=scan.id, project_id=project.id, tenant_id=project.tenant_id
+                )
                 for asset in result.assets
             ]
             if rows:
@@ -642,7 +710,7 @@ def scan_sarif(session: Session, scan_id: UUID, *, include_safe: bool = False) -
     )
 
 
-def scan_pdf(session: Session, scan_id: UUID) -> bytes:
+def scan_pdf(session: Session, scan_id: UUID, tenant_id: UUID) -> bytes:
     """Render the paginated PDF report for a scan and return its bytes.
 
     `build_pdf_report` writes to a path (reportlab's document model is file-oriented), so this goes
@@ -654,7 +722,7 @@ def scan_pdf(session: Session, scan_id: UUID) -> bytes:
     from qubit_core import __version__ as core_version
     from qubit_core.report import build_pdf_report
 
-    scan = require_scan(session, scan_id)
+    scan = require_scan(session, scan_id, tenant_id)
     assets = _scan_assets(session, scan_id)
     if not assets:
         raise HTTPException(
@@ -690,6 +758,7 @@ def _new_scan_row(
     label: str | None,
 ) -> ScanRow:
     scan = ScanRow(
+        tenant_id=project.tenant_id,
         project_id=project.id,
         seq=next_scan_sequence(session, project.id),
         label=label,
@@ -755,6 +824,7 @@ def run_network_scan(
 
     job = Job(
         kind="scan",
+        tenant_id=project.tenant_id,
         project_id=project.id,
         ref_id=scan.id,
         payload={
@@ -830,6 +900,7 @@ def run_vault_scan(
 
     job = Job(
         kind="scan",
+        tenant_id=project.tenant_id,
         project_id=project.id,
         ref_id=scan.id,
         payload={
@@ -865,7 +936,9 @@ def _fail_scan(session: Session, scan: ScanRow, error: str) -> None:
 def _store_assets_inline(session: Session, scan: ScanRow, project: ProjectRow, result: Any) -> None:
     """Persist a synchronously-produced ScanResult and mark the scan succeeded."""
     for asset in result.assets:
-        session.add(asset_to_row(asset, scan_id=scan.id, project_id=project.id))
+        session.add(
+            asset_to_row(asset, scan_id=scan.id, project_id=project.id, tenant_id=project.tenant_id)
+        )
     scan.stats = result.stats.model_dump(mode="json")
     scan.status = "succeeded"
     scan.finished_at = utcnow()

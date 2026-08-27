@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from qubit_core.db.models import Base
+from qubit_core.db.models import DEFAULT_TENANT_ID, Base
 from qubit_core.schemas import utcnow
 from sqlalchemy import JSON, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -16,6 +16,11 @@ class MigrationPlan(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    # NOT NULL, unlike `project_id` below. "Built across every project" was always a real state;
+    # "built for no team" never was — the plan was created through an authenticated request.
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, default=DEFAULT_TENANT_ID
+    )
     # Which project (and optionally which single scan) this plan was built from.
     #
     # Nullable because plans predating scoping were built across the ENTIRE database — every
@@ -141,6 +146,14 @@ class PatchProposal(Base):
     status: Mapped[str] = mapped_column(String(32), default="proposed")
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Who approved this SPECIFIC patch. `review_patch` already took an `actor` parameter and
+    # forwarded it to the audit log (`MigrationEvent.actor`) but never stored it on the patch
+    # itself -- so the governance gate's multi-approval policies (PHI/financial data require 2,
+    # see `governance_policy.yaml`) had no way to tell one approver from two. `evaluate_gate`
+    # counted raw APPROVED ROWS, which one person can produce alone: approve, defer, regenerate,
+    # approve again. Recording the approver here is what lets the gate count DISTINCT approvers
+    # instead, which is the control the policy exists to provide.
+    approved_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     applied_branch: Mapped[str | None] = mapped_column(String(128), nullable=True)
     applied_commit: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)

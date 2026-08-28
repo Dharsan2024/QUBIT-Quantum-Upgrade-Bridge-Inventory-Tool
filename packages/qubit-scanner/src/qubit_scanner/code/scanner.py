@@ -566,6 +566,10 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
             # text because that is where the number lives in every ecosystem, and reported only
             # when the argument position or keyword is unambiguous — see `_kdf_iterations`.
             return _kdf_iterations(_string_value(node, root) or resolve.node_text(node))
+        case "hmac-digest":
+            # Which digest an HMAC construction actually names — see `_hmac_digest` for why every
+            # HMAC detection rule used to hardcode "HMAC" regardless of the real answer.
+            return _hmac_digest(_string_value(node, root) or resolve.node_text(node))
         case "go-key-package":
             # `rsa.PrivateKey` -> "RSA", `ed25519.PublicKey` -> "Ed25519". The Go package name is
             # lowercase; the registry is case-insensitive but "ed25519" must not be left to match
@@ -1012,6 +1016,60 @@ def _kdf_iterations(text: str | None) -> str | None:
         return None
     value = args[index].strip().rstrip("Ll")  # Java/C# long suffix
     return value.replace("_", "") if value.replace("_", "").isdigit() else None
+
+
+_HMAC_DIGEST_SPELLINGS: tuple[tuple[str, str], ...] = (
+    ("SHA3-512", "SHA3-512"),
+    ("SHA3_512", "SHA3-512"),
+    ("SHA3-384", "SHA3-384"),
+    ("SHA3_384", "SHA3-384"),
+    ("SHA3-256", "SHA3-256"),
+    ("SHA3_256", "SHA3-256"),
+    ("SHA-512", "SHA512"),
+    ("SHA512", "SHA512"),
+    ("SHA-384", "SHA384"),
+    ("SHA384", "SHA384"),
+    ("SHA-256", "SHA256"),
+    ("SHA256", "SHA256"),
+    ("SHA-224", "SHA224"),
+    ("SHA224", "SHA224"),
+    ("SHA-1", "SHA1"),
+    ("SHA1", "SHA1"),
+    ("MD5", "MD5"),
+)
+
+
+def _hmac_digest(text: str | None) -> str | None:
+    """The digest an HMAC construction names, read from wherever the call spells it.
+
+    Six detection rules (C, Go, Java, JS, Python, TS) used to report every `hmac.new`/
+    `HMAC(...)`/`createHmac(...)`/`Mac.getInstance("Hmac...")` call as the bare literal "HMAC",
+    regardless of which digest the call actually named. HMAC-SHA-256/384/512 (and the SHA-3
+    variants) are already quantum-adequate — Grover only halves the margin, and 128 bits
+    survives, per code-mac-01.yaml's own semantic note — so that hardcoding made a call that
+    correctly pins SHA-256 indistinguishable from one running on SHA-1. `code-mac-01` deliberately
+    does not match "HMAC-SHA256" for exactly that reason, but by then the finding was already
+    raised and a migration task already built for code that needed no migration — the visible
+    symptom was "already meets what code-mac-01 asks for" the first time anyone tried to act on
+    a finding that should never have been raised.
+
+    Every ecosystem names the digest as a substring somewhere in the call, just spelled
+    differently — Python `digestmod=sha256`, Go `hmac.New(sha256.New, key)`, C
+    `HMAC(EVP_sha256(), ...)`, Java `"HmacSHA256"`, JS/TS `createHmac("sha256", key)` — so one
+    text scan covers all six rules; each rule points it at whichever node it already captures
+    (the whole call for C/Go/Python, the digest string directly for Java/JS/TS).
+
+    Falls back to bare "HMAC" when no digest name appears at all — the digest is a variable or
+    expression, and there is nothing left to guess; the migration rule already treats that
+    correctly as "unspecified, may be running on SHA-1".
+    """
+    if not text:
+        return "HMAC"
+    upper = text.upper()
+    for spelling, canonical in _HMAC_DIGEST_SPELLINGS:
+        if spelling in upper:
+            return f"HMAC-{canonical}"
+    return "HMAC"
 
 
 def _openssl_legacy_algorithm(fn_name: str) -> str:

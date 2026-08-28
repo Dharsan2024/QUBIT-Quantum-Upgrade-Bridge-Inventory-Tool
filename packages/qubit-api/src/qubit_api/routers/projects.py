@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from qubit_core.db import AssetRow, ProjectRow, ScanRow
 from qubit_migrate.state import MigrationPlan, MigrationTask
 from sqlalchemy import case, func, select
@@ -24,6 +25,7 @@ from ..schemas import (
 from ..services import require_project, scan_trends, slugify
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=list[ProjectOut])
@@ -286,16 +288,27 @@ def patch_project(
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(
     project_id: UUID,
+    request: Request,
     session: Annotated[Session, Depends(get_session)],
     tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> None:
     project = require_project(session, project_id, tenant_id)
+    # See routers/scans.py's identical rationale: a cascading delete with no caller trail was
+    # undiagnosable in practice.
+    logger.warning(
+        "DELETE /projects/%s (%s, tenant=%s) from %s",
+        project_id,
+        project.name,
+        tenant_id,
+        request.client.host if request.client else "unknown",
+    )
     session.delete(project)
     session.commit()
 
 
 @router.delete("")
 def delete_all_projects(
+    request: Request,
     session: Annotated[Session, Depends(get_session)],
     tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> dict[str, int]:
@@ -310,6 +323,12 @@ def delete_all_projects(
     unscoped "Reset" would wipe every other team's work from a button one team pressed.
     """
     projects = session.scalars(select(ProjectRow).where(ProjectRow.tenant_id == tenant_id)).all()
+    logger.warning(
+        "DELETE /projects (bulk, %d project(s), tenant=%s) from %s",
+        len(projects),
+        tenant_id,
+        request.client.host if request.client else "unknown",
+    )
     for project in projects:
         session.delete(project)
     session.commit()

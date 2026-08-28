@@ -468,3 +468,41 @@ export interface ThreatIntelSnapshot {
   reviewed_at: string | null;
   reviewer_note: string | null;
 }
+
+/** "ollama" — the always-available local default — or "openai-compatible", an external endpoint
+ *  the user configures (OpenAI, Azure OpenAI, a free hosted tier like Groq/OpenRouter, or a
+ *  company's own self-hosted server). Ollama stays as the automatic fallback either way. */
+export type LlmProvider = "ollama" | "openai-compatible";
+
+/** Never carries the decrypted key — only whether one is saved, and its last 4 characters. */
+export interface LlmProviderConfig {
+  provider: LlmProvider;
+  base_url: string | null;
+  model: string | null;
+  api_key_configured: boolean;
+  api_key_last4: string | null;
+  /** The selected model's real context window, read from the provider. null when unknown, in
+   *  which case generation falls back to the local model's configured window. Load-bearing:
+   *  QUBIT routes a finding to written guidance when the file cannot fit this. */
+  context_tokens: number | null;
+  /** An optional SECOND endpoint, tried when the primary refuses a request. A free tier's binding
+   *  constraint is its per-minute token allowance, so a second key raises the real ceiling. */
+  backup_base_url: string | null;
+  backup_model: string | null;
+  backup_api_key_configured: boolean;
+  backup_api_key_last4: string | null;
+  backup_context_tokens: number | null;
+  updated_at: string;
+}
+
+export interface LlmProviderVerifyResult {
+  ok: boolean;
+  detail: string;
+}
+
+/** What the configured provider actually offers right now — read live from it, never a list
+ *  compiled into QUBIT, because free-tier lineups rotate. `error` is "" on success. */
+export interface LlmProviderModels {
+  models: string[];
+  error: string;
+}

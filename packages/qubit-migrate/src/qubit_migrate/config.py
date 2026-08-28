@@ -70,6 +70,39 @@ class MigrateConfig(BaseSettings):
 
     # validation sandbox
     no_docker: bool = False  # set True to skip stages 3-4
+    #: Image the `tests` and `compiles` stages run in.
+    #:
+    #: The default is a bare interpreter, and that is precisely why `tests` reported `skipped` on
+    #: every patch this installation has ever produced: it carries no pytest and none of the target
+    #: repo's dependencies, so the suite dies on its own imports, the stage re-runs the untouched
+    #: tree, that is red too, and it honestly declines to judge the patch. 292 patches, 292 skips.
+    #:
+    #: Point this at an image built from the target repo's PINNED dependency spec and the stage
+    #: becomes a real behaviour-preservation oracle. Build it with the dependencies ONLY, never the
+    #: project itself: an installed copy shadows the file the stage overlays into /work, so
+    #: `import pkg` resolves to site-packages, the patch is never imported, and the stage would
+    #: report `pass` for every patch regardless of what the model wrote.
+    test_sandbox_image: str = "python:3.12-slim"
+    #: What to run inside it. Overridable because a monorepo has to have its collection root pinned.
+    #:
+    #: `--continue-on-collection-errors` is not incidental. Real repositories carry modules that
+    #: import optional dependencies, and a collection error is FATAL to a pytest run by default:
+    #: measured on tornado, two unrelated modules under `maint/test/` (cython, redbot) aborted
+    #: collection entirely and not one of its 1,174 passing tests ran. With the flag, those modules
+    #: contribute nothing and everything else runs. That is safe here precisely because the verdict
+    #: is a set difference against the untouched tree -- a test that could not be collected before
+    #: the patch is not in the baseline, so it cannot be counted against the patch.
+    test_command: str = "python -m pytest -q --continue-on-collection-errors"
+    #: Seconds for one suite run. Was hardcoded at 300; a large suite legitimately exceeds that, and
+    #: a timeout used to be scored as a patch failure rather than as "we could not tell".
+    #:
+    #: Raised to 900 on measurement, not on principle. wagtail's Django suite takes ~320s per run on
+    #: this machine, so at 300 BOTH the baseline and the patched run timed out and the stage
+    #: reported `skipped` -- a repository with a perfectly good oracle (its controls pass) producing
+    #: no verdict at all, purely because the clock was set too tight. The cost of a generous ceiling
+    #: is bounded: it is reached only when a suite is already going to be useless, and the container
+    #: is killed by name at the limit either way.
+    test_timeout_s: float = 900.0
 
 
 __all__ = ["MigrateConfig"]

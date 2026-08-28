@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "cudaq-guide": {
+      "source": "NVIDIA/skills",
+      "sourceType": "github",
+      "skillPath": "skills/cudaq-guide/SKILL.md",
+      "computedHash": "4cb53dbdbda8dafd9fd16b93eec74223920c6d2fb386f0255236ae830a2d2557"
+    }
+  }
+}

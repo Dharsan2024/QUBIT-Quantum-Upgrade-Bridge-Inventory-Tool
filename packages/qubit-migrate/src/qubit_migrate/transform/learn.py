@@ -28,6 +28,7 @@ so nothing in this module reaches the internet.
 
 from __future__ import annotations
 
+import difflib
 import re
 import uuid
 from collections import Counter
@@ -35,7 +36,7 @@ from dataclasses import dataclass, field
 
 from qubit_core.db.models import DEFAULT_TENANT_ID, LearnedOutcome, LearnedPatch
 from qubit_core.schemas import utcnow
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from .diffing import sha256_of
@@ -107,6 +108,32 @@ def apply(orig: str, line: int, learned: LearnedPatch) -> ReuseResult | None:
     )
 
 
+def _counterpart(before_lines: list[str], after_lines: list[str], index: int) -> str | None:
+    """What the line at `index` became, or None when there is no single-line answer.
+
+    Positional lookup (`after_lines[index]`) is only correct when the rewrite preserved the line
+    count, and the most ordinary successful migration does not: replacing a primitive usually adds
+    an import, which shifts every line below it by one. The old code required equal line counts and
+    so DISCARDED those fixes entirely -- measured on this installation, 11 of 17 validated
+    successes, none of which could ever be replayed or used to ground a later prompt.
+
+    Aligning the two files first recovers them. A line that was replaced one-for-one has a
+    counterpart whatever happened elsewhere in the file; a line that was deleted, or absorbed into
+    a block of a different size, genuinely has no single-line answer and still returns None rather
+    than a guess. Guessing is what would corrupt the next file the entry lands on.
+    """
+    matcher = difflib.SequenceMatcher(a=before_lines, b=after_lines, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if not i1 <= index < i2:
+            continue
+        if tag != "replace" or (i2 - i1) != (j2 - j1):
+            # `equal` means the flagged line was not touched; an uneven `replace`, an `insert` or a
+            # `delete` means it has no one-line counterpart to record.
+            return None
+        return after_lines[j1 + (index - i1)]
+    return None
+
+
 def record(
     session: Session,
     *,
@@ -121,20 +148,28 @@ def record(
 ) -> None:
     """Remember a freshly-validated single-line fix so the next identical line skips the model.
 
-    Deliberately narrow: only a line-scoped change with an unchanged line count, because that is
-    the only shape :func:`apply` can replay onto another file without knowing anything about it.
-    A whole-file restructure has no safe one-line snippet to extract, and guessing one produces an
-    entry that corrupts the next file it lands on.
+    Still narrow, and deliberately so: only a line-scoped change, because that is the only shape
+    :func:`apply` can replay onto another file without knowing anything about it. A whole-file
+    restructure has no safe one-line snippet to extract, and guessing one produces an entry that
+    corrupts the next file it lands on. Those go to :func:`record_outcome` instead.
 
-    What used to happen to those larger rewrites is that they were simply forgotten.
-    :func:`record_outcome` is where they go now.
+    It used to be narrower than that, and wrongly. The line count had to be UNCHANGED, which
+    excluded the most ordinary successful migration there is: replacing a primitive and adding the
+    import it needs. Measured on this installation, that shape was 11 of 17 validated successes --
+    so nearly two thirds of everything the local model got right was thrown away, could never be
+    replayed without a model call, and never grounded a later prompt. `_counterpart` aligns the two
+    files instead of indexing into them, which recovers exactly those and still returns None where
+    there is genuinely no single-line answer.
     """
     before_lines = orig.splitlines()
     after_lines = new.splitlines()
-    if len(before_lines) != len(after_lines) or not (1 <= line <= len(before_lines)):
+    if not 1 <= line <= len(before_lines):
+        return
+    counterpart = _counterpart(before_lines, after_lines, line - 1)
+    if counterpart is None:
         return
     before = before_lines[line - 1].strip()
-    after = after_lines[line - 1].strip()
+    after = counterpart.strip()
     if before == after or not before or not after:
         return
     key = _line_key(rule_id, before)
@@ -747,8 +782,19 @@ def reliability(
     rule_id: str,
     language: str,
     tenant_id: uuid.UUID = DEFAULT_TENANT_ID,
+    source_model: str | None = None,
+    include_unattributed: bool = False,
 ) -> tuple[int, int]:
     """``(passed, failed)`` recorded for this rule in this language.
+
+    ``source_model``: count only outcomes produced by THIS engine. See the second trap below --
+    without it, switching to a stronger model inherits the weaker one's failures and the new
+    engine is refused work it may well be able to do.
+
+    ``include_unattributed``: also count rows with no ``source_model``. Set by the caller when the
+    active engine is the LOCAL one, because a row written before attribution existed was produced
+    by the local model -- that is a fact about when the column was added, not a guess. Attaching
+    that history to an external engine instead would be wrong in the harmful direction.
 
     Counts only failures the MODEL is answerable for. A rejection produced by an expectation
     nothing could satisfy - QUBIT shipping no verified target shape for the language, so the
@@ -764,14 +810,29 @@ def reliability(
     been given a fair attempt. Measured: go-ethereum's `code-signature-01`/go recorded 4 failures,
     every one of them caused by Go having no ML-DSA detection rule; after that rule was added the
     pairing was still skipped, citing those same four.
+
+    The SECOND form of the same trap, and the reason `source_model` exists: a ceiling measured on
+    one model is not a property of the task. Counting every engine's failures together meant
+    configuring a stronger model inherited the weaker one's record and was refused before its
+    first attempt -- `_llm_detour_reason` sent the finding to written advice citing failures the
+    new engine had no part in. Measured live: `py-signature-01`/python carried enough local-7B
+    failures to trip `llm_skip_after_failures`, and a freshly configured 120B model was skipped on
+    that evidence. Scoping the count to the engine that will actually run restores the property
+    the docstring above already claimed.
     """
     lang = _safe_language(language)
-    rows = session.scalars(
+    stmt = (
         select(LearnedOutcome)
         .where(LearnedOutcome.tenant_id == tenant_id)
         .where(LearnedOutcome.rule_id == rule_id)
         .where(LearnedOutcome.language == lang)
-    ).all()
+    )
+    if source_model is not None:
+        match = LearnedOutcome.source_model == source_model
+        if include_unattributed:
+            match = or_(match, LearnedOutcome.source_model.is_(None))
+        stmt = stmt.where(match)
+    rows = session.scalars(stmt).all()
     passed = sum(1 + row.hit_count for row in rows if row.outcome == "passed")
     failed = sum(
         1 + row.hit_count for row in rows if row.outcome == "failed" and not was_unwinnable(row)

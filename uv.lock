@@ -2262,6 +2262,7 @@ version = "0.1.0"
 source = { editable = "packages/qubit-core" }
 dependencies = [
     { name = "alembic" },
+    { name = "cryptography" },
     { name = "platformdirs" },
     { name = "pydantic" },
     { name = "sqlalchemy" },
@@ -2278,6 +2279,7 @@ postgres = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.13" },
+    { name = "cryptography", specifier = ">=43.0" },
     { name = "platformdirs", specifier = ">=4.2" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.2" },
     { name = "pydantic", specifier = ">=2.7" },

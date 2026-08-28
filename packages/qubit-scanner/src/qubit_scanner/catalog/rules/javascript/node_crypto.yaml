@@ -96,7 +96,9 @@ rules:
         - { capture: obj, equals: crypto }
         - { capture: meth, equals: createHmac }
     extract:
-      algorithm: { literal: HMAC }
+      # `@alg` is already the digest string ("sha256"), so it is right there — see
+      # python/cryptography_more.yaml's PY-HMAC-NEW for why this must not be `{literal: HMAC}`.
+      algorithm: { from: alg, resolve: hmac-digest }
     asset: { asset_type: algorithm-use, usage_context: token }
     confidence: high
     examples:

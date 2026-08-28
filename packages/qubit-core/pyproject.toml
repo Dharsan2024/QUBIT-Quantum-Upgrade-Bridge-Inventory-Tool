@@ -10,6 +10,10 @@ dependencies = [
   "sqlalchemy>=2.0.30",
   "alembic>=1.13",
   "platformdirs>=4.2",
+  # Reversible encryption for the LLM provider API key (qubit_core.db.secrets_at_rest). Needed
+  # here, not just in qubit-api, because qubit-migrate's orchestrator decrypts the key directly
+  # and does not depend on qubit-scanner (the only other package that already pulls this in).
+  "cryptography>=43.0",
 ]
 
 [project.optional-dependencies]

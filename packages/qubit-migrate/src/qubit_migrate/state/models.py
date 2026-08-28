@@ -110,6 +110,13 @@ class MigrationTask(Base):
     # NULL on tasks that never parked, and on rows written before this column existed.
     # See RESOLUTION_SATISFIED / RESOLUTION_UNRESOLVED in orchestrator.py.
     resolution: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    #: Model requests and tokens this task has consumed, ACCUMULATED across every
+    #: attempt including the ones that produced nothing. `PatchProposal.cost_json`
+    #: records what a successful patch cost; this records what the task cost, and the
+    #: two differ exactly where it matters -- a finding that burns its repair budget and
+    #: fails writes no patch at all, so its spend would otherwise be invisible.
+    spend_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
     # Migration advice for a finding no patch could be produced for. A queue entry that says
     # "manual change" and nothing else is a dead end: it names an algorithm and a line and leaves
     # the reader to work out what the code does, what it should become, and what breaks on the way.
@@ -142,6 +149,13 @@ class PatchProposal(Base):
     diff_text: Mapped[str] = mapped_column(Text)
     new_files_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     validation_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    #: What this patch cost the attached model: calls, prompt and completion tokens,
+    #: seconds, and which engine answered. Empty for a patch produced without a model at
+    #: all -- a deterministic codemod or a replay from the learned-patch cache -- and that
+    #: emptiness is the point. QUBIT's claim about an LLM is an efficiency claim, and it
+    #: was unmeasurable while nothing recorded the spend: both engines report usage in
+    #: their responses and it was read for the answer text and thrown away.
+    cost_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     # proposed | approved | rejected | applied | superseded | failed
     status: Mapped[str] = mapped_column(String(32), default="proposed")
     review_note: Mapped[str | None] = mapped_column(Text, nullable=True)

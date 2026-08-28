@@ -10,11 +10,13 @@ Stages 3 (compile) and 4 (tests) are M2 (require Docker sandbox).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import shutil
 import subprocess
 import tempfile
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -659,15 +661,242 @@ def _stage_compiles(patched_source: str, language: str = "python") -> StageResul
         return StageResult("fail", detail, time.monotonic() - t0)
 
 
+#: Filename the JSON report is written to inside the sandbox, then read back from the copy.
+_REPORT_NAME = ".qubit-pytest-report.json"
+
+
+@dataclass(frozen=True)
+class _Baseline:
+    """What the project's own suite does BEFORE any patch is applied.
+
+    `passing` is the set of node ids that pass. It is what turns this stage from "did the exit code
+    change" into "did anything that worked stop working", and that distinction is the whole game: a
+    real repository almost always has a handful of tests that cannot run in an offline sandbox, and
+    under a plain exit-code comparison one of those made the entire stage `skipped` and discarded
+    the evidence from the other several thousand tests.
+    """
+
+    passing: frozenset[str]
+    collected: int
+    green: bool
+
+
+#: Baseline per (image, repo_root). It is byte-identical for every patch in a run, and re-deriving
+#: it per patch doubled the most expensive operation in the pipeline to re-learn the same fact --
+#: at 150 findings across 5 experiment arms, 750 suite runs of pure waste.
+_BASELINE_CACHE: dict[tuple[str, str], _Baseline | None] = {}
+
+#: Directories that must never be copied into the sandbox. A stray local virtualenv turns a
+#: per-patch tree copy into minutes of pure I/O, and this runs once per patch per arm.
+_COPY_IGNORES = shutil.ignore_patterns(
+    # `.git` is deliberately NOT ignored. A large share of Python projects derive their version
+    # from git at import time -- `versioningit` and `setuptools_scm` between them cover most of it
+    # -- and with the repository uninstalled from the image (which it must be, or the overlaid file
+    # is never read) that derivation is the only thing left. Measured on streamlink: without the
+    # git directory, `import streamlink` raised `ModuleNotFoundError: No module named
+    # 'versioningit'` from its own `_version.py`, so the suite could not start and no patch could
+    # ever be judged. The cost is bounded -- 756K for tornado, 1.2M for streamlink, 89M for the
+    # largest repository in the corpus -- and it is paid once per patch against a container run
+    # measured in minutes.
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".tox",
+    ".nox",
+    "node_modules",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "htmlcov",
+    "*.egg-info",
+)
+
+
+def _kill_container(name: str) -> None:
+    """`subprocess.run(timeout=)` kills the docker CLIENT, not the container it started.
+
+    Without this a timed-out suite keeps running, holding its CPU reservation, and every later run
+    on the machine looks slower than it is -- which silently corrupts any timing comparison
+    between experiment arms.
+    """
+    with contextlib.suppress(subprocess.TimeoutExpired, OSError):
+        subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=30)
+
+
+def _docker_run(work: Path, image: str, shell_cmd: str, timeout_s: float) -> tuple[int, str]:
+    """One sandboxed command. Offline, resource-capped, and killable."""
+    name = f"qubit-tests-{uuid.uuid4().hex[:12]}"
+    argv = [
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        name,
+        # The offline mandate. Also the reason a suite needing DNS shows up as a baseline failure
+        # rather than as evidence against a patch.
+        "--network=none",
+        # Not paranoia: without a CPU cap the `duration_s` this stage reports is a function of
+        # whatever else the machine is doing, and the timings stop being comparable across arms.
+        "--memory=2g",
+        "--cpus=2",
+        "--pids-limit=512",
+        # The image deliberately does NOT install the project -- if it did, `import pkg` would
+        # resolve to site-packages and the overlaid file would never be read, so every patch would
+        # score as behaviour-preserving. That makes the import path this stage's responsibility.
+        #
+        # `-w /work` alone only covers a FLAT layout, where `python -m pytest` puts the working
+        # directory on `sys.path`. A `src/` layout has nothing importable at /work at all, and the
+        # oracle controls said so plainly: on streamlink, `import streamlink` inside the sandbox
+        # raised ModuleNotFoundError, so the suite could not run and not one patch was ever judged.
+        # Both roots are listed because both layouts occur; a missing directory on PYTHONPATH is
+        # ignored by the interpreter, so this is safe for either.
+        "-e",
+        "PYTHONPATH=/work/src:/work",
+        "-v",
+        f"{work}:/work",
+        "-w",
+        "/work",
+        image,
+        "sh",
+        "-c",
+        shell_cmd,
+    ]
+    try:
+        result = subprocess.run(argv, capture_output=True, timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        _kill_container(name)
+        raise
+    return result.returncode, result.stdout.decode("utf-8", errors="replace")
+
+
+def _pytest_report(work: Path) -> tuple[frozenset[str], int] | None:
+    """Passing node ids and the collected count from `--json-report`, or None if unavailable.
+
+    None is not a failure -- it means the image cannot produce a per-test report (no pytest, or no
+    `pytest-json-report`), and the caller falls back to comparing exit codes.
+    """
+    path = work / _REPORT_NAME
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError):
+        return None
+    tests = data.get("tests")
+    if not isinstance(tests, list):
+        return None
+    passing = frozenset(
+        str(t.get("nodeid"))
+        for t in tests
+        if isinstance(t, dict) and t.get("outcome") == "passed" and t.get("nodeid")
+    )
+    return passing, len(tests)
+
+
+def _run_suite(
+    work: Path, image: str, command: str, timeout_s: float, *, fail_fast: bool = False
+) -> tuple[int, str, tuple[frozenset[str], int] | None]:
+    """Run the suite, preferring a per-test report and degrading gracefully when it is absent.
+
+    `fail_fast` is for the BASELINE only, where the single bit "is it red" is all that is wanted.
+    The patched run deliberately never uses `-x`: stopping at the first failure answers "something
+    broke" but never "how much broke", and it cannot distinguish a patch that broke one test from
+    one that broke the suite.
+    """
+    # `-p pytest_jsonreport` loads the plugin EXPLICITLY. Installing it is not enough: a
+    # project that sets `--disable-plugin-autoload` in its own addopts -- streamlink does, and
+    # it is a common choice for determinism -- leaves the plugin installed and unloaded, so
+    # pytest answers "unrecognized arguments: --json-report" and the stage falls back to
+    # comparing exit codes. That fallback then refuses any repository with a single
+    # permanently-red test, which is exactly what the per-test set difference exists to
+    # tolerate: streamlink has 7,228 passing tests and 4 that fail on the untouched tree.
+    report_flag = f" -p pytest_jsonreport --json-report --json-report-file=/work/{_REPORT_NAME}"
+    x_flag = " -x" if fail_fast else ""
+    attempts = (
+        f"{command}{x_flag}{report_flag} 2>&1",
+        f"{command}{x_flag} 2>&1",
+        "python -m unittest discover -s tests 2>&1",
+    )
+    code, out = 1, ""
+    for index, shell_cmd in enumerate(attempts):
+        (work / _REPORT_NAME).unlink(missing_ok=True)
+        code, out = _docker_run(work, image, shell_cmd, timeout_s)
+        parsed = _pytest_report(work)
+        if parsed is not None:
+            return code, out, parsed
+        if "No module named pytest" in out:
+            continue  # bare interpreter: fall through to the stdlib runner
+        if index == 0 and "json-report" in out:
+            continue  # pytest is there but the plugin is not: rerun without the flag
+        return code, out, None
+    return code, out, None
+
+
+def _compute_baseline(
+    repo_root: Path, image: str, command: str, timeout_s: float
+) -> _Baseline | None:
+    """What the untouched tree does. Computed once per (image, repo_root), then cached."""
+    key = (image, str(repo_root))
+    if key in _BASELINE_CACHE:
+        return _BASELINE_CACHE[key]
+    result: _Baseline | None = None
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            work = Path(tmpdir) / "repo"
+            shutil.copytree(repo_root, work, ignore=_COPY_IGNORES)
+            code, _out, parsed = _run_suite(work, image, command, timeout_s, fail_fast=False)
+            if parsed is not None:
+                passing, collected = parsed
+                result = _Baseline(passing=passing, collected=collected, green=code == 0)
+            else:
+                result = _Baseline(passing=frozenset(), collected=0, green=code == 0)
+    except (subprocess.TimeoutExpired, OSError, shutil.Error):
+        result = None
+    _BASELINE_CACHE[key] = result
+    return result
+
+
+#: Directories never worth walking when looking for tests -- vendored code and build output can
+#: contain thousands of files and none of them are this repository's suite.
+_TEST_SEARCH_SKIP = frozenset(
+    {".git", ".tox", ".venv", "venv", "node_modules", "build", "dist", "__pycache__", ".mypy_cache"}
+)
+
+
 def _has_test_suite(repo_root: Path) -> bool:
-    if (repo_root / "tests").is_dir():
+    """Is there plausibly a suite here at all?
+
+    A cheap pre-filter, not a verdict: it exists only to avoid paying for a container on a
+    repository that obviously has no tests. Being slightly too generous costs one baseline run,
+    which then finds nothing and skips honestly; being too strict costs the verdict entirely, with
+    a message that reads as a property of the repository rather than of this function.
+
+    It was too strict. Looking only at the repository ROOT missed wagtail -- a Django project whose
+    tests live inside each app rather than in a top-level `tests/`, and which declares its runner in
+    `tox.ini` -- and ansible, for the same reason. Measured on this installation: 16 of 84 patches
+    were refused with "no test suite detected in repo" against repositories that unambiguously have
+    one.
+    """
+    if (repo_root / "tests").is_dir() or (repo_root / "test").is_dir():
         return True
-    if (repo_root / "pytest.ini").exists() or (repo_root / "setup.cfg").exists():
-        return True
-    pyproject = repo_root / "pyproject.toml"
-    if not pyproject.exists():
-        return False
-    return "pytest" in pyproject.read_text(encoding="utf-8", errors="replace")
+    for marker in ("pytest.ini", "setup.cfg", "tox.ini", "conftest.py", "pyproject.toml"):
+        path = repo_root / marker
+        if path.is_file() and (
+            marker in ("pytest.ini", "conftest.py")
+            or "pytest" in path.read_text(encoding="utf-8", errors="replace")
+        ):
+            return True
+    # Nested suites: Django and Ansible both keep tests beside the code they cover. Bounded to three
+    # levels and stopped at the first hit, so this stays a filter rather than a tree walk.
+    for depth in range(1, 4):
+        pattern = "/".join(["*"] * depth)
+        for candidate in repo_root.glob(f"{pattern}/tests"):
+            if candidate.is_dir() and not (_TEST_SEARCH_SKIP & set(candidate.parts)):
+                return True
+        for candidate in repo_root.glob(f"{pattern}/test_*.py"):
+            if not (_TEST_SEARCH_SKIP & set(candidate.parts)):
+                return True
+    return False
 
 
 def _stage_tests(
@@ -676,12 +905,32 @@ def _stage_tests(
     target_rel_path: str | None,
     language: str = "python",
     original_source: str | None = None,
+    image: str = _SANDBOX_IMAGE,
+    command: str = "python -m pytest -q --continue-on-collection-errors",
+    timeout_s: float = 300.0,
 ) -> StageResult:
-    """Stage 4: copy the repo, overlay the patched file, run pytest inside the sandbox.
+    """Stage 4: copy the repo, overlay the patched file, run its own suite in the sandbox.
 
-    Network stays off; pytest comes from the host venv mounted read-only would be fragile,
-    so we use `python -m unittest`-compatible pytest bundled via pip cache only when the
-    image has it — otherwise the stage reports skipped (honest) rather than green.
+    This is the only stage in the pipeline that can tell you a migration PRESERVED BEHAVIOUR.
+    Every other stage is syntactic: `rescan` says the scanner stopped seeing RSA and started
+    seeing ML-KEM, which is equally true of a rewrite that reuses a nonce, drops an auth tag, or
+    breaks every caller.
+
+    Two things decide whether it is an oracle or theatre:
+
+    * **The image.** A bare interpreter has no pytest and none of the repo's dependencies, so the
+      suite dies on its own imports and this stage honestly declines to judge. Measured on this
+      installation: 292 patches, 292 skips. `MigrateConfig.test_sandbox_image` points it at an
+      image built from the target's pinned dependency spec.
+    * **What the image must NOT contain: the project itself.** If it is installed, `import pkg`
+      resolves to site-packages and the file overlaid into /work is never imported -- the stage
+      then reports `pass` for every patch regardless of content. Verify with a mutation control
+      before trusting a single number from it.
+
+    The verdict is a per-test set difference, not an exit-code comparison: a patch fails when
+    something that PASSED on the untouched tree stops passing. That is robust to the handful of
+    tests a real repository cannot run offline, which under the old comparison made the whole
+    stage `skipped` and discarded everything else.
     """
     t0 = time.monotonic()
     if language != "python":
@@ -692,71 +941,83 @@ def _stage_tests(
         return StageResult("skipped", "no test suite detected in repo", 0.0)
     if not _docker_available():
         return StageResult("skipped", "docker unavailable", time.monotonic() - t0)
+    # `_stage_compiles` has always guarded this; this stage did not, so `docker run` could silently
+    # PULL -- from a tool whose stated promise is that your code never leaves the machine.
+    if not _image_present(image):
+        return StageResult(
+            "skipped",
+            f"sandbox image {image} is not pulled (QUBIT never downloads one itself) — "
+            f"build or pull it first: docker pull {image}",
+            time.monotonic() - t0,
+        )
+
+    baseline = _compute_baseline(repo_root, image, command, timeout_s)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         work = Path(tmpdir) / "repo"
-        shutil.copytree(repo_root, work, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+        shutil.copytree(repo_root, work, ignore=_COPY_IGNORES)
         target = work / target_rel_path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(patched_source, encoding="utf-8", newline="\n")
 
-        def _run_in_sandbox(cmd: str) -> subprocess.CompletedProcess:
-            return subprocess.run(
-                [
-                    "docker",
-                    "run",
-                    "--rm",
-                    "--network=none",
-                    "-v",
-                    f"{work}:/work",
-                    "-w",
-                    "/work",
-                    _SANDBOX_IMAGE,
-                    "sh",
-                    "-c",
-                    cmd,
-                ],
-                capture_output=True,
-                timeout=300,
+        try:
+            code, out, parsed = _run_suite(work, image, command, timeout_s)
+        except subprocess.TimeoutExpired:
+            # A timeout used to be scored `fail`, which called a slow-but-green suite a broken
+            # patch. If the untouched tree cannot finish either, this says nothing about the patch.
+            if baseline is None:
+                return StageResult(
+                    "skipped",
+                    f"the suite did not finish within {timeout_s:.0f}s, and neither did the "
+                    "untouched tree, so it says nothing about this change",
+                    time.monotonic() - t0,
+                )
+            return StageResult(
+                "fail", f"sandbox tests timed out after {timeout_s:.0f}s", time.monotonic() - t0
             )
 
-        def _run_suite() -> tuple[int, str]:
-            result = _run_in_sandbox("python -m pytest -x -q 2>&1")
-            out = result.stdout.decode("utf-8", errors="replace")
-            if "No module named pytest" in out:
-                # base image has no pytest; fall back to the stdlib runner
-                result = _run_in_sandbox("python -m unittest discover -s tests 2>&1")
-                out = result.stdout.decode("utf-8", errors="replace")
-            return result.returncode, out
+        # ── The oracle proper: a per-test set difference against the untouched tree ──
+        if parsed is not None and baseline is not None and baseline.collected > 0:
+            patched_passing, collected = parsed
+            regressions = sorted(baseline.passing - patched_passing)
+            if regressions:
+                shown = ", ".join(regressions[:10])
+                more = f" (+{len(regressions) - 10} more)" if len(regressions) > 10 else ""
+                return StageResult(
+                    "fail",
+                    f"{len(regressions)} test(s) that passed before this patch now do not: "
+                    f"{shown}{more}",
+                    time.monotonic() - t0,
+                )
+            if not baseline.passing:
+                return StageResult(
+                    "skipped",
+                    "no test passes on the untouched tree in this sandbox, so the suite cannot "
+                    "say anything about this change",
+                    time.monotonic() - t0,
+                )
+            return StageResult(
+                "pass",
+                f"all {len(baseline.passing)} tests that passed before this patch still pass "
+                f"({collected} collected)",
+                time.monotonic() - t0,
+            )
 
-        try:
-            code, out = _run_suite()
-        except subprocess.TimeoutExpired:
-            return StageResult("fail", "sandbox tests timed out", time.monotonic() - t0)
+        # ── Fallback: no per-test report available, so compare exit codes ──
         if code == 0:
             return StageResult(
                 "pass", out[:2048] or "tests green in sandbox", time.monotonic() - t0
             )
-
         # A red suite is only evidence against the PATCH if the same suite is green without it.
-        # The sandbox is a bare `python:3.12-slim` with no network, so a third-party project's
-        # tests fail on their own imports long before they reach the patched line: measured on the
-        # real `requests` checkout, every test module failed with ImportError and a perfectly good
-        # SHA-256 patch was rejected for it. Re-running the untouched tree is what tells those
-        # apart, and it costs an extra sandbox run only when something already failed.
-        if original_source is not None:
-            target.write_text(original_source, encoding="utf-8", newline="\n")
-            try:
-                baseline_code, _ = _run_suite()
-            except subprocess.TimeoutExpired:
-                baseline_code = 1
-            if baseline_code != 0:
-                return StageResult(
-                    "skipped",
-                    "this suite does not run in the sandbox even before the patch "
-                    "(missing dependencies, no network), so it says nothing about this change",
-                    time.monotonic() - t0,
-                )
+        # Measured on the real `requests` checkout: every test module failed with ImportError in a
+        # bare offline sandbox and a perfectly good SHA-256 patch was rejected for it.
+        if baseline is not None and not baseline.green:
+            return StageResult(
+                "skipped",
+                "this suite does not run in the sandbox even before the patch "
+                "(missing dependencies, no network), so it says nothing about this change",
+                time.monotonic() - t0,
+            )
         return StageResult("fail", out[:2048], time.monotonic() - t0)
 
 
@@ -772,6 +1033,9 @@ def validate_patch(
     asset_algorithm: str | None = None,
     original_source: str | None = None,
     asset_line: int | None = None,
+    test_sandbox_image: str = _SANDBOX_IMAGE,
+    test_command: str = "python -m pytest -q --continue-on-collection-errors",
+    test_timeout_s: float = 300.0,
 ) -> ValidationReport:
     """Run validation stages 1 applies, 2 parses, 3 compiles, 4 tests, 5 rescan.
 
@@ -794,7 +1058,14 @@ def validate_patch(
     else:
         stages["compiles"] = _stage_compiles(patched_source, language)
         stages["tests"] = _stage_tests(
-            patched_source, repo_root, target_rel_path, language, original_source
+            patched_source,
+            repo_root,
+            target_rel_path,
+            language,
+            original_source,
+            image=test_sandbox_image,
+            command=test_command,
+            timeout_s=test_timeout_s,
         )
     stages["rescan"] = _stage_rescan(
         patched_source,

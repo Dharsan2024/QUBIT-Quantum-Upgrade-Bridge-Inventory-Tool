@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, Field
@@ -306,6 +306,104 @@ class ThreatIntelSnapshotOut(BaseModel):
     reviewed: bool
     reviewed_at: UtcDateTime | None = None
     reviewer_note: str | None = None
+
+
+LlmProvider = Literal["ollama", "openai-compatible"]
+
+
+class LlmProviderConfigOut(BaseModel):
+    """Never carries the decrypted key -- only whether one is saved, and its last 4 characters so
+    a user can recognise which key is active without QUBIT ever decrypting it for a response.
+    """
+
+    provider: LlmProvider
+    base_url: str | None = None
+    model: str | None = None
+    api_key_configured: bool
+    api_key_last4: str | None = None
+    #: The selected model's real context window, read from the provider. None when unknown, in
+    #: which case generation falls back to `MigrateConfig.llm_context_tokens`.
+    context_tokens: int | None = None
+    #: The optional SECOND endpoint, tried when the primary refuses a request. Same
+    #: never-the-plaintext-key rule as above.
+    backup_base_url: str | None = None
+    backup_model: str | None = None
+    backup_api_key_configured: bool = False
+    backup_api_key_last4: str | None = None
+    backup_context_tokens: int | None = None
+    updated_at: UtcDateTime
+
+
+class LlmProviderConfigPatch(BaseModel):
+    """Every field optional so a client can, e.g., change only the model without re-sending the
+    key. ``api_key`` omitted means "keep the existing one"; an empty string clears it.
+    """
+
+    provider: LlmProvider | None = None
+    base_url: str | None = None
+    model: str | None = None
+    api_key: str | None = None
+    backup_base_url: str | None = None
+    backup_model: str | None = None
+    backup_api_key: str | None = None
+
+
+class LlmProviderVerifyResult(BaseModel):
+    ok: bool
+    detail: str
+
+
+class LlmEngineIn(BaseModel):
+    """An engine being attached to the pool.
+
+    The key comes in and is never returned: `LlmEngineOut` carries only its last four characters,
+    which is enough for an operator to tell two keys for the same model apart and not enough to be
+    a leak.
+    """
+
+    label: str = Field(min_length=1, max_length=128)
+    base_url: str = Field(min_length=1, max_length=512)
+    model: str = Field(min_length=1, max_length=128)
+    api_key: str = Field(min_length=1)
+    #: The provider's EFFECTIVE per-request allowance. On a free tier this is a rate limit well
+    #: below the model's advertised context window, and using the window instead earns a 413.
+    context_tokens: int | None = Field(default=None, ge=1)
+    enabled: bool = True
+
+
+class LlmEngineOut(BaseModel):
+    """A pooled engine as reported back. Never carries the key."""
+
+    id: UUID
+    label: str
+    base_url: str
+    model: str
+    api_key_last4: str
+    context_tokens: int | None
+    enabled: bool
+
+
+class LlmEnginePatch(BaseModel):
+    """Change one pooled engine. Omitted fields are left alone."""
+
+    label: str | None = Field(default=None, min_length=1, max_length=128)
+    context_tokens: int | None = Field(default=None, ge=1)
+    #: Rest a key whose quota is spent without re-entering it tomorrow.
+    enabled: bool | None = None
+
+
+class LlmProviderModelsOut(BaseModel):
+    """What the CONFIGURED provider actually offers right now, read live from it.
+
+    Read live rather than shipped as a hardcoded list on purpose: free-tier model lineups rotate
+    (providers add and delist models on their own schedule), so a list compiled into QUBIT would
+    be wrong within months and would send a user to configure a model that no longer exists.
+    """
+
+    models: list[str]
+    #: "" when the list came back fine; otherwise why it could not be read, so the UI can say
+    #: "couldn't reach the provider" instead of silently showing an empty dropdown.
+    error: str = ""
 
 
 class ThreatIntelReviewRequest(BaseModel):

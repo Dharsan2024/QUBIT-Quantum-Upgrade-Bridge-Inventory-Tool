@@ -9,14 +9,18 @@ every LLM patch exactly like a template patch.
 from __future__ import annotations
 
 import ast
+import contextlib
+import contextvars
 import json
 import logging
 import re
 import socket
 import threading
+import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -37,6 +41,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "http://127.0.0.1:11434"
+
+#: Sent on every EXTERNAL provider request. Not cosmetic: hosted providers sit behind bot
+#: protection that rejects the stdlib default `Python-urllib/x.y` outright -- see
+#: `_openai_compatible_generate` for the measured 403-vs-200 case that made this necessary.
+HTTP_USER_AGENT = "qubit-migrate/0.1 (+https://github.com/qubit-pqc)"
 
 _FENCE_RE = re.compile(r"```[a-zA-Z0-9_+-]*\n(.*?)```", re.DOTALL)
 
@@ -82,6 +91,324 @@ _MAX_PREDICT = 16384
 #: stops at the natural end of the answer; `num_predict` is a ceiling, not a target), while
 #: undershooting truncates the file and throws away a rewrite that may have been correct.
 _ANSWER_EXPANSION = 3.5
+
+
+@dataclass(frozen=True)
+class RateBudget:
+    """How much of a provider's rate limit is left, as the provider itself last reported it.
+
+    A hosted free tier is rationed in REQUESTS PER DAY far more tightly than in tokens -- measured
+    on this installation: Groq allows 1,000 requests/day and 8,000 tokens per request, and one
+    patch can cost up to fourteen requests. So the binding constraint is the request count, and
+    QUBIT could not see it: every response carries `x-ratelimit-remaining-requests`, and the only
+    header ever read was `x-ratelimit-limit-tokens`, once, to size a single request.
+
+    The consequence is that exhaustion was discovered by being refused. There was no way to pace
+    work, to spend the last requests of a day on the findings that most deserve them, or to tell
+    an operator how much budget a run would need before starting it.
+
+    Not every provider sends these. Google's OpenAI-compatible endpoint sends none of them, so
+    every field here is optional and `None` means "this provider does not say", which is different
+    from zero and must never be displayed as though the budget were exhausted.
+    """
+
+    engine: str
+    remaining_requests: int | None = None
+    remaining_tokens: int | None = None
+    limit_requests: int | None = None
+    limit_tokens: int | None = None
+    reset_requests: str = ""
+    reset_tokens: str = ""
+    observed_at: float = 0.0
+
+    @property
+    def reported(self) -> bool:
+        """Did the provider say anything at all about what is left?"""
+        return self.remaining_requests is not None or self.remaining_tokens is not None
+
+    @property
+    def reset_tokens_seconds(self) -> float:
+        """`reset_tokens` as a number, so a caller can decide whether it is worth waiting.
+
+        Providers report this as a human duration rather than a count: Groq sends `7.66s` and
+        `2m59.56s`, and its 429 body says *"Please try again in 4.86s"*. A token window REFILLS,
+        which makes it categorically different from an exhausted daily quota -- waiting eight
+        seconds for it beats falling back to an engine measured at ~14 minutes per finding. That
+        decision cannot be made against a string, so it is parsed here rather than at the call site.
+
+        Unparseable or absent means 0.0 -- "no reason to wait" -- never a fabricated delay.
+        """
+        raw = (self.reset_tokens or "").strip().lower()
+        if not raw:
+            return 0.0
+        # `ms` has to go first or its `m` reads as MINUTES, turning `500ms` into 30,000 seconds --
+        # which would look like a window worth abandoning the engine over rather than one already
+        # open.
+        raw = raw.replace("ms", "\x00")
+        units = {"\x00": 0.001, "h": 3600.0, "m": 60.0, "s": 1.0}
+        total = 0.0
+        number = ""
+        for char in raw:
+            if char.isdigit() or char == ".":
+                number += char
+                continue
+            if not number:
+                continue
+            with contextlib.suppress(ValueError):
+                total += float(number) * units.get(char, 0.0)
+            number = ""
+        # A bare number with no unit is seconds, which is how several providers spell it.
+        if number and not total:
+            with contextlib.suppress(ValueError):
+                total = float(number)
+        return total
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "engine": self.engine,
+            "remaining_requests": self.remaining_requests,
+            "remaining_tokens": self.remaining_tokens,
+            "limit_requests": self.limit_requests,
+            "limit_tokens": self.limit_tokens,
+            "reset_requests": self.reset_requests,
+            "reset_tokens": self.reset_tokens,
+            "reset_tokens_seconds": self.reset_tokens_seconds,
+            "observed_at": self.observed_at,
+            "reported": self.reported,
+        }
+
+
+#: Latest budget seen per engine. Deliberately process-local and not persisted: it is a fact about
+#: right now that goes stale in seconds, and a stored copy would be read long after it stopped
+#: being true.
+_BUDGETS: dict[str, RateBudget] = {}
+
+
+def _as_int(raw: str | None) -> int | None:
+    if raw is None:
+        return None
+    try:
+        return int(float(raw.strip().rstrip("s")))
+    except (ValueError, AttributeError):
+        return None
+
+
+#: The same four facts, spelled differently by each provider. Measured on live calls: Groq sends
+#: `x-ratelimit-remaining-requests` (a DAILY budget), Mistral sends
+#: `x-ratelimit-remaining-req-minute` (a per-minute one), and Google and NVIDIA send nothing at all.
+#: Reading only one spelling meant the most generous provider in the pool looked unmeasurable --
+#: Mistral allows 125 requests/minute against Groq's 1,000/day.
+_BUDGET_HEADERS: dict[str, tuple[str, ...]] = {
+    "remaining_requests": (
+        "x-ratelimit-remaining-requests",
+        "x-ratelimit-remaining-req-minute",
+        "ratelimit-remaining",
+    ),
+    "remaining_tokens": (
+        "x-ratelimit-remaining-tokens",
+        "x-ratelimit-remaining-tokens-minute",
+    ),
+    "limit_requests": (
+        "x-ratelimit-limit-requests",
+        "x-ratelimit-limit-req-minute",
+        "ratelimit-limit",
+    ),
+    "limit_tokens": ("x-ratelimit-limit-tokens", "x-ratelimit-limit-tokens-minute"),
+}
+
+
+def _first_header(headers: Any, names: tuple[str, ...]) -> str | None:
+    for name in names:
+        value = headers.get(name)
+        if value is not None:
+            return str(value)
+    return None
+
+
+def _record_budget(engine: str, headers: Any) -> None:
+    """Read whatever the provider volunteered about the remaining budget. Never raises."""
+    with contextlib.suppress(Exception):
+        get = headers.get
+        budget = RateBudget(
+            engine=engine,
+            remaining_requests=_as_int(
+                _first_header(headers, _BUDGET_HEADERS["remaining_requests"])
+            ),
+            remaining_tokens=_as_int(_first_header(headers, _BUDGET_HEADERS["remaining_tokens"])),
+            limit_requests=_as_int(_first_header(headers, _BUDGET_HEADERS["limit_requests"])),
+            limit_tokens=_as_int(_first_header(headers, _BUDGET_HEADERS["limit_tokens"])),
+            reset_requests=str(get("x-ratelimit-reset-requests") or ""),
+            reset_tokens=str(get("x-ratelimit-reset-tokens") or ""),
+            observed_at=time.time(),
+        )
+        if budget.reported or budget.limit_requests or budget.limit_tokens:
+            _BUDGETS[engine] = budget
+
+
+def rate_budget(engine: str | None = None) -> dict[str, Any]:
+    """What is left on the attached provider(s), as last reported.
+
+    Returns one engine's budget, or every engine's when none is named. An engine absent from the
+    result has either never been called or never reported -- both mean "unknown", never "empty".
+    """
+    if engine is not None:
+        found = _BUDGETS.get(engine)
+        return found.as_dict() if found else {}
+    return {name: b.as_dict() for name, b in _BUDGETS.items()}
+
+
+@dataclass(frozen=True)
+class ModelCall:
+    """One request to whatever model is attached, and what it cost."""
+
+    engine: str
+    prompt_tokens: int
+    completion_tokens: int
+    seconds: float
+    ok: bool
+
+
+class CallLedger:
+    """Every model call made while producing one patch.
+
+    QUBIT's whole claim about an attached model is an efficiency claim: it does the deterministic
+    work without the model, replays what it has already learned, sends an excerpt rather than a
+    file, and refuses engines that have never succeeded at a pairing. None of that was measurable,
+    because nothing counted the calls or the tokens -- both engines return usage figures in their
+    responses (`prompt_eval_count`/`eval_count` from Ollama, `usage` from an OpenAI-compatible
+    endpoint) and QUBIT read the answer text and discarded the rest.
+
+    That matters most where the budget is smallest. A free tier is rationed in REQUESTS PER DAY --
+    measured: 1,000/day on Groq -- and one patch can cost up to fourteen of them (a planning pass,
+    three generate-plus-review rounds, doubled by the outer feedback retry). A tool that cannot
+    count its own requests cannot pace them, cannot prioritise them, and cannot tell you why it
+    ran out.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[ModelCall] = []
+
+    def record(self, call: ModelCall) -> None:
+        self.calls.append(call)
+
+    @property
+    def prompt_tokens(self) -> int:
+        return sum(c.prompt_tokens for c in self.calls)
+
+    @property
+    def completion_tokens(self) -> int:
+        return sum(c.completion_tokens for c in self.calls)
+
+    def summary(self) -> dict[str, Any]:
+        """Small enough to store on every patch, complete enough to audit the claim."""
+        per_engine: dict[str, int] = {}
+        for call in self.calls:
+            per_engine[call.engine] = per_engine.get(call.engine, 0) + 1
+        return {
+            "calls": len(self.calls),
+            "failed_calls": sum(1 for c in self.calls if not c.ok),
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "seconds": round(sum(c.seconds for c in self.calls), 2),
+            "by_engine": per_engine,
+        }
+
+
+#: The ledger the current generation is writing to. A ContextVar rather than a parameter because
+#: every function between `generate_patch` and the HTTP call would otherwise have to carry it, and
+#: each of those signatures is pinned by tests that would then all have to change to measure
+#: something none of them are about.
+_LEDGER: contextvars.ContextVar[CallLedger | None] = contextvars.ContextVar(
+    "qubit_llm_ledger", default=None
+)
+
+
+def start_ledger() -> CallLedger:
+    """Begin counting model calls, and return the ledger they land in.
+
+    Deliberately not only a context manager. `generate_patch` is several hundred lines between the
+    first model call and the patch it writes, and wrapping that body in a `with` would re-indent
+    every one of them to measure something none of them are about.
+    """
+    book = CallLedger()
+    _LEDGER.set(book)
+    return book
+
+
+def current_ledger() -> CallLedger | None:
+    """The ledger in force, if anything is counting.
+
+    Needed because the most expensive events produce no patch to hang a cost on: a finding that
+    exhausts its repair attempts raises, and the orchestrator parks the task. Reading the ledger
+    from the failure path is what stops the spend on those attempts vanishing -- and they are
+    precisely the attempts worth knowing about, so losing them biases the efficiency figure in the
+    flattering direction.
+    """
+    return _LEDGER.get()
+
+
+@contextlib.contextmanager
+def ledger() -> Iterator[CallLedger]:
+    """Collect the model calls made inside this block."""
+    book = CallLedger()
+    token = _LEDGER.set(book)
+    try:
+        yield book
+    finally:
+        _LEDGER.reset(token)
+
+
+#: Calls and total seconds per engine, for as long as this process lives.
+#:
+#: Separate from `CallLedger` on purpose. The ledger answers "what did THIS patch cost" and only
+#: exists while one is being produced; routing needs the opposite -- how an engine behaves ACROSS
+#: findings -- and has to work on the very first patch of a run, when no ledger is collecting.
+#:
+#: Measured rather than configured, because the spread is far too large to guess and is specific to
+#: the machine and the tier: on this installation Mistral's `codestral-2508` answers a real
+#: migration in ~1.0s, Groq's `gpt-oss-120b` in ~2.0s, NVIDIA's `nemotron-3-ultra` in ~68s, and the
+#: local 7B takes minutes. An average over real calls also tracks a tier that has started to
+#: throttle, which a static table never would.
+_ENGINE_LATENCY: dict[str, tuple[int, float]] = {}
+
+
+def observed_seconds_per_call(engine: str) -> float | None:
+    """Mean seconds this engine has taken on this installation, or None if it has never answered.
+
+    None is not a slow engine -- it is an unmeasured one, and the caller must fall back to its own
+    default rather than treat silence as a number.
+    """
+    calls, total = _ENGINE_LATENCY.get(engine, (0, 0.0))
+    return total / calls if calls else None
+
+
+def _record_call(
+    engine: str, prompt_tokens: int, completion_tokens: int, seconds: float, ok: bool = True
+) -> None:
+    """Record a call if anyone is collecting.
+
+    Never raises: measurement must never be able to break generation.
+    """
+    if ok:
+        # Kept OUTSIDE the ledger check: routing needs this on the first patch of a run, before any
+        # ledger exists. Failures are excluded because a call that errored in 0.2s is not evidence
+        # that the engine is fast.
+        with contextlib.suppress(Exception):
+            calls, total = _ENGINE_LATENCY.get(engine, (0, 0.0))
+            _ENGINE_LATENCY[engine] = (calls + 1, total + max(float(seconds), 0.0))
+    book = _LEDGER.get()
+    if book is None:
+        return
+    with contextlib.suppress(Exception):
+        book.record(
+            ModelCall(
+                engine=engine,
+                prompt_tokens=int(prompt_tokens or 0),
+                completion_tokens=int(completion_tokens or 0),
+                seconds=round(float(seconds), 3),
+                ok=ok,
+            )
+        )
 
 
 def _output_budget(prompt: str, source: str = "") -> int:
@@ -171,7 +498,14 @@ def _ollama_generate(
         except BaseException as exc:
             result["error"] = exc
 
-    thread = threading.Thread(target=_worker, name="ollama-generate", daemon=True)
+    # Run the worker inside a COPY of this context. A `threading.Thread` starts with an empty
+    # context, so the call ledger `generate_patch` installed is invisible inside `_worker` and
+    # every local-model call would be recorded as costing nothing -- which is precisely the
+    # claim the ledger exists to substantiate, silently inverted.
+    context = contextvars.copy_context()
+    thread = threading.Thread(
+        target=lambda: context.run(_worker), name="ollama-generate", daemon=True
+    )
     thread.start()
     # A grace margin over `timeout`, not the SAME value: `_ollama_generate_once` is meant to raise
     # its own, more specific `OllamaError` first (HTTP 404, a clean socket timeout, ...), and this
@@ -197,6 +531,7 @@ def _ollama_generate_once(
     source: str = "",
 ) -> str:
     """Single non-streaming completion against the local Ollama server."""
+    started = time.monotonic()
     body = json.dumps(
         {
             "model": model,
@@ -254,6 +589,15 @@ def _ollama_generate_once(
         raise OllamaError(
             f"Ollama is not reachable at {base_url}: {exc}. Start it with `ollama serve`."
         ) from exc
+    # Recorded before anything can reject the answer: the request was made and the quota was
+    # spent whether or not the text turns out to be usable. Counting only successful calls is how
+    # a tool comes to believe it is thriftier than it is.
+    _record_call(
+        engine=model,
+        prompt_tokens=data.get("prompt_eval_count", 0),
+        completion_tokens=data.get("eval_count", 0),
+        seconds=time.monotonic() - started,
+    )
     text = data.get("response", "")
     if not text:
         raise OllamaError("Ollama returned an empty response")
@@ -268,6 +612,532 @@ def _ollama_generate_once(
             f"file may be too large for a whole-file rewrite by a local model."
         )
     return text
+
+
+#: Output ceiling for an EXTERNAL provider, in tokens. Far above `_MAX_PREDICT` (16,384) because
+#: that ceiling exists for a 7B model on an 8 GB card -- it is a statement about local hardware,
+#: not about how long a rewritten file is. Kept below the 65,536 that today's largest free-tier
+#: model advertises, so the number stays plausible for the smaller models a user may also pick;
+#: a provider that cannot honour it clamps or answers 400, and `_TUNING_FIELDS` handles the 400.
+_MAX_EXTERNAL_TOKENS = 32768
+
+#: Below this many tokens of room for the ANSWER, a whole-file rewrite cannot come back at all, so
+#: the request is refused before it is sent. Not a tuning knob: 512 tokens is roughly 40 lines of
+#: code, well under any file worth migrating, so anything at or below it means the prompt has eaten
+#: the entire allowance.
+_MIN_ANSWER_TOKENS = 512
+
+
+def _external_output_budget(prompt: str, source: str = "", budget_tokens: int | None = None) -> int:
+    """`_output_budget`'s scaling, with a ceiling sized for a hosted model rather than a local one.
+
+    Same arithmetic and the same reason: the answer is a WHOLE FILE, roughly `_ANSWER_EXPANSION`
+    times the input for a structural migration, at ~3 characters per token.
+
+    ``budget_tokens`` is the provider's EFFECTIVE limit on one request -- input plus output. On a
+    free tier that is a rate limit, not a context window, and the two are wildly different:
+    gpt-oss-120b advertises a 131,072-token context while Groq's free tier caps a single request at
+    8,000 tokens per minute and answers 413 above it. Ignoring that produced a request for 38,840
+    tokens against a limit of 8,000 -- refused outright, no generation attempted. So the output
+    budget is whatever is LEFT after the prompt, never the model's theoretical ceiling.
+    """
+    from_prompt = len(prompt) // 3
+    from_source = int(len(source) * _ANSWER_EXPANSION) // 3 if source else 0
+    wanted = max(from_prompt, from_source)
+    ceiling = _MAX_EXTERNAL_TOKENS
+    if budget_tokens:
+        # What the prompt itself will consume has to come out of the same allowance. A small
+        # margin is left for the provider's own tokenizer disagreeing with the ~3 chars/token
+        # estimate, which errs high for code.
+        remaining = int(budget_tokens * 0.9) - from_prompt
+        if remaining < _MIN_ANSWER_TOKENS:
+            # Fail here rather than sending a request that cannot succeed. The alternative is a
+            # 413, or an answer truncated at a handful of tokens which the repair loop then spends
+            # its whole three-attempt budget arguing with -- and the model was never at fault.
+            # `_llm_detour_reason` normally catches this first; this is the backstop for when the
+            # prompt's instructions and examples push it over a limit the file alone did not.
+            raise OllamaError(
+                f"this file needs about {from_prompt:,} tokens of prompt against the provider's "
+                f"{budget_tokens:,}-token per-request allowance, leaving no room for the rewritten "
+                f"file to come back. This is the provider's rate/size limit, not the model's "
+                f"context window — a paid or self-hosted endpoint lifts it."
+            )
+        ceiling = min(ceiling, remaining)
+    return max(min(ceiling, wanted), min(_MIN_PREDICT, ceiling))
+
+
+@dataclass(frozen=True)
+class ExternalEndpoint:
+    """One OpenAI-compatible endpoint in the failover chain.
+
+    A value object rather than four loose parameters because the chain has two of them and the
+    fields must not get crossed -- pairing one provider's key with another's URL would read as an
+    authentication failure and be impossible to diagnose from the message.
+    """
+
+    base_url: str
+    model: str
+    api_key: str
+    #: The provider's effective per-request token allowance; see `_external_output_budget`. Each
+    #: endpoint carries its own, because that is precisely what differs between free tiers.
+    budget_tokens: int | None = None
+
+
+#: Request fields that TUNE a completion rather than define it, in the order they may be dropped
+#: when a provider rejects them. Every one is an optimisation QUBIT can do without: losing
+#: `chat_template_kwargs` or `reasoning_effort` costs some output budget to discarded reasoning,
+#: and losing `max_tokens` falls back to the provider's default length. Losing the prompt or the
+#: model would not be a degradation, it would be a different request -- which is why only these
+#: three are droppable.
+#:
+#: `chat_template_kwargs` is dropped FIRST, because a 400 that says only "thinking" matches both it
+#: and `reasoning_effort` and one of them has to be picked. It is the better guess twice over: it
+#: is the non-standard field of the two, and it is the one a provider is more likely to be
+#: complaining about when it mentions thinking at all. A wrong guess is not a failure either way --
+#: the loop simply drops the other field on the next pass -- it just costs one more round trip.
+_TUNING_FIELDS = ("chat_template_kwargs", "reasoning_effort", "max_tokens")
+
+#: How a provider might NAME a tuning field when rejecting it. Matching only the literal field name
+#: was not enough, measured: Google answers `reasoning_effort: "low"` on `gemma-4-31b-it` with
+#: *"Thinking level is not supported for this model."* — a 400 that never contains the string
+#: `reasoning_effort`, so the drop-and-retry never fired and a perfectly usable model looked broken.
+#: Providers describe these fields in prose, so the match has to cover the prose too.
+#: Statuses that can mean "I do not accept that field". 400 is the OpenAI-documented answer and
+#: what Groq and Google send. Mistral does NOT: `codestral-2508` refuses `chat_template_kwargs` with
+#: **HTTP 422** and a pydantic `extra_forbidden` body. Treating only 400 as droppable would have
+#: propagated that 422 as a hard failure and taken the pool's fastest engine (1.1s, measured) out of
+#: service for a field it never needed -- so the status list is measured, like everything else here.
+_TUNING_REJECTION_CODES = frozenset({400, 422})
+
+_TUNING_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
+    # Deliberately NOT including a bare "thinking" here: Google's `gemma-4-31b-it` rejects
+    # `reasoning_effort` with *"Thinking level is not supported for this model."*, and that is the
+    # field it means. Keeping this entry to the literal spellings lets the common case resolve on
+    # the first pass, and leaves the ambiguous wording to `_TUNING_FIELDS`' ordering.
+    "chat_template_kwargs": ("chat_template_kwargs", "chat template", "chat_template"),
+    "reasoning_effort": ("reasoning_effort", "reasoning", "thinking level", "thinking"),
+    "max_tokens": ("max_tokens", "max_completion_tokens", "maxoutputtokens", "output token"),
+}
+
+#: Settings tried, in order, to stop a reasoning model spending its output budget on reasoning
+#: QUBIT then discards. There is no single value every provider accepts, measured on real keys:
+#:
+#: * Groq's `openai/gpt-oss-120b` accepts `"low"` and answers normally.
+#: * Google's `gemini-3.6-flash` also ACCEPTS `"low"` -- HTTP 200 -- and then returns
+#:   `content: None` with `completion_tokens: 0`, having spent the whole budget thinking. It
+#:   accepts `"minimal"` and answers correctly, and rejects `"none"` outright with HTTP 400.
+#:
+#: So neither an HTTP error nor a fixed value is enough on its own: an EMPTY answer from a model
+#: that was given a reasoning setting is itself the signal to try the next rung. `None` is last,
+#: meaning "send no reasoning field at all", which is always valid.
+_REASONING_LADDER: tuple[str | None, ...] = ("low", "minimal", None)
+
+#: The rung that last WORKED for a given (base_url, model), so the ladder is walked once per engine
+#: rather than once per call.
+#:
+#: This is a quota fix, not a micro-optimisation. Generating one patch already costs up to seven
+#: model calls (a planning pass, then three rounds of generate + self-review), doubled by the
+#: orchestrator's feedback retry. Re-discovering the reasoning setting on each of those multiplies
+#: it again -- and requests, not tokens, are what free tiers actually ration: `gemini-3.6-flash`
+#: allows **20 per day** (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, quotaValue 20), so a
+#: single task could exhaust a day's quota purely on rediscovery.
+#:
+#: Process-local and unbounded-by-design: it holds at most one short string per configured engine,
+#: and a wrong entry self-corrects because an empty answer walks the ladder again from that rung.
+_REASONING_CHOICE: dict[tuple[str, str], str | None] = {}
+
+#: Sent ALONGSIDE `reasoning_effort`, because the two are different mechanisms for the same goal and
+#: neither covers the pool on its own. `reasoning_effort` is an API-level field the PROVIDER
+#: interprets; `chat_template_kwargs` is handed to the model's own chat template, which is where
+#: NVIDIA- and vLLM-hosted models actually take the switch. Both spellings go in -- NVIDIA's own
+#: examples use `thinking`, vLLM's Qwen templates use `enable_thinking` -- and a template that knows
+#: only one ignores the other.
+#:
+#: Measured on NVIDIA's endpoint against a real migration, with both models answering CORRECTLY
+#: either way, so this buys budget rather than correctness:
+#:
+#: * `nemotron-3-ultra-550b-a55b`: 660 completion tokens -> 98, and 78.2s -> 68.3s.
+#: * `deepseek-v4-pro-0813`: 81.3s -> 43.3s.
+#:
+#: Cutting billed output tokens by ~85% is worth a request field precisely because the part QUBIT
+#: KEEPS is identical either way: it parses one fenced file out of the answer and discards the
+#: reasoning it just paid for.
+_TEMPLATE_KWARGS: dict[str, Any] = {"thinking": False, "enable_thinking": False}
+
+#: Engines that answered 400 for `chat_template_kwargs`, so it is never sent to them twice.
+#:
+#: Same purpose as `_REASONING_CHOICE`, and it earns its keep for the same reason: the field is a
+#: vLLM/NIM extension rather than part of the OpenAI schema, so a strict provider refuses it -- and
+#: a refusal still SPENDS a request against a tier that rations requests, not tokens. Without this,
+#: every call to such a provider would pay a wasted round trip to rediscover the same no.
+_TEMPLATE_KWARGS_REFUSED: set[tuple[str, str]] = set()
+
+
+def _content_of(data: dict[str, Any]) -> str:
+    """The assistant text from an OpenAI-compatible response, or "" if there is none.
+
+    Total-function on purpose: an absent `content`, a null one, and a malformed envelope all mean
+    the same thing to the caller -- no answer -- and the reasoning-ladder retry needs to ask that
+    question without an exception in the middle of its loop.
+    """
+    try:
+        return str(data["choices"][0]["message"].get("content") or "")
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return ""
+
+
+def _openai_compatible_generate(
+    prompt: str,
+    *,
+    model: str,
+    base_url: str,
+    api_key: str,
+    timeout: float = 180.0,
+    source: str = "",
+    budget_tokens: int | None = None,
+) -> str:
+    """Single non-streaming chat-completion against an OpenAI-compatible `/chat/completions`
+    endpoint.
+
+    One shape covers OpenAI itself, Azure OpenAI, a free hosted tier (Groq, OpenRouter, ...), and
+    the self-hosted inference servers (vLLM, LM Studio, a company's internal gateway) a production
+    deployment would actually point QUBIT at -- so one function serves all of them; the difference
+    between a company's private model and a free public one is only which `base_url`/`api_key` a
+    user configures, never a code path.
+
+    An earlier version of this function deliberately sent NO `max_tokens`, reasoning that
+    `_output_budget` solves a small LOCAL model's problem and an external provider has headroom.
+    **That was wrong, and measured to be wrong.** A provider's DEFAULT answer length is not its
+    maximum: asked to rewrite pyjwt's 913-line `test_api_jwt.py`, gpt-oss-120b (which advertises
+    `max_completion_tokens: 65536`) returned 44 non-blank lines and the repair loop burned all
+    three attempts on a truncation the model was never given room to avoid. The bug was invisible
+    until the context-window fix started routing large files to the external engine at all --
+    the two changes have to land together or the second makes the first look worse than useless.
+    """
+    if not base_url.startswith(("http://", "https://")):
+        raise OllamaError(f"Invalid provider base URL scheme: {base_url}")
+    started = time.monotonic()
+    url = base_url.rstrip("/") + "/chat/completions"
+
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0,
+        # Same reason `_ollama_generate_once` sends `think: False`: QUBIT parses a fenced file
+        # out of the answer and DISCARDS reasoning, so a model that spends its output budget
+        # thinking returns a truncated file. The strong models on hosted free tiers (gpt-oss,
+        # qwen3.x) advertise a `reasoning` feature and default it ON, which is exactly the
+        # failure mode this avoids.
+        "max_tokens": _external_output_budget(prompt, source, budget_tokens),
+    }
+    # Start from whatever last worked for this engine, so the ladder costs one walk per engine
+    # rather than one per call. See `_REASONING_CHOICE`.
+    engine_key = (base_url, model)
+    rung = 0
+    if engine_key in _REASONING_CHOICE:
+        remembered = _REASONING_CHOICE[engine_key]
+        rung = _REASONING_LADDER.index(remembered) if remembered in _REASONING_LADDER else 0
+    if _REASONING_LADDER[rung] is not None:
+        payload["reasoning_effort"] = _REASONING_LADDER[rung]
+    if engine_key not in _TEMPLATE_KWARGS_REFUSED:
+        payload["chat_template_kwargs"] = dict(_TEMPLATE_KWARGS)
+
+    def _post(body_obj: dict[str, Any]) -> dict[str, Any]:
+        req = urllib.request.Request(  # noqa: S310 — scheme validated above
+            url,
+            data=json.dumps(body_obj).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+                # Measured, not precautionary: Groq answers `curl` with HTTP 200 and the DEFAULT
+                # `Python-urllib/3.12` User-Agent with HTTP 403, on the same valid key.
+                # Bot-protection in front of hosted providers routinely blocks the stdlib
+                # default, and the failure is indistinguishable from a rejected key unless the
+                # User-Agent is set.
+                "User-Agent": HTTP_USER_AGENT,
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+            loaded: dict[str, Any] = json.load(resp)
+            # Every response carries what is left. Reading it here is the difference between
+            # pacing a run and discovering exhaustion by being refused.
+            # `getattr`, not `resp.headers`: the attribute access happens HERE, outside
+            # `_record_budget`'s own suppression, so a response object without headers
+            # would take down the generation it was only supposed to be measuring.
+            _record_budget(f"{base_url}::{model}", getattr(resp, "headers", None))
+            return loaded
+
+    try:
+        # Tuning fields are NOT universally accepted, measured against Groq's own catalogue on one
+        # account: gpt-oss-120b/20b and qwen3.8 take `reasoning_effort: "low"`, while qwen3.6-27b
+        # answers 400 ("must be one of `none` or `default`") and groq/compound answers 400 ("not
+        # supported with this model"). Hardcoding them makes QUBIT unusable on a subset of models a
+        # user can legitimately pick from the provider's own live list. So a 400 that NAMES one of
+        # them drops exactly that field and retries; anything else is a real error and propagates.
+        # Bounded by construction -- each pass removes one field, so at most len(_TUNING_FIELDS)
+        # extra round trips, and only for models that reject them.
+        attempt = dict(payload)
+        # `HTTPError.read()` drains the body once, and the outer handler needs it to build a
+        # useful message -- so it is captured here rather than re-read there.
+        last_body = ""
+        while True:
+            try:
+                data = _post(attempt)
+            except urllib.error.HTTPError as exc:
+                last_body = ""
+                with contextlib.suppress(Exception):
+                    last_body = exc.read().decode("utf-8", errors="replace")
+                if exc.code not in _TUNING_REJECTION_CODES:
+                    raise
+                lowered = last_body.lower()
+                offending = next(
+                    (
+                        f
+                        for f in _TUNING_FIELDS
+                        if f in attempt
+                        and any(alias in lowered for alias in _TUNING_FIELD_ALIASES[f])
+                    ),
+                    None,
+                )
+                if offending is None:
+                    raise
+                logger.info(
+                    "%r does not accept %s; retrying without it (%s)",
+                    model,
+                    offending,
+                    last_body[:120].strip(),
+                )
+                if offending == "chat_template_kwargs":
+                    # Remembered for the whole process, not just this call -- the 400 that taught
+                    # us this cost a request. See `_TEMPLATE_KWARGS_REFUSED`.
+                    _TEMPLATE_KWARGS_REFUSED.add(engine_key)
+                attempt.pop(offending)
+                continue
+
+            # An empty answer from a model that WAS given a reasoning setting is not a refusal --
+            # it is the reasoning having consumed the whole output budget. Measured on
+            # `gemini-3.6-flash`: `reasoning_effort: "low"` returns HTTP 200 with `content: None`
+            # and `completion_tokens: 0`, while `"minimal"` on the identical request answers
+            # correctly. No HTTP status distinguishes those, so the empty body is the only signal
+            # available. Walk the ladder before giving up.
+            if (
+                not _content_of(data)
+                and "reasoning_effort" in attempt
+                and rung + 1 < len(_REASONING_LADDER)
+            ):
+                rung += 1
+                next_effort = _REASONING_LADDER[rung]
+                logger.info(
+                    "%r returned an empty answer at reasoning_effort=%r; retrying with %r",
+                    model,
+                    attempt.get("reasoning_effort"),
+                    next_effort,
+                )
+                if next_effort is None:
+                    attempt.pop("reasoning_effort", None)
+                else:
+                    attempt["reasoning_effort"] = next_effort
+                continue
+            # Remember what finally worked, so the next call for this engine starts here instead
+            # of spending the ladder again -- see `_REASONING_CHOICE`.
+            _REASONING_CHOICE[engine_key] = attempt.get("reasoning_effort")
+            break
+    except urllib.error.HTTPError as exc:
+        detail = last_body[:300]
+        # 401/403 means the key is wrong; report that distinctly from a generic HTTP failure so
+        # "Save & verify" in Settings can tell a bad key apart from the provider being unreachable.
+        if exc.code in (401, 403):
+            raise OllamaError(
+                f"the external LLM provider at {base_url} rejected the API key (HTTP {exc.code})"
+            ) from exc
+        if exc.code == 402:
+            # A VALID key with no usable quota, which is neither an auth failure nor a rate limit
+            # and must not be reported as either. Measured on a real Cerebras key: `GET /models`
+            # answers 200 (so "Save & verify" against the catalogue looks healthy) while
+            # `/chat/completions` answers 402 "Payment required to access this resource" — so the
+            # only way to learn the account cannot generate is to try to generate.
+            raise OllamaError(
+                f"the external LLM provider at {base_url} accepted the key but has no available "
+                f"quota (HTTP 402) — the free allowance is exhausted or the account needs billing "
+                f"enabled. Detail: {detail}"
+            ) from exc
+        if exc.code == 429:
+            raise OllamaError(
+                f"the external LLM provider at {base_url} rate-limited this request (HTTP 429) "
+                f"— free tiers cap requests per minute/day; wait and retry, or configure a "
+                f"different provider"
+            ) from exc
+        if exc.code == 413:
+            # Distinct from 429 and from a context-window problem, because the fix is different
+            # and the message people get otherwise is misleading. Measured against Groq's free
+            # tier: gpt-oss-120b advertises a 131,072-token CONTEXT, but the tier caps one request
+            # at 8,000 tokens per minute and answers 413 ("Request too large ... on tokens per
+            # minute (TPM): Limit 8000, Requested 38840") above it. The model can hold the file;
+            # the plan cannot afford it.
+            raise OllamaError(
+                f"the external LLM provider at {base_url} refused this request as too large "
+                f"(HTTP 413). This is the provider's per-request/per-minute TOKEN allowance, not "
+                f"the model's context window — a free tier typically caps a single request far "
+                f"below the model's advertised context. Re-run Save & verify in Settings so QUBIT "
+                f"re-reads the real allowance, or use a paid/self-hosted endpoint for files this "
+                f"size. Detail: {detail}"
+            ) from exc
+        raise OllamaError(
+            f"the external LLM provider at {base_url} returned HTTP {exc.code}: {exc.reason} "
+            f"{detail}".strip()
+        ) from exc
+    except TimeoutError as exc:
+        raise OllamaError(
+            f"the model {model!r} at {base_url} did not answer within {timeout:.0f}s"
+        ) from exc
+    except (urllib.error.URLError, json.JSONDecodeError) as exc:
+        if isinstance(getattr(exc, "reason", None), (TimeoutError, socket.timeout)):
+            raise OllamaError(
+                f"the model {model!r} at {base_url} did not answer within {timeout:.0f}s"
+            ) from exc
+        raise OllamaError(
+            f"the external LLM provider is not reachable at {base_url}: {exc}"
+        ) from exc
+    if not isinstance(data.get("choices"), list) or not data["choices"]:
+        raise OllamaError(
+            f"the external LLM provider at {base_url} returned an unexpected response shape"
+        )
+    usage = data.get("usage") or {}
+    _record_call(
+        engine=f"{base_url}::{model}",
+        prompt_tokens=usage.get("prompt_tokens", 0),
+        completion_tokens=usage.get("completion_tokens", 0),
+        seconds=time.monotonic() - started,
+    )
+    text = _content_of(data)
+    if not text:
+        # Reached only after `_REASONING_LADDER` is exhausted, so the reasoning-budget explanation
+        # has already been ruled out and the message can say what is actually left.
+        finish = str(data["choices"][0].get("finish_reason", ""))
+        raise OllamaError(
+            f"the external LLM provider at {base_url} returned an empty response "
+            f"(finish_reason={finish!r}). If this model reasons before answering, it spent the "
+            f"whole output budget doing so."
+        )
+    return text
+
+
+def _generate(
+    prompt: str,
+    *,
+    model: str,
+    base_url: str = DEFAULT_BASE_URL,
+    timeout: float = 180.0,
+    source: str = "",
+    provider: str = "ollama",
+    api_key: str | None = None,
+    fallback_ollama_model: str | None = None,
+    on_fallback: Callable[[str], None] | None = None,
+    budget_tokens: int | None = None,
+    backup: ExternalEndpoint | None = None,
+    backups: Sequence[ExternalEndpoint] = (),
+) -> str:
+    """Dispatch generation down the configured chain of engines.
+
+    `provider="ollama"` (the default -- every existing caller and every test that mocks
+    `_ollama_generate` directly) calls it unchanged; nothing about this dispatcher touches that
+    path's behaviour.
+
+    `provider="openai-compatible"` walks: **primary external -> backup external (if configured)
+    -> local Ollama**. A step is taken only on a connection/auth/rate-limit failure, never on a
+    content-shape rejection -- that is a successful HTTP response and belongs to the repair loop
+    above this function.
+
+    The backup exists because a free tier's real constraint is its token allowance, not its model:
+    Groq's free tier permits 8,000 tokens/minute, so one large file exhausts a minute. A second key
+    on a different provider multiplies the usable budget with no new code path -- it is this same
+    call with different config. Ollama stays underneath both, so an install with no keys at all is
+    unchanged.
+
+    `on_fallback` is called with the name of the engine that ended up producing the answer, so the
+    caller can attribute the patch to what actually ran rather than what was configured.
+    """
+    if provider != "openai-compatible":
+        try:
+            return _ollama_generate(
+                prompt, model=model, base_url=base_url, timeout=timeout, source=source
+            )
+        except OllamaError:
+            # The chain runs BOTH ways. Routing sends a finding to the local model when it has
+            # proven it can do that work and costs nothing -- but "free" is not "always running".
+            # With Ollama stopped, every locally-routed finding failed even though a working
+            # external engine was configured and idle, which is a worse outcome than spending one
+            # request. Only taken when a backup actually exists, so an install with no keys behaves
+            # exactly as it always has and every test that mocks `_ollama_generate` is unaffected.
+            if backup is None or not (backup.api_key and backup.base_url and backup.model):
+                raise
+            logger.warning("local Ollama failed; escalating to %s", backup.model)
+            answer = _openai_compatible_generate(
+                prompt,
+                model=backup.model,
+                base_url=backup.base_url,
+                api_key=backup.api_key,
+                timeout=timeout,
+                source=source,
+                budget_tokens=backup.budget_tokens,
+            )
+            if on_fallback is not None:
+                on_fallback(f"openai-compatible:{backup.model}")
+            return answer
+
+    if not api_key:
+        raise OllamaError(
+            "the external LLM provider is selected in Settings but no API key is configured"
+        )
+
+    chain: list[ExternalEndpoint] = [
+        ExternalEndpoint(
+            base_url=base_url, model=model, api_key=api_key, budget_tokens=budget_tokens
+        )
+    ]
+    if backup is not None and backup.api_key and backup.base_url and backup.model:
+        chain.append(backup)
+    # Everything else the scheduler ranked, in its order. One spare was never enough: hosted
+    # engines fail INDEPENDENTLY and often, which is the whole reason to pool several free tiers.
+    # Measured on NVIDIA's `poolside/laguna-xs-2.1`, which answers a real migration in ~2s but
+    # returned 503 "ResourceExhausted" on 3 of 4 attempts -- an engine that good and that flaky is
+    # only usable if the next one picks the work up, and useless if a 503 fails the finding.
+    #
+    # De-duplicated on (base_url, model) so an endpoint already in the chain is not retried purely
+    # because it appears twice in the pool under different keys -- each entry still costs a request.
+    for extra in backups:
+        if not (extra.api_key and extra.base_url and extra.model):
+            continue
+        if any(e.base_url == extra.base_url and e.model == extra.model for e in chain):
+            continue
+        chain.append(extra)
+
+    for index, endpoint in enumerate(chain):
+        try:
+            answer = _openai_compatible_generate(
+                prompt,
+                model=endpoint.model,
+                base_url=endpoint.base_url,
+                api_key=endpoint.api_key,
+                timeout=timeout,
+                source=source,
+                budget_tokens=endpoint.budget_tokens,
+            )
+        except OllamaError as exc:
+            logger.warning("external LLM provider %s failed (%s)", endpoint.base_url, exc)
+            continue
+        if index > 0 and on_fallback is not None:
+            on_fallback(f"openai-compatible:{endpoint.model}")
+        return answer
+
+    local_model = fallback_ollama_model or model
+    logger.warning("every external provider failed; falling back to local Ollama %r", local_model)
+    if on_fallback is not None:
+        on_fallback(local_model)
+    return _ollama_generate(
+        prompt, model=local_model, base_url=DEFAULT_BASE_URL, timeout=timeout, source=source
+    )
 
 
 def installed_models(base_url: str = DEFAULT_BASE_URL) -> list[str]:
@@ -671,6 +1541,13 @@ def plan_rewrite(
     timeout: float = 180.0,
     language: str = "",
     experience: Any | None = None,
+    provider: str = "ollama",
+    api_key: str | None = None,
+    fallback_ollama_model: str | None = None,
+    budget_tokens: int | None = None,
+    backup: ExternalEndpoint | None = None,
+    backups: Sequence[ExternalEndpoint] = (),
+    on_fallback: Callable[[str], None] | None = None,
 ) -> str:
     """Ask the model what it intends to do, before asking it to do it.
 
@@ -685,11 +1562,18 @@ def plan_rewrite(
     """
     lang = language or _prompt_language(rule, asset)
     try:
-        raw = _ollama_generate(
+        raw = _generate(
             _build_plan_prompt(source, rule, asset, lang, experience),
             model=model,
             base_url=base_url,
             timeout=timeout,
+            provider=provider,
+            api_key=api_key,
+            fallback_ollama_model=fallback_ollama_model,
+            budget_tokens=budget_tokens,
+            backup=backup,
+            backups=backups,
+            on_fallback=on_fallback,
         )
     except (OSError, OllamaError) as exc:
         logger.info("planning pass unavailable (%s); generating without a plan", exc)
@@ -703,6 +1587,205 @@ def plan_rewrite(
     return "\n".join(text.splitlines()[:20]).strip()
 
 
+#: Marker standing in for the middle of a file the model is not shown. Diff-like and deliberately
+#: NOT comment syntax: comment markers differ across the twenty-odd languages QUBIT migrates, and a
+#: model returning a C file "corrects" a `#` line into `/* */`, which would break the splice.
+EXCERPT_MARKER = "@@QUBIT_UNCHANGED_REGION@@"
+
+#: Lines of the file's head to show. The head is where imports live and nearly every PQC migration
+#: adds one, so a window that omitted them would produce patches the `symbols` stage rejects for
+#: using `mldsa65.PublicKey` without importing it.
+#:
+#: Sized from the corpus rather than picked: across the 300 oversize findings on this installation,
+#: the import block ends by line 35 at the median but by line 84 at p95 -- a licence header alone
+#: can run 17 lines before the first import. Across 300 large real files here, 40 lines covered
+#: the whole block for only 75% of them and cut through it for the rest -- worse than it sounds,
+#: because a model shown HALF an import list can re-add an import it was not shown it already has.
+#: 120 covers 98%, and costs about 900 tokens against a budget the median excerpt uses ~1,800 of.
+_EXCERPT_HEAD_LINES = 120
+
+#: Lines either side of the flagged line. Measured over the 27 findings this installation still
+#: cannot send whole (against its real 28,800-token prompt budget): 120 + 60 gives a median excerpt
+#: of 1,800 tokens and a worst case of 2,527, against a whole-file median of 35,279 and a worst
+#: case of 115,994 -- a 96.3% reduction. Every one of them now fits. None of them fitted before.
+_EXCERPT_WINDOW_LINES = 60
+
+
+@dataclass(frozen=True)
+class Excerpt:
+    """A head-and-window view of a file too large to send whole, and the splice back into it.
+
+    QUBIT's generation contract is whole-file: the model is shown a file and returns all of it.
+    That contract is what lets `check_rewrite` catch truncation -- and it is also why 27 findings
+    on this installation never reach the model at all. A 9,702-line file needs ~115,994 tokens
+    against a 28,800-token prompt budget, and `_llm_detour_reason` tells the operator, accurately,
+    that "splitting the change by hand is what this needs".
+
+    This does that splitting. The model is shown the imports, a marker standing for the region it
+    is not shown, and the neighbourhood of the flagged line; it returns the same shape; `splice`
+    puts the two rewritten regions back into the untouched original. Everything downstream -- the
+    truncation guards, the rescan, every sandbox stage -- still receives a complete file, which is
+    why none of them needed changing for this.
+
+    The saving is not only in what is sent. A whole-file rewrite ANSWERS at roughly the length of
+    its input, and the answer is both the billed half and the slow half, so a 96% smaller prompt
+    is also a ~96% smaller completion -- and the truncation that produced those answers stops
+    being reachable at all. Measured live on `eip7928_test.go` (29,164 tokens): three full repair
+    attempts in 101 seconds, against 16.5 minutes for ONE whole-file attempt on a smaller file.
+
+    **What this cannot do, stated plainly.** A window fixes only what is inside it. Where the same
+    weak primitive appears throughout a file, a whole-file rewrite could replace every occurrence
+    and this replaces the flagged one -- the rest are restored unchanged from the original, because
+    that is exactly what makes the splice safe. QUBIT builds one task per finding, so the other
+    occurrences have their own tasks and their own windows; but a rule whose rescan asks whether
+    the algorithm is gone from the WHOLE file can still refuse a windowed patch that is locally
+    correct. That is a real ceiling, not a bug, and it is why windowing is reached only when the
+    alternative is no patch at all.
+    """
+
+    text: str
+    #: The flagged line's 1-based position WITHIN `text`, which is what the prompt must quote.
+    line: int
+    lines: tuple[str, ...]
+    head: int
+    lo: int
+    hi: int
+
+    def splice(self, returned: str) -> str:
+        """Rebuild the complete file from the model's rewritten excerpt.
+
+        Raises `ModelOutputError` when the marker is missing or duplicated, which sends the answer
+        through the same repair loop as any other malformed output instead of failing the task.
+        """
+        # A text answer's final newline is a TERMINATOR, not an extra blank line -- the fenced
+        # block the model returns carries one whether or not the excerpt ended with a blank line,
+        # so reading it as content adds a line the model never wrote. `splitlines()` is exactly
+        # that convention, and it is unambiguous here only because `build_excerpt` guarantees the
+        # excerpt never ends on a blank line; see the trim there for what that is protecting.
+        body = returned.replace("\r\n", "\n").replace("\r", "\n").splitlines()
+        if self.head:
+            seen = sum(1 for line in body if EXCERPT_MARKER in line)
+            if seen != 1:
+                raise ModelOutputError(
+                    f"your answer must contain the line {EXCERPT_MARKER} exactly once, standing "
+                    f"for the region of the file you were not shown, but it appeared {seen} times"
+                )
+            cut = next(i for i, line in enumerate(body) if EXCERPT_MARKER in line)
+            head_new, window_new = body[:cut], body[cut + 1 :]
+        else:
+            head_new, window_new = [], body
+        rebuilt = [
+            *head_new,
+            *self.lines[self.head : self.lo],
+            *window_new,
+            *self.lines[self.hi :],
+        ]
+        text = "\n".join(rebuilt)
+        return text if text.endswith("\n") else text + "\n"
+
+
+def build_excerpt(
+    source: str,
+    line: int | None,
+    *,
+    head_lines: int = _EXCERPT_HEAD_LINES,
+    window_lines: int = _EXCERPT_WINDOW_LINES,
+) -> Excerpt | None:
+    """An `Excerpt` of ``source`` centred on ``line``, or None when windowing buys nothing.
+
+    None means "send the whole file", and is returned in the two cases where an excerpt would be
+    impossible or pointless: there is no usable line to centre on, or the window already covers
+    the file -- where the whole-file path is strictly better, because it needs no marker, no
+    splice, and no instruction the model can get wrong.
+    """
+    # Same reason as `Excerpt.splice`: this list has to rejoin into exactly the file it came from,
+    # and only `split("\n")` guarantees that.
+    lines = source.split("\n")
+    if line is None or not (1 <= line <= len(lines)):
+        return None
+    idx = line - 1
+    half = max(1, window_lines // 2)
+    lo = max(0, idx - half)
+    hi = min(len(lines), idx + half + 1)
+    # Never end the excerpt on a blank line. `"a\n"` is genuinely ambiguous between one line and
+    # two, and `Excerpt.splice` has to read the model's answer under the ordinary text convention
+    # that a final newline terminates rather than adds. Trimming the window's trailing blanks --
+    # they stay in the file, as part of the untouched tail -- removes the ambiguity instead of
+    # guessing at it. Measured cost of getting this wrong: 29 of 304 real source files came back
+    # every line after the splice point shifted up by one, each still parsing and still passing
+    # the rescan, so nothing downstream would have caught it.
+    while hi - 1 > idx and not lines[hi - 1].strip():
+        hi -= 1
+    head = min(max(0, head_lines), len(lines))
+    if lo <= head:
+        # The window already reaches the imports, so there is no gap to elide and the excerpt can
+        # be one contiguous region starting at the file's first line -- no marker needed.
+        head, lo = 0, 0
+    if head == 0 and lo == 0 and hi >= len(lines):
+        return None
+    if head:
+        body = [*lines[:head], EXCERPT_MARKER, *lines[lo:hi]]
+        at = head + 1 + (idx - lo) + 1
+    else:
+        body = list(lines[lo:hi])
+        at = idx - lo + 1
+    return Excerpt(text="\n".join(body), line=at, lines=tuple(lines), head=head, lo=lo, hi=hi)
+
+
+def _excerpt_asset(asset: CryptoAsset, excerpt: Excerpt) -> CryptoAsset:
+    """The same finding renumbered onto the excerpt, so `line=` in the prompt points at real code.
+
+    The prompt quotes the flagged line number and the model counts lines to find it. Leaving the
+    original number would point 8,600 lines past the end of a 100-line excerpt.
+    """
+    if asset.location is None:
+        return asset
+    return asset.model_copy(
+        update={"location": asset.location.model_copy(update={"line": excerpt.line})}
+    )
+
+
+def _excerpt_feedback(reason: str) -> str:
+    """Restate a whole-file rejection in terms of the excerpt the model was actually given.
+
+    Every check from `check_rewrite` onwards runs on the SPLICED file and speaks its language --
+    "return the COMPLETE file", "the returned file has only N non-blank lines versus M". Fed back
+    verbatim to a model that was handed an excerpt, that is an instruction it cannot follow about
+    a file it never saw, and the repair attempt is spent on the wrong problem.
+
+    Measured on `evp_pkey_provided_test.c`: gemma-4-31b kept the marker correctly, left one
+    unbalanced brace inside its own region, and was then told to "return the COMPLETE file". The
+    brace is the actual fault and the one thing the message never mentioned.
+    """
+    return (
+        f"{reason}\n\nThat verdict is about the WHOLE file, which QUBIT rebuilt from your answer "
+        f"plus the regions you were not shown -- it is not a request for the whole file. You are "
+        f"still editing an EXCERPT: return only the regions you were given, separated by the "
+        f"`{EXCERPT_MARKER}` line, and make sure every brace, bracket and parenthesis you open "
+        f"inside your regions is also closed inside them."
+    )
+
+
+def _closing_instruction(source: str, excerpt: bool) -> str:
+    """What the model must return, stated immediately before the code it must return it for."""
+    count = len(source.splitlines())
+    if excerpt:
+        return (
+            "Below is an EXCERPT of a larger file, not the whole of it: its opening lines, where "
+            f"the imports live, then the line `{EXCERPT_MARKER}` standing for a region you are "
+            "not being shown, then the code around the flagged line. Return BOTH regions in the "
+            f"same order, separated by that same `{EXCERPT_MARKER}` line appearing exactly once, "
+            f"with all {count} lines you were given present and in order. Put any import this "
+            "migration needs in the first region. Do NOT try to reproduce the region you were "
+            "not shown, and do not drop the marker.\n\n"
+        )
+    return (
+        f"The file below has {count} lines. Your output must contain all of them, in order, "
+        "changing only what this migration requires. Do not summarise, reorganise, or drop code "
+        "unrelated to the flagged algorithm.\n\n"
+    )
+
+
 def _build_prompt(
     source: str,
     rule: MigrationRule,
@@ -710,25 +1793,45 @@ def _build_prompt(
     feedback: str | None = None,
     experience: Any | None = None,
     plan: str = "",
+    excerpt: bool = False,
 ) -> str:
     language = _prompt_language(rule, asset)
     target_shape = _target_shape_block(rule, language)
     constraints = _scoped_constraints(rule, language, have_target_shape=bool(target_shape))
+    # An excerpt and a whole file are answered differently, and the difference has to be stated in
+    # BOTH places the shape is described -- the answer contract here and the closing instruction
+    # below -- or the two contradict each other and the model satisfies whichever it read last.
+    # Each mode's opening is constant WITHIN that mode, so both keep a cacheable prefix.
+    if excerpt:
+        answer_shape = (
+            "1. The rewritten EXCERPT inside ONE fenced code block, in exactly the shape you "
+            f"were given it, including its `{EXCERPT_MARKER}` line. Put nothing but code in the "
+            "fence — no prose, no commentary, no explanation inside it.\n"
+        )
+    else:
+        answer_shape = (
+            "1. The complete rewritten file inside ONE fenced code block. Put nothing but code "
+            "in the fence — no prose, no commentary, no explanation inside it.\n"
+        )
     return (
         "You are a cryptographic migration engineer. Rewrite the file below to migrate the "
         "flagged weak cryptography.\n\n"
         "Answer in EXACTLY this shape:\n"
-        "1. The complete rewritten file inside ONE fenced code block. Put nothing but code in "
-        "the fence — no prose, no commentary, no explanation inside it.\n"
+        f"{answer_shape}"
         "2. AFTER the closing fence, a section beginning `SECURITY NOTES:` with 2-4 short "
         "bullets: what you changed and why it is quantum-safe, what an operator must change "
         "OUTSIDE this file (storage widths, key formats, callers), and anything you could not "
         "fix here. State this honestly — a note saying a change is incomplete is far more "
         "useful than a claim that it is done.\n\n"
-        f"Flagged asset: algorithm={asset.algorithm}, usage_context={asset.usage_context.value}, "
-        f"line={asset.location.line if asset.location else '?'}\n"
-        f"{_attack_note(asset)}"
-        f"{_weakness_block(asset)}"
+        # ── STATIC HALF ────────────────────────────────────────────────────────────────────
+        # Everything from here to the DYNAMIC HALF marker is identical for every finding of this
+        # (rule, language) pair, and it is deliberately FIRST. Providers cache on an unbroken
+        # PREFIX, so one dynamic token early in the prompt strands everything after it.
+        #
+        # Measured on this rule pack: 95.7% of a `code-signature-01` prompt is identical between
+        # two findings — but with the flagged asset's line number sitting at character 723, only
+        # 10.8% was reachable as a prefix. 85% of every prompt was cacheable content that could
+        # never be cached, re-billed on each of the up-to-seven calls a single patch makes.
         f"Migration rule: {rule.title}\n"
         f"Guidance: {rule.semantic_note or ''}\n"
         f"Hard constraints:\n{constraints}\n\n"
@@ -740,7 +1843,10 @@ def _build_prompt(
         # Making the branch explicit, and banning imports that are not actually used, removes the
         # hedge without constraining which path a rule offers.
         "If the guidance offers more than one replacement path, choose EXACTLY ONE: the path that "
-        f"matches usage_context={asset.usage_context.value}. When usage_context is 'unknown', "
+        # Refers to the flagged asset BELOW rather than interpolating its usage_context here: one
+        # dynamic value in this sentence would end the cacheable prefix before the rule's own
+        # guidance, examples and target shape — the largest static block in the prompt.
+        "matches the usage_context named in the flagged asset below. When that is 'unknown', "
         "decide from the surrounding code (does it store or verify a credential, or merely digest "
         "data?) and prefer the general-purpose digest path unless the code clearly handles "
         "credentials.\n"
@@ -761,15 +1867,22 @@ def _build_prompt(
         # "return the COMPLETE file" as retry feedback did not fix it three attempts running.
         # Stating the size up front makes the requirement one the model can check as it writes,
         # rather than one only the guard can check afterwards.
-        f"The file below has {len(source.splitlines())} lines. Your output must contain all of "
-        "them, in order, changing only what this migration requires. Do not summarise, "
-        "reorganise, or drop code unrelated to the flagged algorithm.\n\n"
         f"{_impact_block(rule)}"
         f"{target_shape}"
         f"{_worked_examples(rule, language)}"
+        # ── DYNAMIC HALF ───────────────────────────────────────────────────────────────────
+        # Everything below varies per finding, so none of it can be cached. Keeping it in one
+        # contiguous block at the END is precisely what makes the static half above a usable
+        # prefix — and it is also the conventional shape for a long prompt: instructions and
+        # reference material first, the specific task last.
+        f"Flagged asset: algorithm={asset.algorithm}, usage_context={asset.usage_context.value}, "
+        f"line={asset.location.line if asset.location else '?'}\n"
+        f"{_attack_note(asset)}"
+        f"{_weakness_block(asset)}"
         f"{_experience_examples(experience, language)}"
         f"{_plan_block(plan)}"
         f"{_repair_feedback(feedback)}"
+        f"{_closing_instruction(source, excerpt)}"
         f"```{language}\n{source}\n```\n"
     )
 
@@ -1165,6 +2278,13 @@ def self_review(
     base_url: str = DEFAULT_BASE_URL,
     timeout: float = 180.0,
     language: str = "",
+    provider: str = "ollama",
+    api_key: str | None = None,
+    fallback_ollama_model: str | None = None,
+    budget_tokens: int | None = None,
+    backup: ExternalEndpoint | None = None,
+    backups: Sequence[ExternalEndpoint] = (),
+    on_fallback: Callable[[str], None] | None = None,
 ) -> tuple[str, str]:
     """Return ``(possibly corrected source, notes)`` after one self-review pass.
 
@@ -1174,12 +2294,19 @@ def self_review(
     """
     lang = language or _prompt_language(rule, asset)
     try:
-        raw = _ollama_generate(
+        raw = _generate(
             _build_review_prompt(source, draft, rule, asset, lang),
             model=model,
             base_url=base_url,
             timeout=timeout,
             source=source,
+            provider=provider,
+            api_key=api_key,
+            fallback_ollama_model=fallback_ollama_model,
+            budget_tokens=budget_tokens,
+            backup=backup,
+            backups=backups,
+            on_fallback=on_fallback,
         )
     except (OSError, OllamaError) as exc:
         logger.info("self-review pass unavailable (%s); keeping the draft", exc)
@@ -1369,8 +2496,26 @@ def generate_llm_source(
     on_caveats: Callable[[list[str]], None] | None = None,
     plan_first: bool = True,
     feedback: str | None = None,
+    provider: str = "ollama",
+    api_key: str | None = None,
+    fallback_ollama_model: str | None = None,
+    on_fallback: Callable[[str], None] | None = None,
+    budget_tokens: int | None = None,
+    backup: ExternalEndpoint | None = None,
+    backups: Sequence[ExternalEndpoint] = (),
+    windowed: bool = False,
 ) -> str:
     """Return the LLM-rewritten file content, or raise :class:`OllamaError`.
+
+    ``provider``/``api_key``: select an external OpenAI-compatible endpoint instead of the local
+    Ollama server (see `_generate`). Default ``"ollama"`` is exactly today's behaviour -- ``model``
+    and ``base_url`` name the local server as they always have.
+
+    ``fallback_ollama_model``/``on_fallback``: only meaningful when ``provider`` is
+    ``"openai-compatible"``. If the external call fails to connect/authenticate, generation falls
+    back to this local Ollama model for that attempt rather than failing the task outright, and
+    ``on_fallback`` (if given) is called so the caller can record which engine actually produced
+    the result.
 
     Retries with the rejection reason fed back into the prompt (doc 03 §6.3's "repair loop", which
     the module previously described but did not implement — generation was strictly one-shot, so a
@@ -1398,19 +2543,44 @@ def generate_llm_source(
     ``on_caveats``: called with the lines of the accepted notes that admit something is unfinished.
     Surfaced beside the diff rather than used to reject, because rejecting honest notes while
     accepting silent ones would make honesty the losing strategy.
+
+    ``windowed``: show the model an `Excerpt` -- the file's imports plus the neighbourhood of the
+    flagged line -- instead of the whole file, and splice its answer back before anything inspects
+    it. Set by the caller for files no configured engine can hold, which on this installation is
+    27 findings that are otherwise refused before the first token. The excerpt is a PROMPT
+    concern only: every check from `check_rewrite` onwards still sees a complete file.
     """
     # `fallback_model` was configured and referenced by nothing, so a machine without the primary
     # model pulled had no safety net at all — just a 404 reported as "Ollama unreachable". It is
     # only used when the primary is genuinely absent, never to silently downgrade a working setup.
-    available = installed_models(base_url)
-    if available and model not in available:
-        if fallback_model and fallback_model in available:
-            logger.warning(
-                "Ollama model %r is not installed; falling back to %r", model, fallback_model
-            )
-            model = fallback_model
-        else:
-            raise OllamaError(_model_missing_message(model, base_url))
+    #
+    # Ollama-only: `model`/`base_url` name an EXTERNAL provider when `provider` is
+    # "openai-compatible", and `/api/tags` is an Ollama-specific endpoint that has nothing to say
+    # about a remote provider's model catalogue.
+    if provider == "ollama":
+        available = installed_models(base_url)
+        if available and model not in available:
+            if fallback_model and fallback_model in available:
+                logger.warning(
+                    "Ollama model %r is not installed; falling back to %r", model, fallback_model
+                )
+                model = fallback_model
+            else:
+                raise OllamaError(_model_missing_message(model, base_url))
+
+    # Windowed generation, for files no engine can hold whole. The excerpt replaces the source
+    # in the PROMPT only -- `splice` restores the complete file before a single downstream check
+    # runs -- so `check_rewrite`, the rescan and every sandbox stage are untouched by this.
+    excerpt = (
+        build_excerpt(source, asset.location.line if asset.location else None) if windowed else None
+    )
+    prompt_source = excerpt.text if excerpt is not None else source
+    prompt_asset = _excerpt_asset(asset, excerpt) if excerpt is not None else asset
+    if excerpt is not None:
+        # The review pass carries BOTH the original and the draft, so a file that did not fit once
+        # certainly does not fit twice. Disabled rather than windowed: a review that reads only a
+        # fragment of the change it is judging is worse than no review at all.
+        self_review_pass = False
 
     # Pass one, for the structural rewrites only: make the model say what it intends to change
     # before it changes anything. Done ONCE and carried across every repair attempt - the plan
@@ -1419,19 +2589,29 @@ def generate_llm_source(
     plan = ""
     if plan_first and needs_planning(rule):
         plan = plan_rewrite(
-            source,
+            prompt_source,
             rule,
-            asset,
+            prompt_asset,
             model=model,
             base_url=base_url,
             timeout=timeout,
             language=_prompt_language(rule, asset),
             experience=experience,
+            provider=provider,
+            api_key=api_key,
+            fallback_ollama_model=fallback_ollama_model,
+            budget_tokens=budget_tokens,
+            backup=backup,
+            backups=backups,
+            on_fallback=on_fallback,
         )
         if plan:
             logger.info("planned the rewrite for %s before generating", rule.id)
 
     last_reason = "unknown"
+    #: Times the model was asked for an excerpt and did not return the marker. Capped separately
+    #: from `max_attempts` because it is not the same kind of failure -- see the break below.
+    marker_failures = 0
     for _attempt in range(max(1, max_attempts)):
         # Generation is INSIDE the retry because a truncated or unfenced answer is the model
         # getting it wrong, and that is what the repair loop is for. It was outside, so a
@@ -1441,20 +2621,57 @@ def generate_llm_source(
         # OllamaError and still propagates on the first try, because retrying it only makes the
         # user wait three times over for the same message.
         try:
-            raw = _ollama_generate(
-                _build_prompt(source, rule, asset, feedback, experience, plan),
+            raw = _generate(
+                _build_prompt(
+                    prompt_source,
+                    rule,
+                    prompt_asset,
+                    feedback,
+                    experience,
+                    plan,
+                    excerpt=excerpt is not None,
+                ),
                 model=model,
                 base_url=base_url,
                 timeout=timeout,
-                source=source,
+                source=prompt_source,
+                provider=provider,
+                api_key=api_key,
+                fallback_ollama_model=fallback_ollama_model,
+                on_fallback=on_fallback,
+                budget_tokens=budget_tokens,
+                backup=backup,
+                backups=backups,
             )
             new_source = extract_code_block(raw)
+            if excerpt is not None:
+                # Back to a complete file before anything else looks at it.
+                new_source = excerpt.splice(new_source)
         except ModelOutputError as exc:
             last_reason = str(exc)
-            feedback = (
-                f"{last_reason}. Return ONLY the complete file inside ONE fenced code block, "
-                "with no commentary before or after it."
+            wanted = (
+                f"the excerpt, including its `{EXCERPT_MARKER}` line"
+                if excerpt is not None
+                else "the complete file"
             )
+            feedback = (
+                f"{last_reason}. Return ONLY {wanted} inside ONE fenced code block, with no "
+                "commentary before or after it."
+            )
+            if excerpt is not None and EXCERPT_MARKER in last_reason:
+                marker_failures += 1
+                # Dropping the marker is a different kind of failure from a truncated or unfenced
+                # answer, and the repair loop's assumption -- that telling the model what was
+                # wrong will fix it -- does not hold for it. Measured on
+                # `evp_pkey_provided_test.c`: the local 7B dropped the marker on 4 of 4 attempts,
+                # taking 302 seconds to reach the same answer three times, while gpt-oss-120b kept
+                # it in 9.0s and gemma-4-31b in 110.4s on the identical prompt. So this is a
+                # property of the ENGINE, not of the phrasing. One repair attempt is worth making;
+                # a second only spends time and quota to be told the same thing. Failing here
+                # records the outcome, which is what lets `_select_engine`'s reliability gate
+                # route the next windowed finding somewhere that can answer it.
+                if marker_failures >= 2:
+                    break
             continue
 
         if not new_source.endswith("\n"):
@@ -1491,6 +2708,13 @@ def generate_llm_source(
                 base_url=base_url,
                 timeout=timeout,
                 language=language,
+                provider=provider,
+                api_key=api_key,
+                fallback_ollama_model=fallback_ollama_model,
+                budget_tokens=budget_tokens,
+                backup=backup,
+                backups=backups,
+                on_fallback=on_fallback,
             )
             if reviewed != new_source:
                 recheck = verify(reviewed) if verify is not None else None
@@ -1511,6 +2735,18 @@ def generate_llm_source(
             reason, caveats = check_reasoning(notes, new_source)
 
         if reason is None:
+            if excerpt is not None:
+                # The reviewer has to be told this. Every other caveat is the MODEL admitting a
+                # limit; this one is QUBIT admitting one, and it is the more important of the two
+                # -- a reader who assumes the model weighed the whole file would credit the patch
+                # with a judgement it never made. The regions outside the window are safe because
+                # they were copied from the original, not because anything checked them.
+                caveats = [
+                    "QUBIT showed the model an excerpt of this file, not all of it: the imports "
+                    "and the lines around the finding. Everything outside that window was "
+                    "preserved unchanged from the original and was not read by the model.",
+                    *caveats,
+                ]
             # Only the ACCEPTED attempt's reasoning is reported. Notes from a rejected rewrite
             # describe a file that was thrown away, and showing those beside the diff that
             # shipped would actively mislead the reviewer.
@@ -1520,7 +2756,7 @@ def generate_llm_source(
                 on_caveats(caveats)
             return new_source
         last_reason = reason
-        feedback = reason
+        feedback = _excerpt_feedback(reason) if excerpt is not None else reason
 
     # A `present` failure that persists in a language QUBIT ships no verified shape for is more
     # likely an unsatisfiable check than a bad rewrite, and saying which one costs nothing here.
@@ -1536,7 +2772,13 @@ def generate_llm_source(
 
 __all__ = [
     "DEFAULT_BASE_URL",
+    "EXCERPT_MARKER",
+    "HTTP_USER_AGENT",
+    "Excerpt",
+    "ExternalEndpoint",
     "OllamaError",
+    "RateBudget",
+    "build_excerpt",
     "check_reasoning",
     "check_rewrite",
     "extract_code_block",
@@ -1546,6 +2788,7 @@ __all__ = [
     "needs_planning",
     "plan_rewrite",
     "present_prefixes",
+    "rate_budget",
     "self_review",
     "unverifiable_reason",
 ]

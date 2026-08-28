@@ -135,7 +135,9 @@ rules:
         - { capture: meth, equals: getInstance }
         - { capture: algo, regex: '^"Hmac' }
     extract:
-      algorithm: { literal: HMAC }
+      # `@algo` is already the full "HmacSHA256"-style literal, so the digest name is right there
+      # — see python/cryptography_more.yaml's PY-HMAC-NEW for why this must not be `{literal: HMAC}`.
+      algorithm: { from: algo, resolve: hmac-digest }
     asset: { asset_type: algorithm-use, usage_context: token }
     confidence: high
     examples:

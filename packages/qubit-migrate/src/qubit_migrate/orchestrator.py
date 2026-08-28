@@ -4,24 +4,36 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import time
 from collections.abc import Callable
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 from uuid import UUID
 
 from qubit_core import CryptoAsset
-from qubit_core.db import AssetRow
-from qubit_core.db.models import DEFAULT_TENANT_ID, LearnedPatch
+from qubit_core.db import AssetRow, secrets_at_rest
+from qubit_core.db.models import (
+    DEFAULT_TENANT_ID,
+    LearnedPatch,
+    LlmEngine,
+    LlmProviderConfig,
+    ProjectRow,
+    ScanRow,
+)
+from qubit_core.db.session import retry_write_on_lock
 from qubit_core.mapping import row_to_asset
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from . import scheduling
 from .config import MigrateConfig
 from .graph import build_dependency_graph, migration_order
 from .queue import rank_ready_frontier
 from .state import (
+    MigrationEvent,
     MigrationPlan,
     MigrationTask,
     MigrationUnit,
@@ -43,9 +55,35 @@ from .transform import (
 )
 from .transform.advise import generate_migration_advice
 from .transform.languages import language_for_suffix
-from .transform.llm import OllamaError, generate_llm_source, unverifiable_reason
+from .transform.llm import (
+    DEFAULT_BASE_URL,
+    ExternalEndpoint,
+    OllamaError,
+    build_excerpt,
+    current_ledger,
+    generate_llm_source,
+    start_ledger,
+    unverifiable_reason,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _Engine:
+    """One generation engine QUBIT can route a finding to.
+
+    `name` is the string patches and `LearnedOutcome.source_model` record, so the reliability
+    lookup and the attribution written afterwards cannot drift apart.
+    """
+
+    name: str
+    #: None for the local Ollama model; an endpoint for anything OpenAI-compatible.
+    endpoint: ExternalEndpoint | None
+    #: Tokens one request may use, prompt and answer together.
+    budget_tokens: int
+    #: Whether using it spends a quota. Free engines are tried first for exactly this reason.
+    metered: bool
 
 
 def _language_of(asset: CryptoAsset) -> str:
@@ -322,12 +360,18 @@ class MigrationOrchestrator:
             logger.info(
                 "advice model unavailable for task %s (%s); using the plan alone", task_id, exc
             )
-            task.advice_text = base
-            task.advice_model = "qubit-guided"
-            task.advice_at = datetime.now(UTC)
-            task.resolution = RESOLUTION_GUIDED
-            self.session.add(task)
-            self.session.commit()
+
+            def _store_plan_only() -> None:
+                task.advice_text = base
+                task.advice_model = "qubit-guided"
+                task.advice_at = datetime.now(UTC)
+                task.resolution = RESOLUTION_GUIDED
+                self.session.commit()
+
+            # `retry_write_on_lock`, not `commit_with_retry` -- these mutate an existing row, and
+            # rollback reverts such changes, so retrying the commit alone would silently store
+            # nothing. See `resume_task` for the full reasoning.
+            retry_write_on_lock(self.session, _store_plan_only)
             self.session.refresh(task)
             return task
 
@@ -336,11 +380,13 @@ class MigrationOrchestrator:
         # and which half is a model's reading of their code.
         advice = f"{base}\n---\n\n## This file, read by {self.config.model}\n\n{advice}"
 
-        task.advice_text = advice
-        task.advice_model = self.config.model
-        task.advice_at = datetime.now(UTC)
-        self.session.add(task)
-        self.session.commit()
+        def _store_advice() -> None:
+            task.advice_text = advice
+            task.advice_model = self.config.model
+            task.advice_at = datetime.now(UTC)
+            self.session.commit()
+
+        retry_write_on_lock(self.session, _store_advice)
         self.session.refresh(task)
         return task
 
@@ -384,17 +430,20 @@ class MigrationOrchestrator:
         task.advice_text = plan.to_markdown()
         task.advice_model = "qubit-guided"
         task.advice_at = datetime.now(UTC)
+
         # `claim_resolved=False` is the failure fallback: a generation that could not be produced
         # still deserves a written path, but it is NOT a resolved finding. Marking it `guided`
         # there conflated two different things - a rule saying "no edit is ever right here" and
         # the model failing today - and the second one must stay retryable, because the engine
         # that failed it is not the engine the next run will use.
-        if claim_resolved:
-            task.resolution = RESOLUTION_GUIDED
-        if task.state != "deferred":
-            self._transition(task, "defer", detail={"resolution": RESOLUTION_GUIDED})
-        self.session.add(task)
-        self.session.commit()
+        def _park_as_guided() -> None:
+            if claim_resolved:
+                task.resolution = RESOLUTION_GUIDED
+            if task.state != "deferred":
+                self._transition(task, "defer", detail={"resolution": RESOLUTION_GUIDED})
+            self.session.commit()
+
+        retry_write_on_lock(self.session, _park_as_guided)
         self.session.refresh(task)
         return task
 
@@ -411,21 +460,304 @@ class MigrationOrchestrator:
         Only `unresolved` is resumable. `satisfied` is finished work and `guided` is a written
         remediation; re-running either would undo the distinction the resolution field exists to
         draw, and would overwrite a plan the user may already be following.
+
+        A task STRANDED in `generating` is also resumed here -- see `_stranded_generating`.
         """
         task = self.session.get(MigrationTask, task_id)
         if task is None:
             raise ValueError(f"Task {task_id} not found")
+
+        # A generation whose caller went away leaves the task at `generating` forever. The FSM has
+        # no `generate` event from `generating`, so every later click answers
+        # "No transition 'generate' from state 'generating'" and the row is a permanent dead end.
+        # `JobRunner._recover_orphaned_tasks` already repairs exactly this -- but only on server
+        # RESTART, which does not help a user who simply navigated away mid-generation and came
+        # back. Recovering it on the retry click is the same repair at the moment it is needed.
+        # `retry_write_on_lock`, NOT `commit_with_retry`. The distinction is load-bearing and cost
+        # a wrong fix to find: `commit_with_retry` re-adds freshly-constructed rows, but these
+        # writes MUTATE an existing row, and `Session.rollback()` reverts attribute changes on a
+        # persistent object. Retrying only the commit therefore committed nothing and returned
+        # success with the task still `deferred` -- a silent no-op, strictly worse than the HTTP 500
+        # it was meant to fix. Re-running the whole mutation is what this helper is for.
+        if task.state == "generating" and self._stranded_generating(task):
+
+            def _reclaim() -> None:
+                self._transition(
+                    task, "defer", detail={"reason": "previous generation was interrupted"}
+                )
+                task.resolution = RESOLUTION_UNRESOLVED
+                task.last_error = "the previous generation was interrupted before it finished"
+                self.session.commit()
+
+            retry_write_on_lock(self.session, _reclaim)
+            self.session.refresh(task)
+
         if task.state != "deferred" or task.resolution != RESOLUTION_UNRESOLVED:
             return task
-        self._transition(task, "resume", detail={"reason": "retrying with the current engine"})
-        # The previous rejection stays on the row until this attempt produces its own outcome:
-        # it is what `build_guided_plan` opens with if this attempt fails too, and clearing it
-        # early would lose the only record of what has already been tried.
-        task.resolution = None
-        self.session.add(task)
-        self.session.commit()
+
+        def _resume() -> None:
+            self._transition(task, "resume", detail={"reason": "retrying with the current engine"})
+            # The previous rejection stays on the row until this attempt produces its own outcome:
+            # it is what `build_guided_plan` opens with if this attempt fails too, and clearing it
+            # early would lose the only record of what has already been tried.
+            task.resolution = None
+            self.session.commit()
+
+        retry_write_on_lock(self.session, _resume)
         self.session.refresh(task)
         return task
+
+    #: How many model calls one `generate_patch` can legitimately make, worst case, before it is
+    #: certain that a task still sitting at `generating` is orphaned rather than working.
+    #:
+    #: The arithmetic, from `generate_llm_source`: one planning pass, then up to `_MAX_ATTEMPTS`
+    #: (3) rounds of [generate + self-review] = 7 calls; the orchestrator's outer feedback retry
+    #: can run that whole budget a second time = 14. Rounded up to 16 to leave room for the
+    #: validation stages (docker build, test run) that are not model calls but are not free either.
+    #:
+    #: Deliberately generous. Reclaiming a task that is genuinely still in flight would let two
+    #: generations write to the same row, which is a worse failure than waiting: the honest cost of
+    #: not being able to ask "is that request still alive?" across a process boundary.
+    _MAX_GENERATION_CALLS = 16
+
+    def _stranded_generating(self, task: MigrationTask) -> bool:
+        """Whether a `generating` task has been there longer than any real generation could take.
+
+        Time-based because there is no other signal available: the request that owns a generation
+        runs in a worker thread with no handle the next request can ask about, and after a client
+        disconnect FastAPI keeps that thread running to completion regardless. So "is it still
+        working?" can only be answered by "could it possibly still be working?".
+
+        The clock comes from the task's own `generating` event rather than a column, because
+        `MigrationTask` has no updated-at and the event log already records every transition with
+        its timestamp. A task with no such event recorded (possible for rows written before the
+        event log, or if the write was lost) is treated as NOT stranded -- refusing to reclaim is
+        always the safe direction.
+        """
+        entered = self.session.scalar(
+            select(MigrationEvent.at)
+            .where(MigrationEvent.task_id == task.id, MigrationEvent.to_state == "generating")
+            .order_by(MigrationEvent.at.desc())
+            .limit(1)
+        )
+        if entered is None:
+            return False
+        # SQLite hands back naive datetimes (it has no timezone type) while `utcnow()` is aware;
+        # comparing the two raises. Everything QUBIT stores is UTC, so attach it rather than
+        # converting -- see `qubit_api.schemas._ensure_utc` for the same fix on the way out.
+        if entered.tzinfo is None:
+            entered = entered.replace(tzinfo=UTC)
+        limit = timedelta(seconds=self.config.llm_timeout * self._MAX_GENERATION_CALLS)
+        return datetime.now(UTC) - entered > limit
+
+    def _engines(self) -> list[_Engine]:
+        """Every engine available to this install, CHEAPEST FIRST.
+
+        "Cheapest" is not a guess about pricing -- it is the order that spends the least scarce
+        resource for the same outcome:
+
+        * **Local Ollama first.** It costs nothing and has no daily quota, so any finding it can
+          genuinely handle should never reach a metered endpoint.
+        * **Then externals by ascending allowance.** A bigger allowance is not better here, it is
+          the thing you need only when the file demands it -- and measured, it is exactly the slow
+          one. `openai/gpt-oss-120b` on Groq answers a whole-file rewrite in ~3.6s with an
+          8,000-token allowance; `gemma-4-31b-it` needs 64,000 to take the same file and one real
+          patch through the app took **899 seconds**. Picking the SMALLEST engine that fits is
+          therefore both the cheapest and the fastest choice, not a trade-off between them.
+        """
+        engines = [
+            _Engine(
+                name=self.config.model,
+                endpoint=None,
+                budget_tokens=self.config.llm_context_tokens,
+                metered=False,
+            )
+        ]
+        row = self.session.get(LlmProviderConfig, 1)
+        if row is None or row.provider != "openai-compatible":
+            return engines
+
+        external: list[_Engine] = []
+        for base_url, model, blob, budget in (
+            (row.base_url, row.model, row.api_key_encrypted, row.context_tokens),
+            (
+                row.backup_base_url,
+                row.backup_model,
+                row.backup_api_key_encrypted,
+                row.backup_context_tokens,
+            ),
+        ):
+            if not (base_url and model and blob):
+                continue
+            with contextlib.suppress(Exception):
+                external.append(
+                    _Engine(
+                        name=f"openai-compatible:{model}",
+                        endpoint=ExternalEndpoint(
+                            base_url=base_url,
+                            model=model,
+                            api_key=secrets_at_rest.decrypt(blob),
+                            budget_tokens=budget,
+                        ),
+                        budget_tokens=budget or self.config.llm_context_tokens,
+                        metered=True,
+                    )
+                )
+        external.extend(self._pooled_engines())
+        external.sort(key=lambda e: e.budget_tokens)
+        return engines + external
+
+    def _pooled_engines(self) -> list[_Engine]:
+        """Engines attached to the pool, beyond the primary and backup slots.
+
+        Two slots was a ceiling on the only thing that actually adds capacity here. A hosted free
+        tier is rationed per PROJECT -- Groq allows 1,000 requests/day; two Google keys in one
+        project share a quota while a different model on the same key gets its own -- so more
+        capacity means MORE INDEPENDENT TIERS, not a better model. A third key previously had
+        nowhere to go.
+
+        A row that cannot be decrypted is skipped rather than raised on: one unreadable key must
+        not take the whole pool, and the rest of the engines are still perfectly usable.
+        """
+        pooled: list[_Engine] = []
+        for row in self.session.scalars(select(LlmEngine).where(LlmEngine.enabled.is_(True))):
+            if not (row.base_url and row.model and row.api_key_encrypted):
+                continue
+            with contextlib.suppress(Exception):
+                pooled.append(
+                    _Engine(
+                        # The key suffix is part of the identity, not decoration. Two keys for the
+                        # same model are two INDEPENDENT quotas -- which is the entire reason the
+                        # pool exists -- and both `learn.reliability` and the call ledger key on
+                        # this name. Without the suffix they would share one success record and one
+                        # cost total, so a quota-exhausted key would look like a failing model and
+                        # drag its healthy twin down with it.
+                        name=f"openai-compatible:{row.model}#{row.api_key_last4}",
+                        endpoint=ExternalEndpoint(
+                            base_url=row.base_url,
+                            model=row.model,
+                            api_key=secrets_at_rest.decrypt(row.api_key_encrypted),
+                            budget_tokens=row.context_tokens,
+                        ),
+                        budget_tokens=row.context_tokens or self.config.llm_context_tokens,
+                        metered=True,
+                    )
+                )
+        return pooled
+
+    def _select_engine(
+        self, rule: Any, source: str, language: str, tenant_id: UUID | None = None
+    ) -> _Engine | None:
+        """The cheapest engine that can plausibly migrate THIS finding, or None for guided advice.
+
+        Two independent questions, asked per engine:
+
+        1. **Can it hold the file?** The window has to fit prompt AND answer, so the prompt may use
+           `llm_max_prompt_fraction` of it.
+        2. **Has it been shown to fail this exact work?** `learn.reliability` records pass/fail per
+           (rule, language, engine). A pairing an engine has failed `llm_skip_after_failures` times
+           with no success is skipped -- for THAT engine only.
+
+        The second question is what makes this worth doing rather than always reaching for the
+        biggest engine. Measured on this installation: the local 7B has passed
+        `code-signature-01`/go 518 times, so sending that to a metered endpoint would buy nothing
+        and spend quota for it. The same
+        model has failed `code-kex-01` in c, go and ruby **every** time it has tried -- and until
+        now those were routed to written advice, which is exactly the "why am I getting guidance
+        instead of a patch" complaint. Escalating them to an engine that can actually do the work
+        both removes the wasted local attempts (three tries at ~23s each) and produces a patch.
+        """
+        engine, _ = self._route(rule, source, language, tenant_id)
+        return engine
+
+    def _route(
+        self, rule: Any, source: str, language: str, tenant_id: UUID | None = None
+    ) -> tuple[_Engine | None, scheduling.Decision]:
+        """`_select_engine`, plus the reasoning -- so a route can be explained, not just observed.
+
+        The two answers are wanted in different places. `generate_patch` needs the engine AND the
+        wait the provider asked for; the pre-flight probe only needs to know whether anything at
+        all could take the finding. Returning both from one function keeps them from drifting.
+
+        The policy itself lives in `qubit_migrate.scheduling`, which is pure. Everything this method
+        does is gather what is known -- fit, this installation's own outcome history, the budget the
+        provider last reported, and how long each engine has actually taken -- and hand it over.
+        """
+        from .transform import learn, llm
+
+        estimated = len(source) // 3
+        tid = tenant_id if tenant_id is not None else DEFAULT_TENANT_ID
+        by_name: dict[str, _Engine] = {}
+        offers: list[scheduling.EngineOffer] = []
+        for engine in self._engines():
+            by_name[engine.name] = engine
+            passed, failed = learn.reliability(
+                self.session,
+                rule_id=rule.id,
+                language=language,
+                tenant_id=tid,
+                source_model=engine.name,
+                include_unattributed=not engine.metered,
+            )
+            # The budget is keyed by ENDPOINT, because that is what the provider rations; the
+            # engine name carries a key suffix so two keys for one model stay distinct in the
+            # outcome history. The two identities are deliberately different and must be mapped.
+            budget: dict[str, Any] = {}
+            if engine.endpoint is not None:
+                budget = llm.rate_budget(f"{engine.endpoint.base_url}::{engine.endpoint.model}")
+            offers.append(
+                scheduling.EngineOffer(
+                    name=engine.name,
+                    metered=engine.metered,
+                    budget_tokens=engine.budget_tokens,
+                    passed=passed,
+                    failed=failed,
+                    remaining_requests=budget.get("remaining_requests"),
+                    remaining_tokens=budget.get("remaining_tokens"),
+                    reset_tokens_s=float(budget.get("reset_tokens_seconds") or 0.0),
+                    seconds_per_call=llm.observed_seconds_per_call(engine.name),
+                )
+            )
+
+        decision = scheduling.choose(
+            offers,
+            prompt_tokens=estimated,
+            max_prompt_fraction=self.config.llm_max_prompt_fraction,
+            skip_after_failures=self.config.llm_skip_after_failures,
+        )
+        return (by_name.get(decision.engine) if decision.engine else None), decision
+
+    def _effective_context_tokens(self) -> int:
+        """The largest window any configured engine offers.
+
+        Used by the size half of `_llm_detour_reason`, which asks "could ANY engine hold this
+        file" -- so the answer must come from the most capable one, not whichever happens to be
+        marked primary. `_select_engine` then picks the cheapest one that actually fits.
+        """
+        return max(e.budget_tokens for e in self._engines())
+
+    def _oversize_reason(self, source: str) -> str | None:
+        """Why this file cannot be sent whole, or None if it fits.
+
+        Split out of `_llm_detour_reason` so `generate_patch` can tell the SIZE refusal apart from
+        the other two. Size is the only one an excerpt can answer: a pairing the engine has never
+        completed, or a rescan that cannot confirm the result, is exactly as true of an excerpt as
+        of the whole file, and overriding either would just spend quota to reach the same verdict.
+        """
+        context_tokens = self._effective_context_tokens()
+        budget = int(context_tokens * self.config.llm_max_prompt_fraction)
+        # ~3 characters per token deliberately under-estimates for code, matching
+        # `llm._output_budget`, so the estimate errs toward letting a borderline file through.
+        estimated = len(source) // 3
+        if estimated <= budget:
+            return None
+        return (
+            f"this file is too large for the configured model: about {estimated:,} tokens "
+            f"against a {context_tokens:,}-token context window, which must hold the "
+            f"rewritten file as well as the original. Sending it would truncate the file "
+            f"before the model saw it. A larger-context model, or splitting the change by "
+            f"hand, is what this needs."
+        )
 
     def _llm_detour_reason(
         self, rule: Any, source: str, language: str, tenant_id: UUID | None = None
@@ -448,6 +780,12 @@ class MigrationOrchestrator:
            asked to return all of it — it could not have succeeded once, and it was asked
            three times.
 
+           This one no longer ends in guidance by itself. `generate_patch` overrides it, and ONLY
+           it, where the finding has a line to build an `llm.Excerpt` around: the model is shown
+           the imports plus the neighbourhood of the flagged line, and the answer is spliced back
+           into the full file. The reason is still returned from here, because whether an excerpt
+           can stand in depends on the finding, which this method is not given.
+
         2. **This (rule, language) pair has never once succeeded here.** The experience base
            already records pass/fail per rule and language; `reliability` reads it and, until
            now, was called by nothing. `code-kex-01` is the case that motivates it: replacing RSA
@@ -456,18 +794,15 @@ class MigrationOrchestrator:
            model, not a property of the task — which is exactly why this reads measured evidence
            from THIS installation rather than a hardcoded blocklist.
         """
-        budget = int(self.config.llm_context_tokens * self.config.llm_max_prompt_fraction)
-        # ~3 characters per token deliberately under-estimates for code, matching
-        # `llm._output_budget`, so the estimate errs toward letting a borderline file through.
-        estimated = len(source) // 3
-        if estimated > budget:
-            return (
-                f"this file is too large for the local model: about {estimated:,} tokens against "
-                f"a {self.config.llm_context_tokens:,}-token context window, which must hold the "
-                f"rewritten file as well as the original. Sending it would truncate the file "
-                f"before the model saw it. A larger-context model, or splitting the change by "
-                f"hand, is what this needs."
-            )
+        # The window of the engine ACTUALLY configured, not the local default. An external
+        # provider routinely offers 16x the local model's window (measured: gpt-oss-120b reports
+        # 131,072 against the shipped 7B model's 8,192), and gating on the local number while an
+        # external model is selected sends files to guided advice that the configured engine could
+        # rewrite comfortably -- the exact "why is it giving me advice instead of a patch" failure
+        # this method is supposed to be avoiding, inverted.
+        oversize = self._oversize_reason(source)
+        if oversize is not None:
+            return oversize
 
         # 3. The rescan cannot confirm the answer in this language, so no rewrite can pass.
         #
@@ -499,20 +834,48 @@ class MigrationOrchestrator:
 
         from .transform import learn
 
-        passed, failed = learn.reliability(
+        # Ask whether ANY configured engine can do this, not just whichever is marked primary.
+        # `_select_engine` walks them cheapest-first and applies the same per-engine reliability
+        # test this branch used to apply to one engine -- so a pairing the local model has failed
+        # every time now ESCALATES to an engine that might succeed instead of going to written
+        # advice. Only when no engine is left is guidance the honest answer.
+        if self._select_engine(rule, source, language, tenant_id) is not None:
+            return None
+
+        engine = self._active_model_name()
+        _, failed = learn.reliability(
             self.session,
             rule_id=rule.id,
             language=language,
             tenant_id=tenant_id if tenant_id is not None else DEFAULT_TENANT_ID,
+            source_model=engine,
+            include_unattributed=engine == self.config.model,
         )
-        if passed == 0 and failed >= self.config.llm_skip_after_failures:
-            return (
-                f"the local model has not completed a {rule.id} migration in {language} on this "
-                f"machine — {failed} attempts, none validated. Rather than spend three more, "
-                f"here is the remediation path. Re-running after a model or engine upgrade will "
-                f"try again automatically."
-            )
-        return None
+        return (
+            f"no configured engine has completed a {rule.id} migration in {language} on this "
+            f"machine — {failed} attempts on {engine}, none validated, and no other configured "
+            f"engine can hold this file. Rather than spend three more, here is the remediation "
+            f"path. Configuring another engine, or re-running after a model upgrade, will try "
+            f"again automatically."
+        )
+
+    def _active_model_name(self) -> str:
+        """The engine that generation will actually use, named the way patches record it.
+
+        Must agree with `generate_patch`'s own `_current_model_name`, because the reliability
+        gate compares against `LearnedOutcome.source_model` — which those patches wrote. A
+        mismatch would silently make the gate count nothing and never fire.
+        """
+        with contextlib.suppress(Exception):
+            row = self.session.get(LlmProviderConfig, 1)
+            if (
+                row is not None
+                and row.provider == "openai-compatible"
+                and row.model
+                and row.api_key_encrypted
+            ):
+                return f"openai-compatible:{row.model}"
+        return self.config.model
 
     def _rescan_verifier(
         self, rule: Any, asset: CryptoAsset, rel_path: str, *, original_source: str | None = None
@@ -813,6 +1176,10 @@ class MigrationOrchestrator:
 
         M1 only supports generator="template".
         """
+        # Start counting what this patch costs the attached model. Deliberately not a context
+        # manager: wrapping this body would re-indent several hundred lines to measure
+        # something none of them are about.
+        spend = start_ledger()
         task = self.session.get(MigrationTask, task_id)
         if not task:
             raise ValueError(f"Task {task_id} not found")
@@ -833,6 +1200,24 @@ class MigrationOrchestrator:
         # `resume_task` no-ops on any other state (satisfied, guided, already ready), so this is
         # safe to call unconditionally.
         self.resume_task(task_id)
+
+        # Fall back to the project's own recorded root when the caller did not name one. The
+        # dashboard does not send `repo_root` -- there is nowhere in the UI to type it -- so every
+        # patch generated through the app arrived here with None, and two validation stages are
+        # gated on it: `applies` needs a root to run `git apply` from, and `tests` needs one to
+        # mount into the sandbox. Measured on this installation before the fix: of 84 patches, 58
+        # skipped BOTH stages with "no repo_root/relative target", while `projects.root_path` held
+        # a correct, existing directory for every one of them. The information was there and simply
+        # never reached the validator.
+        #
+        # A supplied root always wins, so nothing about the CLI or the evidence scripts changes,
+        # and a root that no longer exists on disk is ignored rather than raised on -- a project
+        # whose checkout has moved should still produce a patch, just an unvalidated one, exactly
+        # as it does today.
+        if repo_root is None:
+            recorded = self._project_root_of(task)
+            if recorded is not None:
+                repo_root = recorded
 
         asset = self._load_asset(task.asset_id)
         if not asset or not asset.location or not asset.location.file_path:
@@ -893,7 +1278,10 @@ class MigrationOrchestrator:
             self.resolve_guided(task.id, force=True)
             raise GuidedRemediation(task.id, task.advice_text or "")
 
-        self._transition(task, "generate", detail={"generator": generator})
+        def _mark_generating() -> None:
+            self._transition(task, "generate", detail={"generator": generator})
+            self.session.commit()
+
         # Commit the transition BEFORE any generation starts, and specifically before the model is
         # called. SQLite allows one writer at a time even under WAL, and `_transition` writes
         # (the task's new state, plus an event row) without committing — so the write lock was
@@ -908,7 +1296,21 @@ class MigrationOrchestrator:
         #
         # Committing here is also just correct on its own terms. "This task is generating" is a
         # durable fact worth surviving a crash, and holding it uncommitted bought nothing.
-        self.session.commit()
+        #
+        # RETRIED, and the paragraph above is why that is now the right answer where it once was
+        # not. "No retry budget outlasts a five-minute lock" was true while the lock was held
+        # ACROSS the model call; committing before generation is exactly what stopped that. What
+        # remains is brief contention between generations that overlap -- one client's request
+        # finishing server-side while the next starts -- and brief contention is precisely what a
+        # jittered retry is for. Measured: without it this line answered HTTP 500 at ~25.7s (just
+        # past `PRAGMA busy_timeout`'s 20s) whenever a previous generation was still writing.
+        #
+        # `retry_write_on_lock`, not `commit_with_retry`: the transition MUTATES an existing row,
+        # and `rollback()` reverts that, so retrying the commit alone would commit an empty
+        # transaction and report success with the task never moved to `generating` -- the exact
+        # "silently commits an EMPTY transaction" failure `commit_with_retry`'s own docstring
+        # warns about. The whole transition has to be redone.
+        retry_write_on_lock(self.session, _mark_generating)
 
         # auto prefers the deterministic codemod; LLM is used when forced or when the
         # rule has no codemod. Either way the same validation pipeline gates the result.
@@ -1071,13 +1473,118 @@ class MigrationOrchestrator:
             def _capture_caveats(lines: list[str]) -> None:
                 security_caveats.extend(lines)
 
+            # Which engine actually generates: the DB-backed config a user sets in Settings, read
+            # fresh here rather than cached anywhere, so a key changed mid-session takes effect on
+            # the very next finding without restarting the process. Falls back to plain Ollama
+            # (today's only behaviour) whenever nothing is configured, the row is missing, or no
+            # key has been saved for the external provider yet — an unconfigured install is
+            # byte-for-byte what it was before this existed.
+            # The CHEAPEST engine that can actually do this finding, not simply whichever is
+            # configured as primary. Free local first, then externals by ascending allowance —
+            # see `_engines` for why smallest-that-fits is both the cheapest and the fastest.
+            # Falls back to the local model when nothing is configured, which is what an install
+            # with no keys has always done.
+            #
+            # Decide what will actually be SENT before choosing an engine to send it to. A file
+            # that will be windowed is sized by its EXCERPT, because that is all the engine ever
+            # receives. Sized by the whole file, `_select_engine` returns None for every oversize
+            # finding and the fallback below hands the work to a hardcoded local engine -- which
+            # skips the reliability gate entirely, giving the job to the one engine this
+            # installation may already have measured as unable to do it. Sized by the excerpt the
+            # gate applies again and the finding escalates to an engine with no such record.
+            windowed = False
+            routing_source = orig
+            if self._oversize_reason(orig) is not None:
+                excerpt = build_excerpt(orig, asset.location.line if asset.location else None)
+                # The excerpt has to actually FIT. A file with a 300-line import block produces a
+                # large one, and windowing it anyway would clear the size refusal and then hand a
+                # still-oversize prompt to a model that truncates it silently -- strictly worse
+                # than the guidance the refusal would have produced. Measured across the 27
+                # oversize findings here the excerpt fits every time, worst case 2,527 tokens
+                # against a 28,800 budget, but "every time so far" is not a guarantee.
+                if excerpt is not None and self._oversize_reason(excerpt.text) is None:
+                    windowed, routing_source = True, excerpt.text
+            routed, decision = self._route(rule, routing_source, file_language, tenant_id)
+            chosen = routed or _Engine(
+                name=self.config.model,
+                endpoint=None,
+                budget_tokens=self.config.llm_context_tokens,
+                metered=False,
+            )
+            if routed is not None and decision.wait_seconds:
+                # A token-per-minute window REFILLS; a daily request quota does not. Groq's own 429
+                # says *"Please try again in 4.86s"*, and the scheduler only proposes a wait it has
+                # already judged shorter than routing elsewhere would cost -- against a local engine
+                # measured in minutes per finding, a few seconds is the cheap answer. Waits longer
+                # than `MAX_WAIT_SECONDS` never reach here; they are rejected as a route.
+                logger.info(
+                    "waiting %.1fs for %s: %s",
+                    decision.wait_seconds,
+                    chosen.name,
+                    decision.reason,
+                )
+                time.sleep(decision.wait_seconds)
+            logger.debug("routing %s/%s: %s", rule.id, file_language, decision.reason)
+            for name, why in decision.rejected:
+                logger.debug("  not %s: %s", name, why)
+            use_external = chosen.endpoint is not None
+            if use_external:
+                logger.info(
+                    "routing %s/%s to %s (allowance %s tokens)",
+                    rule.id,
+                    file_language,
+                    chosen.name,
+                    f"{chosen.budget_tokens:,}",
+                )
+            # Everything else the scheduler ranked stays available BENEATH the choice: if the
+            # selected engine is unreachable, overloaded or rate-limited mid-run, `_generate`
+            # walks on to the next one rather than failing the finding. Degrade, never stop.
+            #
+            # Taken from the routing decision rather than from `_engines()` order, which is what
+            # it used to be. That order is by context size, so the "backup" was whichever engine
+            # happened to have the next-smallest window -- possibly one already rejected for this
+            # finding as out of quota, too small, or measured as unable to do this pairing. The
+            # ranked alternatives are the engines that passed every one of those checks.
+            by_name = {e.name: e for e in self._engines()}
+            fallback_chain = [
+                engine.endpoint
+                for name in decision.alternatives
+                if (engine := by_name.get(name)) is not None and engine.endpoint is not None
+            ]
+            backup_endpoint = fallback_chain[0] if fallback_chain else None
+
+            # Set by `on_fallback` the moment generation drops off the primary — so the patch is
+            # attributed to whichever engine actually produced it, not the one merely configured.
+            # The reliability gate counts against these exact strings, so blaming the wrong engine
+            # would both poison its record and leave the real one's artificially clean.
+            actually_ran: str | None = None
+
+            def _mark_fallback(engine: str) -> None:
+                nonlocal actually_ran
+                actually_ran = engine
+
+            def _current_model_name() -> str:
+                # The engine ROUTING picked, not whichever is configured primary -- otherwise a
+                # finding sent to the local model to save quota would be recorded against an
+                # external one, and the reliability gate would learn the wrong engine's record.
+                # `actually_ran` overrides it when the chain fell through to a different engine.
+                if actually_ran is not None:
+                    return actually_ran
+                return chosen.name
+
+            # `windowed` was decided above, alongside the engine it is routed to. `_generate_fresh`
+            # reads it, so the retry paths window exactly as the first attempt did -- a file does
+            # not become smaller because the validator rejected the last candidate.
             def _generate_fresh(source: str, feedback: str | None = None) -> str:
                 try:
                     return generate_llm_source(
                         source,
                         rule,
                         asset,
-                        model=self.config.model,
+                        model=(chosen.endpoint.model if chosen.endpoint else self.config.model),
+                        base_url=(
+                            chosen.endpoint.base_url if chosen.endpoint else DEFAULT_BASE_URL
+                        ),
                         fallback_model=self.config.fallback_model,
                         timeout=self.config.llm_timeout,
                         # The baseline the repair loop judges against. Without it the loop
@@ -1093,6 +1600,29 @@ class MigrationOrchestrator:
                         on_caveats=_capture_caveats,
                         self_review_pass=self.config.llm_self_review,
                         plan_first=self.config.llm_plan_first,
+                        provider="openai-compatible" if use_external else "ollama",
+                        api_key=chosen.endpoint.api_key if chosen.endpoint else None,
+                        # Keep Ollama as a backup (§2 of the LLM-provider plan): if the external
+                        # call can't connect or the key is rejected, fall back to the SAME local
+                        # model this install already runs when no external provider is configured
+                        # at all, rather than failing the task over an outage of a service QUBIT
+                        # doesn't control.
+                        fallback_ollama_model=self.config.model,
+                        on_fallback=_mark_fallback,
+                        backup=backup_endpoint,
+                        # The rest of the ranked pool, so a finding survives more than one engine
+                        # failing. Engines fail independently, which is why pooling free tiers is
+                        # worth doing at all.
+                        backups=tuple(fallback_chain[1:]),
+                        # The provider's EFFECTIVE per-request token allowance, which on a free
+                        # tier is a rate limit far below the model's context window. Without it
+                        # `max_tokens` was sized from the model's ceiling and the whole request
+                        # was refused with 413 — see `_external_output_budget`.
+                        budget_tokens=(chosen.endpoint.budget_tokens if chosen.endpoint else None),
+                        # Show an excerpt rather than the whole file. Set only where the whole
+                        # file provably does not fit, so this never narrows what the model sees
+                        # on a file it could have read completely.
+                        windowed=windowed,
                     )
                 except (OSError, OllamaError) as e:
                     # A rejection is evidence. Recorded against the SHAPE so the next attempt at
@@ -1112,7 +1642,13 @@ class MigrationOrchestrator:
                                 passed=False,
                                 hunk_before=flagged_line,
                                 failure_reason=str(e),
-                                model_name=self.config.model,
+                                # The engine that actually ran, NOT `self.config.model`. This row
+                                # is what the reliability gate counts against a (rule, language,
+                                # engine) triple, so attributing an external provider's failure to
+                                # the local model would blame Ollama for work it never did — and
+                                # leave the external engine's record artificially clean, so it
+                                # would never be gated even when it should be.
+                                model_name=_current_model_name(),
                                 # `generate_llm_source` appends `unverifiable_reason`'s explanation
                                 # when the rescan could not be satisfied by any output in this
                                 # language. Asking it directly beats matching its wording later.
@@ -1135,6 +1671,19 @@ class MigrationOrchestrator:
                 # model rather than letting `auto` decide.
                 if generator != "llm":
                     detour = self._llm_detour_reason(rule, orig, file_language, tenant_id)
+                    # Size alone is no longer a reason to give up. When the ONLY thing wrong is
+                    # that the file will not fit, and the finding has a line to centre on, the
+                    # model is shown an excerpt instead -- the imports plus the neighbourhood of
+                    # the flagged line -- and `Excerpt.splice` puts its answer back into the full
+                    # file before anything inspects it.
+                    #
+                    # Measured on this installation: 27 findings are refused here today, and
+                    # an excerpt of every single one fits (median 1,800 tokens against a whole-file
+                    # median of 35,279, worst case 2,527 against 115,994 -- a 96.3% reduction).
+                    # The message this used to produce said "splitting the change by hand is what
+                    # this needs"; this is QUBIT doing that splitting itself.
+                    if windowed and detour == self._oversize_reason(orig):
+                        detour = None
                     if detour is not None:
                         # `_fail_task` first, exactly as the post-failure fallback in
                         # `jobs/handlers.py` does. It is what sets `resolution=unresolved`, and
@@ -1151,7 +1700,7 @@ class MigrationOrchestrator:
                         self.resolve_guided(task.id, force=True, claim_resolved=False)
                         raise GuidedRemediation(task.id, task.advice_text or "")
                 new = _generate_fresh(orig)
-                model_name = self.config.model
+                model_name = _current_model_name()
                 learned = None
         else:
             if not rule.codemod:
@@ -1218,6 +1767,12 @@ class MigrationOrchestrator:
                 # genuinely needs a git repo.
                 target_rel_path=diff_path,
                 no_docker=self.config.no_docker,
+                # The sandbox the `tests` stage runs in. Default is a bare interpreter, which is
+                # why that stage has never once run here; point it at an image carrying the target
+                # repo's pinned dependencies and it becomes a real behaviour-preservation oracle.
+                test_sandbox_image=self._sandbox_image_for(repo_root),
+                test_command=self._test_command_for(task, repo_root),
+                test_timeout_s=self.config.test_timeout_s,
                 asset_algorithm=asset.algorithm,
                 original_source=orig,
                 # This task owns ONE finding. Other occurrences of the same algorithm in the
@@ -1234,7 +1789,7 @@ class MigrationOrchestrator:
             # rather than failing a finding the model could still solve. Reuse is an
             # optimisation; it must never cost coverage.
             new = _generate_fresh(orig)
-            model_name = self.config.model
+            model_name = _current_model_name()
             learned = None
             report = _validate(new)
 
@@ -1264,7 +1819,7 @@ class MigrationOrchestrator:
             else:
                 retried_report = _validate(retried)
                 if retried_report.passed:
-                    new, report, model_name = retried, retried_report, self.config.model
+                    new, report, model_name = retried, retried_report, _current_model_name()
 
         diff = old_new_to_diff(diff_path, orig, new, line_ending=line_ending)
 
@@ -1276,8 +1831,15 @@ class MigrationOrchestrator:
             base_sha256=file_sha256(file_path),
             diff_text=diff,
             validation_json=_validation_payload(report, security_notes, security_caveats),
+            # Empty when no model was involved, which is the majority: a deterministic
+            # codemod or a cache replay costs nothing and should be visible as costing
+            # nothing.
+            cost_json=spend.summary(),
             status="proposed" if report.passed else "failed",
         )
+        # The successful path spends too, and the task-level total has to include it or
+        # the two records disagree about the same work.
+        self._accumulate_spend(task)
         self.session.add(patch)
         self.session.flush()
 
@@ -1323,7 +1885,8 @@ class MigrationOrchestrator:
                         model_name=model_name,
                         tenant_id=tenant_id,
                     )
-            self._transition(task, "validation_passed", detail={"patch_id": str(patch.id)})
+            # The transition is applied in `_store` below, so a retried write re-applies it
+            # rather than losing it to the rollback.
         else:
             # `last_error` and `resolution` were never set on this path — only `_transition` was
             # called, so `task.resolution` stayed NULL forever. `patch.status` DOES correctly read
@@ -1369,11 +1932,48 @@ class MigrationOrchestrator:
                         tenant_id=tenant_id,
                     )
 
-            self._fail_task(task, f"{failing_stage} failed: {failing_detail}")
-            self.session.commit()
+            def _park_failure() -> None:
+                self._fail_task(task, f"{failing_stage} failed: {failing_detail}")
+                self.session.commit()
+
+            retry_write_on_lock(self.session, _park_failure)
             return patch
 
-        self.session.commit()
+        # Retried, not a bare commit. The `generate` transition is already committed before the
+        # model is called (see above) so the write lock is not held across generation -- but the
+        # writes DOWN HERE still land while another generation may be finishing its own. SQLite
+        # allows one writer at a time even under WAL, and `PRAGMA busy_timeout=20000` gives up
+        # after 20s.
+        #
+        # Measured, reproducibly: with two generations in flight (the second started after the
+        # first client had gone away, which leaves the server-side work running), this commit
+        # raised `sqlite3.OperationalError: database is locked` at ~21.9s and the API answered a
+        # bare HTTP 500. With the other generation cleared, the identical request answered in 4.5s.
+        # Reachable in ordinary use by clicking Generate on two rows in quick succession.
+        #
+        # `commit_with_retry` takes the patch EXPLICITLY. `rollback()` expunges a pending row, so a
+        # bare retried commit would write an empty transaction and report success with no patch
+        # stored -- the failure its own docstring describes. Passing `patch` is what makes the
+        # retry re-add it. No model call is repeated; only the write is retried, with jittered
+        # backoff.
+        #
+        # The `validation_passed` transition above is re-applied here for the same reason: rollback
+        # reverts attribute changes on a persistent row, so re-adding the patch alone would leave
+        # the task stuck in `generating` with a patch attached to it.
+        def _store() -> None:
+            if task.state == "generating":
+                self._transition(task, "validation_passed", detail={"patch_id": str(patch.id)})
+            # `last_error` is only ever written, never cleared, so a task that failed and then
+            # succeeded kept showing the old failure beside its accepted patch. Observed live:
+            # `evp_pkey_provided_test.c` reached `proposed` while still displaying "LLM rewrite
+            # rejected after 3 attempt(s): the returned file has unbalanced '{}' brackets" from
+            # the previous run -- a reviewer reads that as "this patch failed". The retry that
+            # produced this patch is the current truth about the task.
+            task.last_error = None
+            self.session.add(patch)
+            self.session.commit()
+
+        retry_write_on_lock(self.session, _store)
         return patch
 
     def review_patch(
@@ -1407,6 +2007,138 @@ class MigrationOrchestrator:
         self._transition(task, "approve" if approve else "reject", actor=actor)
         self.session.commit()
         return patch
+
+    #: Per-repository sandbox images already resolved in this process, keyed by (root, commit).
+    #: `docker image inspect` is a subprocess, and this runs once per patch on a bulk run of
+    #: thousands.
+    _IMAGE_CACHE: ClassVar[dict[tuple[str, str], str]] = {}
+
+    def _sandbox_image_for(self, repo_root: Path | None) -> str:
+        """The image whose site-packages match THIS repository, or the configured default.
+
+        `_stage_tests` runs the project's own suite `--network=none`. Against a bare
+        `python:3.12-slim` that suite dies on its own imports, the baseline is red before any patch
+        is applied, and the stage honestly reports `skipped` -- measured on this installation: 84
+        patches, 84 skips, and not one behaviour verdict in the whole database.
+
+        `build_sandbox_image.py` already produces the image that fixes it, tagged
+        `qubit-eval/<owner>-<repo>:<commit12>` and carrying the repository's dependencies but
+        deliberately NOT the repository itself. Nothing selected it, so those images sat on disk
+        while every patch was validated against the bare one. This closes that gap by deriving the
+        tag the builder would have written and using it only if it is actually present locally.
+
+        An explicitly configured image always wins: an operator who set one meant it, and silently
+        substituting a different one would make the sandbox unauditable.
+        """
+        # Imported here, matching `apply_patch` below: the module is only needed on the two paths
+        # that shell out, and neither runs on an ordinary template migration.
+        import subprocess
+
+        configured = self.config.test_sandbox_image
+        # `MigrateConfig` is a pydantic model, so the default lives in `model_fields`, not on the
+        # class -- reading it as a class attribute raises AttributeError and took down generation
+        # for every task until it was caught.
+        default_image = MigrateConfig.model_fields["test_sandbox_image"].default
+        if repo_root is None or configured != default_image:
+            return configured
+        try:
+            head = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(repo_root),
+                capture_output=True,
+                check=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return configured
+        commit = head.stdout.decode("utf-8", "replace").strip()[:12]
+        if not commit:
+            return configured
+        key = (str(repo_root), commit)
+        if key in self._IMAGE_CACHE:
+            return self._IMAGE_CACHE[key]
+        # The builder is invoked with `<owner>/<repo>` and lowercases it with `/` -> `-`; the corpus
+        # checkout for that repository is the directory `<owner>__<repo>`. Same two names, one
+        # separator apart.
+        candidate = f"qubit-eval/{repo_root.name.replace('__', '-').lower()}:{commit}"
+        found = configured
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            probe = subprocess.run(
+                ["docker", "image", "inspect", candidate],
+                capture_output=True,
+                timeout=60,
+            )
+            if probe.returncode == 0:
+                logger.info("validating against the per-repository sandbox image %s", candidate)
+                found = candidate
+        self._IMAGE_CACHE[key] = found
+        return found
+
+    def _test_command_for(self, task: MigrationTask, repo_root: Path | None) -> str:
+        """How to run THIS repository's suite.
+
+        One global command cannot cover a corpus. `python -m pytest` is right for most Python
+        projects and wrong for a Django one: wagtail's tests are Django `TestCase`s that need a
+        settings module and a database, and bare pytest collects them and then errors on every one,
+        so the baseline is red and the stage reports `skipped` -- a verdict about QUBIT's
+        configuration, worded as a fact about the repository.
+
+        Three sources, most specific first:
+
+        1. `projects.settings["test_command"]`, for a repository whose runner nothing can guess.
+        2. A `runtests.py` at the root, which is the near-universal convention for a Django project
+           that ships its own runner (wagtail and django itself both do).
+        3. `MigrateConfig.test_command`.
+
+        A command found this way still has to satisfy the baseline before it counts for anything:
+        if it cannot make the untouched tree green, `_stage_tests` still refuses to judge a patch
+        with it. So a wrong guess costs a container run, never a false verdict.
+        """
+        with contextlib.suppress(Exception):
+            plan = self.session.get(MigrationPlan, task.plan_id)
+            project_id = plan.project_id if plan is not None else None
+            if project_id is None and plan is not None and plan.scan_id is not None:
+                scan = self.session.get(ScanRow, plan.scan_id)
+                project_id = scan.project_id if scan is not None else None
+            if project_id is not None:
+                project = self.session.get(ProjectRow, project_id)
+                configured = (project.settings or {}).get("test_command") if project else None
+                if isinstance(configured, str) and configured.strip():
+                    return configured.strip()
+        if repo_root is not None and (repo_root / "runtests.py").is_file():
+            return "python runtests.py"
+        return self.config.test_command
+
+    def _project_root_of(self, task: MigrationTask) -> Path | None:
+        """The checkout this task's project points at, or None if there isn't a usable one.
+
+        A plan reaches its project either directly (`project_id`) or through the scan it was built
+        from, and both spellings occur in the wild -- a plan created from a scan carries `scan_id`,
+        one created for a project carries `project_id`. Trying both is why this is a method rather
+        than a join at the call site.
+
+        Never raises: this is a convenience for a caller that did not supply a root, so every
+        failure mode -- no plan, no project, a null or stale `root_path` -- returns None and leaves
+        the caller exactly where it would have been.
+        """
+        with contextlib.suppress(Exception):
+            plan = self.session.get(MigrationPlan, task.plan_id)
+            if plan is None:
+                return None
+            project_id = plan.project_id
+            if project_id is None and plan.scan_id is not None:
+                scan = self.session.get(ScanRow, plan.scan_id)
+                project_id = scan.project_id if scan is not None else None
+            if project_id is None:
+                return None
+            project = self.session.get(ProjectRow, project_id)
+            root = Path(project.root_path) if project and project.root_path else None
+            # `is_dir` and not merely truthiness: a recorded path whose checkout has been moved or
+            # deleted would send `git apply` and the sandbox mount at a directory that is not
+            # there, turning a clean "skipped" into a stage failure that blames the patch.
+            if root is not None and root.is_dir():
+                return root
+        return None
 
     def _paths_this_plan_wrote(self, task: MigrationTask, repo_root: Path) -> set[Path]:
         """Absolute paths already written to disk by patches belonging to ``task``'s plan.
@@ -1571,9 +2303,37 @@ class MigrationOrchestrator:
         self.session.commit()
         return ValidationReport(passed=True)
 
+    def _accumulate_spend(self, task: MigrationTask) -> None:
+        """Add what the current attempt cost to this task's running total.
+
+        Accumulated rather than replaced: a task can be retried, and the question the paper asks --
+        how many requests did this finding cost in total -- is not answered by the last attempt
+        alone.
+        """
+        book = current_ledger()
+        if book is None:
+            return
+        spent = book.summary()
+        if not spent.get("calls"):
+            return
+        running = dict(task.spend_json or {})
+        for key in ("calls", "failed_calls", "prompt_tokens", "completion_tokens"):
+            running[key] = int(running.get(key, 0)) + int(spent.get(key, 0))
+        running["seconds"] = round(float(running.get("seconds", 0)) + spent["seconds"], 2)
+        engines = dict(running.get("by_engine") or {})
+        for engine, count in (spent.get("by_engine") or {}).items():
+            engines[engine] = engines.get(engine, 0) + count
+        running["by_engine"] = engines
+        running["attempts"] = int(running.get("attempts", 0)) + 1
+        task.spend_json = running
+
     def _fail_task(
         self, task: MigrationTask, reason: str, *, resolution: str = RESOLUTION_UNRESOLVED
     ) -> None:
+        # Before anything else: a failed attempt still spent the quota. This is the only
+        # place that spend can be recorded, because a task that exhausts its repair
+        # budget produces no patch to attach a cost to.
+        self._accumulate_spend(task)
         task.last_error = reason
         # Why the task is parked, not just that it is. `deferred` is reached both by "QUBIT could
         # not migrate this" and by "there was nothing left to migrate", and conflating them made a

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -34,6 +35,7 @@ from ..services import (
 )
 
 router = APIRouter(tags=["scans"])
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -111,11 +113,23 @@ def get_scan(
 @router.delete("/scans/{scan_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_scan(
     scan_id: UUID,
+    request: Request,
     session: Annotated[Session, Depends(get_session)],
     tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> None:
     scan = require_scan(session, scan_id, tenant_id)
     project_id = scan.project_id
+    # A cascading delete with no caller trail was undiagnosable in practice: a scan (and everything
+    # that cascades from it — assets, migration tasks, patches) disappeared mid-session with no
+    # record of what asked for it. `logger.warning` rather than `info`: this is destructive and rare
+    # enough that a normal run should show none of these lines.
+    logger.warning(
+        "DELETE /scans/%s (project=%s, tenant=%s) from %s",
+        scan_id,
+        project_id,
+        tenant_id,
+        request.client.host if request.client else "unknown",
+    )
     session.delete(scan)
     session.commit()
     # Deleting a scan cascades its assets, and a migration task cascades from its asset — so a plan
@@ -127,6 +141,7 @@ def delete_scan(
 
 @router.delete("/scans")
 def delete_all_scans(
+    request: Request,
     session: Annotated[Session, Depends(get_session)],
     tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> dict[str, int]:
@@ -139,6 +154,14 @@ def delete_all_scans(
     Tenant-filtered: unscoped, one team's reset button would destroy every other team's scans.
     """
     scans = session.scalars(select(ScanRow).where(ScanRow.tenant_id == tenant_id)).all()
+    # See `delete_scan`'s identical logging rationale — a bulk version of the same undiagnosable-
+    # cascade problem, and the more consequential one since it takes every scan in the team at once.
+    logger.warning(
+        "DELETE /scans (bulk, %d scan(s), tenant=%s) from %s",
+        len(scans),
+        tenant_id,
+        request.client.host if request.client else "unknown",
+    )
     project_ids = {scan.project_id for scan in scans}
     for scan in scans:
         session.delete(scan)

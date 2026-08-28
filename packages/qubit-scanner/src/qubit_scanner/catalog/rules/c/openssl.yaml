@@ -150,7 +150,9 @@ rules:
       where:
         - { capture: fn, in: [HMAC, HMAC_Init, HMAC_Init_ex] }
     extract:
-      algorithm: { literal: HMAC }
+      # See python/cryptography_more.yaml's PY-HMAC-NEW for why this reads the real digest
+      # (`HMAC(EVP_sha256(), ...)`) instead of hardcoding "HMAC" regardless of what was called.
+      algorithm: { from: call, resolve: hmac-digest }
     asset: { asset_type: algorithm-use, usage_context: token }
     confidence: high
     examples:

@@ -88,6 +88,17 @@ function shortPath(p: string | null, segments = 2): string {
   return p.split(/[\\/]/).slice(-segments).join('/');
 }
 
+/** Outcomes the API reports with HTTP 422 that are NOT failures: the finding was already
+ *  satisfied, usually because an earlier task's patch fixed several occurrences in one file.
+ *  Matched on the message because the status code cannot distinguish them from a real rejection —
+ *  the same conflation the measurement scripts had to work around. */
+const SETTLED_MARKERS = [
+  'already meets what',
+  'already remediated by an earlier task',
+  'nothing left for',
+  'no bump needed',
+];
+
 function TaskRow({ task }: { task: MigrationTask }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -250,6 +261,13 @@ function TaskRow({ task }: { task: MigrationTask }) {
                   onClick={() => gen.mutate()}
                   disabled={gen.isPending}
                   className="hud-btn px-3 py-1.5"
+                  // The queue's primary action, and it was the least addressable thing on the page:
+                  // every other control here carries a testid, so a browser test had to match the
+                  // accessible name — which is "Generate", not the "GENERATE" the CSS renders, and
+                  // which changes to "Retry" the moment a task has failed once. Both the id and the
+                  // state belong in the DOM rather than in a matcher's guesswork.
+                  data-testid={`generate-task-${task.id}`}
+                  data-task-state={task.state}
                   title={
                     task.state === 'deferred'
                       ? (task.last_error ?? 'The last attempt did not produce a valid patch.')
@@ -302,15 +320,33 @@ function TaskRow({ task }: { task: MigrationTask }) {
           )}
         </td>
       </tr>
-      {gen.isError && (
-        <tr>
-          <td colSpan={COLS} className="px-4 pb-2">
-            <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-              {gen.error instanceof Error ? gen.error.message : 'generation failed'}
-            </div>
-          </td>
-        </tr>
-      )}
+      {gen.isError &&
+        (() => {
+          // "Nothing left to change" is a SUCCESS, and rendering it in the same red as a real
+          // failure made a healthy queue look broken — one patch routinely fixes several findings
+          // in the same file, so the later ones legitimately have nothing to do. The API answers
+          // 422 for both cases, which react-query surfaces identically, so the wording is the only
+          // thing that can tell them apart.
+          const message =
+            gen.error instanceof Error ? gen.error.message : 'generation failed';
+          const settled = SETTLED_MARKERS.some((m) => message.toLowerCase().includes(m));
+          return (
+            <tr>
+              <td colSpan={COLS} className="px-4 pb-2">
+                <div
+                  data-testid={settled ? 'generate-settled' : 'generate-error'}
+                  className={
+                    settled
+                      ? 'rounded-lg border border-[color:var(--edge)] bg-black/30 px-3 py-2 text-xs text-[color:var(--color-ink-dim)]'
+                      : 'rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200'
+                  }
+                >
+                  {settled ? `Nothing to do — ${message}` : message}
+                </div>
+              </td>
+            </tr>
+          );
+        })()}
       {open && (
         <tr>
           <td colSpan={COLS} className="bg-black/15 px-6 py-4">
@@ -482,7 +518,12 @@ function TaskRow({ task }: { task: MigrationTask }) {
                 {/* What the model says its own patch does NOT do. Shown as warnings rather than
                     used to reject: a patch whose notes admit a gap is more useful than one that
                     stays quiet about the same gap, and rejecting the honest one would train the
-                    prompt in exactly the wrong direction. */}
+                    prompt in exactly the wrong direction.
+
+                    One of these can come from QUBIT rather than from the model: a file too large
+                    to send whole is generated from an excerpt, and the reviewer is told so here,
+                    because otherwise they would credit the patch with having weighed a whole file
+                    the model never read. */}
                 {latest.validation?.security_caveats &&
                   latest.validation.security_caveats.length > 0 && (
                     <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2">

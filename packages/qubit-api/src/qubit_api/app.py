@@ -6,6 +6,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from qubit_core.db import (
     Base,
     get_engine,
@@ -14,9 +15,11 @@ from qubit_core.db import (
     stamp_head,
     upgrade_to_head,
 )
+from sqlalchemy.exc import OperationalError
 
 from .routers import assets_router, meta_router, projects_router, registry_router, scans_router
 from .routers.jobs import router as jobs_router
+from .routers.llm_provider import router as llm_provider_router
 from .routers.migrate import router as migrate_router
 from .routers.recommendation import router as recommendation_router
 from .routers.risk import router as risk_router
@@ -86,6 +89,37 @@ async def lifespan(app: FastAPI):
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     app = FastAPI(title="QUBIT API", version="0.1.0", lifespan=lifespan)
+
+    @app.exception_handler(OperationalError)
+    async def _busy_database(_request: Request, exc: OperationalError) -> JSONResponse:
+        """Turn "database is locked" into an honest 503 instead of a bare 500, everywhere.
+
+        SQLite allows exactly one writer. A migration generating in the background holds the write
+        lock in bursts, so ANY concurrent write — saving Settings, deleting a scan, renaming a
+        project — can lose the race and exhaust `PRAGMA busy_timeout` (20s). The hot paths retry
+        (`retry_write_on_lock` / `commit_with_retry`), but a retry budget can still be spent, and
+        the failure then reached the user as "500 Internal Server Error" with nothing to act on.
+
+        Measured: a queue of overlapping generations produced exactly that, and it read as the
+        model failing when the database was simply busy. One handler covers every endpoint, which
+        is safer than wrapping each write site individually. Anything that is NOT a lock error is
+        re-raised untouched — a schema or constraint fault is a real bug and must not be dressed
+        up as transient.
+        """
+        if "database is locked" not in str(exc).lower():
+            raise exc
+        logger.warning("write lock contention on %s: answering 503", _request.url.path)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": (
+                    "The database is busy with another operation and this request could not get a "
+                    "turn to write. Nothing was changed — try again in a moment."
+                )
+            },
+            headers={"Retry-After": "5"},
+        )
+
     app.state.settings = settings  # authoritative app-wide (auth reads this, not a fresh Settings)
     engine = get_engine(settings.db_url)
     app.state.engine = engine
@@ -184,6 +218,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(migrate_router, prefix=settings.api_prefix, dependencies=guard)
     app.include_router(recommendation_router, prefix=settings.api_prefix, dependencies=guard)
     app.include_router(threat_intel_router, prefix=settings.api_prefix, dependencies=guard)
+    app.include_router(llm_provider_router, prefix=settings.api_prefix, dependencies=guard)
 
     _mount_dashboard(app, settings)
     return app

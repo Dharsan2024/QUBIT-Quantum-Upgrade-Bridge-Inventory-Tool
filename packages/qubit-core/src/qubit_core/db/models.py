@@ -417,6 +417,104 @@ class ThreatIntelSnapshot(Base):
     reviewer_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class LlmEngine(Base):
+    """One attachable generation engine. Any number of them, pooled.
+
+    `LlmProviderConfig` holds exactly two: a primary and a backup. That is a real ceiling on the
+    thing QUBIT is trying to be good at. A hosted free tier is rationed per PROJECT -- measured on
+    this installation: Groq allows 1,000 requests/day, and two Google keys belonging to the same
+    project share one quota while a different model on the same key gets its own. So the way to
+    have more capacity is not a better model, it is MORE INDEPENDENT TIERS, and two slots meant a
+    third key had nowhere to go.
+
+    Every row is an OpenAI-compatible endpoint plus a key, which is all an engine has ever needed
+    to be here: the model is swappable infrastructure and this table is the socket it plugs into.
+    The local Ollama engine is deliberately absent -- it is always available, needs no key, and has
+    no quota to pool.
+
+    `api_key_encrypted` is `Fernet` ciphertext (`qubit_core.db.secrets_at_rest`), for the same
+    reason as `LlmProviderConfig`: generation must present the key outward on every call. The API
+    layer must never serialise or decrypt it.
+    """
+
+    __tablename__ = "llm_engines"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    #: What an operator calls it. Free text, so two keys for the same model stay tellable apart.
+    label: Mapped[str] = mapped_column(String(128))
+    base_url: Mapped[str] = mapped_column(String(512))
+    model: Mapped[str] = mapped_column(String(128))
+    api_key_encrypted: Mapped[bytes] = mapped_column()
+    #: Shown instead of the key, so an operator can tell which one this is without it being
+    #: readable. Never the key itself.
+    api_key_last4: Mapped[str] = mapped_column(String(8), default="")
+    #: The provider's EFFECTIVE per-request token allowance -- on a free tier this is a rate limit
+    #: far below the model's context window, and using the window instead earns a 413.
+    context_tokens: Mapped[int | None] = mapped_column(nullable=True, default=None)
+    #: Off without deleting it, so a key can be rested when its quota is spent and brought back
+    #: tomorrow without being re-entered.
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class LlmProviderConfig(Base):
+    """Which engine `qubit_migrate` calls for patch generation. Off (Ollama) by default.
+
+    Singleton row, `id` fixed at 1 -- same reasoning as `ThreatIntelConfig`: a settings table with
+    a variable primary key invites two rows nobody reconciles. No `tenant_id`: this is operator
+    infrastructure (which engine this deployment talks to), not team-owned data, exactly like
+    `ThreatIntelConfig` is exempt from tenant scoping for the same reason.
+
+    `api_key_encrypted` is `Fernet` ciphertext (see `qubit_core.db.secrets_at_rest`) -- reversible,
+    because generation has to present the key outward on every call, unlike `ApiToken.token_hash`
+    which only ever needs to verify equality. The API layer must never serialise this column or
+    decrypt it for a response; only the orchestrator decrypts it, in memory, for the duration of
+    building one outbound request.
+    """
+
+    __tablename__ = "llm_provider_config"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    #: "ollama" (the always-available local default) or "openai-compatible" (an external endpoint
+    #: -- OpenAI, Azure OpenAI, a free hosted tier like Groq/OpenRouter, or a company's own
+    #: self-hosted server; all speak the same `{base_url}/chat/completions` shape).
+    provider: Mapped[str] = mapped_column(default="ollama")
+    base_url: Mapped[str | None] = mapped_column(default=None)
+    model: Mapped[str | None] = mapped_column(default=None)
+    api_key_encrypted: Mapped[bytes | None] = mapped_column(default=None)
+    #: Last 4 characters of the plaintext key, so the UI can show "configured: ...ab12" without
+    #: ever asking the backend to decrypt anything just to render a settings page.
+    api_key_last4: Mapped[str | None] = mapped_column(default=None)
+    #: The selected model's real context window, read from the provider's own `/models` metadata
+    #: when the config is saved. NULL means "not known", and the caller falls back to
+    #: `MigrateConfig.llm_context_tokens` (sized for the local 7B model).
+    #:
+    #: This is load-bearing, not decoration. `_llm_detour_reason` routes a finding to guided
+    #: remediation when the file cannot fit the window -- so leaving this at the local model's
+    #: 8,192 while an external model actually offers 131,072 would keep sending files to advice
+    #: that the configured model could comfortably rewrite. The gate has to know which engine it
+    #: is really gating.
+    context_tokens: Mapped[int | None] = mapped_column(default=None)
+
+    # ── Backup external provider ───────────────────────────────────────────────────────────────
+    #: A SECOND OpenAI-compatible endpoint, tried when the primary refuses the request. Free tiers
+    #: are capped on tokens per minute and requests per day, and those caps are the practical limit
+    #: on how much of a repository QUBIT can migrate in one sitting -- measured, Groq's free tier
+    #: allows 8,000 tokens/minute, so a single large file exhausts a whole minute's allowance. A
+    #: second key on a different provider multiplies the usable budget without any code path of its
+    #: own: it is the same `_openai_compatible_generate` call with different config.
+    #:
+    #: Ollama remains the last resort below both, so an install with neither key configured behaves
+    #: exactly as it always has.
+    backup_base_url: Mapped[str | None] = mapped_column(default=None)
+    backup_model: Mapped[str | None] = mapped_column(default=None)
+    backup_api_key_encrypted: Mapped[bytes | None] = mapped_column(default=None)
+    backup_api_key_last4: Mapped[str | None] = mapped_column(default=None)
+    backup_context_tokens: Mapped[int | None] = mapped_column(default=None)
+
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+
 __all__ = [
     "DEFAULT_TENANT_ID",
     "DEFAULT_TENANT_SLUG",
@@ -426,6 +524,7 @@ __all__ = [
     "Job",
     "LearnedOutcome",
     "LearnedPatch",
+    "LlmProviderConfig",
     "ProjectRow",
     "RiskRun",
     "ScanRow",

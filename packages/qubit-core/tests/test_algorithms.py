@@ -297,3 +297,59 @@ class TestStandardisedParameterSets:
     def test_none_of_them_are_reported_as_quantum_vulnerable(self, raw: str) -> None:
         entry = algorithms.resolve(raw)
         assert entry is not None and not entry.vulnerable
+
+
+def test_an_ec_key_resolves_to_the_curve_it_actually_uses() -> None:
+    """Every EC key used to come back as P-256, whatever curve it was on.
+
+    `resolve("ECDSA", 384)` skipped the sizing step -- ECDSA was in neither family table -- fell
+    through to the alias index and returned `ECDSA-P256`, so a P-384 certificate was reported as
+    P-256 and a P-521 one was too. Found on NVIDIA's own agent-skill signing chain
+    (`skill.oms.sig`), which is secp384r1 end to end: all three certificates came back labelled
+    `ECDSA-P256` beside a `key_size` of 384 -- one asset described two contradictory ways in a
+    single row.
+
+    The Shor verdict was correct either way, so this is precision rather than a missed
+    vulnerability. It still matters: the curve drives the risk score and the ML-DSA parameter set
+    the migration targets, so a wrong curve is a wrong migration.
+    """
+    for size, curve in ((256, "P256"), (384, "P384"), (521, "P521")):
+        for family in ("ECDSA", "ECDH"):
+            resolved = algorithms.resolve(family, size)
+            assert resolved is not None
+            assert resolved.canonical == f"{family}-{curve}", (
+                f"{family} on a {size}-bit curve resolved to {resolved.canonical}"
+            )
+
+
+def test_a_curveless_ec_signature_algorithm_is_not_given_a_curve() -> None:
+    """`ecdsa-with-SHA384` names the signature algorithm and no curve at all, so reporting one
+    would invent a fact the certificate never stated.
+
+    What keeps it curve-less is `_x509_signature_component` consulting `_BARE_FAMILY` BEFORE the
+    alias index -- the reverse of the precedence everywhere else in `resolve`. Swap those two and
+    this comes back as `ECDSA-P256`. The curve-sizing step added for real EC keys never reaches
+    here, because the signature path returns first; this test is what proves that stays true.
+    """
+    resolved = algorithms.resolve("ecdsa-with-SHA384")
+
+    assert resolved is not None
+    assert resolved.canonical == "ECDSA", "the signature algorithm carries no curve"
+    assert resolved.vulnerable is True
+
+
+def test_an_unrecognised_curve_size_falls_through_rather_than_inventing_a_curve() -> None:
+    """Only P-256/384/521 are canonical here. A size outside that set (a brainpool or otherwise
+    unlisted curve) must behave exactly as it did before the sizing step existed, not resolve to
+    the nearest thing."""
+    resolved = algorithms.resolve("ECDSA", 999)
+
+    assert resolved is not None
+    assert resolved.canonical == "ECDSA-P256", "unchanged fall-through to the alias index"
+
+
+def test_named_curve_aliases_are_untouched_by_the_sizing_step() -> None:
+    """A name that already states its curve resolves on the alias index and must not be re-derived
+    from a key size -- secp256k1 and P-256 are both 256-bit and are not the same curve."""
+    assert algorithms.resolve("secp256k1").canonical == "ECDSA-secp256k1"
+    assert algorithms.resolve("secp384r1").canonical == "ECDSA-P384"

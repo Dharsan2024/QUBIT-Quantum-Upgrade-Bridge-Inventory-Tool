@@ -7,6 +7,7 @@ Importing the state models here also registers the migration tables on the share
 
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
@@ -23,12 +24,15 @@ from qubit_migrate.orchestrator import (
 from qubit_migrate.state import MigrationPlan, MigrationTask, PatchProposal
 from qubit_migrate.state.machine import InvalidTransition
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_tenant
 from ..deps import get_session
 from ..schemas import UtcDateTime
 from ..services import require_plan, require_project, require_task
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["migrate"])
 
@@ -437,6 +441,43 @@ def list_plans(
     return [_plan_out(p) for p in plans]
 
 
+@router.delete("/migrate/plans")
+def delete_all_plans(
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+) -> dict[str, int]:
+    """Clear every migration plan of THIS team, keeping the scans and assets they were built from.
+
+    The middle rung of the three the app offers, and the one that did not exist: `DELETE /scans`
+    throws away the findings as well, and `DELETE /projects` throws away everything. Rebuilding a
+    plan is cheap -- it is derived entirely from assets that are still here -- so "start the
+    migration over" should not cost a rescan of the corpus that produced them.
+
+    The `migration_plans.id` -> CASCADE chain already reaches units, tasks, dependency edges,
+    patches and events, so deleting the plan rows is the whole operation.
+
+    What deliberately SURVIVES this: `learned_patches` and `learned_outcomes`. They carry only a
+    `tenant_id`, never a plan or scan id, so no cascade reaches them and none should -- they are
+    what this installation has learned about migrating THIS code, and re-deriving them costs the
+    model calls that produced them. Clearing plans is "run it again", not "forget what you know".
+
+    Tenant-filtered for the same reason as the other two bulk deletes: unscoped, one team's
+    cleanup button would destroy every other team's plans.
+    """
+    plans = session.scalars(select(MigrationPlan).where(MigrationPlan.tenant_id == tenant_id)).all()
+    logger.warning(
+        "DELETE /migrate/plans (bulk, %d plan(s), tenant=%s) from %s",
+        len(plans),
+        tenant_id,
+        request.client.host if request.client else "unknown",
+    )
+    for plan in plans:
+        session.delete(plan)
+    session.commit()
+    return {"deleted": len(plans)}
+
+
 class RunPlanRequest(BaseModel):
     #: Write the resulting patches into the working tree.
     apply: bool = True
@@ -585,12 +626,45 @@ def generate_patch(
             generator=payload.generator,
             repo_root=Path(payload.repo_root) if payload.repo_root else None,
         )
+    except OperationalError as e:
+        # Backstop, not the fix. Every write on this path is already wrapped in
+        # `retry_write_on_lock` (see the orchestrator), but SQLite has exactly one writer and a
+        # long enough pile-up can still exhaust the retry budget. What must never happen again is
+        # this reaching the user as a bare "500 Internal Server Error" with nothing to act on --
+        # measured, that is precisely what a queue of overlapping generations produced, and it
+        # read as the model failing when the database was simply busy.
+        if "database is locked" not in str(e).lower():
+            raise
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The database was busy with another migration and this request could not get a "
+                "turn to write. Nothing was changed — try this finding again in a moment."
+            ),
+            headers={"Retry-After": "5"},
+        ) from e
     except InvalidTransition as e:
         # Generating twice for the same task. The task FSM only allows `generate` from `ready`, and
         # a second call arrives with the task already in `proposed` — which is reachable from the
         # app by double-clicking Generate before the queue refetches, and was an uncaught 500 with
         # a stack trace. 409 is the accurate answer: the request conflicts with the task's current
         # state, and the existing patch is the thing to look at.
+        #
+        # "already has a generated patch" is only true for SOME of the states that land here, and
+        # saying it unconditionally was actively misleading for the one users actually hit: a task
+        # still at `generating` has no patch at all, and telling someone to "review or reject it"
+        # sends them looking for something that does not exist. `resume_task` reclaims a genuinely
+        # stranded `generating` task, so reaching here in that state means the generation really is
+        # still running — which is a wait, not a conflict to resolve.
+        state = session.get(MigrationTask, task_id)
+        if state is not None and state.state == "generating":
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This task is still generating — a patch is being produced for it right now. "
+                    "Wait for it to finish; the queue updates on its own when it does."
+                ),
+            ) from e
         raise HTTPException(
             status_code=409,
             detail=(

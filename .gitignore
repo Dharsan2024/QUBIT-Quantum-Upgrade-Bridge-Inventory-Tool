@@ -148,5 +148,10 @@ generated/
 
 # One-off Playwright drivers written while verifying a change through the real app. They are
 # session scratch, not project code — the durable browser tests live in dashboard/e2e/.
-dashboard/.tmp_*.mjs
+# The glob covers their logs, JSON output and the PID lock file they mutex on, not just the
+# scripts: a stale `.tmp_driver.lock` committed by accident would block the next run.
+dashboard/.tmp_*
 dashboard/_qubit_*_tmp.mjs
+# Measurement output from those drivers (A/B comparisons between generation engines). Session
+# evidence, quoted in the write-up rather than kept — the durable record is the plan file.
+dashboard/ab_*.json

@@ -10,6 +10,10 @@ import type {
   RiskSummary,
   ScanSummary,
   LearningStats,
+  LlmProvider,
+  LlmProviderConfig,
+  LlmProviderModels,
+  LlmProviderVerifyResult,
   ThreatIntelConfig,
   ThreatIntelSnapshot,
   TimelineResponse,
@@ -252,6 +256,13 @@ export async function clearAllScans(): Promise<{ deleted: number }> {
  *  it deliberately leaves behind. */
 export async function resetAllProjects(): Promise<{ deleted: number }> {
   return send<{ deleted: number }>("/projects", "DELETE");
+}
+
+/** The gentlest of the three: throw away every migration plan and its tasks and patches, and keep
+ *  the scans and assets they were derived from. Rebuilding a plan costs nothing but a click, so
+ *  "start the migration over" should not also mean "rescan the corpus". */
+export async function clearAllMigrationPlans(): Promise<{ deleted: number }> {
+  return send<{ deleted: number }>("/migrate/plans", "DELETE");
 }
 
 // ── Bulk migration ───────────────────────────────────────────────────────────
@@ -505,4 +516,37 @@ export async function reviewThreatIntelSnapshot(
   return send<ThreatIntelSnapshot>(`/threat-intel/snapshots/${snapshotId}/review`, "POST", {
     note: note ?? null,
   });
+}
+
+// ── LLM provider (Ollama by default; an external OpenAI-compatible endpoint on opt-in) ────────
+// Which engine `qubit_migrate` calls for patch generation. Ollama stays the always-available
+// fallback: an external outage degrades generation, it never stops it. See Settings' own copy.
+export async function fetchLlmProviderConfig(): Promise<LlmProviderConfig> {
+  return send<LlmProviderConfig>("/llm-provider/config");
+}
+
+export async function patchLlmProviderConfig(patch: {
+  provider?: LlmProvider;
+  base_url?: string;
+  model?: string;
+  /** Omit to keep the existing key; empty string clears it. */
+  api_key?: string;
+  backup_base_url?: string;
+  backup_model?: string;
+  /** Same convention as `api_key`: omit to keep, empty string to clear. */
+  backup_api_key?: string;
+}): Promise<LlmProviderConfig> {
+  return send<LlmProviderConfig>("/llm-provider/config", "PATCH", patch);
+}
+
+/** Makes one real, cheap call against whatever is currently saved — never accepts a key in the
+ *  request, so a partially-typed key can never leak into this call. Save first, then verify. */
+export async function verifyLlmProvider(): Promise<LlmProviderVerifyResult> {
+  return send<LlmProviderVerifyResult>("/llm-provider/verify", "POST");
+}
+
+/** The models the SAVED provider actually offers, read live from it. Requires the config to be
+ *  saved first (an external provider needs its key to answer at all). */
+export async function fetchLlmProviderModels(): Promise<LlmProviderModels> {
+  return send<LlmProviderModels>("/llm-provider/models");
 }

@@ -15,7 +15,11 @@ rules:
         - { capture: mod, equals: hmac }
         - { capture: fn, in: [new, digest] }
     extract:
-      algorithm: { literal: HMAC }
+      # `from: call, resolve: hmac-digest` — not `{literal: HMAC}`. A bare literal reported every
+      # HMAC call as unspecified regardless of digest, so `hmac.new(key, msg, hashlib.sha256)` —
+      # already quantum-adequate — was indistinguishable from one running on SHA-1. See
+      # `_hmac_digest` in code/scanner.py.
+      algorithm: { from: call, resolve: hmac-digest }
     asset: { asset_type: algorithm-use, usage_context: token }
     confidence: high
     examples:

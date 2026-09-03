@@ -42,6 +42,12 @@ class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     root_path: str | None = None
     description: str | None = None
+    #: A git URL to clone before scanning, for a repository that is not on this machine yet.
+    #:
+    #: The CLI has always been able to start from a URL; the desktop app could not, so anything not
+    #: already checked out had to be cloned by hand first. `root_path` wins when both are given --
+    #: an explicit local checkout is never silently replaced by a fresh clone.
+    git_url: str | None = None
 
 
 class ProjectPatch(BaseModel):

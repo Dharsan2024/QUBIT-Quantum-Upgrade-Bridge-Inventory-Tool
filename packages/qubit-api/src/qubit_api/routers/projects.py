@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import logging
+import re
+import shutil
+import subprocess
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
@@ -261,17 +265,87 @@ def projects_overview(
     return out
 
 
+#: Where a cloned repository is put. Beside the database, so a checkout QUBIT made is as easy to
+#: find and delete as the data about it, and never inside the user's own directories.
+def _workspace_root() -> Path:
+    from qubit_core.db import default_db_url
+
+    url = default_db_url()
+    if url.startswith("sqlite:///"):
+        return Path(url[len("sqlite:///") :]).parent / "workspaces"
+    return Path.home() / ".qubit" / "workspaces"
+
+
+#: A git URL this endpoint is willing to hand to `git clone`.
+#:
+#: Anchored, and it rejects a leading `-` explicitly: `git clone --upload-pack=...` is argument
+#: injection, and a URL is the one field here that reaches a subprocess.
+_GIT_URL = re.compile(
+    r"^(?:https://|http://|ssh://|git://|git@)[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+$"
+)
+
+
+def _clone_for_project(git_url: str, slug: str) -> Path:
+    """Clone `git_url` into the workspace and return the checkout.
+
+    Shallow. A depth-1 clone still has a HEAD, which is everything QUBIT asks of the repository:
+    `applies` runs `git apply --check` against the index, and `_compute_baseline` materialises the
+    pristine tree with `git archive HEAD`. Full history costs minutes on a large repository and buys
+    nothing either stage uses.
+
+    Cloning is the one place this tool reaches the network, and it does so only for a URL the user
+    typed. Nothing is uploaded: the direction is inward.
+    """
+    if not _GIT_URL.match(git_url):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"not a git URL QUBIT will clone: {git_url!r}",
+        )
+    dest = _workspace_root() / slug
+    if dest.exists():
+        # A second scan of the same project must not fail on a directory that is already correct.
+        if (dest / ".git").is_dir():
+            return dest
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{dest} exists and is not a git checkout; remove it or rename the project",
+        )
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.run(  # noqa: S603
+        ["git", "clone", "--depth", "1", "--", git_url, str(dest)],  # noqa: S607
+        capture_output=True,
+        # `encoding` explicitly: `text=True` alone decodes with the LOCALE codec, cp1252 on
+        # Windows, and a branch or path carrying a non-Latin-1 byte then raises inside the reader.
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=900,
+    )
+    if proc.returncode != 0:
+        shutil.rmtree(dest, ignore_errors=True)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"clone failed: {(proc.stderr or '').strip()[:400] or 'git clone error'}",
+        )
+    logger.info("cloned %s into %s", git_url, dest)
+    return dest
+
+
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
 def create_project(
     payload: ProjectCreate,
     session: Annotated[Session, Depends(get_session)],
     tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> ProjectOut:
+    slug = slugify(payload.name)
+    root_path = payload.root_path
+    if root_path is None and payload.git_url:
+        root_path = str(_clone_for_project(payload.git_url, slug))
     row = ProjectRow(
         tenant_id=tenant_id,
         name=payload.name,
-        slug=slugify(payload.name),
-        root_path=payload.root_path,
+        slug=slug,
+        root_path=root_path,
         description=payload.description,
     )
     session.add(row)

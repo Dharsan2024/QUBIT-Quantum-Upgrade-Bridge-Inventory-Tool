@@ -596,23 +596,130 @@ HASH_SWAP_DEPENDENCY_NOTES: dict[str, str] = {
 }
 
 
-def _apply_hash_swap(source: str, language: str) -> tuple[str, bool]:
+def _is_import_swap(pattern: str | re.Pattern[str]) -> bool:
+    """Does this swap rewrite a module/package reference rather than a call site?
+
+    Import swaps have to be treated separately from usage swaps, because they are the one kind
+    whose correct scope is the whole file: Go will not compile a file that imports `crypto/sha1`
+    and never calls it, so rewriting a `sha1.New()` on one line while leaving the import alone
+    produces a patch that fails `compiles` -- and rewriting the import while another line still
+    calls `sha1.Sum` produces one that fails just as hard in the other direction.
+    """
+    text = pattern if isinstance(pattern, str) else pattern.pattern
+    lowered = text.lower()
+    return (
+        lowered.startswith(('"crypto/', "'crypto/", '"golang.org/', "require(", "require '"))
+        or lowered.startswith(('import ', 'from ', 'use ', '#include'))
+        or ("/" in text and text.startswith(('"', "'")))
+    )
+
+
+def _apply_hash_swap(
+    source: str, language: str, only_line: int | None = None
+) -> tuple[str, bool]:
     """Replace weak-hash constructors with SHA-256 for a non-Python language.
 
     Returns ``(new_source, changed)``. ``changed`` is False when the language has no table *or* when
     nothing matched — the caller turns that into "no patch" rather than an empty diff, which is what
     stops a rule from reporting success on a file it never touched.
+
+    **Scoped to ``only_line`` when one is given.** This function used to rewrite every match in the
+    file, which the registry entry has described as a "line-scoped token swap" since long before it
+    was one. A task owns exactly ONE finding, and the other occurrences of the same algorithm in the
+    same file are other tasks with their own dispositions — several of which are deliberate
+    refusals. Measured on the Ruby twin, through the desktop app: one patch rewrote all five SHA-1
+    call sites in `crypto/documents.rb`, four of which the manifest marks REFUSE (a persisted
+    content address, the digest signatures commit to, a certificate thumbprint owned by a CA, and a
+    de-duplication key). Every syntactic gate passed it, and the twin's own suite went red.
+
+    Imports are the exception and are handled file-wide, because their correct scope genuinely is
+    the file — see `_is_import_swap`. An import is REPLACED only once the old module has no callers
+    left; while another line still uses it, the new module is added ALONGSIDE, so neither an unused
+    import nor a missing one can reach `compiles`.
     """
     swaps = _HASH_SWAPS.get(language, ())
     if not swaps:
         return source, False
-    new_source = source
-    for pattern, replacement in swaps:
-        if isinstance(pattern, str):
-            new_source = new_source.replace(pattern, replacement)
-        else:
-            new_source = pattern.sub(replacement, new_source)
-    return new_source, new_source != source
+
+    usage = tuple((p, r) for p, r in swaps if not _is_import_swap(p))
+    imports = tuple((p, r) for p, r in swaps if _is_import_swap(p))
+
+    def swap_all(text: str, table: tuple[_Swap, ...]) -> str:
+        for pattern, replacement in table:
+            if isinstance(pattern, str):
+                text = text.replace(pattern, replacement)
+            else:
+                text = pattern.sub(replacement, text)
+        return text
+
+    if only_line is None:
+        return (lambda out: (out, out != source))(swap_all(source, swaps))
+
+    lines = source.splitlines(keepends=True)
+    if not 1 <= only_line <= len(lines):
+        # A line outside the file means the caller's asset and the file on disk disagree. Swapping
+        # the whole file "just in case" is how a refusal turns into a migration, so do nothing.
+        return source, False
+
+    index = only_line - 1
+    rewritten = swap_all(lines[index], usage)
+    if rewritten == lines[index]:
+        return source, False
+    lines[index] = rewritten
+
+    # Now the imports, in the light of what the file still calls.
+    #
+    # Every decision below is made against the CURRENT `lines`, never against `source`. A file that
+    # imports both `crypto/md5` and `crypto/sha1` has two import swaps to make, and a run that
+    # decides each one against the original text replaces both with `crypto/sha256` -- so does a
+    # second task patching a file the first already migrated. Measured on sentinel-idp: three files
+    # came out with two and three `"crypto/sha256"` lines each, and the package did not build
+    # (`sha256 redeclared in this block`). Every syntactic gate except `compiles` passed them.
+    drop: set[int] = set()
+    for pattern, replacement in imports:
+        if not isinstance(pattern, str) or not any(pattern in ln for ln in lines):
+            continue
+        old_module = _module_alias(pattern)
+        new_module = _module_alias(replacement)
+        body = "".join(ln for i, ln in enumerate(lines) if i not in drop and not _looks_like_import(ln))
+        still_used = bool(old_module) and f"{old_module}." in body
+        current = "".join(ln for i, ln in enumerate(lines) if i not in drop)
+        already_imported = replacement in current
+
+        for i, line in enumerate(lines):
+            if i in drop or pattern not in line:
+                continue
+            if still_used:
+                # Another call site keeps the old module alive, so it stays. Add the new one only
+                # if something actually calls it and it is not already there.
+                if new_module and f"{new_module}." not in current:
+                    continue
+                if not already_imported:
+                    lines[i] = line + line.replace(pattern, replacement)
+                    already_imported = True
+            elif already_imported:
+                # The old module has no callers left and the new one is already imported, so this
+                # line is now redundant. Rewriting it in place is what produced the duplicates.
+                drop.add(i)
+            else:
+                lines[i] = line.replace(pattern, replacement)
+                already_imported = True
+
+    out = "".join(ln for i, ln in enumerate(lines) if i not in drop)
+    return out, out != source
+
+
+def _module_alias(token: str) -> str:
+    """`"crypto/sha1"` -> `sha1`: the name a Go import is referred to by at its call sites."""
+    return token.strip("\"'").rsplit("/", 1)[-1] if "/" in token else ""
+
+
+def _looks_like_import(line: str) -> bool:
+    stripped = line.strip()
+    return (
+        stripped.startswith(("import ", "from ", "require ", "use ", "#include"))
+        or (stripped.startswith(('"', "'")) and "/" in stripped)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -663,7 +770,12 @@ def run_codemod(
         # Derived from the file extension when not supplied, so callers (the orchestrator) do not
         # need to know the language to run a codemod.
         lang = (language or _SUFFIX_TO_LANGUAGE.get(file_path.suffix.lower(), "")).lower()
-        new_source, changed = _apply_hash_swap(source, lang)
+        # The asset's own line, so this swap touches THIS finding and not its neighbours. The
+        # Python codemod has been scoped this way since `apply_weakhash_codemod` grew `only_line`;
+        # this path was still rewriting whole files.
+        new_source, changed = _apply_hash_swap(
+            source, lang, asset.location.line if asset.location else None
+        )
     elif codemod_name == "bump_crypto_dependency":
         new_source, changed = _apply_dependency_bump(source, file_path.name.lower())
     elif codemod_name == "add_pqc_dependency":

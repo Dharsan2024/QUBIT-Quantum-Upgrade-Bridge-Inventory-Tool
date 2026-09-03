@@ -15,6 +15,7 @@ from collections.abc import Sequence
 
 import libcst as cst
 import libcst.matchers as m
+from libcst.metadata import PositionProvider
 from qubit_core import CryptoAsset
 
 from .password_context import is_password_context
@@ -27,12 +28,44 @@ class _WeakHashTransformer(cst.CSTTransformer):
     identifiers, replace with argon2. Otherwise replace with hashlib.sha256.
     """
 
-    def __init__(self, is_password_context: bool = False) -> None:
+    #: Resolved position metadata, so a rewrite can be confined to the finding's own line.
+    METADATA_DEPENDENCIES = (PositionProvider,)
+
+    def __init__(self, is_password_context: bool = False, only_line: int | None = None) -> None:
         super().__init__()
         self.is_password_context = is_password_context
+        #: The line this task's finding sits on, or None to rewrite every occurrence in the file.
+        #:
+        #: A migration task owns ONE finding, and this codemod used to rewrite every
+        #: `hashlib.md5`/`hashlib.sha1` in the module. That is how a patch generated for one
+        #: finding silently carried its neighbours — including neighbours the protocol-contract
+        #: guard had already refused, which is the defect `orchestrator._contract_collateral`
+        #: exists to contain (see `qubit-v2/11-implementation-findings.md` §23).
+        #:
+        #: Containing it was never the fix. Two findings in one file are two tasks with two
+        #: verdicts, and bundling them means the safest possible outcome is whatever is correct for
+        #: BOTH — so on the MediVault twin a migratable cache key (`MV-02`) could not be migrated
+        #: at all, because the same patch would have changed a persisted checksum three lines up.
+        self.only_line = only_line
         self.changed = False
         self._needs_argon2_import = False
         self._needs_sha256_comment = False
+
+    def _in_scope(self, node: cst.CSTNode) -> bool:
+        """Is this occurrence the one the task was opened for?
+
+        `None` means no line was recorded, and then the old whole-file behaviour is kept rather
+        than rewriting nothing: a codemod that silently becomes a no-op is worse than one that is
+        too broad, because the task reports `AlreadySatisfied` and parks itself as done.
+        """
+        if self.only_line is None:
+            return True
+        try:
+            return bool(self.get_metadata(PositionProvider, node).start.line == self.only_line)
+        except KeyError:
+            # No position for this node (synthesised during the same pass). Not the original
+            # occurrence, so out of scope.
+            return False
 
     def leave_Call(self, original_node: cst.Call, updated_node: cst.Call) -> cst.BaseExpression:
         # `hashlib.md5(x).hexdigest()` -> `_ph.hash(x)`, in one step.
@@ -56,6 +89,9 @@ class _WeakHashTransformer(cst.CSTTransformer):
             return updated_node.func.value  # type: ignore[attr-defined,no-any-return]
 
         # Match: hashlib.md5(...) or hashlib.sha1(...)
+        #
+        # Scoped on the ORIGINAL node: `updated_node` may have been rebuilt by a child visit, and
+        # metadata is only resolved against the tree that was wrapped.
         if m.matches(
             updated_node,
             m.Call(
@@ -64,7 +100,7 @@ class _WeakHashTransformer(cst.CSTTransformer):
                     attr=m.OneOf(m.Name("md5"), m.Name("sha1")),
                 )
             ),
-        ):
+        ) and self._in_scope(original_node):
             self.changed = True
             if self.is_password_context:
                 self._needs_argon2_import = True
@@ -128,12 +164,19 @@ def _prologue_end(body: Sequence[cst.BaseStatement]) -> int:
 
 
 def apply_weakhash_codemod(source: str, asset: CryptoAsset) -> tuple[str, bool]:
-    """Apply weakhash codemod. Returns (new_source, changed)."""
+    """Apply weakhash codemod, scoped to this asset's own line. Returns (new_source, changed).
+
+    The tree is wrapped in a `MetadataWrapper` so the transformer can ask where each occurrence
+    sits. `unsafe_skip_copy=True` because the wrapper otherwise deep-copies the module, and the
+    nodes the transformer then sees are copies whose positions are not in the resolved metadata —
+    every lookup misses, `_in_scope` returns False, and the codemod becomes a silent no-op.
+    """
     is_pw = is_password_context(source, asset)
+    line = asset.location.line if asset.location else None
     try:
-        tree = cst.parse_module(source)
-        transformer = _WeakHashTransformer(is_password_context=is_pw)
-        new_tree = tree.visit(transformer)
+        wrapper = cst.MetadataWrapper(cst.parse_module(source), unsafe_skip_copy=True)
+        transformer = _WeakHashTransformer(is_password_context=is_pw, only_line=line)
+        new_tree = wrapper.visit(transformer)
         return new_tree.code, transformer.changed
     except cst.ParserSyntaxError:
         return source, False

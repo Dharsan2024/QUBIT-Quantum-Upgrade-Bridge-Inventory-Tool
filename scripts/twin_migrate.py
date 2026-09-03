@@ -103,7 +103,7 @@ TWINS: dict[str, Twin] = {
         test_cmd=["mvn", "-B", "-o", "test"],
         image="maven:3.9-eclipse-temurin-21",
         docker_mounts=["-v", f"{Path.home() / '.m2-paymesh'}:/root/.m2"],
-        sandbox_image="maven:3.9-eclipse-temurin-21",
+        sandbox_image="qubit-eval/paymesh:sandbox",
         test_command_in_sandbox="mvn -B -o test",
     ),
     "sentinel-idp": Twin(
@@ -113,7 +113,7 @@ TWINS: dict[str, Twin] = {
         test_cmd=["go", "test", "./..."],
         image="golang:1.23-alpine",
         docker_mounts=["-v", f"{Path.home() / '.gocache-sentinel'}:/go/pkg/mod"],
-        sandbox_image="golang:1.23-alpine",
+        sandbox_image="qubit-eval/sentinel:sandbox",
         test_command_in_sandbox="go test ./...",
     ),
     "inkwell-esign": Twin(
@@ -122,7 +122,7 @@ TWINS: dict[str, Twin] = {
         scan_subdir="lib",
         test_cmd=["ruby", "-Ilib", "-Itest", "test/crypto_contract_test.rb"],
         image="ruby:3.3-alpine",
-        sandbox_image="ruby:3.3-alpine",
+        sandbox_image="qubit-eval/inkwell:sandbox",
         test_command_in_sandbox="ruby -Ilib -Itest test/crypto_contract_test.rb",
     ),
 }
@@ -343,17 +343,61 @@ def _symbol_ranges(app: Path, rel: str) -> dict[str, tuple[int, int]]:
     The manifest names symbols; the run reports lines. Resolving one to the other by parsing beats
     recording line numbers in `GROUND_TRUTH.json`, which would go stale the first time anyone edited
     a docstring above them.
+
+    This used `ast.parse` and nothing else until the twins stopped being Python-only. On a Ruby, Go
+    or Java file that raised `SyntaxError`, returned `{}`, and left EVERY outcome `unmapped` — a
+    scorer that quietly attributed nothing across three of the four twins. It surfaced only because
+    `score` counts unmapped rows instead of dropping them.
+
+    The grammars here are the same `tree_sitter_language_pack` ones the scanner itself parses with,
+    so a symbol this can't find is one the scanner couldn't have flagged either.
     """
-    import ast
+    suffix = Path(rel).suffix.lower()
+    language = {
+        ".py": "python", ".rb": "ruby", ".go": "go", ".java": "java",
+        ".js": "javascript", ".ts": "typescript",
+    }.get(suffix)
+    if language is None:
+        return {}
+    try:
+        source = (app / rel).read_bytes()
+    except OSError:
+        return {}
+
+    from tree_sitter_language_pack import get_parser
 
     try:
-        tree = ast.parse((app / rel).read_text(encoding="utf-8"))
-    except (OSError, SyntaxError):
+        tree = get_parser(language).parse(source)
+    except Exception:
         return {}
+
+    # The node types that introduce a named callable, per grammar. Ruby's `method` covers both
+    # instance methods and the `def self.x` singleton form used throughout Inkwell; Go needs
+    # `method_declaration` as well as `function_declaration` or every method on a receiver is lost.
+    wanted = {
+        "python": {"function_definition"},
+        "ruby": {"method", "singleton_method"},
+        "go": {"function_declaration", "method_declaration"},
+        "java": {"method_declaration", "constructor_declaration"},
+        "javascript": {"function_declaration", "method_definition"},
+        "typescript": {"function_declaration", "method_definition"},
+    }[language]
+
     ranges: dict[str, tuple[int, int]] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-            ranges[node.name] = (node.lineno, node.end_lineno or node.lineno)
+    stack = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        stack.extend(node.children)
+        if node.type not in wanted:
+            continue
+        name = node.child_by_field_name("name")
+        if name is None:
+            continue
+        # Rows are 0-based in tree-sitter and 1-based everywhere the scanner reports.
+        ranges[name.text.decode("utf-8", "replace")] = (
+            node.start_point[0] + 1,
+            node.end_point[0] + 1,
+        )
     return ranges
 
 

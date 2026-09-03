@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import concurrent.futures as cf
 import contextlib
 import logging
 import shutil
 import subprocess
 import tempfile
+import threading
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID
 
 from qubit_core import asset_to_row
@@ -17,9 +20,18 @@ from qubit_scanner import SCANNER_NAMES, scan_paths
 from sqlalchemy import func, select
 
 from ..services import autobuild_migration_plan, is_git_url
-from .runner import ProgressReporter
+from .runner import JobCancelled, ProgressReporter
 
 logger = logging.getLogger(__name__)
+
+#: The generators `generate_patch` accepts. Narrowed from the job payload, which is JSON and so
+#: arrives as a plain string — an unrecognised value is refused rather than passed through.
+GeneratorName = Literal["auto", "llm", "template"]
+GENERATORS: frozenset[str] = frozenset(("auto", "llm", "template"))
+
+if TYPE_CHECKING:  # imported lazily at runtime, to keep this module free of a cycle
+    from qubit_migrate.orchestrator import MigrationOrchestrator
+    from sqlalchemy.orm import Session
 
 
 def _clone_git_target(url: str) -> Path:
@@ -32,6 +44,12 @@ def _clone_git_target(url: str) -> Path:
         ["git", "clone", "--depth", "1", url, str(dest)],  # noqa: S607
         capture_output=True,
         text=True,
+        # `encoding` explicitly: `text=True` alone decodes with the LOCALE codec, which is
+        # cp1252 on Windows. A commit message, branch or path carrying any non-Latin-1
+        # byte then raises inside the reader THREAD, where the traceback surfaces detached
+        # from the call that caused it. Observed exactly that while scanning a corpus.
+        encoding="utf-8",
+        errors="replace",
         timeout=300,
     )
     if proc.returncode != 0:
@@ -453,15 +471,281 @@ def _plan_repo_root(session, plan) -> Path | None:
     project's `root_path` is the declared answer; a scan's first target is the observed one, and is
     what the dashboard's scans actually set, so it is the fallback rather than the other way round.
     """
-    project = session.get(ProjectRow, plan.project_id) if plan.project_id else None
+    scan = session.get(ScanRow, plan.scan_id) if plan.scan_id else None
+
+    # A plan reaches its project either directly or THROUGH the scan it was built from, and the
+    # second spelling is the one the dashboard produces: "Build plan" posts a `scan_id` and no
+    # `project_id`, so `plan.project_id` is null and this used to fall straight through to the scan
+    # target. That target is whatever directory was scanned -- routinely a subtree like `src/main`
+    # or `lib` -- and using it as the repository root silently costs two rungs of the evidence
+    # ladder: `applies` reports "no git repo to check against" and `tests` reports "no test suite
+    # detected in repo", both of them true of the subtree and false of the project.
+    #
+    # Measured through the desktop app on the Ruby twin: every applied patch came back
+    # `evidence_level: -1` with `applies` and `tests` skipped, against a repository that has both a
+    # git history and a suite. `MigrationOrchestrator._project_root_of` already makes this hop; it
+    # was only this function that did not.
+    project_id = plan.project_id or (scan.project_id if scan else None)
+    project = session.get(ProjectRow, project_id) if project_id else None
     if project and project.root_path and Path(project.root_path).is_dir():
         return Path(project.root_path)
-    scan = session.get(ScanRow, plan.scan_id) if plan.scan_id else None
     for target in (scan.targets if scan else []) or []:
         candidate = Path(str(target))
         if candidate.is_dir():
             return candidate
     return None
+
+
+@dataclass
+class _Tally:
+    """What a bulk run produced, accumulated across workers.
+
+    Every finding lands in exactly one bucket, and the buckets are not interchangeable: `covered`
+    is finished work, `needs_guidance` is a written procedure, and only `failed` means QUBIT could
+    not do what it set out to. Collapsing them is how a healthy run came to read as a broken one.
+    """
+
+    generated: int = 0
+    applied: int = 0
+    covered: int = 0
+    from_cache: int = 0
+    needs_guidance: int = 0
+    failed: int = 0
+    failures: list[dict[str, str]] = field(default_factory=list)
+    done: int = 0
+
+    def merge(self, other: _Tally) -> None:
+        self.generated += other.generated
+        self.applied += other.applied
+        self.covered += other.covered
+        self.from_cache += other.from_cache
+        self.needs_guidance += other.needs_guidance
+        self.failed += other.failed
+        self.failures.extend(other.failures)
+        self.done += other.done
+
+
+def _prepare_one(
+    session: Session,
+    orch: MigrationOrchestrator,
+    task: Any,
+    *,
+    generator: GeneratorName,
+    repo_root: Path | None,
+    should_apply: bool,
+) -> _Tally:
+    """Prepare one finding, and never raise.
+
+    A bulk run's contract is that one bad finding does not end it, so every outcome is turned into
+    a count here rather than an exception the caller has to sort out. Split out of the loop so it
+    can be called from several workers at once without the counting logic existing twice.
+    """
+    from qubit_migrate.orchestrator import AlreadySatisfied, GuidedRemediation
+
+    tally = _Tally(done=1)
+    # A finding with no rule is not written off here.
+    #
+    # This used to short-circuit straight to guidance: no rule in the YAML pack, therefore no patch
+    # to attempt. `generate_patch` now derives one from QUBIT's own knowledge base for the families
+    # that HAVE a post-quantum answer, and declines for the ones that do not -- raising
+    # `GuidedRemediation`, which is counted below exactly as this branch used to count it. Deciding
+    # it here meant the synthesiser was never consulted on the findings it was built for.
+    try:
+        patch = orch.generate_patch(task.id, generator=generator, repo_root=repo_root)
+        if patch.status != "proposed":
+            raise ValueError("the validation gate rejected this patch")
+        tally.generated += 1
+        if patch.model_name and patch.model_name.startswith("cache:"):
+            # Answered from the learned-patch store (transform/learn.py) rather than by a fresh
+            # model call -- an identical finding was already fixed and validated earlier.
+            tally.from_cache += 1
+        # Approval is withheld on a generate-only run. Approving a patch nobody has read, and then
+        # not writing it, would strip the queue of the Approve/Reject buttons that are the entire
+        # point of generating ahead of applying.
+        if should_apply:
+            orch.review_patch(patch.id, approve=True, note="bulk migration", actor="api")
+            if repo_root is not None:
+                orch.apply_patch(patch.id, repo_root=repo_root, actor="api")
+                tally.applied += 1
+    except GuidedRemediation:
+        # A verdict, not an error: the rule says no edit QUBIT can make is the right answer here,
+        # and `generate_patch` has already stored the plan that says what is.
+        tally.needs_guidance += 1
+    except AlreadySatisfied:
+        # The outcome the rule exists to reach is already true -- an earlier patch rewrote the
+        # whole file, or the dependency pin already meets the PQC floor. Finished work, not a
+        # failure. Matched on the EXCEPTION TYPE, never on words in the message: the string test
+        # this replaced recognised two of the four satisfied paths and counted 19 findings of
+        # finished work as failures.
+        tally.covered += 1
+        session.rollback()
+    except Exception as exc:  # one bad finding must not end the run
+        tally.failed += 1
+        tally.failures.append(
+            {
+                "task_id": str(task.id),
+                "rule_id": task.rule_id or "",
+                "detail": f"{type(exc).__name__}: {exc}".replace(chr(10), " ")[:300],
+            }
+        )
+        session.rollback()
+        # A failed generation is still a finding that needs handling. Without this the queue row
+        # carried a rejection reason and nothing else -- the same dead end as "manual change",
+        # reached by a different route.
+        with contextlib.suppress(Exception):
+            # The plan is written, but the finding is NOT claimed as resolved: a better engine on
+            # a later run has to be able to pick it back up.
+            orch.resolve_guided(task.id, force=True, claim_resolved=False)
+    return tally
+
+
+def _file_groups(session: Session, tasks: list[Any]) -> list[list[Any]]:
+    """Tasks grouped by the file they edit, each group in rank order.
+
+    The group, not the task, is the unit of parallel work, and that is a correctness requirement
+    rather than a tidying choice. Two findings in one file must be prepared in sequence: each patch
+    is written against the file as it stood, and the second one's `AlreadySatisfied` /
+    `already migrated by an earlier patch to this file` outcomes only make sense once the first has
+    been decided. Run them at the same time and both are generated against the original, both look
+    valid, and the second silently reverts the first when it is written.
+
+    Different files share nothing, so groups are independent.
+    """
+    from qubit_core.db import AssetRow
+
+    by_file: dict[str, list[Any]] = {}
+    for task in tasks:
+        asset = session.get(AssetRow, task.asset_id)
+        location = (asset.location if asset else None) or {}
+        # Findings with no file path are grouped under one key rather than spread across workers:
+        # without a path there is no way to prove two of them do not touch the same thing.
+        key = str(location.get("file_path") or "")
+        by_file.setdefault(key, []).append(task)
+    return list(by_file.values())
+
+
+def _prepare_in_parallel(
+    reporter: ProgressReporter,
+    plan_id: UUID,
+    groups: list[list[Any]],
+    pins: list[str],
+    *,
+    generator: GeneratorName,
+    repo_root: Path | None,
+    should_apply: bool,
+    total: int,
+    verb: str,
+) -> _Tally:
+    """Work the groups across the whole engine pool at once.
+
+    One worker per engine, each pinned to its own, because the alternative measured badly: the
+    router runs one cost policy, so every worker independently reaches the same conclusion and
+    piles onto the same cheapest engine -- more rate-limit pressure, no more throughput. With pins,
+    six configured engines do six findings at a time and the local GPU is one of them instead of
+    sitting at 0% waiting for every hosted engine to fail first.
+
+    Each worker owns its own `Session`. SQLite allows one WRITER at a time, which is fine here
+    because the expensive part of a finding is a model call holding no transaction; the writes are
+    short and `busy_timeout` plus `retry_write_on_lock` absorb the overlap.
+    """
+    from qubit_migrate.orchestrator import MigrationOrchestrator
+    from qubit_migrate.state import MigrationTask
+
+    tally = _Tally()
+    lock = threading.Lock()
+    queue: list[list[Any]] = list(groups)
+
+    def worker(pin: str) -> _Tally:
+        mine = _Tally()
+        with reporter.sf() as session:
+            orch = MigrationOrchestrator(session, pinned_engine=pin)
+            while True:
+                with lock:
+                    if not queue:
+                        return mine
+                    group = queue.pop(0)
+                for task_id in [t.id for t in group]:
+                    reporter.checkpoint()
+                    try:
+                        task = session.get(MigrationTask, task_id)
+                        if task is None or task.state != "ready":
+                            continue
+                        got = _prepare_one(
+                            session,
+                            orch,
+                            task,
+                            generator=generator,
+                            repo_root=repo_root,
+                            should_apply=should_apply,
+                        )
+                    except JobCancelled:
+                        raise
+                    except Exception as exc:
+                        # A Session that failed a flush stays failed until it is rolled back, and
+                        # every later use of it raises `PendingRollbackError` -- including the
+                        # `session.get` above, which sits outside `_prepare_one`'s own handling.
+                        #
+                        # Measured, and this is what it cost: parallel workers made SQLite write
+                        # contention real, one lost the race on a `learned_outcomes` hit-count bump
+                        # ("database is locked"), that poisoned its Session, the next task's `get`
+                        # raised, the exception left the worker, and a job that had already prepared
+                        # 133 of 143 findings was reported as FAILED at 93%. The work was done and
+                        # the run was thrown away over a bookkeeping write.
+                        with contextlib.suppress(Exception):
+                            session.rollback()
+                        got = _Tally(
+                            done=1,
+                            failed=1,
+                            failures=[
+                                {
+                                    "task_id": str(task_id),
+                                    "rule_id": "",
+                                    "detail": f"{type(exc).__name__}: {exc}".replace(chr(10), " ")[
+                                        :300
+                                    ],
+                                }
+                            ],
+                        )
+                        logger.warning("worker on %s: task %s failed (%s)", pin, task_id, exc)
+                    with lock:
+                        mine.merge(got)
+                        tally.merge(got)
+                        snapshot = _Tally()
+                        snapshot.merge(tally)
+                    done = f"{snapshot.generated} ready"
+                    if snapshot.needs_guidance:
+                        done += f", {snapshot.needs_guidance} guided"
+                    if snapshot.failed:
+                        done += f", {snapshot.failed} failed"
+                    # Reported as COMPLETED out of total, not as an index. With several findings in
+                    # flight there is no single "current" one, and a counter that went 4, 2, 5 as
+                    # workers reported would be worse than no counter at all.
+                    reporter.update(
+                        snapshot.done / max(total, 1),
+                        "migrate",
+                        f"{verb} {snapshot.done}/{total} ({done}) on {len(pins)} engines",
+                    )
+
+    with cf.ThreadPoolExecutor(max_workers=len(pins)) as pool:
+        futures = [pool.submit(worker, pin) for pin in pins]
+        died: list[BaseException] = []
+        for future in cf.as_completed(futures):
+            try:
+                future.result()
+            except JobCancelled:
+                # Cancellation is the operator's decision and must reach the caller: swallowing it
+                # would leave a run going after the job was told to stop.
+                raise
+            except Exception as exc:
+                logger.exception("a preparation worker died")
+                died.append(exc)
+        # One worker dying is not a failed run. The others carried the rest of the queue, and the
+        # findings they prepared are real -- reporting the whole job as failed threw away 133
+        # prepared findings over one bookkeeping write that lost a lock. It is a failed run only if
+        # NOTHING survived to do the work.
+        if died and len(died) == len(futures):
+            raise died[0]
+    return tally
 
 
 def _write_prepared_patches(
@@ -586,8 +870,6 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
     """
     from qubit_migrate.orchestrator import (
         RESOLUTION_UNRESOLVED,
-        AlreadySatisfied,
-        GuidedRemediation,
         MigrationOrchestrator,
     )
     from qubit_migrate.state import MigrationPlan, MigrationTask
@@ -596,7 +878,10 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
     plan_id = UUID(payload["plan_id"])
     should_apply = bool(payload.get("apply", True))
     should_generate = bool(payload.get("generate", True))
-    generator = payload.get("generator", "auto")
+    requested = str(payload.get("generator", "auto"))
+    if requested not in GENERATORS:
+        raise ValueError(f"unknown generator {requested!r}; expected one of {sorted(GENERATORS)}")
+    generator = cast("GeneratorName", requested)
 
     with reporter.sf() as session:
         plan = session.get(MigrationPlan, plan_id)
@@ -645,91 +930,39 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
         )
 
         total = len(tasks)
-        generated = applied = failed = covered = from_cache = needs_guidance = 0
-        failures: list[dict[str, str]] = []
+        # A run that is only preparing must never say it is writing: that is the one sentence here
+        # an operator would act on wrongly.
+        verb = "Migrating" if should_apply else "Preparing"
+        groups = _file_groups(session, tasks)
+        # As many workers as there are engines, capped by the work available. One engine means the
+        # old sequential behaviour exactly, which is what an install with only local Ollama gets.
+        pins = orch.engine_names()[: max(1, min(len(groups), len(orch.engine_names())))]
+        reporter.update(
+            0.0,
+            "migrate",
+            f"{verb} {total} findings across {len(pins)} engine(s)",
+        )
 
-        for index, task in enumerate(tasks, start=1):
-            reporter.update(
-                index / max(total, 1),
-                "migrate",
-                f"Migrating {index}/{total}: {task.rule_id or 'finding'}",
-            )
-            if task.rule_id is None:
-                # No rule matches this finding, so there is no patch to attempt. Counting it as a
-                # FAILURE was badly misleading: on the 21-app demo corpus 75 of 94 "could not be
-                # migrated" were these, findings that were never patch-eligible. That reads as the
-                # tool failing 94 times when it failed 19.
-                #
-                # Skipping was only half the fix. The task is now given a real remediation plan —
-                # built offline from the knowledge base and the verified provider playbook — so
-                # the queue shows steps and sources instead of an empty guidance panel waiting on
-                # a model call the user has to ask for.
-                with contextlib.suppress(Exception):  # guidance must never end a bulk run
-                    orch.resolve_guided(task.id)
-                needs_guidance += 1
-                continue
-            try:
-                patch = orch.generate_patch(task.id, generator=generator, repo_root=repo_root)
-                if patch.status != "proposed":
-                    raise ValueError("the validation gate rejected this patch")
-                generated += 1
-                if patch.model_name and patch.model_name.startswith("cache:"):
-                    # Answered from the learned-patch store (transform/learn.py) instead of a
-                    # fresh model call — an identical finding was already fixed and validated
-                    # earlier in this run, an earlier plan, or an earlier scan entirely.
-                    from_cache += 1
-                # Approval is withheld on a generate-only run. Approving a patch nobody has
-                # read, and then not writing it, would strip the queue of the Approve/Reject
-                # buttons that are the entire point of generating ahead of applying.
-                if should_apply:
-                    orch.review_patch(patch.id, approve=True, note="bulk migration", actor="api")
-                    if repo_root is not None:
-                        orch.apply_patch(patch.id, repo_root=repo_root, actor="api")
-                        applied += 1
-            except GuidedRemediation:
-                # A verdict, not an error: the rule says no edit QUBIT can make is the right answer
-                # here, and `generate_patch` has already stored the plan that says what is. Counted
-                # with the other guided findings so the completion banner separates "handled by a
-                # guided path" from "we could not do this".
-                needs_guidance += 1
-                continue
-            except AlreadySatisfied:
-                # Nothing left to do, because the outcome the rule exists to reach is already
-                # true: an earlier patch in this plan rewrote the whole file, or the dependency
-                # pin already meets the PQC floor. Work already done, not work that failed -
-                # counting it as a failure made a fully migrated auth.py read as
-                # "1 migrated, 2 could not be migrated".
-                #
-                # Matched on the EXCEPTION TYPE, not on words in the message. The string test this
-                # replaced recognised two of the four satisfied paths, so "nothing left for
-                # weakhash_to_sha256 to change" and "no bump needed" were both counted as
-                # failures: 19 findings in one measured run, every one of them finished work.
-                covered += 1
-                session.rollback()
-            except Exception as exc:  # one bad finding must not end the run
-                failed += 1
-                failures.append(
-                    {
-                        "task_id": str(task.id),
-                        "rule_id": task.rule_id or "",
-                        "detail": f"{type(exc).__name__}: {exc}".replace(chr(10), " ")[:300],
-                    }
-                )
-                session.rollback()
-                # A failed generation is still a finding that needs handling. Without this the
-                # queue row carried a rejection reason and nothing else — which is the same dead
-                # end as "manual change", reached by a different route.
-                #
-                # `code-kex-01` is why this matters rather than being a nicety: replacing RSA key
-                # transport with a KEM changes the shape of the protocol, and across two measured
-                # runs and eleven languages the local 7B model solved 0 of them. That is a ceiling
-                # on the MODEL, not a reason to leave the user with a stack trace. The plan is
-                # built with the rejection reason in it, so it opens by saying what the automated
-                # attempt could not do.
-                with contextlib.suppress(Exception):
-                    # The plan is written, but the finding is NOT claimed as resolved: a better
-                    # engine on the next run has to be able to pick it back up.
-                    orch.resolve_guided(task.id, force=True, claim_resolved=False)
+    # Outside the outer session: each worker opens its own, and holding a second one here for the
+    # duration would be one more writer contending for the same SQLite file for no reason.
+    tally = _prepare_in_parallel(
+        reporter,
+        plan_id,
+        groups,
+        pins,
+        generator=generator,
+        repo_root=repo_root,
+        should_apply=should_apply,
+        total=total,
+        verb=verb,
+    )
+    generated = tally.generated
+    applied = tally.applied
+    covered = tally.covered
+    from_cache = tally.from_cache
+    needs_guidance = tally.needs_guidance
+    failed = tally.failed
+    failures = tally.failures
 
     return {
         "plan_id": str(plan_id),

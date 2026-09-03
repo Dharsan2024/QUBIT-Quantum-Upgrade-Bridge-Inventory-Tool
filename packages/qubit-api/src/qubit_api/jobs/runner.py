@@ -8,8 +8,10 @@ from uuid import UUID
 
 import anyio
 from qubit_core.db import Job, RiskRun, ScanRow
+from qubit_core.db.session import retry_write_on_lock
 from qubit_core.schemas import utcnow
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from .bus import EventBus
@@ -45,7 +47,27 @@ class ProgressReporter:
                 job.progress = progress
                 job.stage = stage
                 job.message = message
-                session.commit()
+                # Progress is TELEMETRY. It must never be able to kill the work it is describing,
+                # and it was: SQLite allows one writer, the migration itself writes constantly
+                # (task states, patches, outcomes), and a progress commit that lost that race
+                # raised `OperationalError: database is locked` out of `reporter.update` and
+                # straight through `migrate_handler`, failing the whole job. Observed on a certbot
+                # run at "Writing 1/1: .../misc.py" -- the patch had already been applied to disk
+                # and the job was still reported as failed, with two more runs queued behind it.
+                #
+                # Retried briefly because the lock is held for milliseconds, then given up on: a
+                # progress bar that misses a frame costs nothing, and the alternative is losing a
+                # migration that has already done its work.
+                try:
+                    retry_write_on_lock(session, lambda: None, attempts=3)
+                    session.commit()
+                except OperationalError:
+                    session.rollback()
+                    logger.warning(
+                        "job %s: progress update skipped, database busy (%s)",
+                        self.job_id,
+                        message[:80],
+                    )
 
                 # `update()` runs on a worker thread (anyio.to_thread.run_sync), while `self.loop`
                 # closes on the EVENT LOOP thread — the `is_closed()` check below and the
@@ -188,6 +210,22 @@ class JobRunner:
                 recovered += 1
         return recovered
 
+    def _mark_running(self, job_id: UUID) -> None:
+        """Record that the work has actually started, and when.
+
+        Best-effort for the same reason progress is: the status of a job must never be able to kill
+        the job. A lost write here costs a wrong label on one row; raising would cost the run.
+        """
+        try:
+            with self.sf() as session:
+                job = session.get(Job, job_id)
+                if job and job.status == "queued":
+                    job.status = "running"
+                    job.started_at = utcnow()
+                    session.commit()
+        except OperationalError:
+            logger.warning("job %s: could not mark running, database busy", job_id)
+
     def _finish(
         self,
         job_id: UUID,
@@ -200,6 +238,10 @@ class JobRunner:
             if not job:
                 return
             job.status = status
+            # Paired with `started_at`, this is the only record of how long a run took. Without it
+            # "how long does a migration of this repository take" is answerable only by watching
+            # one, which is not an answer a paper can carry.
+            job.finished_at = utcnow()
             if result is not None:
                 job.result = result
             if error is not None:
@@ -275,6 +317,14 @@ class JobRunner:
                 return
 
             reporter = ProgressReporter(job_id, self.sf, self.bus, cancel=flag)
+            # The job is only RUNNING once it holds its kind's slot. Nothing set this before, so
+            # every job read `queued` for its whole life however long it worked, and the two states
+            # an operator most needs to tell apart looked identical: a migration grinding through
+            # three hundred findings, and one waiting behind it for a semaphore that allows one
+            # migrate job at a time. Both said "queued", both sat at whatever progress they had.
+            # That is the shape of the "it's stuck" report — three clicks, three jobs, one of them
+            # working and two of them genuinely waiting, and no way to see which.
+            self._mark_running(job_id)
 
             try:
                 # Run the handler in a worker thread

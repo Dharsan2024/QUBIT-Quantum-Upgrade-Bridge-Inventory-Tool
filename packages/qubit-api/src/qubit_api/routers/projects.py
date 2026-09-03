@@ -66,7 +66,33 @@ def projects_overview(
     if not projects:
         return []
 
-    # Asset rollups, grouped by project.
+    # The project's LATEST scan, per project. Everything below is scoped to it.
+    #
+    # These rollups counted every asset row the project had ever produced, so each repeat scan of
+    # the same codebase added its findings again: three scans of certbot reported "829 vulnerable"
+    # — 293 + 268 + 268, the same code counted three times — while the scans themselves showed the
+    # number falling 293 → 268 as migrations landed. The headline said the problem was growing and
+    # the tool was making it worse, which is the exact opposite of what had happened.
+    #
+    # A posture is a statement about code as it stands now, and only the newest scan describes that.
+    # History is not lost: it is what the scan list and the trend chart are for.
+    latest = (
+        select(ScanRow.project_id.label("project_id"), func.max(ScanRow.seq).label("seq"))
+        .where(ScanRow.tenant_id == tenant_id)
+        .group_by(ScanRow.project_id)
+        .subquery()
+    )
+    newest_scan_ids = (
+        select(ScanRow.id)
+        .join(
+            latest,
+            (ScanRow.project_id == latest.c.project_id) & (ScanRow.seq == latest.c.seq),
+        )
+        .where(ScanRow.tenant_id == tenant_id)
+        .scalar_subquery()
+    )
+
+    # Asset rollups, grouped by project, over that scan alone.
     asset_stats = {
         row.project_id: row
         for row in session.execute(
@@ -79,7 +105,7 @@ def projects_overview(
                 func.avg(AssetRow.risk_score).label("mean_risk"),
                 func.max(AssetRow.risk_score).label("max_risk"),
             )
-            .where(AssetRow.tenant_id == tenant_id)
+            .where(AssetRow.tenant_id == tenant_id, AssetRow.scan_id.in_(newest_scan_ids))
             .group_by(AssetRow.project_id)
         ).all()
     }
@@ -89,7 +115,13 @@ def projects_overview(
     top_algorithms: dict[UUID, list[str]] = {}
     for pid, algorithm, _count in session.execute(
         select(AssetRow.project_id, AssetRow.algorithm, func.count().label("n"))
-        .where(AssetRow.qv_vulnerable.is_(True), AssetRow.tenant_id == tenant_id)
+        .where(
+            AssetRow.qv_vulnerable.is_(True),
+            AssetRow.tenant_id == tenant_id,
+            # Scoped to the newest scan for the same reason as the rollup above: an algorithm this
+            # project has already migrated away from must stop being named as one of its top three.
+            AssetRow.scan_id.in_(newest_scan_ids),
+        )
         .group_by(AssetRow.project_id, AssetRow.algorithm)
         .order_by(AssetRow.project_id, func.count().desc(), AssetRow.algorithm)
     ).all():

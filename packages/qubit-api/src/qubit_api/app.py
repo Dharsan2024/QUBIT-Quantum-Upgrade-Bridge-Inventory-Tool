@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
+import hashlib
 import logging
 from contextlib import asynccontextmanager
 
@@ -84,6 +86,20 @@ async def lifespan(app: FastAPI):
     poll_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await poll_task
+
+
+#: The single inline script the API adds to the dashboard page it serves, and its CSP hash.
+#:
+#: Kept together and derived from one another on purpose. They are two halves of one decision, and
+#: while they lived apart the policy blocked the script for the entire life of the feature:
+#: `script-src 'self'` refused the API's own inline script, so `window.__QUBIT_API_BASE__` was
+#: never defined and the client worked only by falling back to a default that happened to be
+#: right. Measured in the running desktop app — the variable was `null` and every cold start
+#: logged three CSP errors.
+API_BASE_SCRIPT = b'window.__QUBIT_API_BASE__="/api/v1";'
+API_BASE_SCRIPT_HASH = (
+    "sha256-" + base64.b64encode(hashlib.sha256(API_BASE_SCRIPT).digest()).decode()
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -181,7 +197,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; "
-            "script-src 'self'; "
+            # The API injects ONE inline script (see `API_BASE_SCRIPT`). `script-src 'self'`
+            # blocked it -- the API's own policy refusing the API's own script -- so
+            # `window.__QUBIT_API_BASE__` was never defined and the client only worked by falling
+            # back to a default that happened to be right.
+            #
+            # A HASH rather than 'unsafe-inline': this permits exactly those bytes and nothing
+            # else, so an injection anywhere else in the page is still refused. Derived from the
+            # script itself, so the two cannot drift apart again.
+            f"script-src 'self' '{API_BASE_SCRIPT_HASH}'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: blob:; "
             "font-src 'self' data:; "
@@ -263,7 +287,7 @@ def _mount_dashboard(app: FastAPI, settings: Settings) -> None:
     # gets the marker, so the Vite dev server and `vite preview` — where the API is on another
     # origin — are untouched and keep their own configuration. A RELATIVE base is used because
     # page and API share an origin by construction here, which makes it port-agnostic.
-    _MARKER = b'<script>window.__QUBIT_API_BASE__="/api/v1";</script>'
+    _MARKER = b"<script>" + API_BASE_SCRIPT + b"</script>"
 
     def _index_with_api_base() -> Response:
         html = index.read_bytes()

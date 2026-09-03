@@ -67,6 +67,14 @@ class PlanOut(BaseModel):
     project_id: UUID | None = None
     scan_id: UUID | None = None
     scope: dict = Field(default_factory=dict)
+    #: The regulatory regime this plan was built under, or None if none was configured.
+    #:
+    #: Surfaced because the targets in a plan are otherwise unexplainable. `ML-KEM-1024` and
+    #: `X25519MLKEM768` are each required by one regulator and rejected by another, so a reviewer
+    #: cannot tell a deliberate choice from a mistake without knowing which one the plan was
+    #: answering. None is shown as "no regime", never as the default regime's name — that would
+    #: attribute a decision to an operator who never made it.
+    regime: str | None = None
 
 
 class TaskOut(BaseModel):
@@ -223,6 +231,7 @@ def _plan_out(plan: MigrationPlan) -> PlanOut:
         project_id=plan.project_id,
         scan_id=plan.scan_id,
         scope=plan.scope_json or {},
+        regime=plan.regime,
     )
 
 

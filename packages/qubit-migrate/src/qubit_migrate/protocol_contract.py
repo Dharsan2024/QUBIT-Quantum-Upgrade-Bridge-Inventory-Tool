@@ -211,6 +211,50 @@ class ContractVerdict:
         )
 
 
+#: The code itself says the algorithm is required.
+#:
+#: The strongest possible code-level evidence, and the cheapest to check: when a source file states
+#: in so many words that a weak algorithm is mandated, the algorithm is not this codebase's choice.
+#: A tool that rewrites it has overruled a statement the authors wrote down precisely so that nobody
+#: would.
+#:
+#: Measured on `paymesh-gateway` (Java), which the guard migrated against an explicit refusal:
+#:
+#:     throw new IllegalStateException("MD5 is required by the legacy acquirer channel", e);
+#:
+#: The manifest marks that finding `remote-party` with its evidence class `code` -- meaning a static
+#: rule should have reached it -- and no rule here did, because every pattern above was written
+#: against Python idiom and this is a Java string literal in a throw.
+#:
+#: Both word orders are matched: "MD5 is required by ...", and "... requires MD5".
+_ALGORITHM_REQUIRED = re.compile(
+    r"""["'][^"']*(?:
+        (?:md5|sha-?1|des|3des|rc4|rc2|blowfish|cast5|idea)[^"']{0,40}(?:is\s+required|is\s+mandated|required\s+by|mandated\s+by|must\s+be\s+used|only\s+accepts|is\s+the\s+only)
+      | (?:requires|mandates|expects|only\s+accepts|must\s+use)[^"']{0,40}(?:md5|sha-?1|des|3des|rc4|rc2|blowfish|cast5|idea)
+    )[^"']*["']""",
+    re.IGNORECASE | re.VERBOSE,
+)
+
+#: A digest taken over a credential, in the C-family calling convention.
+#:
+#: `_CREDENTIAL_DIGEST` above matches Python's `md5(password)` shape: the algorithm IS the function.
+#: Java, Go, C# and C separate the two -- `MessageDigest.getInstance("SHA-1")` on one line and
+#: `.digest(apiKey.getBytes(...))` on the next -- so the credential never appears as an argument to
+#: anything named after a hash, and the rule could not fire.
+#:
+#: Measured on `paymesh-gateway`: `merchantKeyDigest(String apiKey)` computes SHA-1 over an API key
+#: stored as `merchant.api_key_digest` and re-derived on every request. Changing it locks out every
+#: merchant at once. The manifest marks it `credential-digest`, evidence `code`.
+#:
+#: The optional cast covers Go's `sha1.Sum([]byte(token))`.
+_CREDENTIAL_DIGEST_CALL = re.compile(
+    r"(?:digest|hexdigest|hash|computehash|sum\d*|hashbytes)\s*\(\s*"
+    r"(?:\[\]byte\(|\(byte\[\]\)|bytes\()?"
+    r"[\w.]*(?:password|passwd|pwd|api_?key|apikey|secret|token|credential|privatekey)",
+    re.IGNORECASE,
+)
+
+
 def external_contract(
     algorithm: str | None,
     file_path: str | None,
@@ -275,13 +319,21 @@ def external_contract(
             signal=f"snippet contains {kdf.group(0).strip()!r}",
         )
 
-    cred = _CREDENTIAL_DIGEST.search(body)
+    cred = _CREDENTIAL_DIGEST.search(body) or _CREDENTIAL_DIGEST_CALL.search(body)
     if cred is not None:
         return ContractVerdict(
             reason="it is a plain digest over a credential, which is either a value a remote "
             "party verifies or a stored password hash — and swapping the algorithm breaks the "
             "first and invalidates the second",
             signal=f"snippet contains {cred.group(0).strip()!r}",
+        )
+
+    required = _ALGORITHM_REQUIRED.search(body)
+    if required is not None:
+        return ContractVerdict(
+            reason="the code states that this algorithm is required, so it is a constraint the "
+            "authors recorded rather than a choice this codebase is free to make",
+            signal=f"snippet contains {required.group(0).strip()!r}",
         )
 
     return None

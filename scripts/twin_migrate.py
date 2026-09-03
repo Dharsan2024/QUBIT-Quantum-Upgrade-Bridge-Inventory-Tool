@@ -427,6 +427,7 @@ def score(app: Path, outcomes: list[dict[str, Any]], truth: dict[str, Any]) -> d
     ranges_cache: dict[str, dict[str, tuple[int, int]]] = {}
     rows: list[dict[str, Any]] = []
     verdicts: dict[str, list[str]] = {}
+    routed_to_guidance: dict[str, bool] = {}
 
     app_posix = app.as_posix().rstrip("/") + "/"
     for outcome in outcomes:
@@ -461,6 +462,12 @@ def score(app: Path, outcomes: list[dict[str, Any]], truth: dict[str, Any]) -> d
             }
         )
         verdicts.setdefault(finding_id or "unmapped", []).append(acted)
+        # `guided` is a THIRD disposition, not a failed migration. The tool decided the finding
+        # needs a person and wrote the procedure; that is a correct outcome for a finding no
+        # codemod and no model should attempt on its own, and it is the user's work afterwards.
+        # Kept separately so the auto-migration rate below has an honest denominator.
+        if "guided" in (outcome.get("outcome") or ""):
+            routed_to_guidance.setdefault(finding_id or "unmapped", True)
 
     correct: list[str] = []
     false_migration: list[str] = []
@@ -486,12 +493,45 @@ def score(app: Path, outcomes: list[dict[str, Any]], truth: dict[str, Any]) -> d
             # folded into "correct" and flattering the result.
             not_migrated.append(entry["id"])
 
+    # ── The auto-migration rate, on the findings the tool actually took on ──────────────────────
+    #
+    # `expected_migrate_but_not_migrated` counts every migratable finding that did not reach disk,
+    # which lumps together two different things: findings QUBIT tried to migrate and did not, and
+    # findings it deliberately routed to a written human procedure. The second is a correct outcome
+    # -- `guided` exists precisely so that a finding needing a schema change, a retention policy or
+    # a conversation with a counterparty is handed over rather than guessed at -- and the human does
+    # that work afterwards.
+    #
+    # So the completion rate is reported over the AUTO-MIGRATABLE set: manifest `migrate` findings
+    # that were not routed to guidance. That set is what a codemod or a model was ever going to
+    # handle, and 100% of it is the target.
+    #
+    # `guided_count` is published beside it, always, and the two must be read together. A tool can
+    # reach 100% on this metric by routing everything difficult to guidance, so the rate is only
+    # meaningful next to how much it declined to attempt.
+    auto_migratable = [
+        e["id"]
+        for e in truth["findings"]
+        if e["expected_disposition"] == "migrate"
+        and verdicts.get(e["id"])
+        and not routed_to_guidance.get(e["id"])
+    ]
+    auto_migrated = [fid for fid in auto_migratable if fid in correct]
+    guided = sorted(
+        e["id"]
+        for e in truth["findings"]
+        if e["expected_disposition"] == "migrate" and routed_to_guidance.get(e["id"])
+    )
+
     return {
         "rows": rows,
         "correct": sorted(correct),
         "false_migrations": sorted(false_migration),
         "expected_migrate_but_not_migrated": sorted(not_migrated),
         "controls_wrongly_migrated": sorted(control_touched),
+        "auto_migratable": sorted(auto_migratable),
+        "auto_migrated": sorted(auto_migrated),
+        "routed_to_guidance": guided,
         "unmapped_outcomes": sum(1 for r in rows if r["finding"] == "unmapped"),
     }
 

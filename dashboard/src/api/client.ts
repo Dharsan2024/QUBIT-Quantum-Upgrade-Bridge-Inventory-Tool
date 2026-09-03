@@ -176,6 +176,15 @@ function samePath(a: string | null | undefined, b: string | null | undefined): b
   return norm(a) === norm(b);
 }
 
+/** A target the API should clone rather than read from disk.
+ *
+ *  Mirrors `_GIT_URL` in `routers/projects.py`. Kept deliberately looser here: this only decides
+ *  which FIELD to send, and the server re-validates before anything reaches `git clone`. */
+export function isGitRemote(target: string): boolean {
+  const t = target.trim();
+  return /^(https?:\/\/|git@|ssh:\/\/|git:\/\/)/.test(t) || t.endsWith(".git");
+}
+
 async function ensureProject(
   name: string,
   description: string,
@@ -217,6 +226,30 @@ async function ensureProject(
 /** Scan the given target paths into the stable dashboard project (risk analysis runs inline).
  *  Surfaces the API's error (e.g. "scan target does not exist") to the caller instead of hiding it. */
 export async function createScan(targets: string[]): Promise<ScanSummary> {
+  // A git remote is not a path, and the scan endpoint reads paths. The Scans page has offered
+  // "https://github.com/org/repo.git" in its placeholder since it was written, but nothing ever
+  // sent the URL anywhere that could clone it -- the project was created with the URL as its
+  // root_path and the scan then failed with "scan target does not exist". So the UI advertised a
+  // capability the client did not have.
+  //
+  // Cloning is the server's job: it owns the workspace, and a browser cannot clone anyway.
+  if (targets.length === 1 && isGitRemote(targets[0])) {
+    const project = await send<Project>("/projects", "POST", {
+      name: projectNameForTargets(targets, "files"),
+      description: targets[0],
+      git_url: targets[0],
+    });
+    if (!project.root_path) {
+      throw new Error("the server cloned the repository but reported no checkout path");
+    }
+    const cloned = await send<{ scan: ScanSummary }>(`/projects/${project.id}/scans`, "POST", {
+      // The CHECKOUT, not the URL: the scanner reads files.
+      targets: [project.root_path],
+      run_risk: true,
+    });
+    return cloned.scan;
+  }
+
   const projectId = await ensureProject(
     projectNameForTargets(targets, "files"),
     targets.join(", "),

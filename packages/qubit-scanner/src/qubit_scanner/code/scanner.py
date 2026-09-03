@@ -616,7 +616,7 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
             # The distinction matters for the verdict: SHA-1 alone is Grover-flagged, while
             # HMAC-SHA1 is a separate registry identity with its own properties. Reporting the
             # bare digest would answer a question nobody asked.
-            digest = resolve.string_literal_value(node) or resolve.node_text(node)
+            digest = resolve.string_literal_value(node) or _digest_name(resolve.node_text(node))
             return f"HMAC-{digest}" if digest else None
         case "rust-ssl-version":
             # rust-openssl spells them `SslVersion::TLS1` / `TLS1_1`; bare TLS1 is TLS 1.0.
@@ -679,6 +679,46 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
             return _CRYPTOJS_NAMES.get(resolve.node_text(node), resolve.node_text(node))
         case _:
             return resolve.node_text(node)
+
+
+#: Digest names, longest first so `SHA512` is not matched as `SHA5`… and `SHA3-256` wins over
+#: `SHA3`.
+#:
+#: Word-bounded, which means an identifier that CONTINUES past the digest name does not match:
+#: `SHA1_FOR_LEGACY_USE_ONLY` yields nothing here. That is deliberate rather than a gap — ring's
+#: constant has its own resolver (`ring-digest`), and matching inside arbitrary identifiers would
+#: turn any variable called `sha1_migration_done` into an HMAC-SHA1 finding.
+_DIGEST_NAMES = re.compile(
+    r"\b(SHA3-(?:224|256|384|512)|SHA-?(?:512|384|256|224|1)|MD5|MD4|MD2"
+    r"|RIPEMD-?160|BLAKE2[bs]|SM3)\b",
+    re.IGNORECASE,
+)
+
+
+def _digest_name(text: str) -> str | None:
+    """The digest an HMAC is built over, when it is named by an EXPRESSION rather than a string.
+
+    `OpenSSL::HMAC.hexdigest("SHA1", …)` is handled by the string-literal path; the idiomatic Ruby
+    form passes a digest OBJECT — `OpenSSL::HMAC.hexdigest(OpenSSL::Digest::SHA1.new, …)` — and
+    Java, Go and C# all have their own spellings of the same idea.
+
+    Without this the raw expression became the algorithm name, so a live scan of the Ruby twin
+    reported `UNKNOWN(HMAC-OpenSSL::Digest::SHA1.new)`: an algorithm the registry cannot resolve
+    has no quantum verdict, no risk score and no migration rule, so an HMAC-SHA1 written the way
+    Ruby is normally written was invisible to everything downstream. The rule's own examples used
+    only the string form, which is why every test passed.
+    """
+    match = _DIGEST_NAMES.search(text)
+    if match is None:
+        return None
+    # Normalised to the registry's spelling: `SHA-1` and `sha1` are the same algorithm, and
+    # `HMAC-sha1` resolves to nothing.
+    name = match.group(1).upper().replace("-", "")
+    if name.startswith("SHA3"):
+        return f"SHA3-{name[4:]}"
+    if name.startswith("SHA") and name[3:].isdigit():
+        return f"SHA-{name[3:]}" if name[3:] == "1" else f"SHA{name[3:]}"
+    return name
 
 
 def _pqc_in_text(text: str) -> str | None:

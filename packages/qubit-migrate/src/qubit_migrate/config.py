@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +14,19 @@ class MigrateConfig(BaseSettings):
         extra="ignore",
     )
 
+    #: The regulatory regime targets are resolved under. `None` is the shipped default and
+    #: leaves resolution exactly as it was — the regimes add a lens, they do not move the
+    #: default, and every number already measured was measured on that path.
+    #:
+    #: One of `cnsa-2.0`, `anssi`, `bsi-tr-02102`, `asd-ism`, `nist-civil`. An unrecognised
+    #: value falls through rather than failing: an operator's typo must not silently change
+    #: the target, and must not stop the run either.
+    #: `owner/repo@commit` for the corpus under migration. Denormalised onto every
+    #: measurement row so an exported CSV identifies its own corpus without a join into a
+    #: database the reader does not have — which is what makes the artefact citable on its
+    #: own. Empty for an ordinary interactive run, where there is no corpus to name.
+    corpus: str = ""
+    regime: str | None = None
     model: str = "qwen2.5-coder:7b-instruct-q4_K_M"
     fallback_model: str = "qwen2.5-coder:1.5b-instruct-q4_K_M"
     #: Seconds to wait for one model completion. The default suits a 7B coder model; a 12B
@@ -54,6 +69,23 @@ class MigrateConfig(BaseSettings):
     #: three times over. Measured on node-forge: `pkcs1.js` needs ~27,400 tokens and `rsa.js`
     #: ~20,900 against a window of 8,192 — 3.3x and 2.5x over. Neither could ever have succeeded.
     llm_context_tokens: int = 8192
+    #: Which engine the router reaches for FIRST.
+    #:
+    #: `cheapest-first` (the default, and the historical behaviour) puts local Ollama at the head
+    #: of the list: it costs nothing and has no daily quota, so a finding it can handle should
+    #: never reach a metered endpoint.
+    #:
+    #: That is the right default and it was also, silently, a ceiling. An install can have a pool
+    #: of large hosted engines attached — measured on this one: eleven, mostly a 120B — and every
+    #: generation still went to a local 7B, because external was reachable only when local FAILED
+    #: or the file was oversize. The evaluation's own design notes recorded this as
+    #: "external-only is not expressible without a code change"; this is that change.
+    #:
+    #: `external-first` inverts the order and keeps local as the fallback, so an operator who has
+    #: attached capacity can actually spend it. It is opt-in precisely because it spends a metered
+    #: quota: nothing about the default changes, and results measured under one order must not be
+    #: pooled with results measured under the other.
+    engine_order: Literal["cheapest-first", "external-first"] = "cheapest-first"
     #: Fraction of the window the prompt may occupy before the finding is routed to the guided
     #: path instead of the model. The remainder is left for the answer, which for a whole-file
     #: rewrite is about as long as the input.

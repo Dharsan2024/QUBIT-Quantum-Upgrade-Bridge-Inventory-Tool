@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar, Literal
@@ -31,7 +32,9 @@ from sqlalchemy.orm.attributes import flag_modified
 from . import scheduling
 from .config import MigrateConfig
 from .graph import build_dependency_graph, migration_order
+from .protocol_contract import external_contract
 from .queue import rank_ready_frontier
+from .regimes import load_regimes
 from .state import (
     MigrationEvent,
     MigrationPlan,
@@ -42,6 +45,7 @@ from .state import (
     transition,
     write_event,
 )
+from .state.measurement import MigrationMeasurement
 from .transform import (
     EditApplyError,
     ValidationReport,
@@ -50,12 +54,14 @@ from .transform import (
     load_rules,
     match_rule,
     old_new_to_diff,
+    restore_incidental_blank_lines,
     run_codemod,
     validate_patch,
 )
 from .transform.advise import generate_migration_advice
 from .transform.languages import language_for_suffix
 from .transform.llm import (
+    _MAX_PREDICT,
     DEFAULT_BASE_URL,
     ExternalEndpoint,
     OllamaError,
@@ -65,6 +71,8 @@ from .transform.llm import (
     start_ledger,
     unverifiable_reason,
 )
+from .transform.synthesized import recall_rule, remember_rule, synthesize_rule
+from .transform.targets import target_availability
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +92,61 @@ class _Engine:
     budget_tokens: int
     #: Whether using it spends a quota. Free engines are tried first for exactly this reason.
     metered: bool
+
+
+def _language_of_row(asset: Any) -> str:
+    """The language of an `AssetRow`, from its recorded path.
+
+    `AssetRow` has no `language` column. Reading one with `getattr(..., "language", "")` returned
+    "" for every row, which is worse than an error: the column looked measured and was uniformly
+    blank, so any per-language breakdown would have shown a single empty bucket.
+    """
+    if asset is None:
+        return ""
+    path = str((getattr(asset, "location", None) or {}).get("file_path") or "")
+    return language_for_suffix(path) or ""
+
+
+def _file_size(asset: Any, repo_root: Path | None) -> dict[str, int]:
+    """`file_bytes` and `file_lines` for the asset's file, or zeros.
+
+    Zeros when the file cannot be read — a deleted path, or a run with no repo root. Recorded as 0
+    rather than omitted so the column stays present; a reader can tell "unmeasured" from "empty
+    file" by the fact that no real source file is 0 lines AND 0 bytes while also having a patch.
+    """
+    if asset is None or repo_root is None:
+        return {"file_bytes": 0, "file_lines": 0}
+    rel = str((getattr(asset, "location", None) or {}).get("file_path") or "")
+    if not rel:
+        return {"file_bytes": 0, "file_lines": 0}
+    try:
+        raw = (repo_root / rel).read_bytes()
+    except OSError:
+        return {"file_bytes": 0, "file_lines": 0}
+    return {"file_bytes": len(raw), "file_lines": raw.count(b"\n") + 1}
+
+
+def _diff_lines(diff_text: str | None) -> tuple[int, int]:
+    """`(changed, noise)` for a unified diff: added/removed lines, and how many are blank-only.
+
+    Noise is tracked separately because it was a real failure mode — 12 of 18 patches in one run
+    were majority whitespace — and a "changed lines" count that includes blank-line churn
+    overstates how much work the tool did. Both numbers are covariates a reader needs to interpret
+    the time: a 40-line rewrite and a one-line substitution are not the same task.
+    """
+    if not diff_text:
+        return (0, 0)
+    changed = noise = 0
+    for line in diff_text.splitlines():
+        # `+++`/`---` are file headers, not content. Counting them adds two phantom changed lines
+        # to every patch, which matters most on the one-line substitutions that dominate.
+        if line.startswith(("+++", "---")):
+            continue
+        if line.startswith(("+", "-")):
+            changed += 1
+            if not line[1:].strip():
+                noise += 1
+    return (changed, noise)
 
 
 def _language_of(asset: CryptoAsset) -> str:
@@ -141,6 +204,61 @@ def _flagged_line_untouched(orig: str, new: str, asset: CryptoAsset) -> str | No
         f"line(s) {where} instead, which belong to other findings. This one needs migration "
         f"advice rather than a patch."
     )
+
+
+def _contract_collateral(orig: str, new: str, asset: CryptoAsset) -> str | None:
+    """A line this patch changes that is somebody else's contract, or None if it touches none.
+
+    `external_contract` is consulted once per finding, before generation, and that is not enough.
+    A codemod rewrites every occurrence in the FILE it can express, so a patch generated for
+    finding A silently carries finding B along with it — including a B the guard has already
+    refused. The refusal is recorded, the advice is written, and the change happens anyway.
+
+    Measured on the MediVault twin: the guard refused `archive_entry_id` in `documents.py` on
+    `sha1_hash = hashlib.sha1(`, and the codemod for `document_fingerprint` — a different task, in
+    the same file — rewrote both. The second task then reported *"already migrated by an earlier
+    py-weakhash-01 patch to this file"* and parked itself as satisfied. Every gate passed. The
+    offsite archive's identifiers changed.
+
+    So the guard is applied a second time, to what the patch actually DID: every changed line is
+    re-examined with its own surrounding context, and a patch that edits a protocol-mandated line
+    is rejected whole rather than trimmed. Trimming would be worse — a partial rewrite of a file
+    is neither the old behaviour nor the new one.
+
+    The finding's own line is NOT exempt, though an earlier draft of this exempted it on the
+    reasoning that reaching here means the pre-generation guard already cleared it. That reasoning
+    holds only while the two see the same text: the guard reads `asset.evidence.snippet`, recorded
+    at scan time and redacted before storage, while this reads the file as it is now. Where they
+    agree the exemption changes nothing, because the guard already refused and generation never
+    started. Where they disagree — an empty snippet, a file an earlier task in the same plan has
+    since edited — the exemption is the difference between catching that and not. So it is gone,
+    and `test_a_patch_scoped_to_its_own_finding_is_allowed` covers the case it was there to protect.
+    """
+    before = orig.splitlines()
+    after = new.splitlines()
+    if len(before) != len(after):
+        # Line numbers no longer correspond, so "the context around line N" is not answerable.
+        # A structural rewrite is out of scope for this check rather than guessed at.
+        return None
+
+    own_line = asset.location.line if asset.location else None
+    path = asset.location.file_path if asset.location else None
+
+    for number, (old_line, new_line) in enumerate(zip(before, after, strict=True), 1):
+        if old_line == new_line:
+            continue
+        # The same +/-2 line window the scanner records, so the guard sees what it was written
+        # against rather than a single line stripped of its context.
+        window = "\n".join(before[max(0, number - 3) : number + 2])
+        verdict = external_contract(asset.algorithm, path, window)
+        if verdict is not None:
+            return (
+                f"this patch also rewrites line {number}, which is not this finding and is not "
+                f"this repository's to change — {verdict.reason}. Detected from: {verdict.signal}. "
+                f"A file-scoped edit cannot carry a refused finding along with an accepted one; "
+                f"line {own_line} needs a change scoped to itself."
+            )
+    return None
 
 
 #: Why a task is parked in `deferred`.
@@ -251,13 +369,48 @@ def _porcelain_paths(stdout: bytes, root: Path) -> list[Path]:
     return paths
 
 
+#: The sandbox image and suite command each ecosystem uses when nothing more specific is
+#: configured. Before this table existed, `_stage_tests` refused every non-Python language outright
+#: and the `tests` rung -- the only one that can falsify a patch behaviourally -- was unreachable
+#: outside Python. Measured on the Ruby twin: every patch was applied on `parses` + `compiles`
+#: alone, 6 of 14 findings were migrated against an explicit refusal, and the twin's suite went red.
+#:
+#: A guess here is safe by construction: a command that cannot make the UNTOUCHED tree green makes
+#: `_stage_tests` skip rather than judge, so a wrong entry costs one container run, never a false
+#: verdict. The images are stock upstream ones because QUBIT never pulls (see `_image_present`) --
+#: an entry only takes effect where that image is already present, and the stage names it when not.
+_LANGUAGE_SANDBOX: dict[str, tuple[str, str]] = {
+    "java": ("maven:3.9-eclipse-temurin-21", "mvn -B -o test"),
+    "go": ("golang:1.23-alpine", "go test ./..."),
+    "ruby": ("ruby:3.3-alpine", "rake test"),
+}
+
+
 class MigrationOrchestrator:
     """Facade wiring all qubit-migrate components (the only import surface for api/cli)."""
 
-    def __init__(self, session: Session, config: MigrateConfig | None = None) -> None:
+    def __init__(
+        self,
+        session: Session,
+        config: MigrateConfig | None = None,
+        pinned_engine: str | None = None,
+    ) -> None:
         self.session = session
         self.config = config or MigrateConfig()
         self._rules = load_rules()
+        #: Restrict this instance to one engine, by `_Engine.name`.
+        #:
+        #: A bulk run works several findings at once, one worker per engine, so that the whole pool
+        #: is busy instead of one engine at a time with the rest -- including the local GPU -- idle.
+        #: Without a pin every worker would independently run the same cost policy, reach the same
+        #: conclusion, and pile onto the same cheapest engine: six workers, one engine, six times
+        #: the rate-limit pressure and no more throughput.
+        #:
+        #: The pin narrows the CHOICE, never the safety checks. Fit, the reliability gate and the
+        #: rescan all still apply, and when the pinned engine cannot take a finding the router says
+        #: so exactly as it would have for a single engine -- the finding is then left for a worker
+        #: whose engine can, rather than forced through this one.
+        self.pinned_engine = pinned_engine
 
     # Effort inputs derived from the asset and its matched rule. Kept as a method rather than
     # inlined so `test_effort.py` can exercise the mapping directly — the bug it guards against is
@@ -605,7 +758,22 @@ class MigrationOrchestrator:
                 )
         external.extend(self._pooled_engines())
         external.sort(key=lambda e: e.budget_tokens)
+        # `external-first` inverts the head of the list and keeps local as the FALLBACK rather
+        # than dropping it: an install with a metered pool should be able to spend it, and an
+        # exhausted quota should still degrade to something that works rather than to nothing.
+        # Off by default, because it spends a rationed allowance — see `MigrateConfig.engine_order`.
+        if self.config.engine_order == "external-first" and external:
+            return external + engines
         return engines + external
+
+    def engine_names(self) -> list[str]:
+        """Every engine this install can use, cheapest first — the pins a bulk run divides work by.
+
+        Public because the caller that decides how much to run at once is the bulk handler, and the
+        honest width of a pool is a property of the pool, not a number to configure. Local Ollama
+        is first, so a run with one worker still behaves exactly as it did before.
+        """
+        return [engine.name for engine in self._engines()]
 
     def _pooled_engines(self) -> list[_Engine]:
         """Engines attached to the pool, beyond the primary and backup slots.
@@ -725,7 +893,38 @@ class MigrationOrchestrator:
             max_prompt_fraction=self.config.llm_max_prompt_fraction,
             skip_after_failures=self.config.llm_skip_after_failures,
         )
+        decision = self._apply_pin(decision)
         return (by_name.get(decision.engine) if decision.engine else None), decision
+
+    def _apply_pin(self, decision: scheduling.Decision) -> scheduling.Decision:
+        """Move this worker's own engine to the front, if the policy judged it able to take the job.
+
+        Applied AFTER `scheduling.choose`, not by hiding the other engines from it, and that
+        ordering is the whole point. The policy still evaluates the entire pool, so the pinned
+        engine is only promoted from among the ones it found ELIGIBLE -- fit, the reliability gate
+        and the reported rate budget all still decide -- and the engines it displaces stay on as
+        alternatives, so a worker whose engine answers 503 still has somewhere to go.
+
+        Filtering the offers instead would have looked simpler and been worse twice over: a pinned
+        engine would bypass no checks but would arrive with an empty alternatives list, so one 503
+        would drop the finding to the local model; and an engine the policy had ruled out for this
+        file would be used anyway.
+        """
+        pin = self.pinned_engine
+        if pin is None or decision.engine == pin:
+            return decision
+        eligible = (decision.engine, *decision.alternatives)
+        if pin not in eligible:
+            # Not a failure and not worth a warning: the pool is heterogeneous, so a file that does
+            # not fit this worker's engine is ordinary. The finding is routed as the policy asked.
+            return decision
+        others = tuple(name for name in eligible if name != pin and name is not None)
+        return replace(
+            decision,
+            engine=pin,
+            reason=f"{decision.reason}; pinned to {pin} so the whole pool runs at once",
+            alternatives=others,
+        )
 
     def _effective_context_tokens(self) -> int:
         """The largest window any configured engine offers.
@@ -749,15 +948,31 @@ class MigrationOrchestrator:
         # ~3 characters per token deliberately under-estimates for code, matching
         # `llm._output_budget`, so the estimate errs toward letting a borderline file through.
         estimated = len(source) // 3
-        if estimated <= budget:
-            return None
-        return (
-            f"this file is too large for the configured model: about {estimated:,} tokens "
-            f"against a {context_tokens:,}-token context window, which must hold the "
-            f"rewritten file as well as the original. Sending it would truncate the file "
-            f"before the model saw it. A larger-context model, or splitting the change by "
-            f"hand, is what this needs."
-        )
+        # The ANSWER has to fit too, and only the prompt was ever checked. A whole-file rewrite
+        # must emit the entire file, so a file needing more than `_MAX_PREDICT` tokens to reproduce
+        # cannot be returned however well the model behaves -- the generation is truncated at the
+        # ceiling, the repair loop reads unbalanced brackets as the model getting it wrong, and
+        # three attempts are spent proving something arithmetic said in advance.
+        #
+        # Measured on this installation: 324 of 1,019 files in the corpus (32%) are in this state,
+        # and four tasks failed with "unbalanced brackets" against files needing up to 19,951
+        # tokens. Windowing answers it -- an excerpt is a fraction of the file -- which is exactly
+        # what the prompt-side refusal already routes to.
+        if estimated > budget:
+            return (
+                f"this file is too large for the configured model: about {estimated:,} tokens "
+                f"against a {context_tokens:,}-token context window, which must hold the "
+                f"rewritten file as well as the original. Sending it would truncate the file "
+                f"before the model saw it. A larger-context model, or splitting the change by "
+                f"hand, is what this needs."
+            )
+        if estimated > _MAX_PREDICT:
+            return (
+                f"this file needs about {estimated:,} tokens to return in full, against an answer "
+                f"ceiling of {_MAX_PREDICT:,}. The model can read it but cannot write it back, so "
+                f"a whole-file rewrite would be truncated no matter how well it went."
+            )
+        return None
 
     def _llm_detour_reason(
         self, rule: Any, source: str, language: str, tenant_id: UUID | None = None
@@ -923,6 +1138,12 @@ class MigrationOrchestrator:
                 original_source=original_source,
                 asset_line=asset_line,
             )
+            # Recorded on the closure so callers can tell a real pass from an unfailable one. The
+            # repair loop is right to ignore this -- it only ever asks "is there still something to
+            # correct", and a criterion that cannot fail cannot answer yes. The PRE-FLIGHT probe is
+            # a different question: "has this already been migrated", and there a vacuous pass is
+            # the wrong answer, because the criterion never mentioned this asset's algorithm.
+            verify.last_vacuous = bool(getattr(result, "vacuous", False))  # type: ignore[attr-defined]
             if result.status != "fail":
                 return None
             # There are two ways to fail this stage and they need opposite advice. Appending one
@@ -949,6 +1170,7 @@ class MigrationOrchestrator:
                 "call site further down."
             )
 
+        verify.last_vacuous = False  # type: ignore[attr-defined]
         return verify
 
     def _tenant_of(self, task: MigrationTask) -> UUID:
@@ -1032,6 +1254,7 @@ class MigrationOrchestrator:
                 scan_id=scan_id,
                 scope_json=scope,
                 stats_json={"message": "No vulnerable assets in scope"},
+                regime=self.config.regime,
             )
             self.session.add(plan)
             self.session.commit()
@@ -1043,6 +1266,10 @@ class MigrationOrchestrator:
             project_id=project_id,
             scan_id=scan_id,
             scope_json=scope,
+            # Stamped at creation, so the plan explains its own targets. `ML-KEM-1024` and
+            # `X25519MLKEM768` are each correct in one jurisdiction and rejected in another;
+            # without this a reviewer cannot tell a deliberate choice from a mistake.
+            regime=self.config.regime,
             config_json=self.config.model_dump(),
         )
         self.session.add(plan)
@@ -1172,6 +1399,173 @@ class MigrationOrchestrator:
         generator: Literal["auto", "llm", "template"] = "auto",
         repo_root: Path | None = None,
     ) -> PatchProposal:
+        """Generate a patch for a task, and record how long it took and what came of it.
+
+        The measurement is the point of the wrapper. `Y` -- time to complete a migration -- is an
+        input to every quantum risk model in the literature and every one of them ESTIMATES it,
+        because completed migrations do not exist to measure. QUBIT performs them, with timestamps,
+        per finding, and was discarding that as a log line.
+
+        Wrapped here rather than instrumented at each exit because there are many exits and they
+        must ALL be counted. A row is written whether the attempt was accepted, rejected, routed to
+        guidance, found already satisfied, or failed outright: excluding the unsuccessful ones
+        biases `Y` downward, which is the direction that flatters the tool and therefore the
+        direction to be most careful about.
+
+        Recording never changes the outcome. A measurement failure that swallowed a patch, or
+        turned a working migration into an error, would be a instrumentation defect masquerading as
+        a tool defect -- so every failure here is suppressed and the original result or exception
+        propagates untouched.
+        """
+        queued_at = datetime.now(UTC)
+        started = time.monotonic()
+        record = functools.partial(
+            self._record_measurement,
+            task_id,
+            queued_at=queued_at,
+            started=started,
+            repo_root=repo_root,
+        )
+        try:
+            patch = self._generate_patch(task_id, generator=generator, repo_root=repo_root)
+        except AlreadySatisfied as exc:
+            # A verdict, not a failure: an earlier patch already did this work. It still consumed
+            # scanner time, and a `satisfied` finding that goes unrecorded is a migration the
+            # dataset claims never happened.
+            # `suppress` at the CALL SITE, not only inside the recorder. These handlers end in
+            # `raise`, so a recorder that threw would REPLACE the migration's own exception with a
+            # measurement error — an instrumentation defect wearing a tool defect's costume, and
+            # the hardest kind to diagnose. Making the guarantee structural here means it survives
+            # any future edit to `_record_measurement` that escapes its own try block.
+            with contextlib.suppress(Exception):
+                record("satisfied", "satisfied", detail=str(exc))
+            raise
+        except GuidedRemediation as exc:
+            # Also a verdict. The tool decided this finding needs a human and wrote the procedure;
+            # scoring that as a failure understates the tool, and scoring it as an acceptance
+            # overstates it, so it is its own path.
+            with contextlib.suppress(Exception):
+                record("guided", "guided", detail=str(exc), human=True)
+            raise
+        except Exception:
+            with contextlib.suppress(Exception):
+                record("model", "failed")
+            raise
+        # And on the success path for the mirror reason: a measurement failure must not discard a
+        # patch that was generated and validated correctly.
+        with contextlib.suppress(Exception):
+            record(
+                "model" if patch.generator == "llm" else "codemod",
+                "accepted" if patch.status == "proposed" else "rejected",
+                patch=patch,
+            )
+        return patch
+
+    def _record_measurement(
+        self,
+        task_id: UUID,
+        path: str,
+        outcome: str,
+        *,
+        queued_at: datetime,
+        started: float,
+        repo_root: Path | None = None,
+        patch: PatchProposal | None = None,
+        detail: str = "",
+        human: bool = False,
+    ) -> None:
+        """Write one row. Never raises, and never alters the outcome it is describing."""
+        try:
+            task = self.session.get(MigrationTask, task_id)
+            asset = self.session.get(AssetRow, task.asset_id) if task else None
+            spend = (task.spend_json or {}) if task else {}
+            stages = ((patch.validation_json or {}).get("stages") or {}) if patch else {}
+            rescan = stages.get("rescan") or {}
+            row = MigrationMeasurement(
+                task_id=task_id,
+                plan_id=task.plan_id if task else None,
+                corpus=self._corpus_label(),
+                rule_id=(task.rule_id if task else "") or "",
+                # A synthesised rule is a different experimental condition; pooling the two hides
+                # which one the tool is actually good at.
+                synthesised=bool(task and (task.rule_id or "").startswith("synth-")),
+                # Derived from the path: `AssetRow` has no language column, and `getattr(asset,
+                # "language", "")` silently returned "" for every row — a covariate that looked
+                # measured and was always blank.
+                language=_language_of_row(asset) or "",
+                algorithm=str(getattr(asset, "algorithm", "") or ""),
+                # `AssetRow` stores these as plain strings, not enums — reading `.value`
+                # off a str silently yields "" and every row would lose its usage context.
+                usage_context=str(getattr(asset, "usage_context", "") or ""),
+                regime=self.config.regime,
+                # From the rule's TARGET, not the file path — a path containing "+" is not a
+                # hybrid migration, and `file_path` was the wrong field to read entirely.
+                construction=self._construction_of(task),
+                path=path,
+                engine=(patch.model_name if patch else None),
+                from_cache=bool(spend.get("from_cache")),
+                queued_at=queued_at,
+                started_at=queued_at,
+                total_s=time.monotonic() - started,
+                attempts=int(task.attempts or 0) if task else 0,
+                model_seconds=float(spend.get("seconds") or 0.0),
+                outcome=outcome,
+                evidence_level=(patch.evidence_level if patch else None),
+                stage_outcomes={k: v.get("status") for k, v in stages.items()},
+                # Only meaningful on the rescan stage, and only written there when true -- so its
+                # absence means "not measured", not "measured and clean".
+                vacuous=bool(rescan.get("vacuous")),
+                human_needed=human or outcome == "guided",
+                diff_changed_lines=_diff_lines(patch.diff_text)[0] if patch else 0,
+                # Blank-line-only changes. Tracked because it was a real failure mode — 12 of 18
+                # patches in one run were majority whitespace — and a "changed lines" count that
+                # includes them overstates how much work the tool did.
+                diff_noise_lines=_diff_lines(patch.diff_text)[1] if patch else 0,
+                # Size covariates. A 40 kB file and a 400-byte one are not the same task, so a
+                # median over both is partly a median over the file-size distribution rather than
+                # over the tool's behaviour.
+                **_file_size(asset, repo_root),
+            )
+            if detail:
+                row.stage_outcomes = {**row.stage_outcomes, "detail": detail[:400]}
+            self.session.add(row)
+            self.session.commit()
+        except Exception:
+            with contextlib.suppress(Exception):
+                self.session.rollback()
+
+    def _construction_of(self, task: MigrationTask | None) -> str:
+        """`hybrid` when this task targets a composite, else `pure`.
+
+        Read from what was ASKED FOR, not from the patch that came back. A patch that failed still
+        attempted a hybrid migration, and filing it under `pure` would put it in the wrong
+        distribution — hybrid is the more expensive treatment, so the error would flatter it.
+
+        A synthesised rule is not in the catalog and its target cannot be read back here, so the
+        fallback is the regime, which is what produced that target in the first place.
+        """
+        rule_id = task.rule_id if task else None
+        rule = next((r for r in self._rules if r.id == rule_id), None)
+        if rule is not None:
+            return "hybrid" if "+" in str((rule.target or {}).get("algorithm") or "") else "pure"
+        regime = load_regimes().get(self.config.regime)
+        return "hybrid" if regime is not None and regime.requires_hybrid else "pure"
+
+    def _corpus_label(self) -> str:
+        """`owner/repo@commit` for the plan under way, or "".
+
+        Denormalised onto every row so an exported CSV identifies its own corpus without a join
+        into a database the reader does not have.
+        """
+        return str(getattr(self.config, "corpus", "") or "")
+
+    def _generate_patch(
+        self,
+        task_id: UUID,
+        *,
+        generator: Literal["auto", "llm", "template"] = "auto",
+        repo_root: Path | None = None,
+    ) -> PatchProposal:
         """Generate a patch for a task.
 
         M1 only supports generator="template".
@@ -1262,12 +1656,49 @@ class MigrationOrchestrator:
 
         rule = match_rule(asset, self._rules)
         if not rule:
-            # No rule, but not nothing. The guided plan is built from the knowledge base and the
-            # provider playbook, so a finding QUBIT has no transform for still leaves the queue
-            # with steps, commands and sources rather than the words "no rule matched".
-            task.last_error = "no migration rule covers this finding"
-            self.resolve_guided(task.id, force=True)
-            raise GuidedRemediation(task.id, task.advice_text or "")
+            # No rule in the pack is not the same as nothing to do. QUBIT already knows what this
+            # family and usage should become -- the knowledge base and the agility policy are what
+            # `/assets/{id}/recommendation` has always answered with -- so a rule is synthesised
+            # from that and the model is asked to write the change. The target comes from QUBIT's
+            # own knowledge, never from the model's imagination, and the patch faces every gate a
+            # hand-written rule's patch faces, the rescan included.
+            #
+            # Guidance is still the answer when synthesis returns None: a hash is not a Shor
+            # problem, a certificate cannot be rewritten, and an ecosystem with no trustworthy PQC
+            # provider should not have one installed on the operator's behalf.
+            # From the file's own suffix rather than `file_language`, which is not computed until
+            # the LLM branch far below -- and a synthesised rule has to exist before there is a
+            # branch to take.
+            # NOT defaulted to Python. A synthesised rule tells the model to rewrite this file in
+            # this language, so guessing the language means asking for a Python rewrite of a file
+            # that is not Python -- and `notes.txt` mentioning RSA would be handed to a model as
+            # Python source. A suffix QUBIT has no grammar for gets guidance, exactly as before:
+            # there is no rescan that could check the answer anyway.
+            # The PATH, not the suffix: `language_for_suffix` takes the whole path and reads the
+            # suffix itself, and `Path(".py").suffix` is "" -- a leading dot makes it a hidden file
+            # with no extension. Passing the suffix meant the lookup returned None every single
+            # time, which the previous `or "python"` then covered up, so every file of every kind
+            # was being called Python.
+            synth_language = language_for_suffix(file_path)
+            # A rule QUBIT already derived AND proved comes first. Not for speed -- deriving costs
+            # nothing -- but for consistency: a stored rule is one whose patch passed the gates, so
+            # the second occurrence of a finding is answered by the derivation that worked rather
+            # than by whatever the knowledge base happens to resolve to now.
+            if synth_language is not None:
+                rule = recall_rule(self.session, asset, synth_language, tenant_id)
+                if rule is None:
+                    rule = synthesize_rule(asset, synth_language, regime=self.config.regime)
+            if rule is None:
+                task.last_error = "no migration rule covers this finding"
+                self.resolve_guided(task.id, force=True)
+                raise GuidedRemediation(task.id, task.advice_text or "")
+            logger.info(
+                "no rule for %s/%s; using %s targeting %s",
+                asset.algorithm,
+                synth_language,
+                rule.id,
+                rule.target.get("algorithm"),
+            )
 
         # A rule can declare that no edit is the right answer. That is a verdict about the
         # finding, not a limitation to be worked around: a certificate is a signed object, and an
@@ -1277,6 +1708,35 @@ class MigrationOrchestrator:
         if rule.remediation == "guided":
             self.resolve_guided(task.id, force=True)
             raise GuidedRemediation(task.id, task.advice_text or "")
+
+        # The algorithm may not be this repository's to change.
+        #
+        # Checked HERE, before any generator runs, because the downstream gates provably cannot
+        # catch it: eleven patches on `pyload` passed `applies`, `parses`, `symbols`, `compiles`
+        # and `rescan` while breaking authentication against three different services, because
+        # each rewrote crypto whose format is fixed by a remote party. `rescan` passes precisely
+        # BECAUSE the algorithm changed. See `qubit-v2/08-evaluation/RESULTS-B0-arm.md`.
+        #
+        # Guided rather than skipped: the risk is real and the operator still needs it on the
+        # report. What is not available is a source edit.
+        contract = external_contract(
+            asset.algorithm,
+            (asset.location.file_path if asset.location else None),
+            ((asset.evidence.snippet if asset.evidence else None) or None),
+        )
+        if contract is not None:
+            task.last_error = contract.reason
+            # `resolve_guided` regenerates `advice_text` from the playbook, so the contract's own
+            # advice is APPENDED afterwards rather than set before — assigning first silently lost
+            # it, and the operator saw the generic "migrate this hash" guidance for a finding whose
+            # whole point is that it must not be migrated.
+            self.resolve_guided(task.id, force=True)
+            contract_advice = contract.advice(asset.algorithm or "This algorithm")
+            task.advice_text = "\n\n".join(
+                part for part in (task.advice_text, contract_advice) if part
+            ).strip()
+            self.session.commit()
+            raise GuidedRemediation(task.id, task.advice_text)
 
         def _mark_generating() -> None:
             self._transition(task, "generate", detail={"generator": generator})
@@ -1348,22 +1808,61 @@ class MigrationOrchestrator:
         # freshly cloned copy of `requests` in a brand-new project reported all three of its
         # weak-hash findings as "already migrated" because a DIFFERENT project had migrated its own
         # `src/requests/auth.py` earlier, so the new project could not be migrated at all.
-        already_applied = self.session.scalar(
-            select(PatchProposal.id)
-            .join(MigrationTask, MigrationTask.id == PatchProposal.task_id)
+        # Scoped to THIS LINE, not merely to this file.
+        #
+        # (rule, file) was the right unit only while codemods rewrote whole files: one applied patch
+        # really did remediate every occurrence, so a sibling finding had nothing left to do. Since
+        # the codemods became line-scoped, one applied patch fixes ONE line -- and this check went
+        # on reporting every other finding in the file as finished work.
+        #
+        # Measured on inkwell-esign through the desktop app: `internal.rb` holds five
+        # `code-weakhash-02` findings. The first was migrated, and lines 52, 61, 83 and 88 were
+        # then parked `satisfied` without a codemod or a model ever running on them. Five of the
+        # seven skipped findings in that run came from here, and the fix that caused it was the fix
+        # one section earlier -- narrowing the codemod invalidated the assumption this query
+        # encodes, and nothing failed to say so.
+        applied_lines: set[int] = set()
+        for other_task, other_asset in self.session.execute(
+            select(MigrationTask, AssetRow)
+            .join(PatchProposal, PatchProposal.task_id == MigrationTask.id)
+            .join(AssetRow, AssetRow.id == MigrationTask.asset_id)
             .where(PatchProposal.file_path == diff_path)
             .where(PatchProposal.status == "applied")
             .where(MigrationTask.rule_id == rule.id)
             .where(MigrationTask.plan_id == task.plan_id)
-            .limit(1)
-        )
-        if already_applied is not None:
-            self._fail_task(
-                task,
-                f"already migrated by an earlier {rule.id} patch to this file",
-                resolution=RESOLUTION_SATISFIED,
+        ).all():
+            if other_task.id == task.id:
+                continue
+            line = (other_asset.location or {}).get("line")
+            if isinstance(line, int):
+                applied_lines.add(line)
+
+        this_line = asset.location.line if asset.location else None
+        if this_line is not None and this_line in applied_lines:
+            detail = (
+                f"line {this_line} was already migrated by an earlier {rule.id} patch to this file"
             )
-            raise AlreadySatisfied(f"already migrated by an earlier {rule.id} patch to this file")
+            self._fail_task(task, detail, resolution=RESOLUTION_SATISFIED)
+            raise AlreadySatisfied(detail)
+
+        # CAN THIS ENVIRONMENT ACTUALLY BUILD THE TARGET?
+        #
+        # Asked before any model time is spent, and before a codemod writes a rewrite that cannot
+        # import. A migration to a primitive the machine does not have is worse than no migration:
+        # the patch applies, it parses, its names look right, and then every later gate blames the
+        # PATCH for what is an environment problem.
+        #
+        # Live example rather than a hypothetical: `cryptography` 49.0.0 ships no `slhdsa` module
+        # at all, while BSI TR-02102 approves SLH-DSA and a rule may legitimately target it.
+        # Routed to guidance rather than failed — the finding is real and a human can still act on
+        # it, so refusing to write a patch is the correct answer, not a defeat.
+        availability = target_availability(str((rule.target or {}).get("algorithm") or ""))
+        if not availability.available:
+            # `last_error` first: `resolve_guided` writes the advice, and the operator needs
+            # to see WHY a real finding produced a procedure instead of a diff.
+            task.last_error = availability.advisory
+            self.resolve_guided(task.id, force=True)
+            raise GuidedRemediation(task.id, task.advice_text or availability.advisory)
 
         # The file's OWN line-ending convention, re-injected only into the diff (see
         # `old_new_to_diff`) — `orig`/`new` themselves stay LF-normalized for every codemod, LLM
@@ -1414,7 +1913,20 @@ class MigrationOrchestrator:
             satisfied = False
             if already is not None:
                 with contextlib.suppress(Exception):  # a probe failure must not block generation
-                    satisfied = already(orig) is None
+                    # `is None` alone was not enough. `_stage_rescan` narrows its `gone` prefixes to
+                    # the ones describing THIS asset's algorithm and, when none match, falls through
+                    # to the full list -- which the asset then satisfies by construction. The stage
+                    # itself says so (`vacuous=True`, and `evidence_level` refuses to count it), but
+                    # this probe read only the pass/fail string and threw that away, so a criterion
+                    # that COULD NOT FAIL was read as "already migrated" and no model was called.
+                    #
+                    # Measured on inkwell-esign: `encrypt_draft` and `decrypt_draft` are AES-128-CBC
+                    # routed to `code-weakcipher-01`, whose `gone` list names DES, 3DES, RC4 and
+                    # Blowfish. None of them is in the file, so the finding was parked as finished
+                    # work. Two of the five migratable findings in that twin were lost here.
+                    satisfied = already(orig) is None and not getattr(
+                        already, "last_vacuous", False
+                    )
             if satisfied:
                 # Raised OUTSIDE the suppress block. `AlreadySatisfied` subclasses ValueError, so
                 # raising it inside `contextlib.suppress(Exception)` was swallowed and the task
@@ -1577,7 +2089,7 @@ class MigrationOrchestrator:
             # not become smaller because the validator rejected the last candidate.
             def _generate_fresh(source: str, feedback: str | None = None) -> str:
                 try:
-                    return generate_llm_source(
+                    generated = generate_llm_source(
                         source,
                         rule,
                         asset,
@@ -1624,6 +2136,13 @@ class MigrationOrchestrator:
                         # on a file it could have read completely.
                         windowed=windowed,
                     )
+                    # Blank lines the model dropped are put back before ANYTHING sees this
+                    # candidate — the validator, the repair loop's feedback, the stored diff. No
+                    # gate can object to reformatting, because no parse, symbol, compilation or
+                    # rescan result depends on a blank line; so without this a patch that was
+                    # right about the cryptography still reached the operator as a diff full of
+                    # edits nobody asked for, with the migration the hard part to find in it.
+                    return restore_incidental_blank_lines(source, generated)
                 except (OSError, OllamaError) as e:
                     # A rejection is evidence. Recorded against the SHAPE so the next attempt at
                     # structurally identical code is told what was tried and why it failed,
@@ -1749,6 +2268,18 @@ class MigrationOrchestrator:
                 self._fail_task(task, f"Codemod error: {e}")
                 raise
 
+        # Applied to BOTH generators, and after generation rather than before, because the question
+        # is what the patch does — not what the finding looked like. A model asked to fix one hash
+        # in a file rewrites its neighbours just as readily as a codemod does.
+        collateral = _contract_collateral(orig, new, asset)
+        if collateral is not None:
+            self.resolve_guided(task.id, force=True)
+            task.advice_text = "\n\n".join(
+                part for part in (task.advice_text, collateral) if part
+            ).strip()
+            self.session.commit()
+            raise GuidedRemediation(task.id, task.advice_text)
+
         def _validate(candidate: str) -> ValidationReport:
             return validate_patch(
                 diff_text=old_new_to_diff(diff_path, orig, candidate, line_ending=line_ending),
@@ -1770,8 +2301,8 @@ class MigrationOrchestrator:
                 # The sandbox the `tests` stage runs in. Default is a bare interpreter, which is
                 # why that stage has never once run here; point it at an image carrying the target
                 # repo's pinned dependencies and it becomes a real behaviour-preservation oracle.
-                test_sandbox_image=self._sandbox_image_for(repo_root),
-                test_command=self._test_command_for(task, repo_root),
+                test_sandbox_image=self._sandbox_image_for(repo_root, rule.language),
+                test_command=self._test_command_for(task, repo_root, rule.language),
                 test_timeout_s=self.config.test_timeout_s,
                 asset_algorithm=asset.algorithm,
                 original_source=orig,
@@ -1779,6 +2310,16 @@ class MigrationOrchestrator:
                 # same file are other tasks; judging this patch on theirs made every task in a
                 # mixed file fail. Measured: 3 MD5 findings in one SQL file, 2 in one C# file.
                 asset_line=asset.location.line if asset.location else None,
+                # Selects the metamorphic relation family for `behaves`. Without these the
+                # stage has nothing to choose and skips every finding — which is how a gate
+                # that exists in the code contributes nothing to the measurement.
+                usage_context=asset.usage_context.value if asset.usage_context else None,
+                # A hybrid target must be exercised as a COMPOSITE: both halves, not one.
+                # Read from the rule's own target, so a regime that mandates hybrid gets the
+                # relations that can tell a real composite from a decorative half.
+                construction=(
+                    "hybrid" if "+" in str((rule.target or {}).get("algorithm") or "") else "pure"
+                ),
             )
 
         report = _validate(new)
@@ -1831,6 +2372,13 @@ class MigrationOrchestrator:
             base_sha256=file_sha256(file_path),
             diff_text=diff,
             validation_json=_validation_payload(report, security_notes, security_caveats),
+            # Written from the same report the JSON came from, so the column and the blob can
+            # never disagree. This is the number to report, not `status`.
+            evidence_level=report.evidence_level,
+            # Denormalised from the plan on purpose: a plan's regime can be changed and its
+            # patches regenerated, and a patch carrying only a foreign key would then claim to
+            # have been built under a policy it never saw.
+            regime=self.config.regime,
             # Empty when no model was involved, which is the majority: a deterministic
             # codemod or a cache replay costs nothing and should be visible as costing
             # nothing.
@@ -1844,11 +2392,16 @@ class MigrationOrchestrator:
         self.session.flush()
 
         if report.passed:
+            # A derived rule that produced an ACCEPTED patch has earned persistence. Storing it
+            # here rather than at derivation time is the whole safety argument: a rule whose patch
+            # the gates rejected is a bad derivation, and keeping it would hand the same mistake to
+            # every later finding it matches.
+            remember_rule(self.session, rule, asset, model_name, tenant_id)
             if use_llm and finding_line is not None:
                 if learned is not None:
                     # A replayed fix passed validation again on a new file — it has now earned
                     # its place, which is what ranks it for future prompt grounding.
-                    learn.touch(learned)
+                    learn.touch(self.session, learned)
                 else:
                     # A fresh model call passed the gate: remember this line's fix so the next
                     # identical occurrence — any file, any project, any later scan — skips the
@@ -2013,7 +2566,7 @@ class MigrationOrchestrator:
     #: thousands.
     _IMAGE_CACHE: ClassVar[dict[tuple[str, str], str]] = {}
 
-    def _sandbox_image_for(self, repo_root: Path | None) -> str:
+    def _sandbox_image_for(self, repo_root: Path | None, language: str | None = None) -> str:
         """The image whose site-packages match THIS repository, or the configured default.
 
         `_stage_tests` runs the project's own suite `--network=none`. Against a bare
@@ -2039,7 +2592,14 @@ class MigrationOrchestrator:
         # class -- reading it as a class attribute raises AttributeError and took down generation
         # for every task until it was caught.
         default_image = MigrateConfig.model_fields["test_sandbox_image"].default
-        if repo_root is None or configured != default_image:
+        if configured != default_image:
+            return configured
+        # Nothing was configured, so the default is the Python image. For any other language that
+        # is not a default, it is a guaranteed skip -- pytest cannot run a Gradle project.
+        by_language = _LANGUAGE_SANDBOX.get((language or "").lower())
+        if by_language is not None:
+            return by_language[0]
+        if repo_root is None:
             return configured
         try:
             head = subprocess.run(
@@ -2074,7 +2634,9 @@ class MigrationOrchestrator:
         self._IMAGE_CACHE[key] = found
         return found
 
-    def _test_command_for(self, task: MigrationTask, repo_root: Path | None) -> str:
+    def _test_command_for(
+        self, task: MigrationTask, repo_root: Path | None, language: str | None = None
+    ) -> str:
         """How to run THIS repository's suite.
 
         One global command cannot cover a corpus. `python -m pytest` is right for most Python
@@ -2107,6 +2669,10 @@ class MigrationOrchestrator:
                     return configured.strip()
         if repo_root is not None and (repo_root / "runtests.py").is_file():
             return "python runtests.py"
+        if self.config.test_command == MigrateConfig.model_fields["test_command"].default:
+            by_language = _LANGUAGE_SANDBOX.get((language or "").lower())
+            if by_language is not None:
+                return by_language[1]
         return self.config.test_command
 
     def _project_root_of(self, task: MigrationTask) -> Path | None:
@@ -2220,10 +2786,31 @@ class MigrationOrchestrator:
         # generated, so a file edited under QUBIT's feet is refused whether or not git tracks it.
         root = Path(top.stdout.decode("utf-8", "replace").strip() or repo_root)
         expected = self._paths_this_plan_wrote(task, repo_root)
-        unexpected = [p for p in _porcelain_paths(r.stdout, root) if p not in expected]
+
+        # Scoped to the files THIS patch writes, not the whole tree. The wide version made QUBIT
+        # unusable on any repository with work in progress, which is the normal state of one: a
+        # single unrelated edit anywhere under `repo_root` refused every patch in the run with
+        # "Dirty git tree", and the operator had no way to tell which file was the problem or why
+        # it mattered. Measured on this installation: a migration reported one patch written and
+        # twenty refused, all twenty for edits in files no patch would have touched.
+        #
+        # Nothing is given up by narrowing it. Guard 2 below hashes the file being written against
+        # the hash recorded at generation time and refuses on any mismatch, so the file this patch
+        # edits is protected more strictly than a porcelain check could manage. What this guard
+        # still adds is the case guard 2 cannot see: a file the patch CREATES that already exists
+        # with uncommitted content, which `git apply` would overwrite.
+        touched = {(repo_root / patch.file_path).resolve()}
+        for created in patch.new_files_json or {}:
+            touched.add((repo_root / created).resolve())
+        unexpected = [
+            p for p in _porcelain_paths(r.stdout, root) if p in touched and p not in expected
+        ]
         if unexpected:
             shown = ", ".join(sorted(str(p.name) for p in unexpected)[:5])
-            raise ValueError(f"Dirty git tree; commit or stash changes before applying ({shown})")
+            raise ValueError(
+                f"This change writes {shown}, which has uncommitted edits QUBIT did not make. "
+                "Commit or stash that file before applying."
+            )
 
         # 2. Guard: File hasn't changed since generation
         file_path = repo_root / patch.file_path

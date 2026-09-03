@@ -1,0 +1,35 @@
+schema: qubit-rule/v1
+language: powershell
+library:
+  name: .NET 10 post-quantum (System.Security.Cryptography)
+  detect_imports: []
+# `PS-DOTNET-TYPE-LITERAL` lists both the broken and the strong classes on purpose -- a migration is
+# confirmed by detecting its TARGET -- but its list predates .NET's PQC types, so an ML-DSA or
+# ML-KEM rewrite of a PowerShell script reported no PQC and `code-signature-01` rejected it.
+#
+# `New-SelfSignedCertificate -KeyAlgorithm ML-DSA-65` was already covered by the shell-algorithm
+# path; the type-literal form was not. Verified with a probe: the `[...MLKem]::GenerateKey(...)`
+# line reported NOTHING before this rule.
+rules:
+  - id: PS-DOTNET-PQC-TYPE
+    title: "[System.Security.Cryptography.MLDsa]::GenerateKey() — .NET 10 post-quantum types"
+    match:
+      query: |
+        (type_literal) @call
+      where:
+        - capture: call
+          regex: "(?i)(MLDsa|MLKem|ML_DSA|ML_KEM|SlhDsa|Dilithium|Kyber)"
+    extract:
+      algorithm: { from: call, resolve: pqc-in-text }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    dedupe: per-file
+    examples:
+      positive:
+        - |
+          $sig = [System.Security.Cryptography.MLDsa]::GenerateKey([System.Security.Cryptography.MLDsaAlgorithm]::MLDsa65)
+        - |
+          $kem = [System.Security.Cryptography.MLKem]::GenerateKey([System.Security.Cryptography.MLKemAlgorithm]::MLKem768)
+      negative:
+        - |
+          $rsa = [System.Security.Cryptography.RSACryptoServiceProvider]::new(2048)

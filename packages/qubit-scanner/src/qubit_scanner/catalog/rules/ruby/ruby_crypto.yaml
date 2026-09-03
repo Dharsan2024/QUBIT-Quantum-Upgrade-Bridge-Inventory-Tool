@@ -224,3 +224,77 @@ rules:
       negative:
         - |
           def f(pw) = Digest::MD5.hexdigest(pw)
+
+  # ── Post-quantum shapes ──────────────────────────────────────────────────────────────────────
+  #
+  # Ruby shipped NO PQC-aware rule at all, and that is not an under-count: it made every Ruby
+  # migration to ML-DSA or ML-KEM unwinnable by construction. `code-signature-01` and `code-kex-01`
+  # assert `present: ML-DSA` / `present: ML-KEM` at the rescan stage, so a perfectly correct rewrite
+  # reported no PQC, the gate rejected it, and the loop spent all three attempts on a file that was
+  # already right.
+  #
+  # Measured on inkwell-esign through the desktop app, as the recorded failure reason:
+  #
+  #     QUBIT cannot yet confirm a ML-DSA rewrite in ruby:
+  #     its scanner ships no rule that recognises ML-...
+  #
+  # The same gap was found and closed for Go (GO-CIRCL-MLDSA); this is its Ruby counterpart.
+
+  - id: RB-OPENSSL-PQC-NAMED
+    title: OpenSSL::PKey.generate_key('ML-DSA-65') / .new('ML-KEM-768')
+    # OpenSSL 3.5 exposes ML-DSA and ML-KEM through the generic PKey factory, so the algorithm is a
+    # STRING rather than a class. That is the shape a Ruby migration produces most often, because
+    # there is no dedicated constant to reach for.
+    match:
+      query: |
+        (call
+          receiver: (scope_resolution scope: (constant) @ns name: (constant) @mod)
+          method: (identifier) @meth
+          arguments: (argument_list . (_) @alg)) @call
+      where:
+        - { capture: ns, equals: OpenSSL }
+        - { capture: mod, in: [PKey, KEM, Signature] }
+        - { capture: meth, in: [generate_key, new, generate, derive] }
+    extract:
+      algorithm: { from: alg, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          require 'openssl'
+          def k = OpenSSL::PKey.generate_key('ML-DSA-65')
+        - |
+          def k = OpenSSL::PKey.generate_key('ML-KEM-768')
+      negative:
+        - |
+          def k = OpenSSL::Digest::SHA256.new
+
+  - id: RB-OQS-PQC
+    title: liboqs binding — OQS::Signature.new('ML-DSA-65') / OQS::KEM.new('ML-KEM-768')
+    # The other route a Ruby migration takes, because liboqs is the only widely packaged PQC
+    # implementation for the language. Without this the gem's users are invisible to the scanner.
+    match:
+      query: |
+        (call
+          receiver: (scope_resolution scope: (constant) @ns name: (constant) @mod)
+          method: (identifier) @meth
+          arguments: (argument_list . (_) @alg)) @call
+      where:
+        - { capture: ns, in: [OQS, Oqs, LibOQS] }
+        - { capture: mod, in: [Signature, KEM, Kem, KeyEncapsulation] }
+        - { capture: meth, in: [new, generate, generate_keypair] }
+    extract:
+      algorithm: { from: alg, resolve: string-constant }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          require 'oqs'
+          def s = OQS::Signature.new('ML-DSA-65')
+        - |
+          def k = OQS::KEM.new('ML-KEM-768')
+      negative:
+        - |
+          def s = OpenSSL::PKey::RSA.new(2048)

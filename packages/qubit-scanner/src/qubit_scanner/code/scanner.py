@@ -666,12 +666,40 @@ def _extract(ex: Extractor, caps: dict[str, list[Node]], root: Node) -> str | No
         case "pqc-identifier":
             # Any library's spelling of a PQC parameter set: `MLKem768`, `MlKem768`, `ml_kem_768`.
             return _pqc_identifier_algorithm(resolve.node_text(node))
+        case "pqc-in-text":
+            # The same normalisation, but scanning a whole matched region rather than one
+            # identifier. Needed wherever the parameter set is a STRING buried in a call --
+            # `openssl_pkey_new(["algorithm" => "ML-DSA-65"])`, `oqs::Signature{"ML-DSA-65"}`,
+            # `openssl genpkey -algorithm ML-KEM-768` -- where writing a grammar query that reaches
+            # the literal is far more fragile than reading it out of the text.
+            return _pqc_in_text(resolve.node_text(node))
         case "cryptojs-name":
             # crypto-js spells algorithms `TripleDES`, `HmacSHA256`, `RIPEMD160` — names the
             # registry lacks as aliases. Normalize the library-specific spellings only.
             return _CRYPTOJS_NAMES.get(resolve.node_text(node), resolve.node_text(node))
         case _:
             return resolve.node_text(node)
+
+
+def _pqc_in_text(text: str) -> str | None:
+    """The first PQC parameter set named anywhere in `text`, canonicalised.
+
+    Rules using this pair it with a `where` clause that has already established the region is a
+    crypto call, so this only has to find the name -- it is never asked to decide whether a match
+    is cryptographic.
+
+    Returns None when nothing matches, which the caller turns into "no asset" rather than a
+    fabricated one.
+    """
+    match = re.search(
+        r"(ml[-_ ]?kem|ml[-_ ]?dsa|slh[-_ ]?dsa|kyber|dilithium|sphincs|falcon|hqc)"
+        r"[-_ ]?(\d{2,4})?",
+        text,
+        re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    return _pqc_identifier_algorithm(match.group(0))
 
 
 def _pqc_identifier_algorithm(name: str) -> str:

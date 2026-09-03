@@ -747,6 +747,27 @@ def _stage_behaves(
     return StageResult(outcome, detail, time.monotonic() - t0)
 
 
+#: Symmetric parameter sets below the accepted floor, spelled out rather than derived.
+#:
+#: Narrow on purpose. This list decides when a rescan criterion that does not name the asset's
+#: algorithm may be replaced by one that does, and the cost of being too generous is high in a
+#: specific way: an algorithm that is ALREADY correct would be told to migrate, and the probe whose
+#: whole job is to skip already-correct files would start sending them to a model.
+#:
+#: `AES-256` is absent because it is the target, not a finding. A test asserts the two directions.
+_BELOW_SYMMETRIC_FLOOR = ("AES-128", "AES-192")
+
+
+def _names_a_parameter(algorithm: str) -> bool:
+    """Is this a symmetric parameter set that a migration is supposed to change?
+
+    True for `AES-128` and `AES-128-CBC`; false for bare `AES`, and false for `AES-256-GCM`, which
+    is where a correct migration LANDS. The distinction decides whether a rescan criterion that does
+    not name the asset's algorithm can be made failable by substituting it -- see the caller.
+    """
+    return algorithm.upper().startswith(_BELOW_SYMMETRIC_FLOOR)
+
+
 def _stage_rescan(
     patched_source: str,
     rule: Any | None,
@@ -872,6 +893,29 @@ def _stage_rescan(
                 matching = [p for p in gone_prefixes if asset_algorithm.startswith(p)]
                 if matching:
                     gone_prefixes = matching
+                elif _names_a_parameter(asset_algorithm):
+                    # The rule's `gone` list does not describe this asset, so on its own the check
+                    # is unfailable. But when the asset's algorithm names a PARAMETER -- a key size
+                    # or a mode, as `AES-128` and `AES-128-CBC` do -- the migration is precisely a
+                    # change to that parameter, and "this parameter set is gone from this line" is a
+                    # criterion the asset can fail. So use the asset's own algorithm as the target.
+                    #
+                    # This is what makes `code-weakcipher-01` usable on such a finding. It declares
+                    # `gone: [DES, 3DES, RC4, ...]` with `present: [AES]`, so for ANY AES asset the
+                    # `gone` half never matched and the `present` half passed -- the file was
+                    # reported already-migrated and no model was called. Measured on inkwell-esign:
+                    # `encrypt_draft` and `decrypt_draft` are AES-128-CBC and were parked as
+                    # finished work, two of that twin's five migratable findings.
+                    #
+                    # An algorithm with NO parameter is deliberately left vacuous. The rule spells
+                    # `present` as bare `AES` because Go and C carry the key length on the key
+                    # VARIABLE rather than the call, so the scanner resolves a correct AES-256-GCM
+                    # rewrite to bare `AES` -- and demanding "AES gone" there would reject the
+                    # already-correct file this same probe exists to skip
+                    # (`test_a_file_that_already_meets_the_rule_is_not_sent_to_the_model`).
+                    # The parameter is the whole discriminator: it is present exactly when the
+                    # scanner could see what needs to change.
+                    gone_prefixes = [asset_algorithm]
                 else:
                     # Falls through to the full list, unchanged. The asset satisfies it by
                     # construction — its algorithm is not among the ones being checked for.

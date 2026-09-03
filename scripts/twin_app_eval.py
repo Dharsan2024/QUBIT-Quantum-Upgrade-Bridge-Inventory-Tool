@@ -264,16 +264,28 @@ def run_twin(twin_name: str) -> dict[str, Any]:
 
     outcomes: list[dict[str, Any]] = []
     stage_tally: dict[str, dict[str, int]] = {}
+    # The rung each accepted patch could actually defend. Published beside the stage tally
+    # because a gate that was SKIPPED never counts as a pass, so a plan can be all-green on
+    # the stages it ran and still establish nothing.
+    evidence_levels: dict[int, int] = {}
     resolutions: dict[str, int] = {}
     for task in tasks:
         patches = call("GET", f"/migrate/tasks/{task['id']}/patches") or []
         patches = patches if isinstance(patches, list) else patches.get("items", [])
         for patch in patches:
-            for stage in patch.get("stages", []) or []:
-                name, status = stage.get("name"), stage.get("status")
-                if name:
-                    stage_tally.setdefault(name, {}).setdefault(status or "?", 0)
-                    stage_tally[name][status or "?"] += 1
+            # `validation.stages`, and it is a DICT keyed by gate name — not a list of stage
+            # objects on the patch itself. Reading `patch["stages"]` silently produced an empty
+            # tally for every run, so the evidence-ladder table was blank while the ladder was
+            # working perfectly well. A harness that reports nothing looks exactly like a gate that
+            # never ran, which is the confusion this whole project exists to remove.
+            stages = ((patch.get("validation") or {}).get("stages") or {})
+            for name, stage in stages.items():
+                status = (stage or {}).get("status") or "?"
+                stage_tally.setdefault(name, {}).setdefault(status, 0)
+                stage_tally[name][status] += 1
+            level = (patch.get("validation") or {}).get("evidence_level")
+            if level is not None:
+                evidence_levels[level] = evidence_levels.get(level, 0) + 1
 
         rel = (task.get("file_path") or "").replace("\\", "/")
         app_posix = app.as_posix().rstrip("/") + "/"
@@ -314,6 +326,7 @@ def run_twin(twin_name: str) -> dict[str, Any]:
         "run_seconds": round(run_seconds, 1),
         "total_seconds": round(time.time() - started, 1),
         "stages": stage_tally,
+        "evidence_levels": evidence_levels,
         "resolutions": resolutions,
         "files_touched": {k: sorted(v) for k, v in touched.items()},
         "score": scored,

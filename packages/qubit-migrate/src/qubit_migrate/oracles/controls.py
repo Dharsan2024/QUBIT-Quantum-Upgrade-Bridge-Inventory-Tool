@@ -450,10 +450,20 @@ def evaluate(control: Control, verdict: Mapping[str, Any]) -> ControlOutcome:
 Runner = Callable[[str, str, str, str], Mapping[str, Any]]
 
 
-def run_controls(runner: Runner, families: frozenset[str] | None = None) -> ControlReport:
-    """Run every control (or just those for `families`) through `runner`."""
+def run_controls(
+    runner: Runner,
+    families: frozenset[str] | None = None,
+    controls: tuple[Control, ...] | None = None,
+) -> ControlReport:
+    """Run every control (or just those for `families`) through `runner`.
+
+    `controls` is parameterised so a second language can be licensed by its OWN fixtures. It has to
+    be: Ruby's signature `verify` returns a boolean where Python's raises, so the Python positive
+    control cannot establish anything about a Ruby harness — it would be asserting that an exception
+    is thrown by code that never throws. See `ruby_harness.ruby_controls`.
+    """
     report = ControlReport()
-    for control in CONTROLS:
+    for control in controls if controls is not None else CONTROLS:
         if families is not None and control.family not in families:
             continue
         try:

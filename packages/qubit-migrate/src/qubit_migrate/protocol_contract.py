@@ -255,6 +255,176 @@ _CREDENTIAL_DIGEST_CALL = re.compile(
 )
 
 
+#: Language a developer uses when an algorithm's output OUTLIVES the code that produced it.
+#:
+#: The scanner's evidence is a +/-2 line window, which is enough to see a call and nothing about
+#: what happens to its result. But the reason a digest cannot change is almost never on the call
+#: line -- it is in the docstring above it, or a comment on the column that stores the value.
+#:
+#: Measured across the four twins: refusals whose evidence class is `prose` were 4 of the 9 false
+#: migrations in the first complete run, and every one of them had the constraint written down in
+#: the file, two lines above the code that was rewritten.
+#:
+#: **This vocabulary was written while looking at applications that also score it**, the same
+#: caveat `_CONTRACT_URLS` carries: recall measured on these twins is not an independent
+#: measurement of this rule. What keeps it honest is the negative vocabulary below -- the twins
+#: were built so that the same primitive appears on both sides of this line.
+_PERSISTED_LANGUAGE = re.compile(
+    r"""(?:
+        persisted | stored\s+(?:as|in|against|alongside) | written\s+to\s+the\s+(?:database|table)
+      | already\s+(?:stored|issued|signed|persisted|in\s+the) | existing\s+(?:rows|records|values)
+      | re-?derived | content[\s-]address
+      | de-?duplicat | primary\s+key | retained\s+for
+      | must\s+(?:match|agree) | both\s+ends | the\s+far\s+end
+      | counterpart(?:y|ies) | third[\s-]party | the\s+(?:partner|provider|acquirer|scheme|issuer)
+      | their\s+(?:system|format|software|side) | upstream\s+(?:idp|provider|service)
+      | (?:cannot|must\s+not|do\s+not|never)\s+(?:change|be\s+changed|be\s+migrated)
+    )""",
+    re.IGNORECASE | re.VERBOSE,
+)
+
+#: The counterweight, and the reason the rule above is usable at all.
+#:
+#: "Stored in the cache" contains "stored in". A render cache, an ETag and an autosaved draft are
+#: all written somewhere and all regenerable, and migrating them is correct. Without this the rule
+#: would refuse the migratable half of every twin -- `Internal.render_cache_key` sits nine lines
+#: from `Documents.content_digest` and uses the same primitive.
+_REGENERABLE_LANGUAGE = re.compile(
+    r"""(?:
+        cache | ephemeral | in[\s-]process | per[\s-]request | regenerated
+      # `recomputed every request` is the plainest statement of ephemerality there is, and
+      # it was in the PERSISTED list -- which flagged both twins' rate-limit buckets, the
+      # most obviously regenerable values in the corpus.
+      | recomputed\s+(?:per|every|each|on\s+every) | rebuilt | rate[\s-]limit
+      | discarded | temporary | transient | thumbnail | draft | this\s+session
+      | only\s+(?:this|consumer|reader) | nothing\s+keeps
+    )""",
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def documented_constraint(context: str | None) -> ContractVerdict | None:
+    """A constraint the authors wrote down in prose next to the code.
+
+    `context` is the enclosing documentation for the finding -- a docstring, or the comment block
+    above the symbol -- NOT the +/-2 line snippet, which by construction cannot contain it.
+
+    Returns a verdict only when the text says the value outlives the code AND does not say it is
+    regenerable. Both halves are required: the second is what separates a persisted content address
+    from a render cache key written with the same primitive, which is the distinction the twins were
+    built to isolate and the one a snippet-level rule cannot make.
+
+    Erring toward a verdict is deliberate and is the same trade the rest of this module makes: a
+    false verdict costs an advisory on a finding that could have been auto-migrated, a missed one
+    costs a broken repository that every syntactic gate passes.
+    """
+    if not context:
+        return None
+    if _REGENERABLE_LANGUAGE.search(context):
+        return None
+    match = _PERSISTED_LANGUAGE.search(context)
+    if match is None:
+        return None
+    return ContractVerdict(
+        reason="the code documents this value as one that outlives the call — persisted, "
+        "re-derived, or agreed with another party — so changing the algorithm changes something "
+        "already written down elsewhere",
+        signal=f"documentation says {match.group(0).strip()!r}",
+    )
+
+
+def enclosing_documentation(source: str, line: int, *, window: int = 40) -> str:
+    """The documentation a reader would attach to the code at ``line``.
+
+    The contiguous block of lines above the finding, up to the first double blank line: the
+    docstring or comment its author wrote for whoever reads the function next.
+
+    Scanning UPWARD rather than parsing is deliberate. The constraint is written for a human reading
+    the code, and every language in the corpus puts that text in the same place relative to it —
+    directly above. A grammar-based version would need a different node type per language and would
+    still miss the Java case, where the constraint lives in a class-level javadoc that lists every
+    method rather than beside any one of them.
+
+    The walk stops at the first line of CODE above the definition, which is what keeps the context
+    the symbol's own. An earlier version simply took 40 lines and got the whole module docstring
+    with it — and on `inkwell-esign` that docstring contains the sentence "A signed PDF is not a
+    cache entry", whose one word `cache` vetoed a correct refusal of a persisted content address.
+    Reading a neighbouring symbol's documentation is not a smaller mistake than reading none.
+
+    ``window`` bounds the walk, so a file of solid comments cannot become one enormous context.
+    """
+    lines = source.splitlines()
+    if not 1 <= line <= len(lines):
+        return ""
+
+    # `line` is the FINDING's line — the crypto call — not the definition's. So the walk skips the
+    # signature and whatever body sits above the call before it reaches the documentation. Anchoring
+    # on the definition instead was the first version, and it returned "" for almost every real
+    # finding, because a call is rarely the line a symbol starts on.
+    #
+    # `_MAX_BODY_SKIP` bounds that skip. Without it, a long undocumented function walks all the way
+    # up into the PREVIOUS symbol's comment block and reads a constraint belonging to other code.
+    collected: list[str] = []
+    blanks = 0
+    skipped_code = 0
+    for index in range(line - 2, max(-1, line - 2 - window), -1):
+        text = lines[index].strip()
+        if not text:
+            blanks += 1
+            # One blank line may sit inside a comment block; two end it.
+            if blanks >= 2 and collected:
+                break
+            continue
+        if not _is_comment(text):
+            if collected:
+                break  # real code above the block: it belongs to whatever came before
+            skipped_code += 1
+            if skipped_code > _MAX_BODY_SKIP:
+                break
+            continue
+        blanks = 0
+        collected.append(text)
+    collected.reverse()
+
+    # Python and Ruby put the docstring INSIDE the definition, below the line the symbol starts on,
+    # so a walk that only looks upward finds the decorator and nothing else. Measured: every
+    # `medivault-emr` refusal was missed this way.
+    for index in range(line, min(len(lines), line + window)):
+        text = lines[index].strip()
+        if not text:
+            continue
+        if not (text.startswith('"""') or text.startswith("'''")):
+            break
+        quote = text[:3]
+        collected.append(text.strip(quote))
+        if text.count(quote) < 2:  # multi-line docstring: read to its close
+            for tail in range(index + 1, min(len(lines), index + window)):
+                body = lines[tail].strip()
+                collected.append(body.replace(quote, ""))
+                if quote in body:
+                    break
+        break
+
+    return "\n".join(collected)
+
+
+#: Every comment opener in the corpus. A prefix test rather than a grammar: this reads the block
+#: ABOVE a definition, which most grammars do not attach to the definition's node at all.
+_COMMENT_OPENERS = ("#", "//", "*", "/*", "--", "<!--")
+
+#: How many lines of code may sit between a finding and its documentation before the walk gives up.
+#:
+#: The finding is a call, so the signature and some body always sit between it and the docstring.
+#: But an UNDOCUMENTED function must not borrow the previous symbol's comment block: that reads a
+#: constraint written about other code and refuses a migration on it. Twelve covers the functions in
+#: the corpus (the longest documented one is nine lines) without reaching past a short neighbour.
+_MAX_BODY_SKIP = 12
+
+
+def _is_comment(text: str) -> bool:
+    return text.startswith(_COMMENT_OPENERS)
+
+
 def external_contract(
     algorithm: str | None,
     file_path: str | None,

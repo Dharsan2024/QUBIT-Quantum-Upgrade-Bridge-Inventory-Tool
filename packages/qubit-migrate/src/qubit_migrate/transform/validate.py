@@ -561,6 +561,89 @@ def _oracle_pypath_args() -> list[str]:
     return ["-v", f"{Path(root).resolve()}:/src:ro", "-e", "PYTHONPATH=/src:/src/src"]
 
 
+#: Languages a metamorphic harness has been PROBED for — not merely written for.
+#:
+#: Each entry means the primitive families were exercised against the installed library in that
+#: language's own container and the conventions were MEASURED. Ruby's signature `verify` returns a
+#: boolean where Python's raises `InvalidSignature`, and its AEAD rejection raises where its
+#: signature does not; either assumption carried across from the other language would produce a
+#: harness that passes a no-op rewrite. See `oracles/ruby_harness.py` for the probe log.
+#:
+#: Go and Java are absent for a container reason rather than a harness one: Go 1.23 predates stdlib
+#: `crypto/mlkem` and the Maven image carries no BouncyCastle, so neither can run a PQC round trip
+#: offline yet.
+_ORACLE_LANGUAGES = frozenset({"python", "ruby"})
+
+#: The image the Ruby oracle runs in. Ruby's OpenSSL 3.5.7 provides ML-DSA, so no extra layer is
+#: needed over the twin's own sandbox — and sharing that image means a family licensed here is
+#: licensed against the very interpreter that will judge the patch.
+_RUBY_ORACLE_IMAGE = "qubit-eval/inkwell:sandbox"
+
+
+def _run_ruby_oracle(
+    source: str, target: str, usage_context: str, construction: str
+) -> dict[str, Any]:
+    """Render and execute the Ruby harness once.
+
+    Mirrors `_run_oracle` deliberately, container limits included: a Ruby verdict produced under
+    different constraints would not be comparable with a Python one, and the evidence ladder counts
+    them as the same rung.
+    """
+    from ..oracles.ruby_harness import build as build_ruby
+
+    plan = build_ruby(relations_for(usage_context, construction), source, target)
+    if not plan.runnable:
+        return {"status": "skipped", "reason": plan.skip_reason, "relations": []}
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        work = Path(tmpdir)
+        # Explicit LF: this is bind-mounted into a Linux container, and Python's default CRLF
+        # re-encoding on Windows breaks the driver the same way it broke `_stage_compiles`' scripts.
+        (work / "patched.rb").write_text(source, encoding="utf-8", newline="\n")
+        (work / "driver.rb").write_text(
+            plan.source.replace("__MODULE_PATH__", '"/work/patched.rb"'),
+            encoding="utf-8",
+            newline="\n",
+        )
+        try:
+            result = subprocess.run(
+                [
+                    "docker", "run", "--rm", "--network=none",
+                    "--memory=1g", "--cpus=1", "--pids-limit=128",
+                    "-v", f"{tmpdir}:/work:ro",
+                    _RUBY_ORACLE_IMAGE, "ruby", "/work/driver.rb",
+                ],
+                capture_output=True,
+                timeout=90,
+            )
+        except subprocess.TimeoutExpired:
+            # Not a behavioural difference. Inconclusive rather than `fail`, for the same reason a
+            # slow-but-green suite must not be scored as a patch failure.
+            return {
+                "status": "skipped",
+                "reason": "the metamorphic harness timed out",
+                "relations": [],
+            }
+
+    raw = result.stdout.decode("utf-8", errors="replace").strip().splitlines()
+    if not raw:
+        return {
+            "status": "skipped",
+            "reason": "the harness produced no verdict: "
+            + result.stderr.decode("utf-8", errors="replace")[:300],
+            "relations": [],
+        }
+    try:
+        verdict: dict[str, Any] = json.loads(raw[-1])
+    except json.JSONDecodeError:
+        return {
+            "status": "skipped",
+            "reason": f"unreadable harness verdict: {raw[-1][:200]}",
+            "relations": [],
+        }
+    return verdict
+
+
 def _run_oracle(source: str, target: str, usage_context: str, construction: str) -> dict[str, Any]:
     """Render and execute the harness once. The single path both controls and patches take.
 
@@ -645,6 +728,41 @@ def verified_families() -> frozenset[str]:
     return _verified_families
 
 
+#: Ruby's licensed families, cached like the Python set and for the same reason: the controls cost
+#: three containers and would otherwise run once per finding.
+_verified_ruby_families: frozenset[str] | None = None
+_ruby_control_report: ControlReport | None = None
+
+
+def verified_ruby_families() -> frozenset[str]:
+    """Families the RUBY admission controls have licensed.
+
+    Separate from `verified_families` rather than merged with it, because a licence is a statement
+    about one harness against one library. Python's positive control asserts that a broken `verify`
+    raises `InvalidSignature`; Ruby's returns `false`. Letting either license the other would mean
+    the family with no working negatives inherits the other's licence — which is exactly the
+    unfalsifiable oracle the admission gate exists to prevent.
+    """
+    global _verified_ruby_families, _ruby_control_report
+    if _verified_ruby_families is not None:
+        return _verified_ruby_families
+    if not _docker_available() or not _image_present(_RUBY_ORACLE_IMAGE):
+        # Not a control failure — the oracle cannot run at all, which the stage reports on its own.
+        # Left unset so it is retried if the image later appears.
+        return frozenset()
+
+    from ..oracles.ruby_harness import ruby_controls
+
+    _ruby_control_report = run_controls(_run_ruby_oracle, controls=ruby_controls())
+    _verified_ruby_families = _ruby_control_report.families
+    return _verified_ruby_families
+
+
+def ruby_control_report() -> ControlReport | None:
+    """The published Ruby control artifact, or None if the controls have not been run."""
+    return _ruby_control_report
+
+
 def control_report() -> ControlReport | None:
     """The published control artifact, or None if the controls have not been run.
 
@@ -679,10 +797,12 @@ def _stage_behaves(
     """
     t0 = time.monotonic()
 
-    if (language or "").lower() != "python":
+    lang = (language or "").lower()
+    if lang not in _ORACLE_LANGUAGES:
         return StageResult(
             "skipped",
-            f"the metamorphic harness has probed API shapes for Python only, not {language}",
+            f"no metamorphic harness has been probed for {language} — probed: "
+            f"{', '.join(sorted(_ORACLE_LANGUAGES))}",
             time.monotonic() - t0,
         )
 
@@ -695,7 +815,17 @@ def _stage_behaves(
         )
 
     relation_set = relations_for(usage_context, construction)
-    plan = build_harness(relation_set, patched_source, target)
+    # Built by the LANGUAGE's own harness. This pre-check used `build_harness` unconditionally, so a
+    # Ruby patch was judged by Python's symbol search and skipped with
+    # "the patch references none of ['MLKEM768PrivateKey']" — a Python class name, about a Ruby
+    # file. Observed on the live run: the Ruby oracle was fully built, licensed and never reached,
+    # because the gate in front of it spoke the wrong language.
+    if lang == "python":
+        plan = build_harness(relation_set, patched_source, target)
+    else:
+        from ..oracles.ruby_harness import build as build_ruby
+
+        plan = build_ruby(relation_set, patched_source, target)
     if not plan.runnable:
         # Never `pass`. An oracle that did not run has established nothing, and recording that as
         # success is the exact failure the admission controls exist to catch.
@@ -703,11 +833,12 @@ def _stage_behaves(
 
     if not _docker_available():
         return StageResult("skipped", "docker unavailable", time.monotonic() - t0)
-    if not _image_present(_oracle_image()):
+    image = _oracle_image() if lang == "python" else _RUBY_ORACLE_IMAGE
+    if not _image_present(image):
         return StageResult(
             "skipped",
-            f"oracle image {_oracle_image()} is not built (QUBIT never pulls one itself) — run: "
-            f"docker build -t {_oracle_image()} -f qubit-v2/02-verification/Dockerfile.oracle .",
+            f"oracle image {image} is not built (QUBIT never pulls one itself) — run: "
+            f"docker build -t {image} -f qubit-v2/02-verification/Dockerfile.oracle .",
             time.monotonic() - t0,
         )
 
@@ -716,15 +847,20 @@ def _stage_behaves(
     # exactly like a working one from the outside; the controls are the only thing that tells the
     # two apart, and running them once per process costs ten containers against thousands of
     # findings.
-    if relation_set.family not in verified_families():
+    licensed = verified_families() if lang == "python" else verified_ruby_families()
+    if relation_set.family not in licensed:
         return StageResult(
             "skipped",
-            f"the admission controls have not licensed the {relation_set.family!r} family, so its "
-            "verdicts are not evidence — see oracles/controls.py",
+            f"the {lang} admission controls have not licensed the {relation_set.family!r} family, "
+            "so its verdicts are not evidence — see oracles/controls.py",
             time.monotonic() - t0,
         )
 
-    verdict = _run_oracle(patched_source, target, usage_context or "", construction)
+    verdict = (
+        _run_oracle(patched_source, target, usage_context or "", construction)
+        if lang == "python"
+        else _run_ruby_oracle(patched_source, target, usage_context or "", construction)
+    )
 
     status = str(verdict.get("status", "skipped"))
     relations = verdict.get("relations") or []

@@ -386,6 +386,24 @@ _LANGUAGE_SANDBOX: dict[str, tuple[str, str]] = {
 }
 
 
+def _documented_constraint_for(asset: CryptoAsset) -> Any:
+    """The contract verdict implied by the documentation around this finding, if any.
+
+    Reads the file, so it is guarded: a finding whose file has moved or cannot be decoded produces
+    no verdict rather than an error. Absence of documentation is not evidence of a free choice.
+    """
+    from .protocol_contract import documented_constraint, enclosing_documentation
+
+    location = asset.location
+    if location is None or not location.file_path or not location.line:
+        return None
+    try:
+        source = Path(location.file_path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return documented_constraint(enclosing_documentation(source, location.line))
+
+
 class MigrationOrchestrator:
     """Facade wiring all qubit-migrate components (the only import surface for api/cli)."""
 
@@ -1724,6 +1742,16 @@ class MigrationOrchestrator:
             (asset.location.file_path if asset.location else None),
             ((asset.evidence.snippet if asset.evidence else None) or None),
         )
+        # The snippet is a +/-2 line window, which can show a call and nothing about what happens
+        # to its result. The reason a digest must not change is almost never on the call line: it
+        # is in the docstring above it. Measured across the four twins, refusals whose evidence
+        # class is `prose` were 4 of the 9 false migrations in the first complete run, and every
+        # one had the constraint written down two lines up.
+        #
+        # Consulted only when the snippet-level rules found nothing, so it can add refusals and
+        # never override a verdict reached on stronger evidence.
+        if contract is None:
+            contract = _documented_constraint_for(asset)
         if contract is not None:
             task.last_error = contract.reason
             # `resolve_guided` regenerates `advice_text` from the playbook, so the contract's own

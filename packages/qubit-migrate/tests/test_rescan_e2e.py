@@ -31,17 +31,48 @@ def _rule(gone: list[str]) -> MigrationRule:
     )
 
 
-def test_an_unfailable_gone_criterion_is_flagged_vacuous() -> None:
-    """An AES finding routed to a rule that lists DES/3DES/RC4/Blowfish.
+def test_a_below_floor_asset_makes_the_criterion_failable() -> None:
+    """An AES-128 finding routed to a rule that lists DES/3DES/RC4/Blowfish.
 
-    The patch is checked for the absence of four algorithms the file never contained. It passes,
-    and the pass says nothing. This is the shape the plan predicted; the flag makes it countable.
+    The rule's `gone` list names four algorithms the file never contained, so on its own the check
+    is unfailable — and it used to be reported `vacuous`, correctly describing a pass that said
+    nothing. But the asset's algorithm names a PARAMETER SET below the floor, and "AES-128-ECB is
+    gone from this line" is a criterion the asset can fail, so it is used instead.
+
+    That is what makes `code-weakcipher-01` usable on such a finding at all: before this, every AES
+    asset satisfied the rule by construction, the pre-flight probe read the file as already
+    migrated, and no codemod and no model ever ran. Measured on inkwell-esign, it cost two of five
+    migratable findings.
+
+    Here the criterion is failable AND satisfied — a genuine pass, which is the point.
     """
     result = _stage_rescan(
         _AES_GCM,
         _rule(["DES", "3DES", "RC4", "Blowfish"]),
         language="python",
         asset_algorithm="AES-128-ECB",
+    )
+    assert result.status == "pass"
+    assert result.vacuous is False, (
+        "AES-128-ECB can name itself, so this pass is earned rather than unfailable"
+    )
+
+
+def test_an_unfailable_gone_criterion_is_still_flagged_vacuous() -> None:
+    """Bare `AES` is the case that remains vacuous, and deliberately so.
+
+    The rule spells its `present` target as bare `AES` because Go and C carry the key length on the
+    key VARIABLE rather than the call, so the scanner resolves a correct AES-256-GCM rewrite to
+    plain `AES`. Substituting that as a `gone` target would demand the file migrate away from the
+    algorithm it just correctly migrated TO — and would send already-correct files to a model.
+
+    So the flag still exists, still means the same thing, and still makes such a pass countable.
+    """
+    result = _stage_rescan(
+        _AES_GCM,
+        _rule(["DES", "3DES", "RC4", "Blowfish"]),
+        language="python",
+        asset_algorithm="AES",
     )
     assert result.status == "pass"
     assert result.vacuous is True

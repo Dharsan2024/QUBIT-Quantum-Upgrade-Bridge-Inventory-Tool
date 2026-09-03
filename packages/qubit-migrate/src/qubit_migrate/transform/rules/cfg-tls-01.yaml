@@ -48,6 +48,16 @@ semantic_note: >
   harvest-now-decrypt-later, since it has no forward secrecy at all), and TLS 1.2 is deliberately
   retained alongside 1.3 because dropping it outright would make the patch un-appliable in practice.
   Requires the terminator to be linked against OpenSSL 3.5+, which ships ML-KEM natively.
+
+  Retaining TLS 1.2 is a compromise with a date on it, and the date is not a guess. BSI TR-02102-2
+  Version 2026-01 section 3.2 recommends TLS 1.2 only "bis Ende 2031" - until the end of 2031 -
+  and gives a post-quantum reason rather than a classical one: "da nach derzeitigem Kenntnisstand
+  keine quantensicheren Schluesseleinigungsverfahren fuer TLS 1.2 standardisiert werden", because
+  no quantum-safe key agreement will be standardised for it. TLS 1.3 is listed as "2032+".
+
+  So a listener that keeps TLS 1.2 is not merely running an older protocol; it is holding open a
+  path on which the hybrid group this rule installs cannot be negotiated at all. The hardened
+  config is correct today and is not the end state.
 codemod: harden_tls_config
 # The correct output here is a constant (the hybrid group / the version floor), so the codemod is
 # authoritative and an LLM must not replace it even under --generator llm.

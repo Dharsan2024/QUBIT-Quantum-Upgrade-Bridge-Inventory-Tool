@@ -9,6 +9,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
 from qubit_core.db import Base, ProjectRow, ScanRow
 from qubit_core.mapping import asset_to_row
 from qubit_core.schemas import (
@@ -259,3 +260,82 @@ def test_apply_ignores_dirty_state_outside_repo_root(tmp_path: Path) -> None:
     applied = orch.apply_patch(patch.id, repo_root=repo_root)
     assert applied.status == "applied"
     assert "md5" not in (repo_root / "app.py").read_text(encoding="utf-8")
+
+
+def test_unrelated_dirt_inside_the_repo_does_not_block_a_patch(tmp_path: Path) -> None:
+    """The guard has to be about the file being written, not about the repository's mood.
+
+    Refusing on ANY uncommitted edit under `repo_root` made QUBIT unusable on a repository with
+    work in progress, which is the normal state of one. A single unrelated edit refused every
+    patch in the run with "Dirty git tree", and the message named neither the file nor why it
+    mattered — so a migration reported one patch written and twenty refused, all twenty for edits
+    in files no patch would have touched.
+
+    Nothing is given up: the file this patch writes is still protected, and more strictly, by the
+    sha256 guard that follows.
+    """
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    _git(repo_root, "init")
+    _git(repo_root, "config", "user.email", "test@example.com")
+    _git(repo_root, "config", "user.name", "Test")
+    (repo_root / "app.py").write_text(VULN_SOURCE, encoding="utf-8")
+    (repo_root / "notes.md").write_text("committed\n", encoding="utf-8")
+    _git(repo_root, "add", ".")
+    _git(repo_root, "commit", "-m", "init")
+
+    # Work in progress in a file no patch will touch.
+    (repo_root / "notes.md").write_text("still editing this\n", encoding="utf-8")
+    assert _git(repo_root, "status", "--porcelain", "--", ".").stdout.strip(), "repo must be dirty"
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    _seed(session, repo_root)
+
+    orch = MigrationOrchestrator(session)
+    plan = orch.build_plan()
+    task = orch.get_queue(plan.id)[0]
+    patch = orch.generate_patch(task.id, repo_root=repo_root)
+    assert patch.status == "proposed", patch.validation_json
+    orch.review_patch(patch.id, approve=True)
+
+    applied = orch.apply_patch(patch.id, repo_root=repo_root)
+
+    assert applied.status == "applied"
+    assert "md5" not in (repo_root / "app.py").read_text(encoding="utf-8")
+    # The unrelated edit is untouched -- QUBIT wrote its file and nothing else.
+    assert (repo_root / "notes.md").read_text(encoding="utf-8") == "still editing this\n"
+
+
+def test_uncommitted_edits_to_the_patched_file_itself_still_block(tmp_path: Path) -> None:
+    """The half that must not be lost. A file edited under QUBIT's feet is refused, because the
+    diff was computed against content that is no longer there and `git apply` would either fail or
+    silently land somewhere unintended."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    _git(repo_root, "init")
+    _git(repo_root, "config", "user.email", "test@example.com")
+    _git(repo_root, "config", "user.name", "Test")
+    (repo_root / "app.py").write_text(VULN_SOURCE, encoding="utf-8")
+    _git(repo_root, "add", ".")
+    _git(repo_root, "commit", "-m", "init")
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    _seed(session, repo_root)
+
+    orch = MigrationOrchestrator(session)
+    plan = orch.build_plan()
+    task = orch.get_queue(plan.id)[0]
+    patch = orch.generate_patch(task.id, repo_root=repo_root)
+    orch.review_patch(patch.id, approve=True)
+
+    # Someone edits the very file the patch was generated against.
+    (repo_root / "app.py").write_text(
+        VULN_SOURCE + "\n# edited after generation\n", encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match=r"changed since generation|uncommitted edits"):
+        orch.apply_patch(patch.id, repo_root=repo_root)

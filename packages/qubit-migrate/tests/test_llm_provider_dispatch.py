@@ -805,3 +805,157 @@ def test_the_same_endpoint_is_not_tried_twice_because_it_appears_twice_in_the_po
         "https://one.example/v1/chat/completions",
         "https://two.example/v1/chat/completions",
     ], "the duplicate endpoint must not cost a second request"
+
+
+def test_a_transiently_failing_engine_is_skipped_for_a_while(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Finding out that a provider is overloaded is expensive, so it is only paid once.
+
+    Measured on a certbot migration: NVIDIA took **three minutes** to answer
+    `503 Service temporarily overloaded`, and every finding in the plan paid that toll again because
+    nothing remembered the last one. Twenty minutes of the run went on re-establishing that the same
+    endpoint was still busy, while the local model sat idle at 0% GPU.
+    """
+    llm._ENGINE_COOLDOWN.clear()
+    tried: list[str] = []
+
+    def fake_urlopen(req, timeout: float):
+        body = json.loads(req.data)
+        tried.append(body["model"])
+        if body["model"] == "busy":
+            raise urllib.error.HTTPError(
+                req.full_url,
+                503,
+                "Service Unavailable",
+                None,
+                io.BytesIO(b'{"error":{"message":"Service temporarily overloaded"}}'),
+            )
+        return _FakeResponse({"choices": [{"message": {"content": "the rewritten file"}}]})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    spare = llm.ExternalEndpoint(base_url="https://spare.example/v1", model="spare", api_key="k2")
+
+    # First call learns the 503 the hard way and falls through to the spare.
+    llm._generate(
+        "prompt",
+        model="busy",
+        base_url="https://busy.example/v1",
+        api_key="k1",
+        provider="openai-compatible",
+        backups=(spare,),
+    )
+    # Second call must not ask the busy engine again.
+    llm._generate(
+        "prompt",
+        model="busy",
+        base_url="https://busy.example/v1",
+        api_key="k1",
+        provider="openai-compatible",
+        backups=(spare,),
+    )
+
+    assert tried == ["busy", "spare", "spare"], tried
+    llm._ENGINE_COOLDOWN.clear()
+
+
+def test_the_last_engine_is_tried_even_while_cooling(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A cooldown must never turn into "no engine at all". If the only endpoint left is cooling,
+    asking it and failing is strictly better than refusing the finding without trying -- the window
+    is 90 seconds and the provider may well have recovered inside it."""
+    llm._ENGINE_COOLDOWN.clear()
+    llm._start_cooldown("https://only.example/v1", "only")
+    tried: list[str] = []
+
+    def fake_urlopen(req, timeout: float):
+        tried.append(json.loads(req.data)["model"])
+        return _FakeResponse({"choices": [{"message": {"content": "file"}}]})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    llm._generate(
+        "prompt",
+        model="only",
+        base_url="https://only.example/v1",
+        api_key="k",
+        provider="openai-compatible",
+    )
+
+    assert tried == ["only"], "the sole remaining engine must still be asked"
+    llm._ENGINE_COOLDOWN.clear()
+
+
+def test_an_engine_whose_key_is_rejected_is_not_asked_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dead key is a fact about the configuration, not a bad moment for the provider.
+
+    Measured on the certbot run: the configured primary answered HTTP 403 (Cloudflare 1010 — the key
+    had been revoked). Nothing remembered it, so all 297 findings opened by asking the same dead
+    endpoint. Each 403 was fast, which is precisely why nobody noticed: no timeout, no rate limit,
+    just a run that silently never used the engine it was configured to use.
+    """
+    llm._ENGINE_REFUSED.clear()
+    llm._ENGINE_COOLDOWN.clear()
+    tried: list[str] = []
+
+    def fake_urlopen(req, timeout: float):
+        model = json.loads(req.data)["model"]
+        tried.append(model)
+        if model == "revoked":
+            raise urllib.error.HTTPError(
+                req.full_url, 403, "Forbidden", None, io.BytesIO(b"error code: 1010")
+            )
+        return _FakeResponse({"choices": [{"message": {"content": "the rewritten file"}}]})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    spare = llm.ExternalEndpoint(base_url="https://spare.example/v1", model="spare", api_key="k2")
+
+    for _ in range(3):
+        llm._generate(
+            "prompt",
+            model="revoked",
+            base_url="https://dead.example/v1",
+            api_key="k1",
+            provider="openai-compatible",
+            backups=(spare,),
+        )
+
+    assert tried == ["revoked", "spare", "spare", "spare"], tried
+    llm._ENGINE_REFUSED.clear()
+
+
+def test_a_rejected_key_is_skipped_even_as_the_only_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unlike a cooldown, which spares the last engine because the provider may have recovered.
+
+    A rejected key cannot recover on its own, so asking it again produces one more identical
+    rejection instead of an answer. The finding falls through to the local model, which is the
+    engine that can actually do the work when nothing external is usable.
+    """
+    llm._ENGINE_REFUSED.clear()
+    llm._ENGINE_COOLDOWN.clear()
+    tried: list[str] = []
+
+    def fake_urlopen(req, timeout: float):
+        if "11434" in req.full_url:
+            tried.append("local")
+            return _FakeResponse({"response": "local answer"})
+        tried.append(json.loads(req.data)["model"])
+        raise urllib.error.HTTPError(
+            req.full_url, 401, "Unauthorized", None, io.BytesIO(b"bad key")
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    for _ in range(2):
+        llm._generate(
+            "prompt",
+            model="only",
+            base_url="https://only.example/v1",
+            api_key="k",
+            provider="openai-compatible",
+            fallback_ollama_model="qwen2.5-coder:7b",
+        )
+
+    assert tried == ["only", "local", "local"], tried
+    llm._ENGINE_REFUSED.clear()

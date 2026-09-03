@@ -38,6 +38,7 @@ def _asset(
     usage: UsageContext = UsageContext.hash,
     path: str = "a.py",
     library: str | None = None,
+    line: int = 1,
 ) -> CryptoAsset:
     """A synthetic asset.
 
@@ -52,7 +53,7 @@ def _asset(
         algorithm=algorithm,
         usage_context=usage,
         quantum_vulnerable=QuantumVulnerability(vulnerable=True, attack=QuantumAttack.shor),
-        location=Location(file_path=path, line=1),
+        location=Location(file_path=path, line=line),
         library=LibraryRef(name=library) if library else None,
         evidence=Evidence(),
     )
@@ -321,12 +322,12 @@ def test_cross_language_hash_swap_updates_the_import(tmp_path: Path) -> None:
     go_file.write_text(
         'package main\n\nimport "crypto/md5"\n\nfunc f(b []byte) { md5.New() }\n', encoding="utf-8"
     )
-    result = run_codemod("weakhash_to_sha256", _asset("MD5", path="main.go"), go_file)
+    result = run_codemod("weakhash_to_sha256", _asset("MD5", path="main.go", line=5), go_file)
     assert result is not None
     _, new_source = result
     assert '"crypto/sha256"' in new_source
     assert "sha256.New()" in new_source
-    assert "md5" not in new_source
+    assert "md5" not in new_source, "the sole caller went, so the import must go with it"
 
 
 def test_unknown_codemod_raises() -> None:

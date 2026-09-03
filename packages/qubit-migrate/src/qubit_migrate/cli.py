@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from uuid import UUID
 
@@ -22,12 +23,23 @@ console = Console()
 
 
 def session_factory() -> Session:
-    """Open a DB Session against the default DB (env QUBIT_DB_URL or user-data-dir SQLite).
+    """Open a DB Session against `QUBIT_DB_URL`, or the user-data-dir SQLite when unset.
 
     Zero-arg so every ``with session_factory() as session`` call site works; the real
     qubit_core.db.session_factory needs an engine and returns a sessionmaker.
+
+    **`QUBIT_DB_URL` is read here, not inside `default_db_url()`.** That function returns the
+    user-data-dir path unconditionally, and this docstring claimed to honour the variable while
+    calling it directly — so every invocation of this CLI wrote to the operator's real database
+    whatever the environment said.
+
+    That is not a cosmetic gap. The evaluation runs each arm in a fresh process against its own
+    isolated database; without this, every arm would have written to the live one, contaminating
+    each other AND the operator's data, and the isolation the design depends on would have been
+    entirely notional. `qubit_cli.main` and `qubit_cli.commands.risk` already resolve it this way;
+    this module was the one that did not.
     """
-    return _make_session_factory(get_engine(default_db_url()))()
+    return _make_session_factory(get_engine(os.getenv("QUBIT_DB_URL") or default_db_url()))()
 
 
 @migrate_app.command("plan")

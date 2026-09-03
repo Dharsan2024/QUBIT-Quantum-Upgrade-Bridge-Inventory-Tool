@@ -85,6 +85,80 @@ def old_new_to_diff(
     return "".join(diff_lines)
 
 
+_BLANK_LINE = re.compile(r"^[ \t]*$")
+
+
+def _is_blank(line: str) -> bool:
+    """A line with nothing on it. Indentation left behind by an editor counts — those are exactly
+    the blank lines a reformatting model is most likely to tidy away."""
+    return _BLANK_LINE.match(line.strip("\r\n")) is not None
+
+
+def _split_blank_edges(lines: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """`(leading blanks, content, trailing blanks)`. An all-blank run is returned as leading."""
+    lead = 0
+    while lead < len(lines) and _is_blank(lines[lead]):
+        lead += 1
+    if lead == len(lines):
+        return lines, [], []
+    trail = len(lines)
+    while trail > lead and _is_blank(lines[trail - 1]):
+        trail -= 1
+    return lines[:lead], lines[lead:trail], lines[trail:]
+
+
+def restore_incidental_blank_lines(original_source: str, new_source: str) -> str:
+    """Put back blank lines the rewrite dropped, and change nothing else.
+
+    A model asked to migrate a file is given the whole file and returns the whole file, so what
+    comes back carries its formatting habits along with the fix. Measured on certbot's
+    `certbot-ci/.../misc.py`: a correct ML-DSA rewrite -- the right import, the right key type, the
+    right CSR branch -- also collapsed PEP 8's two-blank-line separators to one, throughout
+    functions the finding never touched.
+
+    Nothing in the validation gate objects, and nothing should: blank lines change no parse, no
+    symbol, no compilation and no rescan result. So the patch passes every stage and still arrives
+    as a diff a maintainer would refuse, six lines of migration buried in forty lines of
+    reformatting nobody asked for. On the tool's own terms that is a success; on the only terms
+    that decide whether the migration is real -- would this be merged -- it is not.
+
+    Only deletions of entirely blank lines are undone. A deleted run containing any real line is
+    the model removing code, which is its job and is left alone; so is every insertion and every
+    change to a line's content. The restoration cannot alter behaviour, because a blank line has
+    none.
+    """
+    original_lines = original_source.splitlines(keepends=True)
+    new_lines = new_source.splitlines(keepends=True)
+    matcher = difflib.SequenceMatcher(a=original_lines, b=new_lines, autojunk=False)
+
+    restored: list[str] = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        dropped, added = original_lines[i1:i2], new_lines[j1:j2]
+        if tag == "delete":
+            # A run that is entirely blank is spacing the model dropped, and comes back. A run
+            # containing any real line is the model REMOVING CODE, which is its job — restoring
+            # the blank lines that surrounded it would leave a gap where the code used to be.
+            if all(_is_blank(line) for line in dropped):
+                restored.extend(dropped)
+            continue
+        if tag != "replace":
+            restored.extend(added)
+            continue
+        # `difflib` folds a dropped blank line into whatever edit sits next to it, so the certbot
+        # case — one line changed, the two blank lines after it swallowed — arrives here as a
+        # single `replace` rather than as an edit plus a deletion. Only the blank lines at the
+        # BOUNDARIES are considered: the changed content itself is whatever the model wrote.
+        dropped_lead, _, dropped_trail = _split_blank_edges(dropped)
+        added_lead, added_core, added_trail = _split_blank_edges(added)
+        # Whichever side has more. Restoring never removes: spacing the model ADDED is its own
+        # choice inside an edit it was making, and second-guessing that would mean rewriting
+        # output that is not wrong.
+        restored.extend(dropped_lead if len(dropped_lead) > len(added_lead) else added_lead)
+        restored.extend(added_core)
+        restored.extend(dropped_trail if len(dropped_trail) > len(added_trail) else added_trail)
+    return "".join(restored)
+
+
 def sha256_of(source: str) -> str:
     return hashlib.sha256(source.encode("utf-8", errors="replace")).hexdigest()
 
@@ -113,5 +187,6 @@ __all__ = [
     "detect_line_ending",
     "git_apply_check",
     "old_new_to_diff",
+    "restore_incidental_blank_lines",
     "sha256_of",
 ]

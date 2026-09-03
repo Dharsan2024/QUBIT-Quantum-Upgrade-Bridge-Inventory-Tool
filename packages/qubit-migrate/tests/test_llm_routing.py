@@ -25,6 +25,7 @@ import uuid
 
 import pytest
 from qubit_core.db import Base
+from qubit_migrate.config import MigrateConfig
 from qubit_migrate.orchestrator import MigrationOrchestrator
 from qubit_migrate.transform import learn
 from qubit_migrate.transform.rules import load_rules
@@ -496,3 +497,41 @@ class TestAnUnverifiableTargetIsNotSentToTheModel:
         assert reason is not None
         assert "scanner" in reason, "say which component is missing the capability"
         assert "local model has not completed" not in reason, "must not blame the model"
+
+
+def test_a_file_the_model_cannot_write_back_is_windowed_not_attempted() -> None:
+    """The prompt was checked for fit; the answer never was.
+
+    A whole-file rewrite has to EMIT the whole file, so a file needing more tokens than
+    `_MAX_PREDICT` cannot come back complete however well the model behaves: generation stops at
+    the ceiling, the repair loop reads the unbalanced brackets as the model getting it wrong, and
+    three attempts go on proving what arithmetic knew in advance.
+
+    This bites only when the prompt allowance EXCEEDS the answer ceiling, which needs a context
+    window past ~36k tokens -- at the 8k and 32k engines configured here the prompt check always
+    fires first. It is a guard for the large-context models that are now ordinary (128k and up),
+    where the output ceiling, not the context window, becomes the binding constraint.
+    """
+    from qubit_migrate.transform.llm import _MAX_PREDICT
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    orch = MigrationOrchestrator(Session(engine), MigrateConfig(llm_context_tokens=131_072))
+    allowance = int(131_072 * orch.config.llm_max_prompt_fraction)
+    assert allowance > _MAX_PREDICT, (
+        "otherwise the prompt check fires first and this branch is unreachable"
+    )
+
+    # Reads comfortably; cannot be written back.
+    source = "x" * ((_MAX_PREDICT + 2_000) * 3)
+    reason = orch._oversize_reason(source)
+
+    assert reason is not None, "a file the model cannot write back must not be sent whole"
+    assert "cannot write it back" in reason
+    assert f"{_MAX_PREDICT:,}" in reason
+
+
+def test_a_file_that_fits_both_ways_is_still_sent_whole(orch: MigrationOrchestrator) -> None:
+    """The answer check must not narrow what already worked: a file small enough to read AND to
+    write back keeps the whole-file path, which is the one that produces the best patches."""
+    assert orch._oversize_reason("x" * 2_000) is None

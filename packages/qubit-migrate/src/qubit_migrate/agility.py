@@ -16,6 +16,8 @@ import yaml
 from pydantic import BaseModel, Field
 from qubit_core import CryptoAsset
 
+from .regimes import load_regimes
+
 _PARAMS_DIR = Path(__file__).parent / "params"
 _POLICY_PATH = _PARAMS_DIR / "agility_policy.yaml"
 
@@ -95,15 +97,24 @@ def policy_file_hash(path: Path | None = None) -> str:
 def resolve_target(
     asset: CryptoAsset,
     policy: AgilityPolicy | None = None,
+    regime: str | None = None,
 ) -> AgilityTarget | None:
     """Return the policy-resolved PQC target for ``asset``, or ``None``.
 
     Resolution order:
     1. Check ``policy.overrides`` in order; first match on usage_context and/or
-       sensitivity wins.
-    2. Look up ``policy.defaults[bucket]`` where ``bucket`` is derived from
-       ``asset.usage_context`` via ``_UC_BUCKET``.
-    3. Return ``None`` if no bucket maps (e.g. non-vulnerable / unknown context).
+       sensitivity wins. An explicit override outranks a regime, because it is
+       the operator's own decision about their own system and a regulator's
+       default is not entitled to silently overrule it — the CONFLICT is
+       reported instead, by ``resolve_all_regimes``.
+    2. If a ``regime`` is named and it has a default for this bucket, use it.
+    3. Otherwise ``policy.defaults[bucket]``, exactly as before.
+    4. ``None`` if no bucket maps (non-vulnerable or unknown context).
+
+    ``regime=None`` takes an install down path 3 with no behaviour change of any
+    kind. That is a hard requirement, not a nicety: every number this project has
+    already measured was measured on that path, and a regime engine that shifted
+    the default would invalidate the comparison it exists to enable.
     """
     p = policy or load_agility_policy()
 
@@ -127,9 +138,35 @@ def resolve_target(
             continue
         return override.set
 
-    # 2. Default bucket
     bucket = _UC_BUCKET.get(uc)
-    if bucket and bucket in p.defaults:
+    if not bucket:
+        return None
+
+    # 2. The regime's default, when one is named.
+    if regime:
+        chosen = load_regimes().get(regime)
+        if chosen is not None:
+            regime_target = chosen.defaults.get(bucket)
+            if regime_target is not None:
+                return AgilityTarget(
+                    # `hybrid_with` is the regime's own way of saying the construction is a
+                    # composite, and BSI and ANSSI both require one. Reading it here is what makes
+                    # the `behaves` stage select the COMPOSITE relation family for those regimes
+                    # rather than verifying one half of a two-half construction.
+                    mode="hybrid" if regime_target.hybrid_with else "pure",
+                    target=regime_target.algorithm,
+                    parameter_set=regime_target.parameter_set,
+                    hybrid_group=(
+                        regime_target.parameter_set if regime_target.hybrid_with else None
+                    ),
+                    rationale=(
+                        f"{regime} default for {bucket} "
+                        f"({chosen.authority or 'unattributed'}, confidence: {chosen.confidence})"
+                    ),
+                )
+
+    # 3. Default bucket, unchanged.
+    if bucket in p.defaults:
         return p.defaults[bucket]
 
     return None

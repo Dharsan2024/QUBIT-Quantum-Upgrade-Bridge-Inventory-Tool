@@ -71,7 +71,7 @@ def test_record_then_lookup_then_apply_round_trips() -> None:
     assert result is not None
     assert result.new_source == new
 
-    learn.touch(found)
+    learn.touch(s, found)
     s.commit()
     assert found.hit_count == 1
     assert found.last_used_at is not None
@@ -200,7 +200,7 @@ def test_experience_ranks_proven_fixes_first() -> None:
         )
     s.commit()
     rows = s.query(LearnedPatch).order_by(LearnedPatch.snippet_before).all()
-    learn.touch(rows[1])  # var2 has now been reused once
+    learn.touch(s, rows[1])  # var2 has now been reused once
     s.commit()
 
     ranked = learn.get_experience_for_rule(s, "code-weakhash-02", "go", limit=2)

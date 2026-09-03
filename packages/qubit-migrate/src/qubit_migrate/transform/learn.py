@@ -28,18 +28,23 @@ so nothing in this module reaches the internet.
 
 from __future__ import annotations
 
+import contextlib
 import difflib
+import logging
 import re
 import uuid
 from collections import Counter
 from dataclasses import dataclass, field
 
 from qubit_core.db.models import DEFAULT_TENANT_ID, LearnedOutcome, LearnedPatch
+from qubit_core.db.session import retry_write_on_lock
 from qubit_core.schemas import utcnow
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from .diffing import sha256_of
+
+logger = logging.getLogger(__name__)
 
 # --- exact line cache -------------------------------------------------------------------------
 
@@ -196,10 +201,45 @@ def record(
     )
 
 
-def touch(learned: LearnedPatch | LearnedOutcome) -> None:
-    """Record a reuse against an entry already loaded into the session."""
-    learned.hit_count += 1
-    learned.last_used_at = utcnow()
+def touch(session: Session, learned: LearnedPatch | LearnedOutcome) -> None:
+    """Record a reuse against an entry already loaded into the session, and never fail.
+
+    Written immediately rather than left pending, and that is the whole point of taking a session.
+    A dirty attribute sits in the Session until SQLAlchemy autoflushes it -- at whatever query comes
+    next, deep inside `generate_patch` or the validator -- and if THAT write loses a race the
+    Session is poisoned for everything after it, with an error naming a table the caller never
+    touched.
+
+    Measured once parallel workers made write contention real: a bump on `learned_outcomes` hit
+    "database is locked", the failure surfaced on the next unrelated query, and a run that had
+    already prepared 133 of 143 findings was reported as failed at 93%. The migration work was
+    finished and correct; it was discarded over a counter.
+
+    So the write is attempted here, briefly retried, and then given up on. Learning is a side
+    benefit of work that already succeeded -- losing one hit count costs a slightly worse ranking
+    hint next time, which is nothing beside losing the run that earned it.
+    """
+    # The READ is inside the guard too, and that is not defensive padding. After a commit every
+    # attribute is expired, so `learned.hit_count` is itself a query -- which autoflushes any
+    # pending change first, and can therefore fail with the very lock error this function exists to
+    # survive. A guard that started one line lower let the failure out of the first bump on a
+    # freshly committed session, which is the common case.
+    try:
+        learned.hit_count += 1
+        learned.last_used_at = utcnow()
+        retry_write_on_lock(session, session.flush, attempts=4)
+    except Exception as exc:
+        # `expire` discards the pending change and leaves the object attached and usable, which
+        # `rollback` (too broad -- it would undo the caller's real work) and `expunge` (detaches,
+        # breaking the caller's reference) both fail to do.
+        # `expire` discards the pending change and leaves the object attached and usable, which
+        # `rollback` (too broad -- it would undo the caller's real work) and `expunge` (detaches,
+        # breaking the caller's reference) both fail to do. Suppressed in turn, because a session
+        # that is already unhappy can refuse this too, and by here there is nothing left worth
+        # raising about.
+        with contextlib.suppress(Exception):
+            session.expire(learned)
+        logger.warning("learning: hit-count bump skipped (%s)", type(exc).__name__)
 
 
 # --- structural shape -------------------------------------------------------------------------
@@ -594,7 +634,7 @@ def record_outcome(
         .limit(1)
     )
     if existing is not None:
-        touch(existing)
+        touch(session, existing)
         # A later run may have produced better evidence for the same lesson: keep the reasoning
         # if the first attempt had none, and keep the newest failure reason, which reflects the
         # current prompt rather than one two versions ago.
@@ -679,7 +719,7 @@ def experience_for(
         ).all()
         for row in same_shape:
             result.proven.append((row.hunk_before, row.hunk_after, row.reasoning))
-            touch(row)
+            touch(session, row)
         result.exact_shape = bool(same_shape)
 
     # Tier two: NEAR-MISS. The exact key is a hash of an ordered token sequence, so it finds only
@@ -716,7 +756,7 @@ def experience_for(
             # was found - the prompt reads these two fields to decide whether to say "exactly this
             # shape" or "very close".
             result.near_miss = result.near_miss or not result.exact_shape
-            touch(row)
+            touch(session, row)
 
     # Tier three: anything verified for this rule and language, most-reused first. Weaker
     # evidence - it shares the migration, not the code - but far better than starting cold.
@@ -739,7 +779,7 @@ def experience_for(
             if row.hunk_before in seen:
                 continue
             result.proven.append((row.hunk_before, row.hunk_after, row.reasoning))
-            touch(row)
+            touch(session, row)
 
     result.failures = known_failures(
         session, rule_id=rule_id, language=language, shape=shape, tenant_id=tenant_id
@@ -833,6 +873,41 @@ def reliability(
             match = or_(match, LearnedOutcome.source_model.is_(None))
         stmt = stmt.where(match)
     rows = session.scalars(stmt).all()
+    passed = sum(1 + row.hit_count for row in rows if row.outcome == "passed")
+    failed = sum(
+        1 + row.hit_count for row in rows if row.outcome == "failed" and not was_unwinnable(row)
+    )
+    return passed, failed
+
+
+def engine_record(
+    session: Session,
+    *,
+    source_model: str,
+    tenant_id: uuid.UUID = DEFAULT_TENANT_ID,
+    include_unattributed: bool = False,
+) -> tuple[int, int]:
+    """``(passed, failed)`` for this engine across EVERY rule and language.
+
+    `reliability` answers "has this engine done this exact pairing", which is the right question
+    for gating one finding and the wrong one for deciding who gets first attempt. A pairing has to
+    fail `llm_skip_after_failures` times before it is gated, so an engine that cannot do the work at
+    all pays that toll separately on every new pairing it meets -- and each toll is several model
+    calls plus the repair loop.
+
+    Measured on this installation: the local 7B is **0 for 22** on the current patch set, spread
+    across enough distinct pairings that the per-pairing gate had barely begun to fire, while the
+    hosted engines are 10 for 13. That is not a fact about any one rule; it is a fact about the
+    engine, and it takes a question at this scope to see it.
+
+    Same "answerable" filter as `reliability`: a rejection produced by an expectation nothing could
+    satisfy says nothing about the model, so `was_unwinnable` rows are not counted against it.
+    """
+    stmt = select(LearnedOutcome).where(LearnedOutcome.tenant_id == tenant_id)
+    match = LearnedOutcome.source_model == source_model
+    if include_unattributed:
+        match = or_(match, LearnedOutcome.source_model.is_(None))
+    rows = session.scalars(stmt.where(match)).all()
     passed = sum(1 + row.hit_count for row in rows if row.outcome == "passed")
     failed = sum(
         1 + row.hit_count for row in rows if row.outcome == "failed" and not was_unwinnable(row)

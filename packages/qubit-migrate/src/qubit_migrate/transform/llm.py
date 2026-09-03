@@ -772,6 +772,64 @@ _TEMPLATE_KWARGS: dict[str, Any] = {"thinking": False, "enable_thinking": False}
 #: every call to such a provider would pay a wasted round trip to rediscover the same no.
 _TEMPLATE_KWARGS_REFUSED: set[tuple[str, str]] = set()
 
+#: Engines that just failed transiently, and the moment they may be tried again.
+#:
+#: A provider that is overloaded stays overloaded for longer than one request, and finding that out
+#: is expensive: measured on a certbot run, NVIDIA took **three minutes** to answer
+#: `503 Service temporarily overloaded`, and every task in the plan paid that toll again because
+#: nothing remembered the previous one. Twenty minutes of a migration went on re-discovering that
+#: the same endpoint was still busy, while the local model sat at 0% GPU.
+#:
+#: Deliberately short. This is congestion, not a verdict on the engine -- `poolside/laguna` answers
+#: in ~2s when it answers at all and 503s the rest of the time, and a long exclusion would throw
+#: away a genuinely fast engine over a moment's load.
+_ENGINE_COOLDOWN: dict[str, float] = {}
+
+#: How long an engine is skipped after a transient failure.
+_COOLDOWN_SECONDS = 90.0
+
+#: Statuses that mean "busy, try later" rather than "wrong". 429 is rate limiting, 5xx is the
+#: provider failing to serve; neither says anything about whether the request was valid.
+_TRANSIENT_CODES = frozenset({429, 500, 502, 503, 504})
+
+
+def _cooling(base_url: str, model: str) -> bool:
+    """Is this engine still inside its cooldown window?"""
+    until = _ENGINE_COOLDOWN.get(f"{base_url}::{model}")
+    return until is not None and time.monotonic() < until
+
+
+def _start_cooldown(base_url: str, model: str) -> None:
+    _ENGINE_COOLDOWN[f"{base_url}::{model}"] = time.monotonic() + _COOLDOWN_SECONDS
+
+
+#: Engines that rejected the key. Retired for the life of the process, not cooled: a key the
+#: provider refuses will be refused again in ninety seconds and in ninety minutes.
+_ENGINE_REFUSED: set[str] = set()
+
+
+def _retire(base_url: str, model: str) -> None:
+    """Stop asking an engine whose key was rejected.
+
+    Measured on the certbot run: the configured primary answered HTTP 403 (Cloudflare 1010 — the
+    key had been revoked, almost certainly by the provider's own secret scanning after it was
+    pasted somewhere public). Nothing remembered that, so all 297 findings began by asking the same
+    dead endpoint. Each call was cheap on its own, which is exactly why it went unnoticed: no
+    timeout, no rate limit, just a run that quietly never used the engine it was configured to use
+    and never said so.
+
+    Deliberately not a cooldown. A transient failure is worth re-testing; a rejected key is a
+    configuration fact that will not change until someone changes it.
+    """
+    _ENGINE_REFUSED.add(f"{base_url}::{model}")
+    logger.warning(
+        "retiring %s at %s for this session: the provider rejected the API key", model, base_url
+    )
+
+
+def _refused(base_url: str, model: str) -> bool:
+    return f"{base_url}::{model}" in _ENGINE_REFUSED
+
 
 def _content_of(data: dict[str, Any]) -> str:
     """The assistant text from an OpenAI-compatible response, or "" if there is none.
@@ -948,6 +1006,9 @@ def _openai_compatible_generate(
         # 401/403 means the key is wrong; report that distinctly from a generic HTTP failure so
         # "Save & verify" in Settings can tell a bad key apart from the provider being unreachable.
         if exc.code in (401, 403):
+            # Retired, not cooled: this engine cannot work until its key is replaced, so every
+            # later finding in this run should go straight past it to one that can.
+            _retire(base_url, model)
             raise OllamaError(
                 f"the external LLM provider at {base_url} rejected the API key (HTTP {exc.code})"
             ) from exc
@@ -962,6 +1023,10 @@ def _openai_compatible_generate(
                 f"quota (HTTP 402) — the free allowance is exhausted or the account needs billing "
                 f"enabled. Detail: {detail}"
             ) from exc
+        if exc.code in _TRANSIENT_CODES:
+            # Busy, not broken. Remember it so the next finding in this run does not pay the same
+            # wait to learn the same thing.
+            _start_cooldown(base_url, model)
         if exc.code == 429:
             raise OllamaError(
                 f"the external LLM provider at {base_url} rate-limited this request (HTTP 429) "
@@ -1104,16 +1169,35 @@ def _generate(
     # returned 503 "ResourceExhausted" on 3 of 4 attempts -- an engine that good and that flaky is
     # only usable if the next one picks the work up, and useless if a 503 fails the finding.
     #
-    # De-duplicated on (base_url, model) so an endpoint already in the chain is not retried purely
-    # because it appears twice in the pool under different keys -- each entry still costs a request.
+    # De-duplicated on (base_url, model, KEY), and the key is the part that matters.
+    #
+    # It used to be (base_url, model) alone, on the reasoning that asking the same endpoint twice
+    # costs two requests for one answer. That is true of the same ACCOUNT and false of a different
+    # one: a free tier rations per key, so a 429 from one key says nothing whatever about another,
+    # and collapsing them threw away the second account's whole allowance. Measured on this install:
+    # four keys drive `nemotron-3-super`, and three of them were unreachable through the chain --
+    # the pool looked four engines wide and behaved as one.
     for extra in backups:
         if not (extra.api_key and extra.base_url and extra.model):
             continue
-        if any(e.base_url == extra.base_url and e.model == extra.model for e in chain):
+        if any(
+            e.base_url == extra.base_url and e.model == extra.model and e.api_key == extra.api_key
+            for e in chain
+        ):
             continue
         chain.append(extra)
 
     for index, endpoint in enumerate(chain):
+        # An engine whose key was rejected is skipped unconditionally, including when it is the
+        # only one left. There is no request it could answer, so trying it can only turn a clear
+        # "every engine is unusable, here is why" into one more identical rejection.
+        if _refused(endpoint.base_url, endpoint.model):
+            continue
+        # An engine that answered 503 seconds ago will answer 503 again, and asking costs whatever
+        # its timeout is. Skipped rather than removed: the window is short and the pool is small.
+        if _cooling(endpoint.base_url, endpoint.model) and index < len(chain) - 1:
+            logger.info("skipping %s: still cooling down after a transient failure", endpoint.model)
+            continue
         try:
             answer = _openai_compatible_generate(
                 prompt,

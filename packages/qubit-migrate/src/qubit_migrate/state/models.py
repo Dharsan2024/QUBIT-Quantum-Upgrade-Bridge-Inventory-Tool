@@ -35,6 +35,18 @@ class MigrationPlan(Base):
     )
     scope_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    #: Which regulatory regime this plan was built under, or NULL for none.
+    #:
+    #: Without it the targets in a plan are unexplainable after the fact. `ML-KEM-1024` and
+    #: `X25519MLKEM768` are both defensible and neither is correct on its own: the first satisfies
+    #: CNSA 2.0 and violates BSI, the second the reverse. A reviewer looking at a stored plan has
+    #: no way to tell a deliberate choice from a mistake unless the plan says which regulator it
+    #: was answering.
+    #:
+    #: NULL means no regime was configured, which is the shipped default and is a distinct claim
+    #: from "the default regime was chosen" — writing `nist-civil` for an install that never chose
+    #: it would fabricate a decision nobody made.
+    regime: Mapped[str | None] = mapped_column(String(32), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="draft")
     # draft | active | completed | abandoned
     stats_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
@@ -149,6 +161,24 @@ class PatchProposal(Base):
     diff_text: Mapped[str] = mapped_column(Text)
     new_files_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     validation_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    #: How much was actually ESTABLISHED about this patch, on the evidence ladder: -1 nothing,
+    #: 0 applies+parses, 1 symbols+compiles, 2 rescan, 3 behaves (metamorphic), 4 the project's
+    #: own tests. `status="proposed"` says a gate returned yes; this says which gates ran.
+    #:
+    #: They are not the same claim, and the gap between them is the finding: of 292 patches on
+    #: this installation, 216 were accepted, all 216 were `partial`, 20 had every stage
+    #: skipped, and `tests` had never run once. A skipped gate and a vacuous one both award
+    #: nothing here, which is what makes the number smaller than `passed` and defensible.
+    #:
+    #: Nullable: rows written before the ladder existed read as "not assessed", not as zero.
+    evidence_level: Mapped[int | None] = mapped_column(nullable=True)
+    #: The regime in force when this patch was generated, copied from the plan.
+    #:
+    #: Denormalised deliberately. A plan's regime can be changed and its patches
+    #: regenerated, and a patch that carried only a foreign key would then claim to have
+    #: been built under a policy it never saw. The evidence record has to describe the run
+    #: that produced it, not the current state of its parent.
+    regime: Mapped[str | None] = mapped_column(String(32), nullable=True)
     #: What this patch cost the attached model: calls, prompt and completion tokens,
     #: seconds, and which engine answered. Empty for a patch produced without a model at
     #: all -- a deterministic codemod or a replay from the learned-patch cache -- and that

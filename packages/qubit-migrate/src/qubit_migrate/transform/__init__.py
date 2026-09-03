@@ -7,6 +7,7 @@ from .diffing import (
     detect_line_ending,
     git_apply_check,
     old_new_to_diff,
+    restore_incidental_blank_lines,
     sha256_of,
 )
 from .rules import MigrationRule, load_rules, match_rule
@@ -24,6 +25,7 @@ __all__ = [
     "load_rules",
     "match_rule",
     "old_new_to_diff",
+    "restore_incidental_blank_lines",
     "run_codemod",
     "sha256_of",
     "validate_patch",

@@ -57,7 +57,10 @@ table above be re-measured and the policy re-tuned without touching the orchestr
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
+
+from .bandit import Posterior, thompson_order
 
 #: Hosted requests held back from ordinary work. A day's quota is the operator's, not one run's:
 #: a bulk migration that spends the last request leaves nothing for the verification pass that
@@ -134,12 +137,19 @@ def choose(
     needs_contract: bool = False,
     reserve_requests: int = DEFAULT_RESERVE_REQUESTS,
     max_wait_seconds: float = MAX_WAIT_SECONDS,
+    posteriors: dict[str, Posterior] | None = None,
+    rng: random.Random | None = None,
 ) -> Decision:
     """Pick the engine most likely to turn this finding into a validated patch soonest.
 
     Returns a `Decision` whose `engine` is None when nothing can take the work -- which is a real
     answer, not an error: the caller routes the finding to written guidance instead of spending
     fourteen minutes proving what the history already says.
+
+    `posteriors` is optional and absent by default. Without it the ordering is exactly the cost
+    ranking it has always been, so an installation that has recorded no evidence levels yet -- and
+    every test written before the bandit existed -- behaves identically. `rng` exists so the
+    evaluation can replay a routing decision.
     """
     rejected: list[tuple[str, str]] = []
     #: (tier, expected seconds, engine, wait) -- tier 0 is "free and already proven", so it sorts
@@ -217,6 +227,29 @@ def choose(
         )
 
     viable.sort(key=lambda row: (row[0], row[1], row[2].metered))
+
+    # THOMPSON SAMPLING, over the survivors only.
+    #
+    # Everything above this line is a safety filter -- context window, quota reserve, contract
+    # capability -- and the bandit cannot reach past any of it: it is handed the names that already
+    # passed and returns a permutation of them. An exploration policy that could re-admit a
+    # rejected engine would send a prompt to one too small to hold it, or spend a reserve that was
+    # deliberately held back.
+    #
+    # What it changes is the ORDER, and only where the cost ranking was guessing. The cost model
+    # falls back to a constant for an engine nobody has timed, and the failure gate above bans a
+    # pairing permanently on four observations; neither improves as evidence accumulates. Sampling
+    # from a Beta posterior does: an untried engine draws from the uniform prior and gets explored,
+    # a failing one fades, and one whose provider has since changed the model behind the name can
+    # be discovered again. See `qubit_migrate.bandit`.
+    #
+    # Ties fall back to the cost order, so when the posteriors have nothing to say the cheaper
+    # engine still wins -- the bandit adds information, it does not discard what was already known.
+    if posteriors:
+        by_name_viable = {row[2].name: row for row in viable}
+        ordered = thompson_order([row[2].name for row in viable], posteriors, rng=rng)
+        viable = [by_name_viable[name] for name in ordered]
+
     tier, cost, chosen, wait = viable[0]
     if tier == 0:
         why = "free engine able to take it; no rationed request needed"

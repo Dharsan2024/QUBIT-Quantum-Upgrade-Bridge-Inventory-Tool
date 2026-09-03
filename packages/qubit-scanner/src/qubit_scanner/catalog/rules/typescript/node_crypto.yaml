@@ -10,6 +10,19 @@ library:
   # `crypto` is reachable as a global in modern Node without any import at all.
   detect_imports: []
 rules:
+  # NOTE ON THE `function:` ALTERNATION BELOW
+  #
+  # Every rule in this file used to match only `crypto.createX(...)` — a member expression with
+  # `object` captured and required to be `crypto`. `import { createHash } from 'crypto'` followed by
+  # a bare `createHash('md5')` matched NOTHING, in both grammars. That is the idiomatic modern
+  # ESM/TypeScript form, so a contemporary Node service scanned clean: measured at 0 of 6 crypto
+  # sites detected, against 5-6 of 6 for Java, Go, C#, PHP and Ruby on the same probe.
+  #
+  # The alternation binds `@meth` in both branches. The `obj` filter had to go with it: `_where_ok`
+  # returns False when a capture is ABSENT, so a rule that still required `obj == crypto` would
+  # have left the new branch dead. The cost is that `other.createHash('md5')` now matches too —
+  # accepted, because these are Node-crypto-specific method names and the alternative was an
+  # entire ecosystem being invisible.
   # TypeScript parity for the javascript/node_crypto.yaml pack. tree-sitter-typescript is a
   # separate grammar with its own rule set, so a .ts file matched NONE of the JS node-crypto
   # rules — a TypeScript backend using node:crypto scanned completely clean. The queries are
@@ -24,12 +37,12 @@ rules:
     match:
       query: |
         (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @meth)
+          function: [
+            (member_expression property: (property_identifier) @meth)
+            (identifier) @meth
+          ]
           arguments: (arguments (string (string_fragment) @alg))) @call
       where:
-        - { capture: obj, equals: crypto }
         - { capture: meth, equals: createHash }
     extract:
       algorithm: { from: alg, resolve: capture-text }
@@ -53,12 +66,12 @@ rules:
     match:
       query: |
         (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @meth)
+          function: [
+            (member_expression property: (property_identifier) @meth)
+            (identifier) @meth
+          ]
           arguments: (arguments (string (string_fragment) @alg) (_) (_))) @call
       where:
-        - { capture: obj, equals: crypto }
         # createDecipheriv too: decryption is as much a crypto usage as encryption, and a
         # service that only ever DECRYPTS — an ingest or consumer tier, a very common
         # architecture — otherwise reported no cipher usage at all. Found by scanning a
@@ -92,12 +105,12 @@ rules:
     match:
       query: |
         (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @meth)
+          function: [
+            (member_expression property: (property_identifier) @meth)
+            (identifier) @meth
+          ]
           arguments: (arguments (string (string_fragment) @alg) (_))) @call
       where:
-        - { capture: obj, equals: crypto }
         - { capture: meth, equals: createHmac }
     extract:
       # `@alg` is already the digest string ("sha256"), so it is right there — see
@@ -120,12 +133,12 @@ rules:
     match:
       query: |
         (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @meth)
+          function: [
+            (member_expression property: (property_identifier) @meth)
+            (identifier) @meth
+          ]
           arguments: (arguments (string (string_fragment) @alg) (_))) @call
       where:
-        - { capture: obj, equals: crypto }
         - { capture: meth, in: [generateKeyPairSync, generateKeyPair] }
     extract:
       algorithm: { from: alg, resolve: capture-text }

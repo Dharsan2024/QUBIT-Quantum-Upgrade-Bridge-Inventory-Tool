@@ -8,6 +8,7 @@ Everything runs in-process against a throwaway SQLite DB — no server required.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tempfile
@@ -39,10 +40,18 @@ def _vuln_counts(assets) -> dict[str, int]:
     return counts
 
 
+#: Where the digital-twin corpus lives.
+#:
+#: The twins are independent git repositories outside this tree — which is what lets QUBIT's
+#: `applies` rung run `git apply` against them. Read once at import, because a typer default is
+#: evaluated at decoration time and calling `os.getenv` there is a B008.
+DEFAULT_TWIN_ROOT = Path(os.getenv("QUBIT_TWINS", "demo-lab"))
+
+
 @demo_app.command("run")
 def demo_run(
-    target: Annotated[Path, typer.Option("--target", help="Directory to copy + migrate")] = Path(
-        "demo-lab/vulnapp-python"
+    target: Annotated[Path, typer.Option("--target", help="Directory to copy + migrate")] = (
+        DEFAULT_TWIN_ROOT / "medivault-emr"
     ),
     generator: Annotated[str, typer.Option("--generator", help="auto | template | llm")] = "auto",
     keep: Annotated[bool, typer.Option("--keep", help="Keep the scratch repo")] = False,

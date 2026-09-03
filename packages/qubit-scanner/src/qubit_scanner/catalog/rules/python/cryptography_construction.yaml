@@ -1,0 +1,269 @@
+schema: qubit-rule/v1
+language: python
+library:
+  name: cryptography
+  detect_imports: [cryptography]
+
+# Construction forms other than `generate_*`.
+#
+# Measured against sonar-cryptography's own Python test corpus (40 files, its own assertions):
+# QUBIT detected 22 of 40, and SEVEN of the eighteen misses were Shor-breakable asymmetric keys
+# that the code obtains without calling `generate_*`:
+#
+#     rsa.generate_private_key(...)                    detected
+#     rsa.RSAPublicNumbers(...).public_key()           MISSED
+#     dsa.DSAPublicNumbers(...).public_key()           MISSED
+#     dh.generate_parameters(...).generate_private_key()  MISSED
+#     ec.derive_private_key(...)                       MISSED
+#
+# That is a false-negative class, not a coverage nicety. Reconstructing a key from stored numbers
+# is the ORDINARY way to use a persisted key — it is what every "load the key from config" path
+# does — so a codebase that never generates a key in-process was reported clean while running RSA
+# throughout.
+#
+# Every rule below is `high` confidence for the same reason the `generate_*` rules are: the module
+# qualifier is required, so `rsa.RSAPublicNumbers` cannot be confused with an unrelated class of
+# the same name.
+rules:
+  - id: PY-CRYPTOGRAPHY-RSA-NUMBERS
+    title: RSA key reconstructed from stored numbers (rsa.RSA*Numbers)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @cls)) @call
+      where:
+        # The module qualifier is required, exactly as in the keygen rules: without it this would
+        # match any `<x>.RSAPublicNumbers(...)` and mislabel the family.
+        - { capture: mod, equals: rsa }
+        - { capture: cls, in: [RSAPublicNumbers, RSAPrivateNumbers] }
+    extract:
+      # No key size: the modulus is passed as a number, and its bit length is not recoverable from
+      # the call site. The bare family entry keeps the Shor-vulnerable verdict, which is the part
+      # that matters — an RSA key of unknown size is still an RSA key.
+      algorithm: { literal: RSA }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import rsa
+          pub = rsa.RSAPublicNumbers(65537, 12345678901234567890).public_key()
+      negative:
+        - "from cryptography.hazmat.primitives.asymmetric import x25519"
+
+  - id: PY-CRYPTOGRAPHY-DSA-NUMBERS
+    title: DSA key reconstructed from stored numbers (dsa.DSA*Numbers)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @cls)) @call
+      where:
+        - { capture: mod, equals: dsa }
+        - { capture: cls, in: [DSAPublicNumbers, DSAPrivateNumbers, DSAParameterNumbers] }
+    extract:
+      algorithm: { literal: DSA }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import dsa
+          params = dsa.DSAParameterNumbers(1, 2, 3)
+      negative:
+        - "from cryptography.hazmat.primitives.asymmetric import ed25519"
+
+  - id: PY-CRYPTOGRAPHY-DH-KEYGEN
+    title: Finite-field Diffie-Hellman parameters or key (dh.*)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)) @call
+      where:
+        - { capture: mod, equals: dh }
+        - {
+            capture: meth,
+            in: [generate_parameters, DHParameterNumbers, DHPublicNumbers, DHPrivateNumbers],
+          }
+    extract:
+      # FFDH, in sonar's naming. Shor breaks the discrete log this rests on exactly as it breaks
+      # RSA's factoring, so this belongs in the migration queue and not merely in the inventory.
+      algorithm: { literal: DH }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import dh
+          params = dh.generate_parameters(generator=2, key_size=2048)
+      negative:
+        - "from cryptography.hazmat.primitives.asymmetric import x25519"
+
+  - id: PY-CRYPTOGRAPHY-EC-DERIVE
+    title: EC key derived or reconstructed (ec.derive_private_key, ec.EllipticCurve*Numbers)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @meth)) @call
+      where:
+        - { capture: mod, equals: ec }
+        - {
+            capture: meth,
+            in: [
+              derive_private_key,
+              EllipticCurvePublicNumbers,
+              EllipticCurvePrivateNumbers,
+            ],
+          }
+    extract:
+      # The curve is an argument rather than part of the call name, so the family entry is used.
+      # P-256 is the overwhelmingly common case and the normalizer's default; an EC key of
+      # unstated curve is Shor-breakable either way.
+      algorithm: { literal: ECDSA-P256 }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import ec
+          key = ec.derive_private_key(12345, ec.SECP256R1())
+      negative:
+        - "from cryptography.hazmat.primitives.asymmetric import ed448"
+
+  - id: PY-CRYPTOGRAPHY-AES-KEYWRAP
+    title: AES key wrapping (keywrap.aes_key_wrap)
+    match:
+      query: |
+        (call function: (identifier) @fn) @call
+      where:
+        - { capture: fn, in: [aes_key_wrap, aes_key_unwrap, aes_key_wrap_with_padding] }
+    extract:
+      # Grover, not Shor: a 128-bit wrapping key has 64-bit effective strength, which is the
+      # migration case. The key size is a runtime value here, so the family entry stands.
+      algorithm: { literal: AES }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.keywrap import aes_key_wrap
+          wrapped = aes_key_wrap(b"ABCDEFGHIJKLMNOP", b"Sixteen byte key")
+      negative:
+        - "from cryptography.hazmat.primitives.ciphers.aead import AESGCM"
+
+  - id: PY-CRYPTOGRAPHY-WEAK-BLOCK-CIPHER
+    title: Legacy block cipher (CAST5, Blowfish, IDEA, SEED)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @alg)) @call
+      where:
+        - { capture: mod, equals: algorithms }
+        # 64-bit block ciphers, all of them Sweet32-exposed and none of them a sound choice for
+        # new work. Classically weak rather than quantum-weak — recorded because a migration tool
+        # that reports the quantum problem while ignoring the present one is answering the less
+        # urgent question.
+        - { capture: alg, in: [CAST5, Blowfish, IDEA, SEED] }
+    extract:
+      algorithm: { from: alg, resolve: identifier }
+    asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+          cipher = Cipher(algorithms.CAST5(key), modes.CFB(iv))
+      negative:
+        - |
+          from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+          cipher = Cipher(algorithms.AES(key), modes.GCM(iv))
+
+  # ---------------------------------------------------------------------------------------------
+  # Spellings the module-qualified rules above cannot see.
+  #
+  # Each was found by a sonar test case the first pass still missed, and each is a DIFFERENT reason
+  # the query did not match — worth separating, because "add more rules" would have fixed none of
+  # them.
+
+  - id: PY-CRYPTOGRAPHY-ASYM-NUMBERS-BARE
+    title: Asymmetric key from stored numbers, imported directly (RSAPublicNumbers(...))
+    match:
+      # A bare call, no module qualifier — the `from ...rsa import *` spelling, which is exactly
+      # how certbot loads a persisted key.
+      query: |
+        (call function: (identifier) @cls) @call
+      where:
+        # Safe to match unqualified BECAUSE the class name already carries the family. The keygen
+        # rules deliberately refuse to match a bare `generate_private_key(...)`, and are right to:
+        # that name is ambiguous between rsa, dsa and ec. `RSAPublicNumbers` is not ambiguous, so
+        # the same caution here would only lose findings.
+        - {
+            capture: cls,
+            in: [
+              RSAPublicNumbers, RSAPrivateNumbers,
+              DSAPublicNumbers, DSAPrivateNumbers, DSAParameterNumbers,
+              DHPublicNumbers, DHPrivateNumbers, DHParameterNumbers,
+              EllipticCurvePublicNumbers, EllipticCurvePrivateNumbers,
+            ],
+          }
+    extract:
+      algorithm: { from: cls, resolve: identifier }
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric.rsa import *
+          public_numbers = RSAPublicNumbers(e, n)
+      negative:
+        - "from cryptography.hazmat.primitives.asymmetric import x25519"
+
+  - id: PY-CRYPTOGRAPHY-EC-FULLY-QUALIFIED
+    title: EC key via a fully qualified path (cryptography...ec.derive_private_key)
+    match:
+      # The object here is a nested `attribute` chain, not an `identifier`, so a query anchored on
+      # `object: (identifier)` cannot match it however many method names it lists. Anchoring on the
+      # attribute NAME instead is what closes it.
+      query: |
+        (call
+          function: (attribute
+            object: (attribute attribute: (identifier) @mod)
+            attribute: (identifier) @meth)) @call
+      where:
+        - { capture: mod, equals: ec }
+        - { capture: meth, in: [derive_private_key, generate_private_key] }
+    extract:
+      algorithm: { literal: ECDSA-P256 }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import cryptography.hazmat.primitives.asymmetric.ec
+          k = cryptography.hazmat.primitives.asymmetric.ec.derive_private_key(1, None)
+      negative:
+        - "import cryptography.hazmat.primitives.asymmetric.x25519"
+
+  - id: PY-CRYPTOGRAPHY-ECDSA-VERIFY
+    title: ECDSA signature verification (ec.ECDSA)
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @mod attribute: (identifier) @cls)) @call
+      where:
+        - { capture: mod, equals: ec }
+        # The signing/verifying side of EC, which the keygen rules miss entirely: a service that
+        # only VERIFIES signatures never constructs a key, and was reported clean.
+        - { capture: cls, in: [ECDSA, EllipticCurvePublicKey] }
+    extract:
+      algorithm: { literal: ECDSA-P256 }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import ec
+          pubkey.verify(signature, digest, ec.ECDSA(hashes.SHA256()))
+      negative:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import ed25519
+          pubkey.verify(signature, digest)

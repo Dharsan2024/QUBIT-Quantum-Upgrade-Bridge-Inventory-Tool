@@ -68,6 +68,57 @@ rules:
       negative:
         - "from cryptography.hazmat.primitives.asymmetric import rsa"
 
+  - id: PY-CRYPTOGRAPHY-ECDH-EXCHANGE
+    title: ECDH key agreement (private_key.exchange(ec.ECDH(), peer))
+    # `PY-CRYPTOGRAPHY-EC-KEYGEN` above attributes every `ec.generate_private_key(...)` to
+    # SIGNING, because a key generation on its own does not say what the key is for. On an ECDH
+    # exchange that is the worst class to get wrong: the finding resolves to ML-DSA-65, so the tool
+    # answers a key agreement with a signature algorithm, and key agreement is the
+    # harvest-now-decrypt-later case that a signature is not.
+    #
+    # Measured on the MediVault twin, where it cost a correct migration: `negotiate_referral_key`
+    # was routed to `py-signature-01`, and the resulting patch broke the agreement between two
+    # clinics. Only the `tests` rung caught it. See `qubit-v2/11-implementation-findings.md` §25.
+    #
+    # This rule reads the call that says what the key is FOR. It is additive: the keygen line still
+    # produces its own (signature-labelled) asset, because suppressing that needs dataflow the
+    # rule schema deliberately does not have. What changes is that the exchange is now seen at all,
+    # and it resolves to `py-ecdh-kex-01` with a hybrid ML-KEM target.
+    match:
+      query: |
+        (call
+          function: (attribute attribute: (identifier) @meth)
+          arguments: (argument_list
+            (call
+              function: [(identifier) @alg
+                         (attribute object: (identifier) @mod attribute: (identifier) @alg)]))) @call
+      where:
+        - { capture: meth, equals: exchange }
+        - { capture: alg, equals: ECDH }
+    extract:
+      algorithm: { literal: ECDH }
+    # `usage_context: kex` here is belt-and-braces, not load-bearing. `normalize.py`'s
+    # `_reconcile_usage_with_algorithm` puts ECDH into `kex` from the algorithm family whatever a
+    # rule declares, so mutating this line to `signature` changes nothing observable — verified by
+    # doing it. Written out because a reader who mutation-tests this rule will find that mutation
+    # surviving and should know it is inert by design rather than untested.
+    asset: { asset_type: algorithm-use, usage_context: kex }
+    confidence: high
+    examples:
+      positive:
+        - |
+          from cryptography.hazmat.primitives.asymmetric import ec
+          private_key = ec.generate_private_key(ec.SECP256R1())
+          shared = private_key.exchange(ec.ECDH(), peer_public_key)
+        - |
+          from cryptography.hazmat.primitives.asymmetric.ec import ECDH
+          shared = private_key.exchange(ECDH(), peer_public_key)
+      negative:
+        - "from cryptography.hazmat.primitives.asymmetric import rsa"
+        - |
+          from cryptography.hazmat.primitives.asymmetric import x25519
+          shared = private_key.exchange(peer_public_key)
+
   - id: PY-CRYPTOGRAPHY-X25519-KEYGEN
     title: X25519 private-key generation
     match:

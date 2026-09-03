@@ -41,6 +41,17 @@ class RiskConfig:
     params_hash: str = field(default="")
 
     @property
+    def qars_sector(self) -> str:
+        """Which published QARS weight profile to score under.
+
+        `baseline` (equal thirds) unless the operator sets one. Deliberately not inferred:
+        picking `finance` or `iot` on their behalf embeds a judgement about their business
+        into a number they are meant to read as neutral, and the three profiles disagree
+        enough to change an asset's rank.
+        """
+        return str(self.hardware_priors.get("qars_sector", "baseline"))
+
+    @property
     def seed(self) -> int:
         return int(self.hardware_priors.get("seed", 42))
 

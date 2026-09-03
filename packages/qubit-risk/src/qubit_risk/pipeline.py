@@ -11,12 +11,15 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-from qubit_core import CryptoAsset, RiskAnnotation, Sensitivity
+from qubit_core import CryptoAsset, QuantumAttack, RiskAnnotation, Sensitivity
 
 from .config import RiskConfig, load_config
+from .hndl import harvest_prob
 from .mosca import migration_years, mosca
-from .score import score_asset
-from .sensitivity import classify_sensitivity
+from .qars import QarsInputs, QarsScore
+from .qars import score as qars_score
+from .score import exposure_of, score_asset
+from .sensitivity import SensitivityResult, classify_sensitivity
 from .timeline import CRQCTimelineSimulator
 
 logger = logging.getLogger(__name__)
@@ -40,6 +43,49 @@ class RiskPipeline:
                     self._regressor = RiskRegressor.load(Path(xgb_dir))
                 except Exception:
                     logger.exception("XGBoost regressor load failed; falling back to closed-form")
+
+    def _qars_for(
+        self,
+        asset: CryptoAsset,
+        sens: SensitivityResult,
+        y_years: float,
+        margin_years: float,
+    ) -> QarsScore:
+        """QARS for one asset, from inputs this pipeline has already computed.
+
+        Adopted prior work -- Electronics 2025, 14, 3338 -- implemented and cited, never presented
+        as a QUBIT contribution. See `qubit_risk.qars`.
+        """
+        # `Z` recovered from the margin the pipeline just produced: margin = Z - (X + Y), so
+        # Z = margin + X + Y. Reusing it rather than re-deriving keeps QARS and the Mosca margin
+        # describing the same horizon -- two numbers on one dashboard that disagreed about when the
+        # CRQC arrives would be worse than either alone.
+        x_years = float(sens.shelf_life_p90)
+        z_years = margin_years + x_years + y_years
+
+        qv = asset.quantum_vulnerable
+        # `v(a)`: 1 while a Shor-breakable public-key primitive is in use, 0 once it is not. Taken
+        # from the SCANNER's verdict on the current source rather than from a stored flag, which is
+        # what makes exposure fall observably after a migration instead of being asserted once.
+        # This is the one QARS input the original model cannot watch change.
+        visibility = 1.0 if (qv.vulnerable and qv.attack == QuantumAttack.shor) else 0.0
+        return qars_score(
+            QarsInputs(
+                shelf_life_years=x_years,
+                # The ESTIMATE today. `qubit_migrate` now measures real migration times per
+                # finding, and feeding those back here is what turns `Y` from expert judgement
+                # into data -- the gap the QARS authors name as their own future work.
+                migration_years=y_years,
+                crqc_years=z_years,
+                sensitivity=sens.sensitivity,
+                harvestability=harvest_prob(self.cfg, exposure_of(asset), sens.sensitivity),
+                visibility=visibility,
+                # Grover-tier assets are attenuated rather than dropped: a quadratic speedup is not
+                # a break, and an unattenuated AES-256 outranks an RSA key that Shor collapses.
+                symmetric=qv.attack == QuantumAttack.grover,
+            ),
+            sector=str(self.cfg.qars_sector),
+        )
 
     def assess(self, assets: Sequence[CryptoAsset]) -> list[CryptoAsset]:
         """Annotate assets in-place. Mutates sensitivity/risk."""
@@ -92,6 +138,7 @@ class RiskPipeline:
                 ci_high=ci_high,
                 mosca_margin_years=margin,
                 priority_rank=1,  # rank filled after sorting
+                qars=self._qars_for(asset, sens, y, margin).as_dict(),
             )
 
         # dense priority rank: highest score first, tie-break most-negative Mosca margin

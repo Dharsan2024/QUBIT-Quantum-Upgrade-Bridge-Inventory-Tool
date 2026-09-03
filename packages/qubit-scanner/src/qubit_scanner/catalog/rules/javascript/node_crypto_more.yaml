@@ -4,6 +4,19 @@ library:
   name: node:crypto / WebCrypto
   detect_imports: []
 rules:
+  # NOTE ON THE `function:` ALTERNATION BELOW
+  #
+  # Every rule in this file used to match only `crypto.createX(...)` — a member expression with
+  # `object` captured and required to be `crypto`. `import { createHash } from 'crypto'` followed by
+  # a bare `createHash('md5')` matched NOTHING, in both grammars. That is the idiomatic modern
+  # ESM/TypeScript form, so a contemporary Node service scanned clean: measured at 0 of 6 crypto
+  # sites detected, against 5-6 of 6 for Java, Go, C#, PHP and Ruby on the same probe.
+  #
+  # The alternation binds `@meth` in both branches. The `obj` filter had to go with it: `_where_ok`
+  # returns False when a capture is ABSENT, so a rule that still required `obj == crypto` would
+  # have left the new branch dead. The cost is that `other.createHash('md5')` now matches too —
+  # accepted, because these are Node-crypto-specific method names and the alternative was an
+  # entire ecosystem being invisible.
   # Remaining Node/browser crypto entry points. Together with node_crypto.yaml these cover the
   # surface an application realistically touches; previously only createHash/createCipheriv/
   # createHmac/generateKeyPairSync were detected.
@@ -12,12 +25,12 @@ rules:
     match:
       query: |
         (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @meth)
+          function: [
+            (member_expression property: (property_identifier) @meth)
+            (identifier) @meth
+          ]
           arguments: (arguments (string (string_fragment) @alg) (_))) @call
       where:
-        - { capture: obj, equals: crypto }
         - { capture: meth, in: [createCipher, createDecipher] }
     extract:
       algorithm: { from: alg, resolve: capture-text }
@@ -41,11 +54,11 @@ rules:
     match:
       query: |
         (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @meth)) @call
+          function: [
+            (member_expression property: (property_identifier) @meth)
+            (identifier) @meth
+          ]) @call
       where:
-        - { capture: obj, equals: crypto }
         - { capture: meth, in: [pbkdf2, pbkdf2Sync] }
     extract:
       algorithm: { literal: PBKDF2 }
@@ -72,11 +85,11 @@ rules:
     match:
       query: |
         (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @meth)) @call
+          function: [
+            (member_expression property: (property_identifier) @meth)
+            (identifier) @meth
+          ]) @call
       where:
-        - { capture: obj, equals: crypto }
         - { capture: meth, in: [scrypt, scryptSync] }
     extract:
       algorithm: { literal: scrypt }
@@ -97,11 +110,11 @@ rules:
     match:
       query: |
         (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @meth)) @call
+          function: [
+            (member_expression property: (property_identifier) @meth)
+            (identifier) @meth
+          ]) @call
       where:
-        - { capture: obj, equals: crypto }
         - { capture: meth, in: [hkdf, hkdfSync] }
     extract:
       algorithm: { literal: HKDF }
@@ -122,12 +135,12 @@ rules:
     match:
       query: |
         (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @meth)
+          function: [
+            (member_expression property: (property_identifier) @meth)
+            (identifier) @meth
+          ]
           arguments: (arguments (string (string_fragment) @alg))) @call
       where:
-        - { capture: obj, equals: crypto }
         - { capture: meth, in: [createSign, createVerify] }
     extract:
       # The argument names the DIGEST (e.g. 'RSA-SHA256', 'sha256'); the signing key type is only
@@ -150,12 +163,12 @@ rules:
     match:
       query: |
         (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @meth)
+          function: [
+            (member_expression property: (property_identifier) @meth)
+            (identifier) @meth
+          ]
           arguments: (arguments (string (string_fragment) @alg))) @call
       where:
-        - { capture: obj, equals: crypto }
         - { capture: meth, equals: createECDH }
     extract:
       algorithm: { from: alg, resolve: capture-text }
@@ -179,12 +192,12 @@ rules:
     match:
       query: |
         (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @meth)
+          function: [
+            (member_expression property: (property_identifier) @meth)
+            (identifier) @meth
+          ]
           arguments: (arguments (number) @size)) @call
       where:
-        - { capture: obj, equals: crypto }
         - { capture: meth, equals: createDiffieHellman }
     extract:
       algorithm: { literal: DH }

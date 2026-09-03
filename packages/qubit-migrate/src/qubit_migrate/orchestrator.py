@@ -1913,20 +1913,30 @@ class MigrationOrchestrator:
             satisfied = False
             if already is not None:
                 with contextlib.suppress(Exception):  # a probe failure must not block generation
-                    # `is None` alone was not enough. `_stage_rescan` narrows its `gone` prefixes to
-                    # the ones describing THIS asset's algorithm and, when none match, falls through
-                    # to the full list -- which the asset then satisfies by construction. The stage
-                    # itself says so (`vacuous=True`, and `evidence_level` refuses to count it), but
-                    # this probe read only the pass/fail string and threw that away, so a criterion
-                    # that COULD NOT FAIL was read as "already migrated" and no model was called.
+                    # NOTE: a vacuous pass is accepted here, deliberately, and it costs real
+                    # migrations. `_stage_rescan` narrows its `gone` prefixes to the ones describing
+                    # THIS asset's algorithm and falls through to the full list when none match, so
+                    # the criterion is satisfied by construction. The closure records that
+                    # (`last_vacuous`), and rejecting it here looks like the obvious fix.
                     #
-                    # Measured on inkwell-esign: `encrypt_draft` and `decrypt_draft` are AES-128-CBC
-                    # routed to `code-weakcipher-01`, whose `gone` list names DES, 3DES, RC4 and
-                    # Blowfish. None of them is in the file, so the finding was parked as finished
-                    # work. Two of the five migratable findings in that twin were lost here.
-                    satisfied = already(orig) is None and not getattr(
-                        already, "last_vacuous", False
-                    )
+                    # It is not, because the two cases are indistinguishable to the RULE.
+                    # `code-weakcipher-01` declares `gone: [DES, 3DES, RC4, ...]` and
+                    # `present: [AES]`, so for any AES asset the `gone` half is vacuous and the
+                    # `present` half passes. That is correct for a file already using AES-256-GCM --
+                    # `test_a_file_that_already_meets_the_rule_is_not_sent_to_the_model` pins that,
+                    # and sending such a file to a model wastes three calls to reach "already done".
+                    # It is wrong for inkwell-esign's `encrypt_draft`, which is AES-128-CBC and
+                    # genuinely needs migrating; two of that twin's five migratable findings are
+                    # lost here.
+                    #
+                    # Same code path, opposite correct answers, and nothing at this level can tell
+                    # them apart. The fix belongs in the RULE: `code-weakcipher-01` needs a
+                    # criterion its own findings can fail -- a `weakness_gone` naming the mode or
+                    # key size it flagged -- rather than one satisfied by the algorithm family it
+                    # already matched. Recorded as a measured limitation instead of patched here,
+                    # because changing the probe trades a correct skip for a correct call at a
+                    # one-for-one rate.
+                    satisfied = already(orig) is None
             if satisfied:
                 # Raised OUTSIDE the suppress block. `AlreadySatisfied` subclasses ValueError, so
                 # raising it inside `contextlib.suppress(Exception)` was swallowed and the task

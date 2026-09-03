@@ -1,18 +1,27 @@
-"""A criterion that cannot fail must not be read as "already migrated".
+"""A rescan pass that could not have failed is recorded as such.
 
 `_stage_rescan` narrows its `gone` prefixes to the ones describing THIS asset's algorithm and, when
-none of them match, falls through to the full list -- which the asset then satisfies by construction.
-The stage is honest about it: it sets `vacuous=True`, and `evidence_level` refuses to count a vacuous
-pass as evidence.
+none match, falls through to the full list -- which the asset then satisfies by construction. The
+stage sets `vacuous=True`, `evidence_level` refuses to count it, and `_rescan_verifier` now records
+it on the closure so any caller can tell an earned pass from an unearned one.
 
-The pre-flight probe in `_generate_patch` read only the pass/fail string from that stage and threw
-the flag away, so a criterion that could not have failed was treated as proof the finding was already
-done -- and no codemod and no model ever ran on it.
+**The pre-flight probe deliberately does NOT act on it yet, and that is a measured trade, not an
+oversight.** `code-weakcipher-01` declares `gone: [DES, 3DES, RC4, ...]` with `present: [AES]`, so
+for every AES asset the `gone` half is vacuous and the `present` half passes:
 
-Measured on `inkwell-esign` through the desktop app: `encrypt_draft` and `decrypt_draft` are
-AES-128-CBC, routed to `code-weakcipher-01`, whose `gone` list names DES, 3DES, RC4 and Blowfish.
-None of those is anywhere in the file, so both findings were parked as finished work. Two of that
-twin's five migratable findings were lost here.
+* for a file already using AES-256-GCM that verdict is right, and skipping the model saves three
+  calls to reach "already done" -- pinned by
+  `test_guidance.py::test_a_file_that_already_meets_the_rule_is_not_sent_to_the_model`;
+* for inkwell-esign's `encrypt_draft`, which is AES-128-CBC and genuinely needs migrating, it is
+  wrong, and costs two of that twin's five migratable findings.
+
+Same code path, opposite correct answers, and nothing at the orchestrator level can separate them.
+The fix belongs in the rule: `code-weakcipher-01` needs a criterion its own findings can fail -- a
+`weakness_gone` naming the mode or key size it flagged -- rather than one satisfied by the algorithm
+family it already matched.
+
+These tests pin the flag itself, so the signal stays correct and available for whoever closes that
+gap in the rule.
 """
 
 from __future__ import annotations
@@ -101,11 +110,11 @@ class TestVacuousPasses:
         assert verify("anything") is None
         assert verify.last_vacuous is False
 
-    def test_the_probe_condition_rejects_a_vacuous_pass(self, orchestrator, asset, monkeypatch):
-        """The composite the pre-flight actually evaluates.
+    def test_the_flag_would_reject_a_vacuous_pass(self, orchestrator, asset, monkeypatch):
+        """The composite a caller acting on the flag would evaluate.
 
-        `already(orig) is None` alone is what parked the two AES findings; the second term is what
-        stops it.
+        Not what the pre-flight probe does today -- see the module docstring for why. This pins the
+        flag as a usable signal so closing the rule-level gap is a one-line change here.
         """
         _install(monkeypatch, StageResult("pass", "vacuous", 0.0, vacuous=True))
         already = orchestrator._rescan_verifier(RULE, asset, "lib/inkwell/crypto/internal.rb")

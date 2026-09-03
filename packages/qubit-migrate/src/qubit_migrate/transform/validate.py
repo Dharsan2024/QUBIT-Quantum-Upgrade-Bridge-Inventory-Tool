@@ -15,6 +15,8 @@ import json
 import os
 import shutil
 import subprocess
+import io
+import tarfile
 import tempfile
 import time
 import uuid
@@ -1263,26 +1265,75 @@ def _run_suite(
     return code, out, None
 
 
+def _materialise_pristine(repo_root: Path, work: Path) -> str:
+    """Put the UNMODIFIED tree in `work`. Returns how it was obtained, for the cache key.
+
+    `git archive HEAD` when `repo_root` is a git work tree, a plain copy otherwise.
+
+    The distinction is the whole point of this function. `repo_root` is the LIVE tree, and QUBIT
+    applies accepted patches straight into it -- so by the time the second finding is validated, the
+    "untouched tree" is not untouched. Copying it makes the baseline a picture of the tool's own
+    edits.
+    """
+    head = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        capture_output=True, timeout=30,
+    )
+    if head.returncode == 0:
+        commit = head.stdout.decode("utf-8", "replace").strip()
+        work.mkdir(parents=True, exist_ok=True)
+        archive = subprocess.run(
+            ["git", "-C", str(repo_root), "archive", "--format=tar", commit],
+            capture_output=True, timeout=300,
+        )
+        if archive.returncode == 0 and archive.stdout:
+            with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
+                tar.extractall(work)  # noqa: S202 - our own `git archive` output
+            return commit[:12]
+        shutil.rmtree(work, ignore_errors=True)
+    shutil.copytree(repo_root, work, ignore=_COPY_IGNORES)
+    return "worktree"
+
+
 def _compute_baseline(
     repo_root: Path, image: str, command: str, timeout_s: float
 ) -> _Baseline | None:
-    """What the untouched tree does. Computed once per (image, repo_root), then cached."""
-    key = (image, str(repo_root))
-    if key in _BASELINE_CACHE:
-        return _BASELINE_CACHE[key]
+    """What the untouched tree does. Computed once per (image, repo_root, commit), then cached.
+
+    **The baseline must come from the pristine tree, and `repo_root` is not pristine.** Accepted
+    patches are written into it as the run proceeds, so a baseline copied from it after the first
+    apply reflects those edits. When one of them breaks the suite, the baseline is red -- and
+    `_stage_tests` then reports, for every later patch,
+
+        this suite does not run in the sandbox even before the patch
+        (missing dependencies, no network)
+
+    which is a statement about the environment and is false. The real cause is the tool's own
+    earlier patch. The oracle switches itself off after the first bad patch and misattributes it.
+
+    Measured on `paymesh-gateway` through the desktop app: five patches were applied with
+    `tests: skipped` and that message, while the pristine tree at HEAD ran `22 tests, 0 failures,
+    BUILD SUCCESS` in the same image with no network. The first bad patch disabled the only gate
+    that could have caught the four that followed.
+
+    The commit is part of the cache key so a baseline is never reused across a checkout that moved.
+    """
     result: _Baseline | None = None
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             work = Path(tmpdir) / "repo"
-            shutil.copytree(repo_root, work, ignore=_COPY_IGNORES)
+            source = _materialise_pristine(repo_root, work)
+            key = (image, str(repo_root), source)
+            if key in _BASELINE_CACHE:
+                return _BASELINE_CACHE[key]
             code, _out, parsed = _run_suite(work, image, command, timeout_s, fail_fast=False)
             if parsed is not None:
                 passing, collected = parsed
                 result = _Baseline(passing=passing, collected=collected, green=code == 0)
             else:
                 result = _Baseline(passing=frozenset(), collected=0, green=code == 0)
-    except (subprocess.TimeoutExpired, OSError, shutil.Error):
-        result = None
+    except (subprocess.TimeoutExpired, OSError, shutil.Error, tarfile.TarError):
+        return None
     _BASELINE_CACHE[key] = result
     return result
 

@@ -297,6 +297,54 @@ class LearnedPatch(Base):
     )
 
 
+class LearnedRule(Base):
+    """A migration rule QUBIT derived for itself, kept so the next occurrence is not re-derived.
+
+    The hand-written pack cannot cover every algorithm and usage a scan turns up, and the answer
+    for the rest used to be written guidance -- which reads as a refusal for findings that are
+    perfectly migratable. `transform.synthesized` builds a rule for those from QUBIT's own
+    knowledge base, the model writes the change, and the ordinary gates judge it.
+
+    A rule is stored here ONLY once a patch built from it has passed validation, rescan included.
+    That is the whole point of the table: an unvalidated rule is a guess, and persisting guesses
+    would let one bad derivation poison every later finding that matches it. What is kept is a
+    derivation that has already been shown to produce a patch QUBIT would accept.
+
+    `rule_json` holds the whole `MigrationRule`, not a few columns of it. The rule's shape is owned
+    by `transform.rules` and changes with it; storing a decomposition here would mean two
+    definitions of a rule that have to be kept in step, and the one in the database would be the
+    one nobody updates.
+
+    Tenant-scoped for the same reason `LearnedPatch` is: the target algorithm is generic, but the
+    rule was derived from a finding in a team's own code, and its `matches` can carry that shape.
+    """
+
+    __tablename__ = "learned_rules"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), index=True, default=DEFAULT_TENANT_ID
+    )
+    #: The synthesised rule's own id, e.g. `synth-rsa-kex-python`. Namespaced by the synthesiser so
+    #: it can never collide with a hand-written rule in the outcome history.
+    rule_id: Mapped[str] = mapped_column(String(96), index=True)
+    language: Mapped[str] = mapped_column(String(32))
+    #: The family the rule was derived for (`RSA`), not the specific finding (`RSA-2048`), because
+    #: that is the granularity the knowledge base answers at.
+    family: Mapped[str] = mapped_column(String(64), index=True)
+    usage_context: Mapped[str] = mapped_column(String(32))
+    target_algorithm: Mapped[str] = mapped_column(String(64))
+    rule_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    #: Which engine wrote the patch that validated this rule. Provenance, and the honest answer to
+    #: "where did this rule come from" in a paper or a review.
+    source_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    hit_count: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    __table_args__ = (UniqueConstraint("tenant_id", "rule_id", name="uq_learned_rule_key"),)
+
+
 class LearnedOutcome(Base):
     """What happened the last time this SHAPE of finding was migrated - success or failure.
 

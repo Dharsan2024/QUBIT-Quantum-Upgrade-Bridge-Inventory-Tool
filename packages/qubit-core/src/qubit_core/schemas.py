@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -163,6 +164,15 @@ class RiskAnnotation(BaseModel):
     ci_high: float = Field(ge=0.0, le=1.0)
     mosca_margin_years: float  # Z - (X + Y); negative => already too late
     priority_rank: int = Field(ge=1)
+    #: QARS (Electronics 2025, 14, 3338) — the score, its three components, the weights and
+    #: the sector profile used. ADOPTED PRIOR WORK, implemented and cited; never presented
+    #: as a QUBIT contribution.
+    #:
+    #: Stored as a dict rather than a bare float because **a score without its weights is
+    #: not reproducible**: the same asset scores differently under each published sector
+    #: profile, and a stored figure alone cannot be told apart from a mis-scored one later.
+    #: `None` where no QARS score was computed — a distinct claim from a score of zero.
+    qars: dict[str, Any] | None = None
 
 
 class EffortEstimate(BaseModel):

@@ -461,28 +461,31 @@ class TestAnUnverifiableTargetIsNotSentToTheModel:
         """
         assert orch._llm_detour_reason(_signature_rule(), SMALL_GO, "go") is None
 
-    @pytest.mark.parametrize("language", ["ruby", "php", "dart"])
+    @pytest.mark.parametrize("language", ["ruby", "php", "dart", "cpp", "bash", "powershell"])
     @pytest.mark.parametrize("rule_id", ["code-kex-01", "code-signature-01"])
-    def test_a_language_with_no_verified_target_shape_is_detoured(
+    def test_the_languages_that_were_detoured_now_reach_the_model(
         self, orch: MigrationOrchestrator, language: str, rule_id: str
     ) -> None:
-        """These three claim the rule but have no confirmable ML-KEM/ML-DSA shape.
+        """The same flip Go made, for the six languages that were still detoured after it.
 
-        Deliberately routed rather than "fixed" by inventing an API: writing a PQC example for a
-        language whose ecosystem has no settled one would be a fabrication, and the rescan would
-        still have nothing to match. The honest answer is the guided path plus a reason that says
-        the gap is QUBIT's, not the model's.
+        Each claimed the rule and had no confirmable ML-KEM/ML-DSA shape, so the honest routing was
+        the guided path — the detour was correct while it stood. It is no longer: the scanner now
+        recognises both families in all six (see `test_pqc_detection_coverage.py`), so a correct
+        rewrite can be confirmed and the model must be allowed to attempt one.
+
+        Measured on inkwell-esign before the rule packs landed, as the recorded failure reason:
+        "QUBIT cannot yet confirm a ML-DSA rewrite in ruby". That finding was one of five
+        migratable ones in the twin and it was never attempted.
+
+        This is the assertion that fails if a PQC rule pack is dropped, which is why it stays
+        parametrised over all six rather than being deleted.
         """
         rule = next(r for r in load_rules() if r.id == rule_id)
 
-        reason = orch._llm_detour_reason(rule, SMALL_GO, language)
-
-        assert reason is not None, (
-            f"{rule_id} in {language} has no verified target shape, so the rescan cannot pass — "
-            f"sending it to the model spends three attempts to prove that"
+        assert orch._llm_detour_reason(rule, SMALL_GO, language) is None, (
+            f"{rule_id} in {language} is being detoured again — its PQC detection has regressed, "
+            f"and every migration in that language is now unwinnable"
         )
-        assert "cannot yet confirm" in reason
-        assert language in reason, "the reason must name the language whose detection is missing"
 
     def test_the_detour_reason_blames_qubit_not_the_model(
         self, orch: MigrationOrchestrator
@@ -491,8 +494,11 @@ class TestAnUnverifiableTargetIsNotSentToTheModel:
 
         The reliability detour's wording ("the local model has not completed...") would be wrong
         for this case and would push a user toward swapping models, which fixes nothing.
+
+        `sql` is the language this is asked about now — the only one left with no shipped shape,
+        and correctly so: its rule pack emits no asymmetric cryptography for a PQC rule to target.
         """
-        reason = orch._llm_detour_reason(_signature_rule(), SMALL_GO, "ruby")
+        reason = orch._llm_detour_reason(_signature_rule(), SMALL_GO, "sql")
 
         assert reason is not None
         assert "scanner" in reason, "say which component is missing the capability"

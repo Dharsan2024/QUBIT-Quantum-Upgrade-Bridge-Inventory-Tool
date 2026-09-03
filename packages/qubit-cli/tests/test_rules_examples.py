@@ -47,12 +47,17 @@ def test_go_shape_is_gos_not_rusts() -> None:
 def test_a_language_with_no_pqc_rule_publishes_nothing() -> None:
     """An empty answer is the useful one: it says no rewrite here can ever be confirmed.
 
-    This was `swift` until Swift gained `SWIFT-CRYPTOKIT-MLKEM`. If PHP ever grows a usable ML-KEM
-    binding and a rule for it, this test will fail the same way -- correctly, and the fix is to move
-    it to whichever language still has none (currently bash, dart, powershell, ruby), not to weaken
-    the assertion.
+    This was `swift` until Swift gained `SWIFT-CRYPTOKIT-MLKEM`, then `php` until it gained an
+    OpenSSL 3.5 shape -- along with bash, dart, powershell and ruby, which this docstring used to
+    name as the fallbacks and which have since gained shapes of their own.
+
+    `sql` is where that line ends rather than the next entry in it. Its rule pack emits `hash`,
+    `kdf`, `mac` and `encryption-at-rest` and no asymmetric cryptography at all, so no ML-KEM
+    migration can ever target it and there is nothing to ship a shape for. If this test ever fails
+    again the right response is to check whether SQL really did grow asymmetric crypto, not to move
+    the assertion somewhere quieter.
     """
-    assert _examples("--language", "php", "--algorithm-prefix", "ML-KEM") == []
+    assert _examples("--language", "sql", "--algorithm-prefix", "ML-KEM") == []
 
 
 def test_the_prefix_filter_actually_filters() -> None:

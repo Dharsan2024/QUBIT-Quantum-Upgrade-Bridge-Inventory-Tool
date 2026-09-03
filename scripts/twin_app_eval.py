@@ -121,15 +121,41 @@ TERMINAL_STATES = {
 }
 
 
-def wait_for_plan(plan_id: str, timeout: int = 5400) -> list[dict[str, Any]]:
-    """Block until every task in the plan reaches a terminal state."""
+def wait_for_plan(
+    plan_id: str, timeout: int = 5400, stall_after: int = 60
+) -> list[dict[str, Any]]:
+    """Block until every task in the plan reaches a terminal state.
+
+    Gives up on a STALL as well as on the timeout, and the distinction matters. A plan can contain
+    a task nothing will ever advance — one left `generating` by an interrupted run is in neither
+    the ready nor the deferred selection, so no later run picks it up. Waiting the full timeout on
+    that costs ninety minutes and learns nothing; it happened, and it is what this parameter exists
+    to stop.
+
+    `stall_after` counts consecutive polls with no change in how many tasks have settled. At the
+    5s interval that is five minutes of complete stillness, which a running generation never has:
+    even one model call moves a task within that window.
+    """
     deadline = time.time() + timeout
-    last = []
+    last: list[dict[str, Any]] = []
+    settled_before = -1
+    unchanged = 0
     while time.time() < deadline:
         queue = call("GET", f"/migrate/plans/{plan_id}/queue", timeout=120)
         last = queue if isinstance(queue, list) else queue.get("items", queue.get("tasks", []))
-        if last and all((t.get("state") or "") in TERMINAL_STATES for t in last):
+        settled = sum(1 for t in last if (t.get("state") or "") in TERMINAL_STATES)
+        if last and settled == len(last):
             return last
+        unchanged = unchanged + 1 if settled == settled_before else 0
+        settled_before = settled
+        if unchanged >= stall_after:
+            stuck = sorted(
+                {t.get("state") for t in last if t.get("state") not in TERMINAL_STATES}
+            )
+            raise RuntimeError(
+                f"plan {plan_id} stalled at {settled}/{len(last)} settled for "
+                f"{unchanged * 5}s; tasks stuck in {stuck}"
+            )
         time.sleep(5)
     pending = [t.get("state") for t in last if t.get("state") not in TERMINAL_STATES]
     raise RuntimeError(f"plan {plan_id} still has {len(pending)} tasks running after {timeout}s")

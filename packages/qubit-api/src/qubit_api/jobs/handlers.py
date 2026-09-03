@@ -893,6 +893,34 @@ def migrate_handler(payload: dict[str, Any], reporter: ProgressReporter) -> dict
         if not should_generate:
             return _write_prepared_patches(session, orch, plan_id, repo_root, reporter)
 
+        # ── Recover work an INTERRUPTED run left mid-flight ──────────────────────────────────
+        #
+        # `generating` and `verifying` mean "a run was here and did not come back". They are in
+        # neither selection below — not `ready`, not `deferred` — so a task left in one is invisible
+        # to every subsequent run and is stranded for good. The plan then never settles: a UI
+        # polling for completion waits forever on a task nothing will ever pick up.
+        #
+        # Observed on a campaign run: `plan 9843201d still has 2 tasks running after 5400s`, an
+        # hour and a half spent waiting on a task no code path could advance. The engine being
+        # restarted mid-run is what produced it, and a crash or a closed laptop does the same thing
+        # to a real user.
+        #
+        # Recovered through `defer` rather than by writing the state directly, so the FSM stays the
+        # only thing that moves a task and the transition is recorded like any other.
+        interrupted = list(
+            session.scalars(
+                select(MigrationTask)
+                .where(MigrationTask.plan_id == plan_id)
+                .where(MigrationTask.state.in_(("generating", "verifying")))
+            ).all()
+        )
+        for task in interrupted:
+            with contextlib.suppress(InvalidTransition):
+                orch._fail_task(task, "a previous run was interrupted before this finished")
+        if interrupted:
+            session.commit()
+            logger.info("recovered %d task(s) left mid-flight by an earlier run", len(interrupted))
+
         # Ready work, PLUS anything a previous run failed on.
         #
         # The engine learns between runs - a rewrite validated on one file grounds the next

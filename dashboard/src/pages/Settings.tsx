@@ -19,6 +19,8 @@ import {
   Radar,
   Clock,
   Brain,
+  Info,
+  SlidersHorizontal,
 } from 'lucide-react';
 import type { LlmProvider } from '../api/types';
 import {
@@ -310,7 +312,8 @@ export function Settings() {
           Settings
         </h1>
         <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
-          The local engine connection and the token this window uses to talk to it.
+          What this window talks to and how patches get generated, then what the installation
+          underneath it actually is.
         </p>
       </header>
 
@@ -319,6 +322,10 @@ export function Settings() {
           stacked in the single narrow right column — so the column grew very tall while the two
           columns under Connection stayed empty, wasting most of a wide window. */}
       <div className="stagger flex flex-col gap-5">
+        <h2 className="label-caps mt-1 flex items-center gap-2 text-[color:var(--color-ink-faint)]">
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Configuration
+        </h2>
         <div className="glass-card flex flex-col gap-5 p-6">
           <h2 className="flex items-center gap-2">
             <Server className="h-5 w-5 text-[color:var(--color-accent)]" /> Connection
@@ -652,6 +659,109 @@ export function Settings() {
 
         {/* `items-start` so a short card keeps its own height instead of being stretched to match
             the tallest in its row — Threat intelligence is several times the height of Engine. */}
+      {/* Grouped with Connection and LLM provider rather than with the read-only status
+          cards below: it is the third thing on this page with a control that changes behaviour,
+          and it was the odd one out sitting among Engine, Language coverage and Updates. */}
+        <div className="glass-card p-6" data-testid="threat-intel-card">
+          <h2 className="mb-1 flex items-center gap-2">
+            <Radar className="h-5 w-5 text-[color:var(--color-accent)]" /> Threat intelligence
+          </h2>
+          <p className="mb-3 text-xs text-[color:var(--color-ink-faint)]">
+            Off by default. When enabled, checks a fixed, curated set of NIST PQC reference pages
+            for changes — nothing about your code or scans is ever sent. A changed source is
+            staged below for you to read; it never auto-updates the CRQC timeline or Mosca
+            parameters on its own.
+          </p>
+
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <span className="label-caps">Automatic checks</span>
+            <button
+              onClick={toggleThreatIntel}
+              disabled={tiBusy || tiConfig.isLoading}
+              className="hud-btn px-4"
+              data-testid="threat-intel-toggle"
+              style={{
+                color: tiConfig.data?.enabled ? 'var(--color-safe)' : 'var(--color-ink-faint)',
+              }}
+            >
+              {tiConfig.data?.enabled ? 'Enabled' : 'Disabled'}
+            </button>
+          </div>
+
+          <Row
+            icon={<Clock className="h-3.5 w-3.5" />}
+            label="Last checked"
+            value={
+              tiConfig.data?.last_checked_at
+                ? new Date(tiConfig.data.last_checked_at).toLocaleString()
+                : 'never'
+            }
+            valueTestId="threat-intel-last-checked"
+          />
+          <Row
+            icon={<RefreshCw className="h-3.5 w-3.5" />}
+            label="Interval"
+            value={`every ${tiConfig.data?.check_interval_hours ?? 24}h`}
+          />
+
+          <button
+            onClick={checkThreatIntelNow}
+            disabled={tiBusy}
+            className="hud-btn mt-3 w-full justify-center"
+            data-testid="threat-intel-check-now"
+          >
+            {tiBusy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Radar className="h-3.5 w-3.5" />
+            )}
+            Check now
+          </button>
+
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {(tiConfig.data?.sources ?? []).map((source) => {
+              const snap = latestSnapshotBySource.get(source.id);
+              const needsReview = Boolean(snap?.changed_from_previous && !snap.reviewed);
+              return (
+                <div
+                  key={source.id}
+                  data-testid={`threat-intel-source-${source.id}`}
+                  className="rounded-[3px] border border-[color:var(--edge)] px-3 py-2 text-xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-[color:var(--color-ink)]">{source.label}</span>
+                    {needsReview && (
+                      <span className="rounded-[3px] bg-[color:var(--color-warn)]/15 px-1.5 py-0.5 text-[10px] text-[color:var(--color-warn)]">
+                        changed
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[color:var(--color-ink-faint)]">
+                    {snap
+                      ? snap.fetch_error
+                        ? `fetch failed: ${snap.fetch_error}`
+                        : `checked ${new Date(snap.fetched_at).toLocaleString()}`
+                      : 'not checked yet'}
+                  </p>
+                  {needsReview && snap && (
+                    <button
+                      onClick={() => markSnapshotReviewed(snap.id)}
+                      data-testid={`threat-intel-review-${source.id}`}
+                      className="mt-1.5 text-[color:var(--color-accent-soft)] underline"
+                    >
+                      Mark reviewed
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <h2 className="label-caps mt-1 flex items-center gap-2 text-[color:var(--color-ink-faint)]">
+          <Info className="h-3.5 w-3.5" />
+          This installation
+        </h2>
         <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:grid-cols-3">
           <div className="glass-card p-6">
             <h2 className="mb-3 flex items-center gap-2">
@@ -742,105 +852,6 @@ export function Settings() {
           {/* Its five stat tiles sit in one row; a single column squeezes them to two characters. */}
           <div className="md:col-span-2 xl:col-span-2">
             <LearningPanel />
-          </div>
-
-          {/* Two columns: it is the tallest card here, and its source list reads far better side
-              by side than stacked in a third of the width. Also fills the last row, which
-              otherwise left one column empty. */}
-          <div className="glass-card p-6 md:col-span-2 xl:col-span-2" data-testid="threat-intel-card">
-            <h2 className="mb-1 flex items-center gap-2">
-              <Radar className="h-5 w-5 text-[color:var(--color-accent)]" /> Threat intelligence
-            </h2>
-            <p className="mb-3 text-xs text-[color:var(--color-ink-faint)]">
-              Off by default. When enabled, checks a fixed, curated set of NIST PQC reference pages
-              for changes — nothing about your code or scans is ever sent. A changed source is
-              staged below for you to read; it never auto-updates the CRQC timeline or Mosca
-              parameters on its own.
-            </p>
-
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <span className="label-caps">Automatic checks</span>
-              <button
-                onClick={toggleThreatIntel}
-                disabled={tiBusy || tiConfig.isLoading}
-                className="hud-btn px-4"
-                data-testid="threat-intel-toggle"
-                style={{
-                  color: tiConfig.data?.enabled ? 'var(--color-safe)' : 'var(--color-ink-faint)',
-                }}
-              >
-                {tiConfig.data?.enabled ? 'Enabled' : 'Disabled'}
-              </button>
-            </div>
-
-            <Row
-              icon={<Clock className="h-3.5 w-3.5" />}
-              label="Last checked"
-              value={
-                tiConfig.data?.last_checked_at
-                  ? new Date(tiConfig.data.last_checked_at).toLocaleString()
-                  : 'never'
-              }
-              valueTestId="threat-intel-last-checked"
-            />
-            <Row
-              icon={<RefreshCw className="h-3.5 w-3.5" />}
-              label="Interval"
-              value={`every ${tiConfig.data?.check_interval_hours ?? 24}h`}
-            />
-
-            <button
-              onClick={checkThreatIntelNow}
-              disabled={tiBusy}
-              className="hud-btn mt-3 w-full justify-center"
-              data-testid="threat-intel-check-now"
-            >
-              {tiBusy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Radar className="h-3.5 w-3.5" />
-              )}
-              Check now
-            </button>
-
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {(tiConfig.data?.sources ?? []).map((source) => {
-                const snap = latestSnapshotBySource.get(source.id);
-                const needsReview = Boolean(snap?.changed_from_previous && !snap.reviewed);
-                return (
-                  <div
-                    key={source.id}
-                    data-testid={`threat-intel-source-${source.id}`}
-                    className="rounded-[3px] border border-[color:var(--edge)] px-3 py-2 text-xs"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-[color:var(--color-ink)]">{source.label}</span>
-                      {needsReview && (
-                        <span className="rounded-[3px] bg-[color:var(--color-warn)]/15 px-1.5 py-0.5 text-[10px] text-[color:var(--color-warn)]">
-                          changed
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-[color:var(--color-ink-faint)]">
-                      {snap
-                        ? snap.fetch_error
-                          ? `fetch failed: ${snap.fetch_error}`
-                          : `checked ${new Date(snap.fetched_at).toLocaleString()}`
-                        : 'not checked yet'}
-                    </p>
-                    {needsReview && snap && (
-                      <button
-                        onClick={() => markSnapshotReviewed(snap.id)}
-                        data-testid={`threat-intel-review-${source.id}`}
-                        className="mt-1.5 text-[color:var(--color-accent-soft)] underline"
-                      >
-                        Mark reviewed
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           </div>
 
           <div className="glass-card p-6">

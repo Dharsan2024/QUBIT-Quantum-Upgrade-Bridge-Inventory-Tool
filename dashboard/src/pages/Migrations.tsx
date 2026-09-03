@@ -35,6 +35,7 @@ import {
   createPlan,
   createScan,
   fetchJob,
+  findRunningMigration,
   runPlan,
   fetchPlanGraph,
   fetchPlanQueue,
@@ -99,10 +100,29 @@ const SETTLED_MARKERS = [
   'no bump needed',
 ];
 
-function TaskRow({ task }: { task: MigrationTask }) {
+function TaskRow({
+  task,
+  autoOpen = false,
+  justPrepared = false,
+}: {
+  task: MigrationTask;
+  /** Open this row without being asked, because its change was just prepared by a bulk build. */
+  autoOpen?: boolean;
+  /** Mark the row as produced by the run in progress. Separate from `autoOpen`, which is capped at
+   *  the newest few — every fresh row is worth flagging, only a few are worth expanding. */
+  justPrepared?: boolean;
+}) {
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [generator, setGenerator] = useState<'auto' | 'llm' | 'template'>('auto');
+
+  // A row whose change has just been prepared opens itself. `useState(autoOpen)` alone cannot do
+  // this: the row is already mounted when the patch lands, so its initial value was read long
+  // before there was anything to show. Collapsing still sticks — the effect fires on the
+  // transition, not on every render.
+  useEffect(() => {
+    if (autoOpen) setOpen(true);
+  }, [autoOpen]);
 
   const { data: patches } = useQuery({
     queryKey: ['patches', task.id],
@@ -147,7 +167,14 @@ function TaskRow({ task }: { task: MigrationTask }) {
 
   return (
     <>
-      <tr className="data-row">
+      <tr
+        className={`data-row${
+          justPrepared
+            ? ' bg-[color:var(--color-accent)]/8 shadow-[inset_2px_0_0_var(--color-accent)]'
+            : ''
+        }`}
+        data-testid={justPrepared ? 'task-row-just-prepared' : undefined}
+      >
         <td className="px-4 py-3">
           <button
             onClick={() => setOpen(!open)}
@@ -742,8 +769,16 @@ function DependencyGraphView({ planId }: { planId: string }) {
         <div className="flex flex-wrap items-center gap-6">
           {[
             { n: graph.nodes.length, l: 'Assets', c: 'var(--color-accent)' },
-            { n: graph.edges.length, l: 'Dependencies', c: 'var(--color-accent-2)' },
-            { n: graph.units.length, l: 'Execution units', c: 'var(--color-safe)' },
+            {
+              n: graph.edges.length,
+              l: 'Dependencies',
+              c: 'var(--color-accent-2)',
+            },
+            {
+              n: graph.units.length,
+              l: 'Execution units',
+              c: 'var(--color-safe)',
+            },
           ].map((s) => (
             <div key={s.l} className="flex items-baseline gap-2">
               <span className="metric text-[1.5rem]" style={{ color: s.c }}>
@@ -770,7 +805,8 @@ function DependencyGraphView({ planId }: { planId: string }) {
           >
             <div className="flex items-center justify-between border-b border-[color:var(--edge)] pb-2.5">
               <span className="label-caps text-[color:var(--color-accent)]">
-                Unit #{idx + 1} · {unit.members.length} member{unit.members.length === 1 ? '' : 's'}
+                Unit #{idx + 1} · {unit.members.length} member
+                {unit.members.length === 1 ? '' : 's'}
               </span>
               {unit.is_cycle && <span className="chip chip-warn">Cycle condensation</span>}
             </div>
@@ -904,6 +940,19 @@ function PlanSummary({ plan }: { plan: MigrationPlan }) {
   );
 }
 
+// What each regime actually requires, for the hover on the plan header.
+//
+// The disagreement is not the one usually described. CNSA 2.0 does not forbid hybrid — it forbids
+// a hybrid whose ML-KEM component is below the 1024 grade, so `X25519MLKEM768` fails it on the
+// 768. BSI and ANSSI both REQUIRE hybrid, and differ only in severity.
+const REGIME_TITLES: Record<string, string> = {
+  'cnsa-2.0': 'NSA CNSA 2.0 — ML-KEM-1024 and ML-DSA-87 only; rejects a sub-1024 hybrid component',
+  anssi: 'ANSSI (France) — hybrid required during the transition, raised as an advisory',
+  'bsi-tr-02102': 'BSI TR-02102 (Germany) — hybrid REQUIRED; standalone ML-KEM is not sufficient',
+  'asd-ism': 'ASD ISM (Australia) — highest parameter sets; classical ceases by 2030',
+  'nist-civil': 'NIST IR 8547 (draft) + FIPS 203/204/205 — deprecation dates, no mandated construction',
+};
+
 /** One project's migration state. */
 function ProjectMigration({ projectId }: { projectId: string }) {
   const qc = useQueryClient();
@@ -925,13 +974,33 @@ function ProjectMigration({ projectId }: { projectId: string }) {
     plan && latestScan && new Date(latestScan.created_at) > new Date(plan.created_at),
   );
 
+  const [runJobId, setRunJobId] = useState<string | null>(null);
+
+  // The queue is polled while a run is in flight, and only then.
+  //
+  // "Build plan" has always generated a change for every finding; what it never did was show them
+  // arriving. The table stayed frozen at whatever it held when the click landed, so a build over
+  // three hundred findings put a spinner on screen for twenty minutes and produced its entire
+  // result in one jump at the end — with no way to tell work from a hang, and no diff to read
+  // until all of it was done. The work was happening. The page had no way to say so.
   const queueQ = useQuery({
     queryKey: ['migrate-queue', plan?.id],
     queryFn: () => fetchPlanQueue(plan!.id),
     enabled: !!plan && plan.status === 'active',
+    refetchInterval: runJobId ? 2500 : false,
   });
 
-  const [runJobId, setRunJobId] = useState<string | null>(null);
+  // Findings that gained a reviewable change during THIS run, newest first.
+  //
+  // Pressing Generate on a single row shows the diff the moment it exists. Building the plan did
+  // the same work for every asset and showed none of it: each diff landed silently into a row a
+  // reader had to know to expand, one at a time, after the run had finished. These ids lift the
+  // rows that just changed to the top of the queue and open them, so a bulk build reads the way a
+  // single generate does.
+  const [freshlyPrepared, setFreshlyPrepared] = useState<string[]>([]);
+  //: What was already prepared when the run started. Without this snapshot the first poll would
+  //: announce every previously prepared finding as new work.
+  const preparedBefore = useRef<Set<string> | null>(null);
   //: Which half is in flight. The two share one job poller because they are the same job kind;
   //: only the wording differs, and a run that is preparing changes must not say it is writing them.
   const [runMode, setRunMode] = useState<'generate' | 'apply'>('apply');
@@ -984,6 +1053,15 @@ function ProjectMigration({ projectId }: { projectId: string }) {
         setRunError(null);
         setNothingToPrepare(null);
         setRunMode('generate');
+        // Snapshot before the run rather than on the first poll: by the time a poll comes back the
+        // engine may already have prepared two or three findings, and those are exactly the ones
+        // worth showing.
+        preparedBefore.current = new Set(
+          (queueQ.data ?? [])
+            .filter((t) => t.state === 'proposed' || t.state === 'approved')
+            .map((t) => t.id),
+        );
+        setFreshlyPrepared([]);
         setRunJobId(jobId);
       } else {
         setNothingToPrepare(note ?? 'Nothing to prepare — every finding here is already handled.');
@@ -991,7 +1069,76 @@ function ProjectMigration({ projectId }: { projectId: string }) {
     },
   });
 
-  const tasks = queueQ.data ?? [];
+  // Memoised because two hooks below depend on it: a fresh array each render would re-run the
+  // "what just changed" scan on every keystroke elsewhere on the page.
+  const tasks = useMemo(() => queueQ.data ?? [], [queueQ.data]);
+
+  // A run already in flight is adopted, not ignored.
+  //
+  // The job lives on the server; this page only watches it. But the id it watched was component
+  // state, so leaving the Migration Hub and coming back showed a project with nothing running --
+  // no banner, no live counters, a frozen queue -- and a "Build plan" button offering to start a
+  // SECOND run over the same findings. The first was still going the whole time, which is what
+  // "the process has been stopped" looked like from the outside.
+  //
+  // Asked once per plan rather than polled: the answer only changes when a run starts or ends, and
+  // both of those are already known here.
+  useEffect(() => {
+    if (!plan?.id || runJobId) return;
+    let cancelled = false;
+    findRunningMigration(plan.id)
+      .then((found) => {
+        if (cancelled || !found) return;
+        setRunMode(found.mode);
+        setRunJobId(found.id);
+        // Nothing is known about what this run has already prepared, so the "just prepared" list
+        // starts from what is on screen now. Better than claiming every previously prepared
+        // finding is new work of this run's.
+        preparedBefore.current = new Set(
+          (queueQ.data ?? [])
+            .filter((t) => t.state === 'proposed' || t.state === 'approved')
+            .map((t) => t.id),
+        );
+      })
+      .catch(() => {
+        // A page that cannot ask is no worse off than before this existed.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan?.id]);
+
+  // Notice each change as it is prepared, and put it in front of the reader.
+  useEffect(() => {
+    const before = preparedBefore.current;
+    if (!runJobId || before === null) return;
+    const prepared = tasks
+      .filter((t) => t.state === 'proposed' || t.state === 'approved')
+      .map((t) => t.id);
+    setFreshlyPrepared((seen) => {
+      const known = new Set(seen);
+      const added = prepared.filter((id) => !before.has(id) && !known.has(id));
+      if (added.length === 0) return seen;
+      // A row opened before its patch existed cached an empty result, and nothing else
+      // invalidates it — without this the diff that just arrived stays invisible in an open row.
+      for (const id of added) qc.invalidateQueries({ queryKey: ['patches', id] });
+      return [...added.reverse(), ...seen];
+    });
+  }, [tasks, runJobId, qc]);
+
+  // Rows that just changed come first, so the newest diff is at the top of the page instead of
+  // wherever its WSJF rank happens to place it among three hundred others. The order survives the
+  // run — after it ends, what the run produced is still the first thing on screen.
+  const orderedTasks = useMemo(() => {
+    if (freshlyPrepared.length === 0) return tasks;
+    const rank = new Map(freshlyPrepared.map((id, i) => [id, i]));
+    return [...tasks].sort(
+      (a, b) =>
+        (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [tasks, freshlyPrepared]);
+
   const planScanSeq = plan?.scan_id
     ? projectScans.find((s) => s.id === plan.scan_id)?.seq
     : undefined;
@@ -1092,6 +1239,23 @@ function ProjectMigration({ projectId }: { projectId: string }) {
     (t) => t.state === 'deferred' && t.resolution === 'unresolved',
   ).length;
 
+  // How far through the plan the run is, counted from the queue rather than parsed out of the job's
+  // message. Every finding lands in exactly one of these, so `remaining` reaching zero means the
+  // queue is genuinely done rather than merely quiet. `guided` and `settled` are deliberately not
+  // counted as failures: one is a written remediation, the other work that was already correct, and
+  // folding either into "failed" is what made a healthy run read as a broken one.
+  const liveCounts = {
+    prepared: tasks.filter((t) => ['proposed', 'approved', 'applied'].includes(t.state)).length,
+    remaining: tasks.filter((t) => ['pending', 'ready', 'generating'].includes(t.state)).length,
+    guided: tasks.filter((t) => t.resolution === 'guided').length,
+    settled: tasks.filter((t) => t.resolution === 'satisfied').length,
+    failed: tasks.filter(
+      (t) =>
+        ['failed', 'apply_failed', 'rejected'].includes(t.state) ||
+        (t.state === 'deferred' && t.resolution === 'unresolved'),
+    ).length,
+  };
+
   return (
     <>
       <ProjectScopeBar>
@@ -1158,7 +1322,29 @@ function ProjectMigration({ projectId }: { projectId: string }) {
               {runJobQ.data?.message ??
                 (preparing ? 'Preparing changes…' : 'Starting migration…')}
             </div>
-            <div className="metric-label mt-0.5">
+            {/* Live tallies, counted from the queue itself rather than from the job's message.
+                A build that takes twenty minutes needs to say how much of the plan is done, not
+                only which finding is in flight — without this the only number on screen was a
+                spinner, and a run producing changes looked exactly like one failing every
+                finding until the moment it ended. */}
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums">
+              <span className="text-[color:var(--color-safe)]">{liveCounts.prepared} prepared</span>
+              <span className="text-[color:var(--color-ink-faint)]">
+                {liveCounts.remaining} to go
+              </span>
+              {liveCounts.guided > 0 && (
+                <span className="text-[color:var(--color-warn)]">{liveCounts.guided} guided</span>
+              )}
+              {liveCounts.failed > 0 && (
+                <span className="text-[color:var(--color-danger)]">{liveCounts.failed} failed</span>
+              )}
+              {liveCounts.settled > 0 && (
+                <span className="text-[color:var(--color-ink-faint)]">
+                  {liveCounts.settled} already compliant
+                </span>
+              )}
+            </div>
+            <div className="metric-label mt-1">
               {preparing
                 ? 'Each finding is being rewritten and put through the validation gate. Nothing is written to disk until you initiate the migration.'
                 : 'Each prepared change is being written into its original file.'}
@@ -1202,18 +1388,38 @@ function ProjectMigration({ projectId }: { projectId: string }) {
           just changed, so the inventory this plan was built from now describes the old code. */}
       {runOutcome && (
         <div
-          className="glass-card flex flex-col gap-3 border-[color:var(--color-safe)]/40 bg-[color:var(--color-safe)]/8 p-5"
+          className={`glass-card flex flex-col gap-3 p-5 ${
+            runOutcome.failed > 0
+              ? 'border-[color:var(--color-warn)]/40 bg-[color:var(--color-warn)]/8'
+              : 'border-[color:var(--color-safe)]/40 bg-[color:var(--color-safe)]/8'
+          }`}
           data-testid="migration-complete"
         >
           <div className="flex items-start gap-3">
-            <PartyPopper className="mt-0.5 h-5 w-5 flex-shrink-0 text-[color:var(--color-safe)]" />
+            <PartyPopper
+              className={`mt-0.5 h-5 w-5 flex-shrink-0 ${
+                runOutcome.failed > 0
+                  ? 'text-[color:var(--color-warn)]'
+                  : 'text-[color:var(--color-safe)]'
+              }`}
+            />
             <div className="flex-1">
-              <div className="text-sm font-semibold text-[color:var(--color-safe)]">
+              <div
+                className={`text-sm font-semibold ${
+                  runOutcome.failed > 0
+                    ? 'text-[color:var(--color-warn)]'
+                    : 'text-[color:var(--color-safe)]'
+                }`}
+              >
                 {runOutcome.mode === 'generate'
                   ? `${runOutcome.generated} change${runOutcome.generated === 1 ? '' : 's'} prepared and validated${(runOutcome.needs_guidance ?? 0) > 0 ? `, ${runOutcome.needs_guidance} routed to guided review` : ''}. Nothing has been written yet — read the diffs below, then initiate the migration.`
-                  : runOutcome.applied > 0
+                  : runOutcome.applied > 0 && runOutcome.failed === 0
                     ? `Migration successful — ${runOutcome.applied + (runOutcome.covered ?? 0)} of ${runOutcome.total} finding${runOutcome.total === 1 ? '' : 's'} migrated and written to disk${(runOutcome.needs_guidance ?? 0) > 0 ? `, ${runOutcome.needs_guidance} routed to guided review` : ''}.`
-                    : `Migration finished — ${runOutcome.generated} patch${runOutcome.generated === 1 ? '' : 'es'} generated, none written.`}
+                    : runOutcome.applied > 0
+                      ? `Migration partly applied — ${runOutcome.applied} of ${runOutcome.total} finding${runOutcome.total === 1 ? '' : 's'} written to disk, ${runOutcome.failed} could not be written. Nothing was changed for those; the reasons are below.`
+                      : runOutcome.failed > 0
+                        ? `Nothing was written — all ${runOutcome.failed} change${runOutcome.failed === 1 ? '' : 's'} were refused. The files are unchanged; the reasons are below.`
+                        : `Migration finished — ${runOutcome.generated} patch${runOutcome.generated === 1 ? '' : 'es'} generated, none written.`}
               </div>
               <div className="metric-label mt-1 flex flex-wrap gap-x-3">
                 {runOutcome.mode === 'apply' ? (
@@ -1378,6 +1584,15 @@ function ProjectMigration({ projectId }: { projectId: string }) {
               ? `scoped to scan${planScanSeq ? ` #${planScanSeq}` : ''}`
               : 'scoped to every scan in this project'}
           </span>
+          {/*
+            The regime the targets were chosen under. Shown always, including when there is none,
+            because "no regime" is itself the answer a reviewer needs: it means the targets came
+            from the general-purpose defaults and carry no regulator's mandate. Printing the
+            default regime's name in that case would attribute a decision nobody made.
+          */}
+          <span title={REGIME_TITLES[plan.regime ?? ''] ?? undefined}>
+            · {plan.regime ? `regime ${plan.regime}` : 'no regime configured'}
+          </span>
         </div>
       )}
 
@@ -1438,9 +1653,20 @@ function ProjectMigration({ projectId }: { projectId: string }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {tasks.map((t) => (
-                      <TaskRow key={t.id} task={t} />
-                    ))}
+                    {orderedTasks.map((t) => {
+                      const fresh = freshlyPrepared.indexOf(t.id);
+                      return (
+                        <TaskRow
+                          key={t.id}
+                          task={t}
+                          justPrepared={fresh >= 0}
+                          // The three most recent open themselves. Opening all of them would put
+                          // three hundred diffs on one page and make the newest unfindable;
+                          // opening none is what left a bulk build with nothing to read.
+                          autoOpen={fresh >= 0 && fresh < 3}
+                        />
+                      );
+                    })}
                     {queueQ.isLoading && (
                       <tr>
                         <td colSpan={8} className="px-4 py-8 text-center">
@@ -1560,8 +1786,14 @@ function ProjectMigration({ projectId }: { projectId: string }) {
  *  is the same choice with the answer already in it. */
 function RecentScans() {
   const openScan = useUiStore((s) => s.openScan);
-  const { data: scans, isLoading } = useQuery({ queryKey: ['scans'], queryFn: fetchScans });
-  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
+  const { data: scans, isLoading } = useQuery({
+    queryKey: ['scans'],
+    queryFn: fetchScans,
+  });
+  const { data: projects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+  });
   const nameOf = (id: string) => projects?.find((p) => p.id === id)?.name ?? id.slice(0, 8);
 
   const usable = (scans ?? []).filter((s) => s.status === 'succeeded');
@@ -1592,7 +1824,17 @@ function RecentScans() {
         Open a scan to see everything it found that needs migrating.
       </p>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {usable.slice(0, 12).map((scan) => (
+        {usable.slice(0, 12).map((scan) => {
+          // The previous scan of the SAME project, so the card can say which way this is going.
+          // Without it a reader is left comparing a number to nothing, and the only figure on
+          // screen was one a successful migration makes larger.
+          const before = usable.find(
+            (s) => s.project_id === scan.project_id && s.seq === scan.seq - 1,
+          );
+          const now = scan.stats?.vulnerable ?? 0;
+          const then = before?.stats?.vulnerable;
+          const delta = then == null ? null : now - then;
+          return (
           <button
             key={scan.id}
             onClick={() => openScan(scan.project_id, scan.id)}
@@ -1611,17 +1853,43 @@ function RecentScans() {
             >
               {(scan.targets ?? []).join(', ') || 'no target recorded'}
             </div>
+            {/* Vulnerable is the headline, and total assets is the aside.
+                A total asset count was the only number on this card, and it is the one number a
+                migration is not supposed to reduce: replacing ECDSA with ML-DSA-65 does not remove
+                a crypto asset, it changes one and usually adds an import, so a working migration
+                makes this figure go UP. Measured across three scans of certbot: 490 → 488 → 493
+                assets while vulnerable fell 293 → 268 and quantum-safe rose 197 → 225. Reading the
+                cards alone, the tool looked like it was making the problem worse. */}
             <div className="mt-1 flex items-end justify-between">
-              <span className="text-2xl font-bold tabular-nums text-[color:var(--color-ink)]">
-                {scan.stats?.assets ?? 0}
-                <span className="metric-label ml-1.5">assets</span>
+              <span className="text-2xl font-bold tabular-nums text-[color:var(--color-danger)]">
+                {scan.stats?.vulnerable ?? 0}
+                <span className="metric-label ml-1.5">vulnerable</span>
               </span>
+              <span className="metric-label tabular-nums">
+                of {scan.stats?.assets ?? 0} assets
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
               <span className="metric-label">
                 {scan.finished_at ? new Date(scan.finished_at).toLocaleString() : ''}
               </span>
+              {delta !== null && delta !== 0 && (
+                <span
+                  className={`metric-label tabular-nums ${
+                    delta < 0
+                      ? 'text-[color:var(--color-safe)]'
+                      : 'text-[color:var(--color-warn)]'
+                  }`}
+                  title={`Scan #${scan.seq - 1} found ${then} vulnerable; this one found ${now}.`}
+                >
+                  {delta < 0 ? `↓ ${Math.abs(delta)} fewer` : `↑ ${delta} more`} than #
+                  {scan.seq - 1}
+                </span>
+              )}
             </div>
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1713,7 +1981,10 @@ function MigrationCard({
 /** The two progress sections between "Recent scans" and the full project grid. */
 function MigrationProgressSections() {
   const setProjectId = useUiStore((s) => s.setProjectId);
-  const { data } = useQuery({ queryKey: ['projects-overview'], queryFn: fetchProjectsOverview });
+  const { data } = useQuery({
+    queryKey: ['projects-overview'],
+    queryFn: fetchProjectsOverview,
+  });
 
   const withPlans = (data ?? []).filter((p) => p.plan && p.plan.tasks > 0);
   // A migration is ONGOING while anything still has a step left — work not yet attempted, or a

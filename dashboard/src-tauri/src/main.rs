@@ -264,6 +264,71 @@ fn serve_ui_from_api(handle: tauri::AppHandle, port: u16) {
     });
 }
 
+/// Keep the API child alive for as long as the window is open.
+///
+/// The child was spawned once at setup and never looked at again. When uvicorn exited -- killed by
+/// something else on the machine, or dying on its own -- nothing noticed: the window stayed open
+/// showing whatever it had last loaded, and every request from then on failed with
+/// `Failed to fetch`. `BootGate` cannot help, because it only runs once before the app renders.
+/// Observed directly: `qubit-desktop.exe` running with no `uvicorn` process at all and nothing
+/// listening on the port, while the UI still displayed a populated dashboard.
+///
+/// Restarts are rate-limited rather than unbounded. A child that cannot bind its port, or dies on
+/// an unmigrated database, would otherwise be respawned forever, and a hot loop of failing starts
+/// is worse than an app that stops and says so -- the log is where the reason lives either way.
+fn supervise_api(handle: tauri::AppHandle, root: std::path::PathBuf, port: u16) {
+    std::thread::spawn(move || {
+        const MAX_RESTARTS: u32 = 5;
+        let mut restarts = 0u32;
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+
+            // `try_wait` reaps without blocking. Holding the lock only long enough to ask keeps
+            // window teardown -- which takes the same lock to kill the child -- from deadlocking
+            // against this thread.
+            let exited = {
+                let state = handle.state::<ApiProcess>();
+                let mut slot = match state.0.lock() {
+                    Ok(slot) => slot,
+                    Err(_) => return,
+                };
+                match slot.as_mut() {
+                    // Taken by the window-close handler: the app is going away, so stop watching.
+                    None => return,
+                    Some(child) => match child.try_wait() {
+                        Ok(Some(status)) => Some(status),
+                        Ok(None) => None,
+                        // The handle is unusable; another poll would report the same thing.
+                        Err(_) => return,
+                    },
+                }
+            };
+
+            let Some(status) = exited else { continue };
+            if restarts >= MAX_RESTARTS {
+                eprintln!(
+                    "QUBIT: the API exited ({status}) and has already been restarted \
+                     {MAX_RESTARTS} times; not restarting again. See the API log."
+                );
+                return;
+            }
+            restarts += 1;
+            eprintln!(
+                "QUBIT: the API exited ({status}); restarting it (attempt {restarts} of \
+                 {MAX_RESTARTS})."
+            );
+            match spawn_api(&root, port) {
+                Ok(child) => {
+                    if let Ok(mut slot) = handle.state::<ApiProcess>().0.lock() {
+                        *slot = Some(child);
+                    }
+                }
+                Err(e) => eprintln!("QUBIT: could not restart the API on port {port}: {e}"),
+            }
+        }
+    });
+}
+
 fn main() {
     tauri::Builder::default()
         // One instance, always. Each launch spawns its own uvicorn against the SAME SQLite file, so
@@ -291,6 +356,7 @@ fn main() {
                     Ok(child) => {
                         *app.state::<ApiProcess>().0.lock().unwrap() = Some(child);
                         serve_ui_from_api(app.handle().clone(), port);
+                        supervise_api(app.handle().clone(), root.clone(), port);
                     }
                     Err(e) => {
                         eprintln!(

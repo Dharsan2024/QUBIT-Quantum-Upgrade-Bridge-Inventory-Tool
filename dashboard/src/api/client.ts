@@ -165,12 +165,44 @@ export async function fetchScan(scanId: string): Promise<ScanSummary> {
 }
 
 /** Find (or create) the project a scan belongs to, by name. */
-async function ensureProject(name: string, description: string): Promise<string> {
+/** Normalised for comparison: a path is the same path whichever way it was typed.
+ *
+ *  Windows accepts either separator and is case-insensitive, and the API stores whatever it was
+ *  handed — so `X:\qubit-eval-corpus\certbot` and `x:/qubit-eval-corpus/certbot/` are one directory
+ *  written three ways, and comparing them literally makes each look like a different codebase. */
+function samePath(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const norm = (p: string) => p.trim().replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  return norm(a) === norm(b);
+}
+
+async function ensureProject(
+  name: string,
+  description: string,
+  rootPath?: string,
+): Promise<string> {
   const projects = await fetchProjects();
-  const existing = projects.find((p) => p.name === name);
+  // A project IS the codebase it points at, so the root path identifies it and the display name
+  // does not. Matching on the name alone split a project in two the moment its name was edited or
+  // differed from the folder: scanning `X:\...\certbot__certbot` a second time derived the name
+  // `certbot__certbot`, did not match the existing `lab: certbot__certbot` over the SAME directory,
+  // and created a duplicate. Everything downstream then disagreed with itself — two scans both
+  // numbered #1 (the sequence is per project and each was correct), the Migration Hub showing one
+  // project's plan beside the other project's scan, and "Build plan" running against the older
+  // project's finished plan while the panel underneath read "no vulnerable assets in scope".
+  const byPath = rootPath ? projects.find((p) => samePath(p.root_path, rootPath)) : undefined;
+  const existing = byPath ?? projects.find((p) => p.name === name);
   if (existing) return existing.id;
   try {
-    const created = await send<{ id: string }>("/projects", "POST", { name, description });
+    // Recorded at creation, not only matched on. Without it every project the dashboard makes has
+    // a null root path, so the match above can never find one and the SECOND scan of a folder
+    // duplicates the project all over again — the fix would work once, for projects that happened
+    // to have a root path set by some other route, and never after.
+    const created = await send<{ id: string }>("/projects", "POST", {
+      name,
+      description,
+      ...(rootPath ? { root_path: rootPath } : {}),
+    });
     return created.id;
   } catch (e) {
     // 409 means another tab (or a double-click) created it between the read and the write.
@@ -188,6 +220,9 @@ export async function createScan(targets: string[]): Promise<ScanSummary> {
   const projectId = await ensureProject(
     projectNameForTargets(targets, "files"),
     targets.join(", "),
+    // Only for a single-target scan: with several roots there is no one directory the project is,
+    // and matching on the first would fold two different multi-root scans together.
+    targets.length === 1 ? targets[0] : undefined,
   );
   const resp = await send<{ scan: ScanSummary }>(`/projects/${projectId}/scans`, "POST", {
     targets,
@@ -294,6 +329,32 @@ export interface JobStatus {
   message?: string | null;
   error?: string | null;
   result?: MigrationRunResult | null;
+  /** What the job was asked to do. `plan_id` is how a reopened page finds the run it belongs to,
+   *  and `apply` is how it knows whether to say "preparing" or "writing". */
+  payload?: { plan_id?: string; apply?: boolean; generate?: boolean } | null;
+}
+
+/** A migration already in flight for this plan, or null.
+ *
+ *  The run lives on the server; the page only watches it. Nothing recorded that, so the job id was
+ *  component state — leaving the Migration Hub unmounted the component, the id was lost, and coming
+ *  back showed a project with no run in progress and a "Build plan" button inviting a SECOND one.
+ *  The first was still going the whole time.
+ *
+ *  So the page asks. `apply` distinguishes the two halves, because a run that is preparing changes
+ *  must never be described as writing them. */
+export async function findRunningMigration(
+  planId: string,
+): Promise<{ id: string; mode: "generate" | "apply" } | null> {
+  const jobs = await send<JobStatus[]>("/jobs?limit=25");
+  const mine = jobs.find(
+    (j) =>
+      j.kind === "migrate" &&
+      ["queued", "running"].includes(j.status) &&
+      j.payload?.plan_id === planId,
+  );
+  if (!mine) return null;
+  return { id: mine.id, mode: mine.payload?.apply ? "apply" : "generate" };
 }
 
 /** Run one or both halves of a plan's migration. Returns the job to poll — the work happens off

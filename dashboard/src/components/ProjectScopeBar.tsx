@@ -60,10 +60,15 @@ export function ProjectScopeBar({ children }: { children?: React.ReactNode }) {
             data-testid="scope-scan-select"
             aria-label="Scan to display"
           >
+            {/* Vulnerable, then the total. A migration is not meant to reduce the asset count —
+                replacing ECDSA with ML-DSA-65 changes an asset and usually adds an import, so a
+                successful run makes the total go UP. Naming only the total here meant the control
+                an operator picks a scan WITH reported the one number that moves the wrong way:
+                three scans of certbot read 490, 488, 493 while vulnerable fell 293 → 268. */}
             {projectScans.map((s) => (
               <option key={s.id} value={s.id}>
-                #{s.seq} · {s.targets.join(', ').slice(0, 48) || 'no target'} ·{' '}
-                {s.stats?.assets ?? 0} assets
+                #{s.seq} · {s.targets.join(', ').slice(0, 40) || 'no target'} ·{' '}
+                {s.stats?.vulnerable ?? 0} vulnerable of {s.stats?.assets ?? 0}
                 {s.status === 'succeeded' ? '' : ` · ${s.status}`}
               </option>
             ))}

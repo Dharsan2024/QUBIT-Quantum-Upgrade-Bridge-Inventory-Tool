@@ -159,6 +159,11 @@ export interface ScanStats {
   parse_failures?: number;
   detections?: number;
   assets?: number;
+  /** How many of `assets` a quantum computer breaks. The engine has always written this; it was
+   *  simply missing from this type, so the UI showed the total instead — the one figure a migration
+   *  does not reduce, because replacing ECDSA with ML-DSA-65 changes an asset rather than removing
+   *  it and usually adds an import besides. */
+  vulnerable?: number;
   duration_s?: number;
 }
 
@@ -203,6 +208,16 @@ export interface MigrationPlan {
   project_id: string | null;
   scan_id: string | null;
   scope: { project_id?: string | null; scan_id?: string | null; min_risk?: number };
+  /**
+   * The regulatory regime this plan was built under, or null if none was configured.
+   *
+   * Worth showing because the targets are otherwise unexplainable: `ML-KEM-1024` and
+   * `X25519MLKEM768` are each required by one regulator and rejected by another, so a
+   * reviewer cannot tell a deliberate choice from a mistake without it. Render null as
+   * "no regime" and never as the default regime's name — that attributes a decision to
+   * an operator who never made it.
+   */
+  regime: string | null;
 }
 
 export interface MigrationTask {

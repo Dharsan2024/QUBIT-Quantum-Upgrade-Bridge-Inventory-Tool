@@ -98,6 +98,24 @@ For a research result, retain the repository revision, OS/toolchain versions, ru
 
 Before a publication claim, distinguish clearly between current release validation, controlled self-authored digital-twin results, historical campaigns, and planned future studies. The project documentation intentionally reports rejected, deferred, and unavailable-validation outcomes alongside successes.
 
+## Open-source contribution guide
+
+QUBIT welcomes contributions that make the tool safer, more reproducible, easier to evaluate, or easier to use. Particularly valuable areas are:
+
+- rule and fixture coverage for supported languages and configuration formats;
+- validation harnesses, especially maintained Go and Java behavioural coverage;
+- accessibility, Windows desktop lifecycle, and operator-experience improvements;
+- reproducible evaluation artefacts, independent labels, and documentation corrections; and
+- security review of local-first workflows and source-handling boundaries.
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). It explains local setup, the expected test evidence, the extra requirements for scanner rules and migration transforms, and the pull-request process. Please read the [Code of Conduct](CODE_OF_CONDUCT.md), use [Security reporting guidance](SECURITY.md) for vulnerabilities, and open an issue before investing in a large change.
+
+Contributions do not need to be code. Clear issue reports, test cases that demonstrate a failure, documentation fixes, UI accessibility feedback, independent evaluation designs, and careful review of research claims are all first-class contributions.
+
+## Roadmap and non-goals
+
+Near-term priorities are stronger cross-language behavioural evidence, an exportable per-run evidence package, cross-finding ownership analysis, measured desktop cold-start performance, and an independently labelled benchmark. QUBIT does not claim to replace a security architecture review, cryptographic engineering review, vendor support policy, or organisational PQC governance programme.
+
 ## License
 
 MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

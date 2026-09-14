@@ -86,6 +86,22 @@ class MigrateConfig(BaseSettings):
     #: quota: nothing about the default changes, and results measured under one order must not be
     #: pooled with results measured under the other.
     engine_order: Literal["cheapest-first", "external-first"] = "cheapest-first"
+    #: Permit an external model provider to receive repository source during generation.
+    #:
+    #: A configured provider is not sufficient consent: the generated prompt contains the target
+    #: file and its migration context.  Keep this off until an operator has explicitly accepted
+    #: that egress for the repository being migrated.  Local Ollama remains available either way.
+    allow_external_source_processing: bool = False
+    #: Restrict generation to the single primary local engine — no escalation to any external
+    #: tier, regardless of failure or oversize. This remains useful for fixed-model evaluation
+    #: arms even when external source processing has been explicitly enabled.
+    #:
+    #: Exists for the fixed-model ablation arms (a single-factor isolation of "does cost-ranked
+    #: routing itself help, independent of ownership planning and behavioral validation, which
+    #: are separate config toggles"): with this on, a finding the primary engine cannot handle
+    #: goes to guided remediation exactly as it would with an empty pool, so the arm's outcome
+    #: reflects one fixed model's capability, not the pool's.
+    single_engine_only: bool = False
     #: Fraction of the window the prompt may occupy before the finding is routed to the guided
     #: path instead of the model. The remainder is left for the answer, which for a whole-file
     #: rewrite is about as long as the input.

@@ -25,7 +25,6 @@ would send already-correct files to a model.
 from __future__ import annotations
 
 import pytest
-
 from qubit_migrate.transform.validate import _BELOW_SYMMETRIC_FLOOR, _names_a_parameter
 
 
@@ -65,6 +64,7 @@ class TestTheDiscriminator:
         assert not _names_a_parameter(algorithm)
 
     def test_the_floor_does_not_include_its_own_target(self) -> None:
-        """The guard against the whole class of mistake: never demand a migration away from AES-256."""
+        """The guard against the whole class of mistake: never demand a migration away from
+        AES-256."""
         assert not any(f.startswith("AES-256") for f in _BELOW_SYMMETRIC_FLOOR)
         assert _BELOW_SYMMETRIC_FLOOR, "an empty floor silently disables the substitution"

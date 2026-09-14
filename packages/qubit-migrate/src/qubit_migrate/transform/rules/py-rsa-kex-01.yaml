@@ -53,4 +53,8 @@ example:
     ciphertext = AESGCM(shared[:32]).encrypt(nonce, message, None)
 rescan_expect:
   gone:
-    algorithm_prefix: ["RSA-"]
+    # Was "RSA-" — a trailing dash that "RSA".startswith("RSA-") never matches, so a finding
+    # the scanner resolves to BARE "RSA" (key size comes from a variable, not a literal — the
+    # canonical `wrap_data_key`/`unwrap_data_key` shape this rule's own comment above documents)
+    # could never fail this criterion. See test_rescan_criteria_are_failable.py.
+    algorithm_prefix: ["RSA"]

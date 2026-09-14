@@ -11,11 +11,12 @@ Stages 3 (compile) and 4 (tests) are M2 (require Docker sandbox).
 from __future__ import annotations
 
 import contextlib
+import io
 import json
 import os
+import re
 import shutil
 import subprocess
-import io
 import tarfile
 import tempfile
 import time
@@ -91,6 +92,24 @@ class StageResult:
     #: automated migration tooling than any acceptance rate does. It is countable now, which
     #: is the precondition for reporting it and then fixing it.
     vacuous: bool = False
+    #: Set when this gate CANNOT run on this input by construction, as opposed to merely not
+    #: having run. The ladder conflated the two and that cost real evidence:
+    #:
+    #: * `compiles` skipped because Docker was down, or because the image was never pulled, has
+    #:   established NOTHING. It must keep capping the level exactly as it always has.
+    #: * `compiles` skipped because Go has no meaningful single-file compile check is a gate that
+    #:   can never run for that language, at any time, on any machine — see
+    #:   `_NO_SINGLE_FILE_COMPILE`. No daemon and no image would change the answer.
+    #:
+    #: NOT a pass, and deliberately not implemented as one. `evidence_level` REMOVES an
+    #: inapplicable gate from its rung's gate set rather than counting it green, so a rung whose
+    #: gates are all inapplicable is still refused, and `evidence_basis` records which gates were
+    #: dropped so no reader can mistake a reduced rung for a full one.
+    #:
+    #: `status` stays `"skipped"` on purpose. `passed`, `partial`, the stored records, the API's
+    #: rejecting-stage lookup and every dashboard tally read the status; this flag refines the
+    #: REASON for the skip, it does not add a sixth outcome to a field they already switch on.
+    not_applicable: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         record: dict[str, Any] = {
@@ -102,6 +121,10 @@ class StageResult:
             # Only written when true, so the key's presence is the query: existing records
             # predate the flag and must not be read as "measured, and not vacuous".
             record["vacuous"] = True
+        if self.not_applicable:
+            # Same convention, same reason: records written before this flag existed must not read
+            # as "we checked, and the gate was applicable".
+            record["not_applicable"] = True
         return record
 
 
@@ -117,6 +140,11 @@ class StageResult:
 #: module loads · L2 the SCANNER's opinion changed (compatible with a reused nonce or a dropped
 #: auth tag) · L3 the primitive demonstrably works AND demonstrably fails when it should · L4
 #: behaviour preserved on lines the project's own suite executes.
+#:
+#: A rung may be awarded on FEWER gates than it names, but only when the missing gate is
+#: impossible rather than absent — see `StageResult.not_applicable` and `evidence_level`. When
+#: that happens `evidence_basis` records which gates were dropped, because a rung earned on a
+#: reduced gate set is a weaker statement than the same number earned on the full one.
 _EVIDENCE_LADDER: tuple[tuple[int, tuple[str, ...]], ...] = (
     (0, ("applies", "parses")),
     (1, ("symbols", "compiles")),
@@ -129,17 +157,54 @@ _EVIDENCE_LADDER: tuple[tuple[int, tuple[str, ...]], ...] = (
 NO_EVIDENCE = -1
 
 
+def _applicable_gates(stages: dict[str, StageResult], names: tuple[str, ...]) -> list[StageResult]:
+    """The gates of one rung that could actually have run on this input.
+
+    See `StageResult.not_applicable`. A gate is dropped here ONLY when it is impossible for this
+    language, never when it merely did not run.
+    """
+    results = [stages.get(name, StageResult("skipped")) for name in names]
+    return [g for g in results if not g.not_applicable]
+
+
 def evidence_level(stages: dict[str, StageResult]) -> int:
-    """The highest ladder rung whose gates all passed, or `NO_EVIDENCE`.
+    """The highest ladder rung whose applicable gates all passed, or `NO_EVIDENCE`.
 
     A `skipped` gate caps the level and never counts as a pass — that equivalence is the single
     assumption that produced every inflated number this project has had to retract. A gate that
     did not run has established nothing, and saying so costs a smaller number and buys a
     defensible one.
+
+    An INAPPLICABLE gate is a different claim and is handled differently: it leaves the rung's
+    gate set instead of joining it as a pass. Why that is the honest reading, and not a way to
+    make the numbers larger:
+
+    * Rung 1 claims "names resolve and the module loads". For Go it has two gates and one of them
+      — `compiles` — can never run, because a single Go file with no module and no dependency
+      graph is not something the toolchain will judge. `symbols` was added for exactly this gap,
+      after the go-ethereum run where 23 of 27 written files did not compile: its dominant cause
+      was imports deleted while their callers stayed, and imports added and never referenced,
+      which in Go is a compile ERROR. `symbols` catches precisely that. It does not catch type
+      errors, so the rung is genuinely weaker for Go than for Python — which is why the reduced
+      gate set is RECORDED (see `evidence_basis`) rather than papered over.
+    * The alternative — cap those nine languages at L0 forever — is not the conservative choice,
+      it is the uninformative one. It reports a Go patch that passed `symbols`, `rescan` and the
+      project's own test suite identically to one whose every gate failed. Measured on the
+      sentinel-idp run: 7 of 7 patches at L0, two of them carrying the strongest evidence this
+      tool produces.
+    * What is NOT relaxed: `behaves` still caps Go at rung 2. Its skip reason is "no metamorphic
+      harness has been probed for go" — a gap in this tool that somebody could close, not a
+      property of the language, so it stays a plain skip. Nothing exercised the cryptography those
+      Go patches installed, and the ladder must keep saying so.
     """
     reached = NO_EVIDENCE
     for rung, names in _EVIDENCE_LADDER:
-        gates = [stages.get(name, StageResult("skipped")) for name in names]
+        gates = _applicable_gates(stages, names)
+        # Every gate on this rung is inapplicable, so nothing could have run and nothing was
+        # established. Awarding a rung on an empty gate set is how "we could not check" turns into
+        # "it checked out" — `all([])` is True, and that is the one way this could have inflated.
+        if not gates:
+            break
         # A vacuous gate is a pass that could not have been a fail, so it is worth exactly as
         # much as a skip. Admitting it here is how a criterion the asset satisfies by
         # construction turns into a claim that the migration was verified.
@@ -148,6 +213,33 @@ def evidence_level(stages: dict[str, StageResult]) -> int:
         else:
             break
     return reached
+
+
+def evidence_basis(stages: dict[str, StageResult]) -> dict[str, Any]:
+    """Which gates established the level, and which were dropped as inapplicable.
+
+    Recorded because a level alone is no longer self-describing: an L1 earned by `symbols` AND
+    `compiles` and an L1 earned by `symbols` with `compiles` impossible are different findings,
+    and a table that shows them as one number is the kind of claim this project has already had to
+    retract once. `reduced` is the field to group by — false means every gate the ladder names for
+    every rung up to `level` ran and passed; true means at least one rung was awarded on a smaller
+    gate set, and `not_applicable` names exactly which gates were missing from it.
+    """
+    level = evidence_level(stages)
+    established: list[str] = []
+    dropped: list[str] = []
+    for rung, names in _EVIDENCE_LADDER:
+        if rung > level:
+            break
+        for name in names:
+            gate = stages.get(name, StageResult("skipped"))
+            (dropped if gate.not_applicable else established).append(name)
+    return {
+        "level": level,
+        "established_by": established,
+        "not_applicable": dropped,
+        "reduced": bool(dropped),
+    }
 
 
 @dataclass
@@ -162,6 +254,11 @@ class ValidationReport:
         stages it is computed from."""
         return evidence_level(self.stages)
 
+    @property
+    def evidence_basis(self) -> dict[str, Any]:
+        """See `evidence_basis`. Derived for the same reason `evidence_level` is."""
+        return evidence_basis(self.stages)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "stages": {k: v.as_dict() for k, v in self.stages.items()},
@@ -171,6 +268,12 @@ class ValidationReport:
             # while the honest number becomes available. Anything reporting an acceptance RATE
             # should report the distribution of this instead.
             "evidence_level": self.evidence_level,
+            # The level's provenance, stored WITH the level so the two can never be separated in
+            # a report. A reader — or a reviewer of the paper's table — must be able to tell an L4
+            # established with `compiles` from one established without it, and the stages dict
+            # alone only allows that by re-deriving the ladder. Additive: every existing consumer
+            # reads `evidence_level` and the per-stage `status`, both unchanged.
+            "evidence_basis": self.evidence_basis,
         }
 
 
@@ -319,6 +422,77 @@ STAGE_NAMES: tuple[str, ...] = (
 #: patch — see `_stage_symbols`. A language property, deliberately not a judgement about style.
 _UNUSED_IMPORT_IS_AN_ERROR = frozenset({"go"})
 
+#: A quoted literal that could name an algorithm: letters first, then letters/digits/`/_.-`,
+#: 3-31 characters. Broad on purpose — the canonical registry (`resolve`) is the real filter,
+#: this only limits how many candidate substrings reach it per file.
+_ALGORITHM_LITERAL = re.compile(r"""["']([A-Za-z][A-Za-z0-9/_.-]{2,30})["']""")
+
+#: How many lines apart two algorithm-name literals can be and still plausibly describe ONE
+#: operation. Small on purpose: a file that legitimately supports several distinct algorithms
+#: (a dispatch table, a list of accepted values) spreads them wider than one crypto call and its
+#: immediately adjacent key/spec construction.
+_ALGORITHM_CONSISTENCY_WINDOW = 4
+
+
+def _algorithm_family_mismatches(source: str) -> set[tuple[str, str]]:
+    """Pairs of algorithm literals in `source`, same family, different canonical name, within
+    `_ALGORITHM_CONSISTENCY_WINDOW` lines of each other. Each pair is `(a, b)` with `a < b`.
+
+    Resolved through `qubit_core.algorithms.resolve` -- the same registry every finding in the
+    corpus is already scored against -- rather than a hand-rolled list, so "same family" here
+    means exactly what it means everywhere else in QUBIT.
+    """
+    from qubit_core.algorithms import resolve
+
+    literals: list[tuple[int, str]] = []
+    for i, line in enumerate(source.splitlines()):
+        for m in _ALGORITHM_LITERAL.finditer(line):
+            literals.append((i, m.group(1)))
+
+    mismatches: set[tuple[str, str]] = set()
+    for a in range(len(literals)):
+        line_a, text_a = literals[a]
+        resolved_a = resolve(text_a)
+        if resolved_a is None:
+            continue
+        for b in range(a + 1, len(literals)):
+            line_b, text_b = literals[b]
+            if line_b - line_a > _ALGORITHM_CONSISTENCY_WINDOW:
+                break
+            resolved_b = resolve(text_b)
+            if resolved_b is None or resolved_b.canonical == resolved_a.canonical:
+                continue
+            if resolved_a.family == resolved_b.family:
+                mismatches.add(tuple(sorted((resolved_a.canonical, resolved_b.canonical))))  # type: ignore[arg-type]
+    return mismatches
+
+
+def _new_algorithm_inconsistency(patched_source: str, original_source: str) -> list[str]:
+    """Algorithm-family mismatches the PATCH introduced — present in `patched_source`, absent
+    from `original_source` — so a file that already mixed algorithms before the patch (a
+    dispatch table, a migration-in-progress) is not penalised for a pattern it did not create.
+
+    Measured: `paymesh-gateway`'s `cardToken` patch left `Mac.getInstance("HmacSHA256")` next to
+    `new SecretKeySpec(..., "HmacSHA1")` two lines below — both name an HMAC variant, they
+    disagree, and nothing else in this pipeline could have caught it: Java has no single-file
+    `compiles` check and no `behaves` relations yet, so the patch was accepted at evidence level
+    2 with a JCE key-algorithm mismatch a real `MessageDigest`/`Mac` provider would reject (or
+    silently misuse) at runtime. `compiles` or `behaves` would each independently have caught the
+    underlying defect this stands in for; this is a cheap, language-agnostic proxy that needs
+    neither a sandbox nor a metamorphic relation.
+
+    Deliberately conservative and approximate: quoted-string extraction, not parsing, so it reads
+    string literals wherever they sit, comments included — a documentation string naming two
+    algorithms in the same breath can still trip this. That is why this only ever REJECTS newly
+    introduced pairs rather than asserting anything positive, which is the same trade every other
+    stage in this module makes: a false failure costs a repair round, a false pass costs a
+    silently broken patch, and the two are not symmetric.
+    """
+    new_pairs = _algorithm_family_mismatches(patched_source) - _algorithm_family_mismatches(
+        original_source
+    )
+    return sorted(f"{a} and {b}" for a, b in new_pairs)
+
 
 def _stage_symbols(
     patched_source: str,
@@ -328,10 +502,16 @@ def _stage_symbols(
     """Does the patch still resolve its own names? The semantic check that is not language-locked.
 
     `compiles` needs a toolchain in a Docker image, and `_COMPILE_SANDBOX` has five entries — so
-    for Go, Java, Rust, C#, Kotlin, Swift, Scala, Dart and TypeScript it SKIPS, and a skipped
-    stage counts as a pass. That left `parses` as the only real check for those languages, and
-    tree-sitter answers a much weaker question than it appears to: `mldsa65.PublicKey` is
-    syntactically perfect whether or not `mldsa65` is imported.
+    for Go, Java, Rust, C#, Kotlin, Swift, Scala, Dart and TypeScript it can never run at all
+    (`_NO_SINGLE_FILE_COMPILE`), and back when a skipped stage counted as a pass that left
+    `parses` as the only real check for those languages. tree-sitter answers a much weaker
+    question than it appears to: `mldsa65.PublicKey` is syntactically perfect whether or not
+    `mldsa65` is imported.
+
+    That is also why this stage now CARRIES rung 1 alone for those nine languages: `compiles` is
+    marked inapplicable rather than skipped, the ladder judges the rung on the gates that could
+    have run, and `evidence_basis` records that the rung was earned without `compiles`. The
+    reduction is real — nothing here checks types — and it is reported rather than hidden.
 
     Measured on the go-ethereum ML-DSA migration, which QUBIT reported as "31 changes prepared and
     validated": 23 of the 27 written files did not compile. The dominant failure was the model
@@ -358,12 +538,27 @@ def _stage_symbols(
             "skipped", "no original source to compare against", time.monotonic() - t0
         )
 
+    problems = []
+    # Runs regardless of the import safety valve below: it reads quoted literals, not import
+    # nodes, so a grammar whose import mapping is too thin to trust `unresolved_qualifiers` on
+    # is irrelevant to it. See `_new_algorithm_inconsistency`.
+    new_algorithm_mismatches = _new_algorithm_inconsistency(patched_source, original_source)
+    if new_algorithm_mismatches:
+        problems.append(
+            f"names {', '.join(new_algorithm_mismatches)} within a few lines of each other — "
+            f"the same algorithm family with two different members, which reads as one "
+            f"operation constructed inconsistently rather than two independent ones"
+        )
+
     # Safety valve. If import extraction finds nothing in a file that plainly imports something,
     # this grammar's import nodes are not mapped well enough to judge it — and then EVERY newly
     # added qualifier looks unresolved, so a perfectly correct patch that adds a package and its
     # import would be rejected. Skipping is the honest answer; the alternative is a confident
-    # wrong one.
+    # wrong one. Only the import-based half of this stage is affected; the algorithm-consistency
+    # check above still stands on its own.
     if not _import_names(original_source, lang) and not _import_names(patched_source, lang):
+        if problems:
+            return StageResult("fail", "; ".join(problems), time.monotonic() - t0)
         return StageResult(
             "skipped",
             f"no imports could be read from this {lang} file, so symbol resolution cannot judge it",
@@ -377,7 +572,6 @@ def _stage_symbols(
         unused_imports(patched_source, lang) - unused_imports(original_source, lang)
     )
 
-    problems = []
     # An unresolved name is a hard error in EVERY language: the compiler, interpreter or runtime
     # has nothing to bind it to.
     if new_unresolved:
@@ -499,6 +693,64 @@ def _occurrence_survived(
     )
 
 
+def _weakness_ids(asset: dict[str, Any]) -> set[str]:
+    """The weakness ids the scanner attached to one asset's evidence, or the empty set."""
+    extra = ((asset.get("evidence") or {}).get("context") or {}).get("extra") or {}
+    return {
+        str(w["id"]) for w in extra.get("weaknesses", []) if isinstance(w, dict) and w.get("id")
+    }
+
+
+def _weakness_occurrence_survived(
+    *,
+    still_present: list[dict[str, Any]],
+    weakness_id: str,
+    patched_source: str,
+    original_source: str | None,
+    asset_line: int | None,
+    ext: str,
+) -> str | None:
+    """Did THIS task's own occurrence of the weakness survive the patch? Mirrors
+    `_occurrence_survived`, for the same reason: `weakness_gone` used to be checked whole-file --
+    ANY surviving occurrence of the named weakness anywhere in the patched source failed EVERY
+    task sharing that file, including one whose own occurrence the patch had correctly fixed.
+
+    That stopped being a corner case once `code-ecb-01`'s prompt began requiring a
+    backward-compatible read path for persisted data (see the rule): the mandated dual-path read
+    necessarily KEEPS one ECB decrypt in the file, for rows written in the old format. The
+    whole-file check rejected that patch outright, on every attempt, regardless of how correctly
+    it was written -- the rule demanded a shape its own gate could not accept.
+    """
+    lines_preserved = original_source is not None and len(original_source.splitlines()) == len(
+        patched_source.splitlines()
+    )
+
+    if asset_line is not None and lines_preserved:
+        at_line = [a for a in still_present if a.get("location", {}).get("line") == asset_line]
+        if at_line:
+            return (
+                f"Expected the {weakness_id!r} weakness gone from line {asset_line}, but it is "
+                f"still there"
+            )
+
+    if original_source is None:
+        lines = sorted(str((a.get("location") or {}).get("line")) for a in still_present)
+        return (
+            f"Expected the {weakness_id!r} weakness gone, but it is still present at "
+            f"line(s) {', '.join(lines)}"
+        )
+
+    before = [a for a in _scan_source(original_source, ext) if weakness_id in _weakness_ids(a)]
+    if len(still_present) < len(before):
+        return None
+    lines = sorted(str((a.get("location") or {}).get("line")) for a in still_present)
+    return (
+        f"Expected the {weakness_id!r} weakness gone, but the patch removed none of it: "
+        f"{len(before)} occurrence(s) before, {len(still_present)} after "
+        f"(line(s) {', '.join(lines)})"
+    )
+
+
 #: Image for the metamorphic harness. It needs the crypto library the target algorithm lives in,
 #: which `python:3.12-slim` does not carry — so this is a separate image from `_COMPILE_SANDBOX`,
 #: built from `qubit-v2/02-verification/Dockerfile.oracle`.
@@ -608,10 +860,18 @@ def _run_ruby_oracle(
         try:
             result = subprocess.run(
                 [
-                    "docker", "run", "--rm", "--network=none",
-                    "--memory=1g", "--cpus=1", "--pids-limit=128",
-                    "-v", f"{tmpdir}:/work:ro",
-                    _RUBY_ORACLE_IMAGE, "ruby", "/work/driver.rb",
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--network=none",
+                    "--memory=1g",
+                    "--cpus=1",
+                    "--pids-limit=128",
+                    "-v",
+                    f"{tmpdir}:/work:ro",
+                    _RUBY_ORACLE_IMAGE,
+                    "ruby",
+                    "/work/driver.rb",
                 ],
                 capture_output=True,
                 timeout=90,
@@ -1084,27 +1344,28 @@ def _stage_rescan(
             # the point, AES is not the problem - so neither `gone` nor `present` can express
             # "this is no longer ECB". Checking the weakness the scanner re-derives from the
             # patched source is the only expectation that actually verifies such a fix.
+            #
+            # Occurrence-scoped through `_weakness_occurrence_survived`, exactly like `gone`
+            # above and for the identical reason: two ECB findings in one file are two tasks, and
+            # a whole-file "is any ECB left" check makes both unsatisfiable whenever the file
+            # mixes usages, or whenever a correct patch must deliberately keep one occurrence --
+            # see that function's docstring for the persisted-data case that made this necessary.
             for weakness_id in _prefixes(expect.get("weakness_gone", "")):
-                surviving_weak = [
-                    a
-                    for a in assets
-                    if weakness_id
-                    in {
-                        w.get("id")
-                        for w in (
-                            ((a.get("evidence") or {}).get("context") or {}).get("extra") or {}
-                        ).get("weaknesses", [])
-                        if isinstance(w, dict)
-                    }
-                ]
-                if surviving_weak:
-                    lines = sorted(
-                        str((a.get("location") or {}).get("line")) for a in surviving_weak
-                    )
+                surviving_weak = [a for a in assets if weakness_id in _weakness_ids(a)]
+                if not surviving_weak:
+                    continue
+                detail = _weakness_occurrence_survived(
+                    still_present=surviving_weak,
+                    weakness_id=weakness_id,
+                    patched_source=patched_source,
+                    original_source=original_source,
+                    asset_line=asset_line,
+                    ext=ext,
+                )
+                if detail is not None:
                     return StageResult(
                         "fail",
-                        f"Expected the {weakness_id!r} weakness to be gone, but it is still "
-                        f"present at line(s) {', '.join(lines)}",
+                        detail,
                         time.monotonic() - t0,
                         expectation="weakness_gone",
                         expected=weakness_id,
@@ -1200,6 +1461,63 @@ _COMPILE_SANDBOX: dict[str, tuple[str, str, list[str]]] = {
     "bash": ("bash:5.2", "patched.sh", ["bash", "-n", "/work/patched.sh"]),
 }
 
+#: Languages for which `compiles` is not unavailable but MEANINGLESS. Their toolchains cannot say
+#: anything true about one file with no project, no manifest and no resolved dependency graph, so
+#: no daemon and no pulled image would ever make this gate run. `_stage_compiles` marks these
+#: `not_applicable`, which is what lets the ladder judge rung 1 on `symbols` alone for them — the
+#: gate that was added for precisely this gap. See `evidence_level` for why that is honest and
+#: `_stage_symbols` for what it catches.
+#:
+#: Measured cost of not distinguishing them: on the sentinel-idp (Go) run, `compiles` skipped on
+#: 7 of 7 patches, the ladder broke at rung 1 every time, and all 7 were recorded at L0 —
+#: including the 2 that passed `symbols`, `rescan` AND the project's own test suite.
+#:
+#: Deliberately an explicit list rather than "anything absent from `_COMPILE_SANDBOX`". A language
+#: nobody has considered — a typo in a rule, a grammar added tomorrow — is "we do not know whether
+#: this could be checked", and only "it provably cannot be" may relax the ladder. `c`, `cpp`,
+#: `powershell` and `sql` are absent for that reason: they keep capping the level exactly as today.
+_NO_SINGLE_FILE_COMPILE = frozenset(
+    {
+        "go",
+        "java",
+        "rust",
+        "csharp",
+        "kotlin",
+        "scala",
+        "swift",
+        "dart",
+        # One language, two tree-sitter grammars (see `TS_GRAMMAR`). `tsc` needs a tsconfig and a
+        # resolved module graph for either, so listing one without the other would make a
+        # component's evidence level depend on whether it happens to contain JSX.
+        "typescript",
+        "tsx",
+    }
+)
+
+
+def _compile_is_inapplicable(language: str) -> StageResult | None:
+    """The `compiles` result for a language that can never have a single-file compile check.
+
+    None when the question is still open — either the check exists for this language, or nothing
+    is known about it — in which case the caller goes on to report why the gate did not run.
+
+    One statement of the rule, consulted by both callers on purpose. `validate_patch`'s `no_docker`
+    branch needs it as much as `_stage_compiles` does: whether Go can be compiled from a single
+    file does not depend on a Docker flag, and letting the flag answer it would make the same
+    patch record two different evidence levels in two runs of the same tool.
+    """
+    lang = (language or "").lower()
+    # `not in _COMPILE_SANDBOX` keeps the invariant local rather than relying on the two tables
+    # staying disjoint: if a real check is ever added for one of these languages, it wins.
+    if lang in _NO_SINGLE_FILE_COMPILE and lang not in _COMPILE_SANDBOX:
+        return StageResult(
+            "skipped",
+            f"no single-file compile check for {language} — it needs a project to build",
+            0.0,
+            not_applicable=True,
+        )
+    return None
+
 
 def _image_present(image: str) -> bool:
     """Is this image already pulled?
@@ -1223,13 +1541,23 @@ def _image_present(image: str) -> bool:
 def _stage_compiles(patched_source: str, language: str = "python") -> StageResult:
     """Stage 3: run the language's own syntax check inside an isolated container (no network)."""
     t0 = time.monotonic()
-    spec = _COMPILE_SANDBOX.get((language or "").lower())
+    lang = (language or "").lower()
+    spec = _COMPILE_SANDBOX.get(lang)
     if spec is None:
+        # Two different skips, and the ladder treats them differently. `not_applicable` says the
+        # check cannot exist for this language; the fallback says only that none is configured
+        # here, which is not a claim about the language and must keep capping the level.
+        inapplicable = _compile_is_inapplicable(language)
+        if inapplicable is not None:
+            return inapplicable
         return StageResult(
             "skipped",
-            f"no single-file compile check for {language} — it needs a project to build",
+            f"no single-file compile check is configured for {language}",
             0.0,
         )
+    # Below here every skip is "did not run", never "cannot run": the check exists for this
+    # language and something in the environment stopped it. `not_applicable` stays false so the
+    # ladder keeps capping, which is the behaviour these two branches have always had.
     if not _docker_available():
         return StageResult("skipped", "docker unavailable", time.monotonic() - t0)
 
@@ -1423,13 +1751,35 @@ def _run_suite(
     # comparing exit codes. That fallback then refuses any repository with a single
     # permanently-red test, which is exactly what the per-test set difference exists to
     # tolerate: streamlink has 7,228 passing tests and 4 that fail on the untouched tree.
-    report_flag = f" -p pytest_jsonreport --json-report --json-report-file=/work/{_REPORT_NAME}"
-    x_flag = " -x" if fail_fast else ""
-    attempts = (
-        f"{command}{x_flag}{report_flag} 2>&1",
-        f"{command}{x_flag} 2>&1",
-        "python -m unittest discover -s tests 2>&1",
-    )
+    # Pytest flags go only to pytest.
+    #
+    # These were appended to EVERY command regardless of language, so a Maven baseline ran as
+    #
+    #   mvn -B -o test -x -p pytest_jsonreport --json-report --json-report-file=/work/...
+    #
+    # `-x` and `-p` are not Maven options. The command errored, `_compute_baseline` recorded
+    # `green=False, collected=0`, and `_stage_tests` then reported, for every Java patch:
+    #
+    #   this suite does not run in the sandbox even before the patch
+    #   (missing dependencies, no network)
+    #
+    # — which is false in every particular. The same suite runs green in the same image with no
+    # network. Measured on paymesh-gateway: all five patches came back `tests: skipped` and every
+    # one was capped at evidence level 0, so the Java twin produced no behavioural evidence at all.
+    #
+    # `-x` is just as wrong for the others: `ruby -x` skips to a `#!ruby` line and `go test -x`
+    # prints the build commands instead of failing fast. Only pytest is asked for pytest behaviour.
+    is_pytest = "pytest" in command
+    if not is_pytest:
+        attempts = (f"{command} 2>&1",)
+    else:
+        report_flag = f" -p pytest_jsonreport --json-report --json-report-file=/work/{_REPORT_NAME}"
+        x_flag = " -x" if fail_fast else ""
+        attempts = (
+            f"{command}{x_flag}{report_flag} 2>&1",
+            f"{command}{x_flag} 2>&1",
+            "python -m unittest discover -s tests 2>&1",
+        )
     code, out = 1, ""
     for index, shell_cmd in enumerate(attempts):
         (work / _REPORT_NAME).unlink(missing_ok=True)
@@ -1457,14 +1807,16 @@ def _materialise_pristine(repo_root: Path, work: Path) -> str:
     """
     head = subprocess.run(
         ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
-        capture_output=True, timeout=30,
+        capture_output=True,
+        timeout=30,
     )
     if head.returncode == 0:
         commit = head.stdout.decode("utf-8", "replace").strip()
         work.mkdir(parents=True, exist_ok=True)
         archive = subprocess.run(
             ["git", "-C", str(repo_root), "archive", "--format=tar", commit],
-            capture_output=True, timeout=300,
+            capture_output=True,
+            timeout=300,
         )
         if archive.returncode == 0 and archive.stdout:
             with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
@@ -1568,8 +1920,12 @@ def _has_test_suite(repo_root: Path) -> bool:
             return True
     for depth in range(0, 4):
         pattern = "/".join(["*"] * depth) + ("/" if depth else "")
-        for glob in (f"{pattern}*_test.go", f"{pattern}*Test.java", f"{pattern}*_test.rb",
-                     f"{pattern}test_*.rb"):
+        for glob in (
+            f"{pattern}*_test.go",
+            f"{pattern}*Test.java",
+            f"{pattern}*_test.rb",
+            f"{pattern}test_*.rb",
+        ):
             for candidate in repo_root.glob(glob):
                 if not (_TEST_SEARCH_SKIP & set(candidate.parts)):
                     return True
@@ -1741,7 +2097,14 @@ def validate_patch(
     # semantic check most languages ever get. See `_stage_symbols` for what it caught.
     stages["symbols"] = _stage_symbols(patched_source, language, original_source)
     if no_docker:
-        stages["compiles"] = StageResult("skipped", "no_docker configured")
+        # The language question is asked even here. Whether a single-file compile check can exist
+        # for Go is a fact about Go, not about this flag, and answering it differently in the two
+        # branches would make the same patch record two different evidence levels depending on how
+        # the run was configured. `behaves` and `tests` get no such treatment: both CAN run for
+        # these languages, so under `no_docker` they genuinely did not run and must keep capping.
+        stages["compiles"] = _compile_is_inapplicable(language) or StageResult(
+            "skipped", "no_docker configured"
+        )
         stages["behaves"] = StageResult("skipped", "no_docker configured")
         stages["tests"] = StageResult("skipped", "no_docker configured")
     else:

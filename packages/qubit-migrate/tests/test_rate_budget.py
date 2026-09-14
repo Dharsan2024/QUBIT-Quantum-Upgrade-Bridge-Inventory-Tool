@@ -24,10 +24,18 @@ from qubit_migrate.transform import llm
 
 
 @pytest.fixture(autouse=True)
-def _clean_budgets():
+def _clean_budgets(monkeypatch: pytest.MonkeyPatch, tmp_path):
+    # `_record_budget` now persists to a file beside "the database" `QUBIT_DB_URL` names (see
+    # `llm._budget_store_path`). Without pointing that at a per-test tmp path, every test below
+    # would read and write the REAL user-data-dir file on the machine running the suite --
+    # polluting it, and leaking budgets between tests through the one thing `_BUDGETS.clear()`
+    # does not touch: the file on disk.
+    monkeypatch.setenv("QUBIT_DB_URL", f"sqlite:///{(tmp_path / 'qubit.db').as_posix()}")
     llm._BUDGETS.clear()
+    llm._BUDGETS_LOADED = False
     yield
     llm._BUDGETS.clear()
+    llm._BUDGETS_LOADED = False
 
 
 GROQ_HEADERS = {

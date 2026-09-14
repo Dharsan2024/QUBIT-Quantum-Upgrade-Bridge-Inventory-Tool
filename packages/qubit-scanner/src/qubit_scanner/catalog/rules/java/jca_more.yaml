@@ -198,7 +198,7 @@ rules:
         (method_invocation
           object: (identifier) @obj
           name: (identifier) @meth
-          arguments: (argument_list [(string_literal) (identifier)] @algo)) @call
+          arguments: (argument_list . [(string_literal) (identifier)] @algo)) @call
       where:
         - { capture: obj, equals: Cipher }
         - { capture: meth, equals: getInstance }
@@ -232,7 +232,7 @@ rules:
         (method_invocation
           object: (identifier) @obj
           name: (identifier) @meth
-          arguments: (argument_list [(string_literal) (identifier)] @algo)) @call
+          arguments: (argument_list . [(string_literal) (identifier)] @algo)) @call
       where:
         - { capture: obj, equals: MessageDigest }
         - { capture: meth, equals: getInstance }

@@ -79,7 +79,10 @@ def _plan_with_task(session: Session, state: str) -> tuple[MigrationPlan, Migrat
     session.add(row)
     session.flush()
     task = MigrationTask(
-        plan_id=plan.id, unit_id=unit.id, asset_id=row.id, state=state,
+        plan_id=plan.id,
+        unit_id=unit.id,
+        asset_id=row.id,
+        state=state,
         rule_id="py-weakcipher-01",
     )
     session.add(task)
@@ -167,15 +170,21 @@ class TestMidFlightStatesAreRecovered:
         state and any caller waiting for completion waits forever."""
         plan, first = _plan_with_task(session, "generating")
         second = MigrationTask(
-            plan_id=plan.id, unit_id=first.unit_id, asset_id=first.asset_id,
-            state="verifying", rule_id="py-weakcipher-01",
+            plan_id=plan.id,
+            unit_id=first.unit_id,
+            asset_id=first.asset_id,
+            state="verifying",
+            rule_id="py-weakcipher-01",
         )
         session.add(second)
         session.commit()
 
         assert _recover(session, plan.id) == 2
 
-        states = {t.state for t in session.scalars(
-            select(MigrationTask).where(MigrationTask.plan_id == plan.id)
-        ).all()}
+        states = {
+            t.state
+            for t in session.scalars(
+                select(MigrationTask).where(MigrationTask.plan_id == plan.id)
+            ).all()
+        }
         assert states == {"deferred"}, states

@@ -400,3 +400,91 @@ def test_a_scope_that_both_signs_and_encrypts_is_left_to_the_names() -> None:
     assert all(a.usage_context.value == "kex" for a in rsa), (
         "with both operations present the rule's own answer must stand"
     )
+
+
+# ── an EC key generation, and what the surroundings say it is for ───────────────────────────────
+
+
+def _assets_named(source: str, language: str, file_path: str):
+    """Like `_assets`, but the FILE NAME matters to what is under test here."""
+    return [
+        normalize(d)
+        for d in _SCANNER.scan_source(source.encode(), language, file_path=file_path)
+    ]
+
+
+_EC_KEYGEN = (
+    "from cryptography.hazmat.primitives.asymmetric import ec\n"
+    "\n"
+    "def generate_referral_keypair():\n"
+    "    private_key = ec.generate_private_key(ec.SECP256R1())\n"
+    "    return private_key\n"
+)
+
+
+def test_an_ec_keygen_in_a_key_exchange_module_is_key_agreement() -> None:
+    """MV-10, measured on `medivault-emr/app/services/keyexchange.py`.
+
+    `PY-CRYPTOGRAPHY-EC-KEYGEN` hardcodes `ECDSA-P256`/`signature` for every
+    `ec.generate_private_key(...)`, because a key generation alone does not say what the key is
+    for. Here nothing closer says anything either - the function performs no operation the
+    vocabulary knows and is named after neither signing nor transport - so for the whole
+    evaluation this P-256 KEY AGREEMENT keypair was routed to `py-signature-01`, a signature rule,
+    which then could only refuse it. The file is called `keyexchange.py`.
+
+    The curve is kept and only the operation corrected: it is the same keypair either way.
+    """
+    ec_assets = [
+        a for a in _assets_named(_EC_KEYGEN, "python", "app/services/keyexchange.py")
+        if a.algorithm.startswith("EC")
+    ]
+    assert ec_assets
+    assert all(a.algorithm == "ECDH-P256" for a in ec_assets), [a.algorithm for a in ec_assets]
+    assert all(a.usage_context.value == "kex" for a in ec_assets)
+
+
+def test_the_same_keygen_elsewhere_keeps_the_rules_own_answer() -> None:
+    """The control, and the reason this is safe to add.
+
+    Identical source, a file name that says nothing. The rule's declared `signature` stands, so
+    the only behaviour that changed is the one that was measurably wrong.
+    """
+    ec_assets = [
+        a for a in _assets_named(_EC_KEYGEN, "python", "app/services/util.py")
+        if a.algorithm.startswith("EC")
+    ]
+    assert ec_assets
+    assert all(a.algorithm == "ECDSA-P256" for a in ec_assets)
+    assert all(a.usage_context.value == "signature" for a in ec_assets)
+
+
+def test_a_signing_scope_still_beats_the_file_name() -> None:
+    """The composite-signature case `test_rescan_e2e` pins, which must not move.
+
+    An EC keygen whose key is passed to `.sign()` in the same scope is a signing key however the
+    file is named - the operation is the more local fact, and it is asked first.
+    """
+    source = (
+        "from cryptography.hazmat.primitives.asymmetric import ec\n"
+        "\n"
+        "def sign(data):\n"
+        "    classical = ec.generate_private_key(ec.SECP256R1())\n"
+        "    return classical.sign(data, ec.ECDSA(None))\n"
+    )
+    ec_assets = [
+        a for a in _assets_named(source, "python", "app/services/keyexchange.py")
+        if a.algorithm.startswith("EC")
+    ]
+    assert ec_assets
+    assert all(a.algorithm == "ECDSA-P256" for a in ec_assets), [a.algorithm for a in ec_assets]
+
+
+def test_a_file_name_is_read_as_whole_words_not_substrings() -> None:
+    """`design.py` contains "sign". Splitting first is what keeps every design module out of it."""
+    from qubit_scanner.normalize import _path_words, _usage_from_surroundings
+
+    assert _path_words("app/design.py") == ("design",)
+    assert _usage_from_surroundings({}, "app/design.py") is None
+    assert _usage_from_surroundings({}, "app/services/keyexchange.py") == "kex"
+    assert _usage_from_surroundings({}, "app/services/key_exchange.py") == "kex"
+    assert _usage_from_surroundings({}, "lib/inkwell/crypto/signing.rb") == "signature"

@@ -8,6 +8,24 @@ version: "2026.08"
 #
 # Order matters: more specific entries should appear first.
 # Hash of this file is recorded in the migration engine-version record (reproducibility, N8).
+#
+# `python.min_version: "48"` for every ML-DSA-65/ML-KEM-768 entry below is a MEASURED floor, not
+# a documentation-read one. `cryptography`'s own docs say "Added in version 47.0.0" for both
+# `mldsa` and `mlkem` -- but that describes the Python API surface, not whether the OpenSSL-backed
+# implementation actually works. Verified directly, in an isolated venv, 2026-09-04:
+#   - 47.0.0: `MLDSA65PrivateKey.generate()` raises `UnsupportedAlgorithm` outright -- the class
+#     exists, the backend does not.
+#   - 48.0.0: both `MLDSA65PrivateKey.sign()`/`.verify()` and `MLKEM768PublicKey.encapsulate()` /
+#     `MLKEM768PrivateKey.decapsulate()` round-trip correctly, with the exact FIPS 203/204 sizes
+#     (ML-KEM-768: 1184/2400/1088/32 bytes; ML-DSA-65: 1952/4032/3309 bytes).
+#   - 49.0.0: same as 48.0.0 -- no further change relevant here.
+# This matches `transform/codemods.py`'s `_CRYPTO_PQC_FLOOR["cryptography"] = "48.0.0"`, the
+# codemod that actually WRITES the dependency pin into a real repo's manifest — the two had
+# drifted, and 49 (used here) was the wrong one: it excluded 48.0.0 installs for no functional
+# reason. `encapsulate()` returns `(shared_secret, ciphertext)` — reversed from the intuitive
+# reading, and the source of a false "ML-KEM is broken" result on the first pass of this
+# measurement, caught only by reading `cryptography`'s own `mlkem.py` rather than trusting either
+# secondary docs or a first assumption about argument order.
 
 entries:
   - vuln:
@@ -23,14 +41,14 @@ entries:
     library:
       python:
         name: cryptography
-        min_version: "49"
+        min_version: "48"
       java:
         name: bouncycastle
         min_version: "1.79"
     guidance: >
       RSA key transport is Shor-breakable and HNDL-exposed. Replace with an ML-KEM-768
       KEM-DEM pattern (hybrid X25519+ML-KEM-768 during the transition). Use
-      `cryptography>=49` (`mlkem.MLKEM768PrivateKey.generate()`). Existing RSA ciphertexts
+      `cryptography>=48` (`mlkem.MLKEM768PrivateKey.generate()`). Existing RSA ciphertexts
       must be re-encrypted. Do NOT inject liboqs-python into target repos (offline-sandbox break).
 
   - vuln:
@@ -45,7 +63,7 @@ entries:
     library:
       python:
         name: cryptography
-        min_version: "49"
+        min_version: "48"
       java:
         name: bouncycastle
         min_version: "1.84"
@@ -67,7 +85,7 @@ entries:
     library:
       python:
         name: cryptography
-        min_version: "49"
+        min_version: "48"
       java:
         name: bouncycastle
         min_version: "1.79"
@@ -87,7 +105,7 @@ entries:
     library:
       python:
         name: cryptography
-        min_version: "49"
+        min_version: "48"
       java:
         name: bouncycastle
         min_version: "1.84"
@@ -108,7 +126,7 @@ entries:
     library:
       python:
         name: cryptography
-        min_version: "49"
+        min_version: "48"
       java:
         name: bouncycastle
         min_version: "1.84"
@@ -130,7 +148,7 @@ entries:
     library:
       python:
         name: cryptography
-        min_version: "49"
+        min_version: "48"
       java:
         name: bouncycastle
         min_version: "1.84"
@@ -173,7 +191,7 @@ entries:
     library:
       python:
         name: cryptography
-        min_version: "49"
+        min_version: "48"
       java:
         name: bouncycastle
         min_version: "1.79"

@@ -13,17 +13,20 @@ import contextlib
 import contextvars
 import json
 import logging
+import os
 import re
 import socket
 import threading
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Container, Iterator, Sequence
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from platformdirs import user_data_dir
 
 from ..kb import lookup_impact
 from .languages import (
@@ -91,6 +94,41 @@ _MAX_PREDICT = 16384
 #: stops at the natural end of the answer; `num_predict` is a ceiling, not a target), while
 #: undershooting truncates the file and throws away a rewrite that may have been correct.
 _ANSWER_EXPANSION = 3.5
+
+
+def _duration_seconds(raw: str) -> float:
+    """A provider's human-written duration as a number of seconds. Unparseable means 0.0.
+
+    Providers report rate-limit resets as prose rather than a count: Groq sends `7.66s` and
+    `2m59.56s` in headers and *"Please try again in 4.86s"* in a 429 body, and an exhausted DAILY
+    request quota comes back as `7h32m14.4s`. Every decision made against these -- wait or move on,
+    cool for ninety seconds or retire the engine -- needs a number, and 0.0 always means "no reason
+    to wait" rather than a fabricated delay.
+    """
+    text = (raw or "").strip().lower()
+    if not text:
+        return 0.0
+    # `ms` has to go first or its `m` reads as MINUTES, turning `500ms` into 30,000 seconds --
+    # which would look like a window worth abandoning the engine over rather than one already open.
+    text = text.replace("ms", "\x00")
+    units = {"\x00": 0.001, "h": 3600.0, "m": 60.0, "s": 1.0}
+    total = 0.0
+    number = ""
+    for char in text:
+        if char.isdigit() or char == ".":
+            number += char
+            continue
+        if not number:
+            continue
+        with contextlib.suppress(ValueError):
+            total += float(number) * units.get(char, 0.0)
+        number = ""
+    # A bare number with no unit is seconds, which is how several providers spell it (and how
+    # `Retry-After` is defined).
+    if number and not total:
+        with contextlib.suppress(ValueError):
+            total = float(number)
+    return total
 
 
 @dataclass(frozen=True)
@@ -163,6 +201,35 @@ class RateBudget:
                 total = float(number)
         return total
 
+    @property
+    def stale(self) -> bool:
+        """Has the window this observation described already reset?
+
+        A rate-limit header is a fact about a specific reset WINDOW, not a fact that holds
+        forever. Once wall-clock time passes `observed_at` plus that window, the provider has
+        refilled the quota this budget describes -- so a persisted `remaining_requests: 0` that
+        outlives its own reset is not "still exhausted", it is simply out of date. Treating it as
+        current is exactly the process-restart defect this property exists to close: an engine
+        drained on Monday would otherwise read as drained on Tuesday, forever, because nothing
+        ever told the reader the window had turned over. See `_load_budgets` for where a
+        persisted record re-enters `_BUDGETS`, and `rate_budget` for where `stale` is applied.
+
+        `reset_requests` is checked first because `remaining_requests` is the field
+        `scheduling.choose` actually gates an engine on (~scheduling.py:186); `reset_tokens` is
+        the fallback for a provider that reported a token window but not a request one. No reset
+        hint at all -- `_duration_seconds` returns 0.0 for unparseable or absent input, its own
+        way of saying "cannot judge this" -- means no expiry is applied. Silence must never be
+        read as "already stale", only as "cannot say".
+        """
+        if not self.observed_at:
+            return False
+        reset_seconds = _duration_seconds(self.reset_requests) or _duration_seconds(
+            self.reset_tokens
+        )
+        if reset_seconds <= 0:
+            return False
+        return time.time() >= self.observed_at + reset_seconds
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "engine": self.engine,
@@ -178,10 +245,148 @@ class RateBudget:
         }
 
 
-#: Latest budget seen per engine. Deliberately process-local and not persisted: it is a fact about
-#: right now that goes stale in seconds, and a stored copy would be read long after it stopped
-#: being true.
+#: Latest budget seen per engine, for as long as this process lives -- and, via `_load_budgets` /
+#: `_save_budgets` below, for the NEXT process too.
+#:
+#: This used to be purely process-local, on the reasoning that a rate-limit observation "is a fact
+#: about right now that goes stale in seconds, and a stored copy would be read long after it
+#: stopped being true." That holds for a TOKEN window (resets in seconds to low minutes) and does
+#: NOT hold for the REQUEST window on a free tier, which is routinely a DAILY quota -- measured on
+#: this installation, Groq's own reset header reads `7h32m14.4s` once the daily budget is spent.
+#: An unattended campaign restarts the whole process between repositories (see
+#: `scripts/run_all_pooled.ps1`), so an engine exhausted on repo 1 looked completely fresh on repo
+#: 2: the scheduler routed to it again, it answered 429 again, and the campaign re-tested a dead
+#: engine every `_COOLDOWN_SECONDS` for the rest of the day.
+#:
+#: `RateBudget.stale` is what makes persisting this safe rather than merely durable: a record is
+#: honoured only until the reset it itself reported has passed, so a restart can see YESTERDAY's
+#: exhaustion without being stuck believing it forever.
 _BUDGETS: dict[str, RateBudget] = {}
+
+#: Set once `_load_budgets` has run, successfully or not, so a process reads its persisted state
+#: at most once. The file only changes from OUTSIDE this process (another one exiting), so
+#: re-reading it on every call would be pure disk I/O on a path measured to run per model call.
+_BUDGETS_LOADED = False
+
+
+def _budget_store_path() -> Path | None:
+    """Where a budget survives a process restart, or None if there is nowhere safe to put one.
+
+    "Beside the database" is not a new location -- it is THE existing one, resolved the same way
+    `qubit_core.db.session.default_db_url` resolves the database's own path: `QUBIT_DB_URL` when
+    an operator set one, `platformdirs.user_data_dir("qubit", appauthor=False)` otherwise. This
+    honours that env var rather than inventing a second convention, and doing so is not optional:
+    `scripts/run_arms.py` sets `QUBIT_DB_URL` to a private sqlite file per EVALUATION ARM
+    specifically so concurrent arms share no state, and a budget file that ignored the variable
+    would leak one arm's rate-limit history into another's -- defeating the isolation
+    `test_cli_db_isolation.py` exists to guarantee for the database itself.
+
+    A non-sqlite `QUBIT_DB_URL` (Postgres, ...) names no on-disk sibling to sit beside. This
+    returns None for that case rather than inventing an unrelated location, and every caller
+    treats None as "skip persistence for this process" -- always a safe fallback, since it is
+    exactly today's (process-local-only) behaviour.
+    """
+    try:
+        url = os.getenv("QUBIT_DB_URL") or ""
+        prefix = "sqlite:///"
+        if url:
+            if not url.startswith(prefix):
+                return None
+            db_path = Path(url[len(prefix) :])
+        else:
+            db_path = Path(user_data_dir("qubit", appauthor=False)) / "qubit.db"
+        return db_path.parent / "llm_rate_budgets.json"
+    except Exception:
+        return None
+
+
+def _coerce_budget(engine: str, fields: Any) -> RateBudget | None:
+    """One persisted engine record, defensively typed -- or None for anything that does not look
+    like what `_save_budgets` itself would have written.
+
+    A hand-edited, truncated, or previous-schema file must degrade to "not remembered", never to
+    a crash: this is a best-effort cache read that runs unattended, on the hot path of every
+    model call.
+    """
+    if not isinstance(fields, dict):
+        return None
+
+    def as_int(value: Any) -> int | None:
+        if isinstance(value, bool) or value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    try:
+        return RateBudget(
+            engine=str(fields.get("engine") or engine),
+            remaining_requests=as_int(fields.get("remaining_requests")),
+            remaining_tokens=as_int(fields.get("remaining_tokens")),
+            limit_requests=as_int(fields.get("limit_requests")),
+            limit_tokens=as_int(fields.get("limit_tokens")),
+            reset_requests=str(fields.get("reset_requests") or ""),
+            reset_tokens=str(fields.get("reset_tokens") or ""),
+            observed_at=float(fields.get("observed_at") or 0.0),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _load_budgets() -> None:
+    """Merge whatever the last process persisted into `_BUDGETS`, once, lazily. Never raises.
+
+    Lazy and single-shot: called from both `rate_budget` (so a fresh process sees yesterday's
+    exhaustion before it ever makes a call) and `_record_budget` (so a save from THIS process
+    does not clobber every OTHER engine's history with a file containing only the one just
+    updated). Entries already in `_BUDGETS` win over the file -- this process's own observation
+    is never staler than one made before the file was last written.
+    """
+    global _BUDGETS_LOADED
+    if _BUDGETS_LOADED:
+        return
+    _BUDGETS_LOADED = True
+    path = _budget_store_path()
+    if path is None:
+        return
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        # No file yet (nothing persisted), or content that is not valid JSON at all -- either
+        # way, today's behaviour: start with nothing remembered.
+        return
+    if not isinstance(raw, dict):
+        return
+    for engine, fields in raw.items():
+        if engine in _BUDGETS:
+            continue
+        budget = _coerce_budget(str(engine), fields)
+        if budget is not None:
+            _BUDGETS[engine] = budget
+
+
+def _save_budgets() -> None:
+    """Write `_BUDGETS` out so the NEXT process starts already knowing it. Never raises.
+
+    Whole-dict overwrite rather than a read-modify-write of the file: `_load_budgets` always runs
+    first at every call site that reaches this (see its own docstring), so `_BUDGETS` in memory is
+    already a superset of whatever the file holds, and re-deriving that here would just repeat
+    the same merge a second time.
+
+    Written to a per-process temp file and `os.replace`d into place rather than written directly,
+    so a process killed mid-write during an unattended run leaves the last GOOD version in place
+    instead of a truncated file for the next process's `_load_budgets` to have to shrug off.
+    """
+    path = _budget_store_path()
+    if path is None:
+        return
+    with contextlib.suppress(Exception):
+        payload = {name: budget.as_dict() for name, budget in _BUDGETS.items()}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        tmp_path.write_text(json.dumps(payload), encoding="utf-8")
+        tmp_path.replace(path)
 
 
 def _as_int(raw: str | None) -> int | None:
@@ -242,19 +447,29 @@ def _record_budget(engine: str, headers: Any) -> None:
             observed_at=time.time(),
         )
         if budget.reported or budget.limit_requests or budget.limit_tokens:
+            # Merge in whatever a PREVIOUS process persisted before this write can overwrite it --
+            # see `_load_budgets`'s own docstring for why the order matters.
+            _load_budgets()
             _BUDGETS[engine] = budget
+            _save_budgets()
 
 
 def rate_budget(engine: str | None = None) -> dict[str, Any]:
-    """What is left on the attached provider(s), as last reported.
+    """What is left on the attached provider(s), as last reported -- including what a PREVIOUS
+    process last reported, via `_load_budgets`.
 
     Returns one engine's budget, or every engine's when none is named. An engine absent from the
-    result has either never been called or never reported -- both mean "unknown", never "empty".
+    result has never been called, never reported, or was observed so long ago that the reset its
+    own record named has already passed (`RateBudget.stale`) -- all three mean "unknown", never
+    "empty". The last case matters most after a restart: a `remaining_requests: 0` persisted from
+    an earlier process must stop being honoured once its own reset window has closed, or an
+    engine that has been usable again for hours would still read as permanently exhausted.
     """
+    _load_budgets()
     if engine is not None:
         found = _BUDGETS.get(engine)
-        return found.as_dict() if found else {}
-    return {name: b.as_dict() for name, b in _BUDGETS.items()}
+        return found.as_dict() if found and not found.stale else {}
+    return {name: b.as_dict() for name, b in _BUDGETS.items() if not b.stale}
 
 
 @dataclass(frozen=True)
@@ -788,6 +1003,12 @@ _ENGINE_COOLDOWN: dict[str, float] = {}
 #: How long an engine is skipped after a transient failure.
 _COOLDOWN_SECONDS = 90.0
 
+#: A 429 reset hint at or beyond this is read as a DAILY quota rather than a momentary rate
+#: window. Comfortably above every per-minute figure measured on a real key (Groq's token window:
+#: `31.305s`, `2m59.56s`) and comfortably below the DAILY exhaustion measured on the same account
+#: (`7h32m14.4s`), so an hour cannot be mistaken for either.
+_QUOTA_EXHAUSTED_SECONDS = 3600.0
+
 #: Statuses that mean "busy, try later" rather than "wrong". 429 is rate limiting, 5xx is the
 #: provider failing to serve; neither says anything about whether the request was valid.
 _TRANSIENT_CODES = frozenset({429, 500, 502, 503, 504})
@@ -799,8 +1020,38 @@ def _cooling(base_url: str, model: str) -> bool:
     return until is not None and time.monotonic() < until
 
 
-def _start_cooldown(base_url: str, model: str) -> None:
-    _ENGINE_COOLDOWN[f"{base_url}::{model}"] = time.monotonic() + _COOLDOWN_SECONDS
+def _start_cooldown(base_url: str, model: str, *, seconds: float = _COOLDOWN_SECONDS) -> None:
+    """Skip this engine until `seconds` from now (`_COOLDOWN_SECONDS` by default).
+
+    `seconds` exists for a 429 that names its own reset -- see the call site in
+    `_openai_compatible_generate_once`, which passes the provider's own hint when it is longer
+    than the flat default. A `2m59.56s` window re-tested every 90s would fail twice for no
+    reason. Never shorter than the default, though: a provider naming a SHORT window is not
+    promising to be usable that soon, only that its own window reopens then, and
+    `_COOLDOWN_SECONDS` is the floor already calibrated for "busy" in general.
+    """
+    _ENGINE_COOLDOWN[f"{base_url}::{model}"] = time.monotonic() + max(seconds, 0.0)
+
+
+def _reset_seconds_from_headers(headers: Any) -> float:
+    """How long until the window a 429 just hit reopens, or 0.0 if nothing usable was said.
+
+    `reset_requests` is preferred: it is the field a DAILY quota reports against, and the field
+    `scheduling.choose` actually gates an engine on (~scheduling.py:186). `reset_tokens` is the
+    fallback for a provider that named only a token window. `headers` may be `None` -- an
+    `HTTPError` built with no header object at all, exactly like several existing tests construct
+    -- and that must read as "nothing said", never raise.
+    """
+    if headers is None:
+        return 0.0
+    try:
+        get = headers.get
+    except AttributeError:
+        return 0.0
+    seconds = _duration_seconds(str(get("x-ratelimit-reset-requests") or ""))
+    if seconds:
+        return seconds
+    return _duration_seconds(str(get("x-ratelimit-reset-tokens") or ""))
 
 
 #: Engines that rejected the key. Retired for the life of the process, not cooled: a key the
@@ -808,8 +1059,10 @@ def _start_cooldown(base_url: str, model: str) -> None:
 _ENGINE_REFUSED: set[str] = set()
 
 
-def _retire(base_url: str, model: str) -> None:
-    """Stop asking an engine whose key was rejected.
+def _retire(
+    base_url: str, model: str, *, reason: str = "the provider rejected the API key"
+) -> None:
+    """Stop asking an engine for the rest of this session.
 
     Measured on the certbot run: the configured primary answered HTTP 403 (Cloudflare 1010 — the
     key had been revoked, almost certainly by the provider's own secret scanning after it was
@@ -819,12 +1072,16 @@ def _retire(base_url: str, model: str) -> None:
     and never said so.
 
     Deliberately not a cooldown. A transient failure is worth re-testing; a rejected key is a
-    configuration fact that will not change until someone changes it.
+    configuration fact that will not change until someone changes it -- and so, for the rest of
+    THIS session, is a daily quota that will not refill for hours (see the 429 handling in
+    `_openai_compatible_generate_once`). `reason` exists because those two are not the same
+    finding and must not read as the same log line: a rejected key means "this configuration is
+    broken", and an exhausted quota means "this configuration is fine, come back later". The
+    default keeps the original wording for the 401/403 call site; the quota call site passes its
+    own honest reason rather than letting either get conflated with the other in the logs.
     """
     _ENGINE_REFUSED.add(f"{base_url}::{model}")
-    logger.warning(
-        "retiring %s at %s for this session: the provider rejected the API key", model, base_url
-    )
+    logger.warning("retiring %s at %s for this session: %s", model, base_url, reason)
 
 
 def _refused(base_url: str, model: str) -> bool:
@@ -845,6 +1102,68 @@ def _content_of(data: dict[str, Any]) -> str:
 
 
 def _openai_compatible_generate(
+    prompt: str,
+    *,
+    model: str,
+    base_url: str,
+    api_key: str,
+    timeout: float = 180.0,
+    source: str = "",
+    budget_tokens: int | None = None,
+) -> str:
+    """`_openai_compatible_generate_once`, with the SAME hard wall-clock deadline `_ollama_generate`
+    gives the local model — and for the identical reason.
+
+    `urlopen(timeout=N)` bounds each individual socket READ, not the call as a whole: a hosted
+    provider that keeps the connection open and sends so much as a keep-alive byte before the
+    deadline resets the clock, and the read can block again indefinitely. `_ollama_generate`
+    documents this and defends against it with a daemon-thread watchdog; this function called
+    `urlopen` directly and had no such defense, so every HOSTED provider inherited exactly the gap
+    the Ollama path was built to close.
+
+    Measured live, through the desktop app: a MediVault migration task and a Paymesh one both sat
+    in `generating` for 15+ minutes with no docker container running and Ollama itself idle —
+    consistent with a hosted call wedged on a connection that never completed and never timed out.
+
+    The watchdog thread is a plain daemon thread rather than a pool, for the same reason
+    `_ollama_generate`'s comment gives: a `ThreadPoolExecutor` registers its workers with an atexit
+    hook that joins them before the interpreter exits, so a wedged pooled thread can still block
+    process shutdown even after this function has itself returned an error.
+    """
+    result: dict[str, Any] = {}
+
+    def _worker() -> None:
+        try:
+            result["value"] = _openai_compatible_generate_once(
+                prompt,
+                model=model,
+                base_url=base_url,
+                api_key=api_key,
+                timeout=timeout,
+                source=source,
+                budget_tokens=budget_tokens,
+            )
+        except BaseException as exc:
+            result["error"] = exc
+
+    context = contextvars.copy_context()
+    thread = threading.Thread(
+        target=lambda: context.run(_worker), name="openai-compatible-generate", daemon=True
+    )
+    thread.start()
+    thread.join(timeout=timeout + 15)
+    if thread.is_alive():
+        raise OllamaError(
+            f"{model!r} at {base_url!r} did not answer within {timeout:.0f}s and the connection "
+            "itself did not report a timeout either — the provider may be wedged. Try again, or "
+            "raise QUBIT_MIGRATE_LLM_TIMEOUT."
+        )
+    if "error" in result:
+        raise result["error"]
+    return result["value"]  # type: ignore[no-any-return]
+
+
+def _openai_compatible_generate_once(
     prompt: str,
     *,
     model: str,
@@ -881,6 +1200,14 @@ def _openai_compatible_generate(
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0,
+        # `_ollama_generate_once` pins `seed` alongside `temperature: 0` and is genuinely
+        # reproducible; this path sent temperature alone. Hosted OpenAI-compatible backends
+        # (Groq, OpenRouter, vLLM-style servers) are widely documented as NOT bit-reproducible at
+        # temperature 0 without a seed -- MoE routing and batching both vary the answer run to
+        # run. `seed` is a standard OpenAI chat-completions field every target here recognizes
+        # (OpenAI, Groq, vLLM); an unrecognized field is not something this shape of API errors
+        # on, so this costs nothing where a provider ignores it.
+        "seed": GENERATION_SEED,
         # Same reason `_ollama_generate_once` sends `think: False`: QUBIT parses a fenced file
         # out of the answer and DISCARDS reasoning, so a model that spends its output budget
         # thinking returns a truncated file. The strong models on hosted free tiers (gpt-oss,
@@ -1024,9 +1351,42 @@ def _openai_compatible_generate(
                 f"enabled. Detail: {detail}"
             ) from exc
         if exc.code in _TRANSIENT_CODES:
-            # Busy, not broken. Remember it so the next finding in this run does not pay the same
-            # wait to learn the same thing.
-            _start_cooldown(base_url, model)
+            if exc.code == 429:
+                # A 429 carries the provider's OWN reset clock, and a flat 90s cooldown throws
+                # that number away. Measured on this account: an exhausted DAILY quota reports
+                # `7h32m14.4s` in `x-ratelimit-reset-requests` -- re-testing that every 90 seconds
+                # would hit the same dead engine roughly 300 times before it recovers on its own.
+                # The 429 response also often carries the same remaining/limit headers a 200
+                # would, so record them too: a `remaining_requests: 0` learned here is exactly
+                # what lets the NEXT process (via `_load_budgets`) see this engine as exhausted
+                # from its very first call, instead of re-discovering it the same expensive way.
+                _record_budget(f"{base_url}::{model}", exc.headers)
+                reset_seconds = _reset_seconds_from_headers(exc.headers)
+                if reset_seconds > _QUOTA_EXHAUSTED_SECONDS:
+                    # An hours-long reset is a DAILY quota, not a moment of congestion. Cooling
+                    # for it literally would mean skipping the engine for the rest of most runs
+                    # anyway; retiring it is the same outcome stated honestly, and it is what
+                    # lets `_refused` skip straight past it instead of a cooldown that would
+                    # expire and get re-tried long before the quota actually refills.
+                    _retire(
+                        base_url,
+                        model,
+                        reason=(
+                            f"its rate-limit quota will not reset for "
+                            f"{reset_seconds / 3600:.1f}h (HTTP 429) — this is a quota running "
+                            f"out, not a rejected key, and the two must not be read as the same "
+                            f"problem"
+                        ),
+                    )
+                else:
+                    # Longer than the flat default: honour it. Never shorter: see
+                    # `_start_cooldown`'s own docstring for why a short hint does not shrink the
+                    # cooldown below the calibrated "busy" floor.
+                    _start_cooldown(base_url, model, seconds=max(reset_seconds, _COOLDOWN_SECONDS))
+            else:
+                # Busy, not broken. Remember it so the next finding in this run does not pay the
+                # same wait to learn the same thing.
+                _start_cooldown(base_url, model)
         if exc.code == 429:
             raise OllamaError(
                 f"the external LLM provider at {base_url} rate-limited this request (HTTP 429) "
@@ -1088,6 +1448,70 @@ def _openai_compatible_generate(
     return text
 
 
+def _first_answer(
+    chain: Sequence[ExternalEndpoint],
+    prompt: str,
+    *,
+    timeout: float,
+    source: str,
+    avoid: Container[str] = frozenset(),
+    on_fallback: Callable[[str], None] | None = None,
+    on_engine: Callable[[str], None] | None = None,
+    announce_first: bool = True,
+) -> str | None:
+    """The first engine in `chain` that answers, or None when none of them did.
+
+    Shared by both routes of `_generate`, because "walk down the pool until something answers"
+    is the same operation whether the walk started at an external primary or escalated to the
+    pool from a local model.
+
+    `avoid` names engines that already produced a candidate the repair loop REJECTED for this
+    finding. They are skipped for the same reason `_refused` and `_cooling` entries are: asking
+    costs a request and the answer is already known to be unusable.
+
+    `announce_first` is False for a walk that BEGINS at the configured primary -- index 0 is not
+    a fallback, so `on_fallback` must not fire for it. It is True for a walk the local route
+    escalated into, where every engine reached is by definition a fallback.
+    """
+    for index, endpoint in enumerate(chain):
+        # An engine whose key was rejected is skipped unconditionally, including when it is the
+        # only one left. There is no request it could answer, so trying it can only turn a clear
+        # "every engine is unusable, here is why" into one more identical rejection.
+        if _refused(endpoint.base_url, endpoint.model):
+            continue
+        if f"openai-compatible:{endpoint.model}" in avoid:
+            logger.info(
+                "skipping %s: it already produced a candidate this finding rejected",
+                endpoint.model,
+            )
+            continue
+        # An engine that answered 503 seconds ago will answer 503 again, and asking costs whatever
+        # its timeout is. Skipped rather than removed: the window is short and the pool is small.
+        if _cooling(endpoint.base_url, endpoint.model) and index < len(chain) - 1:
+            logger.info("skipping %s: still cooling down after a transient failure", endpoint.model)
+            continue
+        try:
+            answer = _openai_compatible_generate(
+                prompt,
+                model=endpoint.model,
+                base_url=endpoint.base_url,
+                api_key=endpoint.api_key,
+                timeout=timeout,
+                source=source,
+                budget_tokens=endpoint.budget_tokens,
+            )
+        except OllamaError as exc:
+            logger.warning("external LLM provider %s failed (%s)", endpoint.base_url, exc)
+            continue
+        name = f"openai-compatible:{endpoint.model}"
+        if on_fallback is not None and (announce_first or index > 0):
+            on_fallback(name)
+        if on_engine is not None:
+            on_engine(name)
+        return answer
+    return None
+
+
 def _generate(
     prompt: str,
     *,
@@ -1102,6 +1526,8 @@ def _generate(
     budget_tokens: int | None = None,
     backup: ExternalEndpoint | None = None,
     backups: Sequence[ExternalEndpoint] = (),
+    avoid: Container[str] = frozenset(),
+    on_engine: Callable[[str], None] | None = None,
 ) -> str:
     """Dispatch generation down the configured chain of engines.
 
@@ -1110,9 +1536,20 @@ def _generate(
     path's behaviour.
 
     `provider="openai-compatible"` walks: **primary external -> backup external (if configured)
-    -> local Ollama**. A step is taken only on a connection/auth/rate-limit failure, never on a
-    content-shape rejection -- that is a successful HTTP response and belongs to the repair loop
-    above this function.
+    -> local Ollama**. A step is taken on a connection/auth/rate-limit failure, and on a
+    content-shape rejection the repair loop above has already seen -- the latter through `avoid`,
+    which names the engines that produced a candidate THIS finding rejected.
+
+    That second case used to be excluded on the reasoning that a rejected candidate is a
+    successful HTTP response and therefore the repair loop's business. The repair loop does own
+    the decision; what it lacked was any way to act on it, so all three of its attempts went back
+    to the engine that had just been measured as unable to do the work. Measured on
+    `medivault-emr` before this change: 6 candidates generated, 1 survived the gates, and the
+    other five spent every attempt on the same local 7B while eight pooled engines stayed idle.
+
+    `on_engine` fires with whichever engine actually produced the answer, on EVERY route
+    including the primary -- that is what lets the repair loop populate `avoid`. `on_fallback`
+    keeps its narrower meaning (a step was taken) and is unchanged.
 
     The backup exists because a free tier's real constraint is its token allowance, not its model:
     Groq's free tier permits 8,000 tokens/minute, so one large file exhausts a minute. A second key
@@ -1124,8 +1561,26 @@ def _generate(
     caller can attribute the patch to what actually ran rather than what was configured.
     """
     if provider != "openai-compatible":
+        #: The pooled engines this install can escalate INTO, in the order routing ranked them.
+        escalation = [e for e in (backup, *backups) if e and e.api_key and e.base_url and e.model]
+        # Local already produced a candidate this finding rejected. Asking it again is asking the
+        # one engine measured as unable to do this work to correct itself, while the pool that
+        # routing ranked as capable is never consulted. Step into the pool instead; the local
+        # model stays underneath as the answer of last resort below.
+        if model in avoid and escalation:
+            answer = _first_answer(
+                escalation,
+                prompt,
+                timeout=timeout,
+                source=source,
+                avoid=avoid,
+                on_fallback=on_fallback,
+                on_engine=on_engine,
+            )
+            if answer is not None:
+                return answer
         try:
-            return _ollama_generate(
+            answer = _ollama_generate(
                 prompt, model=model, base_url=base_url, timeout=timeout, source=source
             )
         except OllamaError:
@@ -1149,7 +1604,12 @@ def _generate(
             )
             if on_fallback is not None:
                 on_fallback(f"openai-compatible:{backup.model}")
+            if on_engine is not None:
+                on_engine(f"openai-compatible:{backup.model}")
             return answer
+        if on_engine is not None:
+            on_engine(model)
+        return answer
 
     if not api_key:
         raise OllamaError(
@@ -1187,38 +1647,39 @@ def _generate(
             continue
         chain.append(extra)
 
-    for index, endpoint in enumerate(chain):
-        # An engine whose key was rejected is skipped unconditionally, including when it is the
-        # only one left. There is no request it could answer, so trying it can only turn a clear
-        # "every engine is unusable, here is why" into one more identical rejection.
-        if _refused(endpoint.base_url, endpoint.model):
-            continue
-        # An engine that answered 503 seconds ago will answer 503 again, and asking costs whatever
-        # its timeout is. Skipped rather than removed: the window is short and the pool is small.
-        if _cooling(endpoint.base_url, endpoint.model) and index < len(chain) - 1:
-            logger.info("skipping %s: still cooling down after a transient failure", endpoint.model)
-            continue
-        try:
-            answer = _openai_compatible_generate(
-                prompt,
-                model=endpoint.model,
-                base_url=endpoint.base_url,
-                api_key=endpoint.api_key,
-                timeout=timeout,
-                source=source,
-                budget_tokens=endpoint.budget_tokens,
-            )
-        except OllamaError as exc:
-            logger.warning("external LLM provider %s failed (%s)", endpoint.base_url, exc)
-            continue
-        if index > 0 and on_fallback is not None:
-            on_fallback(f"openai-compatible:{endpoint.model}")
+    answer = _first_answer(
+        chain,
+        prompt,
+        timeout=timeout,
+        source=source,
+        avoid=avoid,
+        on_fallback=on_fallback,
+        on_engine=on_engine,
+        announce_first=False,
+    )
+    if answer is None and avoid:
+        # Every engine in the pool has now produced a candidate this finding rejected, so
+        # escalation has nothing further to offer. Walk the chain again without the filter
+        # rather than failing the finding: one more attempt at the best engine, carrying the
+        # validator's own words about what was wrong, is strictly better than no attempt.
+        answer = _first_answer(
+            chain,
+            prompt,
+            timeout=timeout,
+            source=source,
+            on_fallback=on_fallback,
+            on_engine=on_engine,
+            announce_first=False,
+        )
+    if answer is not None:
         return answer
 
     local_model = fallback_ollama_model or model
     logger.warning("every external provider failed; falling back to local Ollama %r", local_model)
     if on_fallback is not None:
         on_fallback(local_model)
+    if on_engine is not None:
+        on_engine(local_model)
     return _ollama_generate(
         prompt, model=local_model, base_url=DEFAULT_BASE_URL, timeout=timeout, source=source
     )
@@ -2369,12 +2830,19 @@ def self_review(
     backup: ExternalEndpoint | None = None,
     backups: Sequence[ExternalEndpoint] = (),
     on_fallback: Callable[[str], None] | None = None,
+    avoid: Container[str] = frozenset(),
 ) -> tuple[str, str]:
-    """Return ``(possibly corrected source, notes)`` after one self-review pass.
+    """Return ``(possibly corrected source, notes)`` after one review pass over the draft.
 
     Never regresses. A review that answers OK, returns something unusable, or fails entirely
     leaves the draft exactly as it was — the pass can only improve a patch or cost time, which is
     what makes it safe to run before the expensive validation rather than after.
+
+    `avoid` normally names the engine that WROTE the draft, which makes this a cross-model review
+    rather than a model checking its own work. A model asked whether its own answer is correct
+    agrees with itself; a second model reads the draft with none of the reasoning that produced it
+    and has to find the fault in the code. On a single-engine install the set has nothing to
+    escalate to and the pass stays a self-review, exactly as before.
     """
     lang = language or _prompt_language(rule, asset)
     try:
@@ -2391,6 +2859,7 @@ def self_review(
             backup=backup,
             backups=backups,
             on_fallback=on_fallback,
+            avoid=avoid,
         )
     except (OSError, OllamaError) as exc:
         logger.info("self-review pass unavailable (%s); keeping the draft", exc)
@@ -2696,7 +3165,24 @@ def generate_llm_source(
     #: Times the model was asked for an excerpt and did not return the marker. Capped separately
     #: from `max_attempts` because it is not the same kind of failure -- see the break below.
     marker_failures = 0
+    #: Engines that produced a candidate THIS loop rejected. `_generate` steps past them, so a
+    #: second attempt reaches a different model instead of asking the same one to correct itself.
+    #: Without this the pool's width was decorative: a nine-engine install spent all three
+    #: attempts on whichever single engine routing picked first.
+    spent: set[str] = set()
+    #: Whichever engine answered the attempt in flight, reported by `_generate` on every route.
+    produced_by: list[str] = []
+
+    def _note_engine(name: str) -> None:
+        produced_by.clear()
+        produced_by.append(name)
+
     for _attempt in range(max(1, max_attempts)):
+        # Reaching a second iteration means the previous candidate was REJECTED -- every accepted
+        # one returns from inside the loop. So whichever engine produced it is retired from this
+        # finding here, at the one point that is true for all of the loop's rejection paths
+        # (unparseable answer, missing marker, failed verification, failed self-review).
+        spent.update(produced_by)
         # Generation is INSIDE the retry because a truncated or unfenced answer is the model
         # getting it wrong, and that is what the repair loop is for. It was outside, so a
         # truncation ended the whole attempt immediately -- measured on Crypto.kt and
@@ -2726,6 +3212,8 @@ def generate_llm_source(
                 budget_tokens=budget_tokens,
                 backup=backup,
                 backups=backups,
+                avoid=spent,
+                on_engine=_note_engine,
             )
             new_source = extract_code_block(raw)
             if excerpt is not None:
@@ -2799,6 +3287,10 @@ def generate_llm_source(
                 backup=backup,
                 backups=backups,
                 on_fallback=on_fallback,
+                # Whoever wrote this draft does not get to mark its own work. `produced_by` holds
+                # the engine that answered THIS attempt, so the review is routed to a different
+                # one wherever the pool has another to offer.
+                avoid=set(produced_by),
             )
             if reviewed != new_source:
                 recheck = verify(reviewed) if verify is not None else None

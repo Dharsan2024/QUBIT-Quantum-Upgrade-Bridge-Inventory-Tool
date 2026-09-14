@@ -65,7 +65,19 @@ semantic_note: >
   the gap rather than emitting an identifier no verifier accepts.
 prompt_constraints:
   - "Go: use github.com/cloudflare/circl/sign/mldsa/mldsa65 (ML-DSA is not in the Go standard library)."
-  - "Java: use KeyPairGenerator.getInstance(\"ML-DSA\") and Signature.getInstance(\"ML-DSA\") (JDK 24+, JEP 497), or BouncyCastle 1.79+."
+  - >-
+      Java: on JDK 24+ (JEP 497), KeyPairGenerator.getInstance("ML-DSA") with
+      NamedParameterSpec.ML_DSA_65 -- no external dependency needed. On JDK 21-23,
+      BouncyCastle 1.79 has NOT renamed its API to ML-DSA yet: register
+      Security.addProvider(new BouncyCastlePQCProvider()) once, then use the
+      pre-standardization string name directly --
+      KeyPairGenerator.getInstance("Dilithium3", "BCPQC") and
+      Signature.getInstance("Dilithium3", "BCPQC"). "Dilithium3" is the ML-DSA-65
+      parameter set. Measured against the real 1.79 jar: both
+      KeyPairGenerator.getInstance("ML-DSA-65", "BCPQC") and
+      org.bouncycastle.pqc.jcajce.spec.MLDSAParameterSpec fail to resolve -- BC 1.79 only
+      recognises the Dilithium name on this API surface, and no parameter-spec class or
+      constant construction is needed at all; the plain string is sufficient.
   - "JavaScript/TypeScript: use ml_dsa65 from @noble/post-quantum/ml-dsa."
   - "C: use liboqs — OQS_SIG_new(OQS_SIG_alg_ml_dsa_65), OQS_SIG_sign, OQS_SIG_verify."
   - "Keep the existing verify path alongside the new one so signatures already in circulation still validate."

@@ -66,9 +66,7 @@ def origin(tmp_path: Path) -> Path:
 def workspace(tmp_path, monkeypatch):
     """Redirect the clone destination, so a test never writes into the real app data directory."""
     root = tmp_path / "workspaces"
-    monkeypatch.setattr(
-        "qubit_api.routers.projects._workspace_root", lambda: root, raising=True
-    )
+    monkeypatch.setattr("qubit_api.routers.projects._workspace_root", lambda: root, raising=True)
     return root
 
 

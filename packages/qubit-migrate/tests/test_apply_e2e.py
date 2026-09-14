@@ -339,3 +339,123 @@ def test_uncommitted_edits_to_the_patched_file_itself_still_block(tmp_path: Path
 
     with pytest.raises(ValueError, match=r"changed since generation|uncommitted edits"):
         orch.apply_patch(patch.id, repo_root=repo_root)
+
+
+class TestTheWrittenFileMustMatchWhatWasValidated:
+    """`git apply` returning 0 is not proof the file holds what the gates judged.
+
+    The stages run on an in-memory `patched_source`; the diff is derived from it; what reaches
+    disk is `git apply`'s reconstruction of that diff. Every patch audited on this installation
+    had all three agree -- 6 of 6 files byte-identical to HEAD plus their stored diffs -- but
+    nothing MADE them agree, and a patch write is the one step where being wrong silently
+    corrupts a user's source.
+    """
+
+    def test_a_normal_apply_satisfies_the_guard(self, tmp_path: Path) -> None:
+        """The guard must not reject the ordinary case, or every migration stops working."""
+        repo = _make_repo(tmp_path)
+        engine = create_engine("sqlite://")
+        Base.metadata.create_all(engine)
+        session = Session(engine)
+        _seed(session, repo)
+
+        orch = MigrationOrchestrator(session)
+        plan = orch.build_plan()
+        task = orch.get_queue(plan.id)[0]
+        patch = orch.generate_patch(task.id, repo_root=repo)
+        orch.review_patch(patch.id, approve=True, note="guard")
+
+        applied = orch.apply_patch(patch.id, repo_root=repo)
+
+        assert applied.status == "applied"
+        assert "md5" not in (repo / "app.py").read_text(encoding="utf-8")
+
+    def test_a_file_that_does_not_hold_the_change_is_reverted_and_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The guard's whole purpose. `git apply` is made to report success while writing
+        nothing, which is the shape of the corruption being defended against: a return code that
+        says the change landed when the file does not hold it.
+        """
+        repo = _make_repo(tmp_path)
+        engine = create_engine("sqlite://")
+        Base.metadata.create_all(engine)
+        session = Session(engine)
+        _seed(session, repo)
+
+        orch = MigrationOrchestrator(session)
+        plan = orch.build_plan()
+        task = orch.get_queue(plan.id)[0]
+        patch = orch.generate_patch(task.id, repo_root=repo)
+        orch.review_patch(patch.id, approve=True, note="guard")
+
+        real_run = subprocess.run
+
+        def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+            # Swallow the forward apply so the file keeps its ORIGINAL content, then let the
+            # reverse check run for real against that unchanged file -- which must fail.
+            if list(cmd[:2]) == ["git", "apply"] and "-R" not in cmd:
+                return subprocess.CompletedProcess(cmd, 0, b"", b"")
+            return real_run(cmd, *args, **kwargs)
+
+        # `apply_patch` imports subprocess inside the function, so the module object is the only
+        # place the name can be intercepted.
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        with pytest.raises(Exception) as caught:
+            orch.apply_patch(patch.id, repo_root=repo)
+
+        assert "does not match the change that was validated" in str(caught.value)
+        assert (repo / "app.py").read_text(encoding="utf-8") == VULN_SOURCE, (
+            "the file must be left as it was, not half-written"
+        )
+
+
+class TestVerifyActuallyLooksAtTheFile:
+    """`verify_task` used to transition to `verify_pass` and return `passed=True` unconditionally.
+
+    It carried a comment saying real verification would arrive in a later milestone. It never did,
+    so the one method whose entire job is to answer "did the migration hold?" answered yes without
+    looking -- including for a file that had since been reverted or overwritten by something else.
+    """
+
+    def _applied(self, tmp_path: Path):  # type: ignore[no-untyped-def]
+        repo = _make_repo(tmp_path)
+        engine = create_engine("sqlite://")
+        Base.metadata.create_all(engine)
+        session = Session(engine)
+        _seed(session, repo)
+        orch = MigrationOrchestrator(session)
+        plan = orch.build_plan()
+        task = orch.get_queue(plan.id)[0]
+        patch = orch.generate_patch(task.id, repo_root=repo)
+        orch.review_patch(patch.id, approve=True, note="verify")
+        orch.apply_patch(patch.id, repo_root=repo)
+        return orch, task, repo
+
+    def test_a_migration_that_held_verifies(self, tmp_path: Path) -> None:
+        orch, task, _ = self._applied(tmp_path)
+
+        report = orch.verify_task(task.id)
+
+        assert report is not None and report.passed
+
+    def test_a_file_reverted_after_apply_does_not_verify(self, tmp_path: Path) -> None:
+        """The case the stub could never fail: the patch applied, then the file went back to its
+        vulnerable content. The finding is present on disk, so verification must say so."""
+        orch, task, repo = self._applied(tmp_path)
+        (repo / "app.py").write_text(VULN_SOURCE, encoding="utf-8")
+
+        report = orch.verify_task(task.id)
+
+        assert report is not None
+        assert not report.passed, "md5 is back in the file; verification must not pass"
+
+    def test_a_file_deleted_after_apply_does_not_verify(self, tmp_path: Path) -> None:
+        orch, task, repo = self._applied(tmp_path)
+        (repo / "app.py").unlink()
+
+        report = orch.verify_task(task.id)
+
+        assert report is not None
+        assert not report.passed

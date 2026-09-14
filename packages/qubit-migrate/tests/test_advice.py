@@ -35,6 +35,7 @@ from qubit_core.schemas import (
     UsageContext,
     utcnow,
 )
+from qubit_migrate.transform import llm
 from qubit_migrate.transform.advise import (
     build_advice_prompt,
     generate_migration_advice,
@@ -202,3 +203,107 @@ def test_live_advice_never_recommends_a_broken_algorithm() -> None:
         assert heading.lower() in advice.lower(), f"missing section {heading}:\n{advice}"
     # The knowledge base's target, not one the model recalled.
     assert "ml-kem" in advice.lower()
+
+
+# ── The pool ─────────────────────────────────────────────────────────────────
+#
+# Advice used to call `_ollama_generate` directly, so it was produced by the local model on every
+# install however many engines were configured — and for a `guided` finding advice is not a
+# consolation prize, it is the only output. These cover the two halves of routing it: that the
+# pool is reachable at all, and that a model whose advice was REJECTED does not simply get asked
+# again with the correction appended.
+
+
+_GOOD_ADVICE = (
+    "WHAT THIS CODE DOES\nIt generates an RSA-1024 deployment key.\n\n"
+    "WHY IT IS A PROBLEM\nRSA is broken by Shor's algorithm.\n\n"
+    "WHAT TO CHANGE\nGenerate an ML-DSA-65 key instead.\n\n"
+    "WHAT THIS BREAKS\nSignatures made with the old key stay unverifiable.\n\n"
+    "HOW TO VERIFY\nRe-run the scanner over the script.\n"
+)
+#: Answers the guard rejects: every recommendation in it is Shor-breakable.
+_BAD_ADVICE = _GOOD_ADVICE.replace("ML-DSA-65", "RSA-3072")
+
+
+def _endpoint(model: str) -> llm.ExternalEndpoint:
+    return llm.ExternalEndpoint(
+        base_url=f"https://{model}.example.com/v1", model=model, api_key="k", budget_tokens=8000
+    )
+
+
+def test_advice_reaches_a_configured_external_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[str] = []
+
+    def fake_external(prompt: str, **kwargs: object) -> str:
+        seen.append(str(kwargs["model"]))
+        return _GOOD_ADVICE
+
+    monkeypatch.setattr(llm, "_openai_compatible_generate", fake_external)
+    monkeypatch.setattr(
+        llm, "_ollama_generate", lambda *a, **k: pytest.fail("the routed engine must be used")
+    )
+
+    text = generate_migration_advice(
+        SHELL_SOURCE,
+        _asset("RSA-1024", UsageContext.signature, "deploy.sh"),
+        None,
+        model="gpt-oss-120b",
+        base_url="https://gpt-oss-120b.example.com/v1",
+        provider="openai-compatible",
+        api_key="k",
+    )
+
+    assert "ML-DSA-65" in text
+    assert seen == ["gpt-oss-120b"]
+
+
+def test_advice_escalates_past_an_engine_whose_answer_was_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The retry goes to a DIFFERENT engine, not back to the one that just got it wrong."""
+    seen: list[str] = []
+
+    def fake_ollama(prompt: str, **kwargs: object) -> str:
+        seen.append("local")
+        return _BAD_ADVICE
+
+    def fake_external(prompt: str, **kwargs: object) -> str:
+        seen.append(str(kwargs["model"]))
+        return _GOOD_ADVICE
+
+    monkeypatch.setattr(llm, "_ollama_generate", fake_ollama)
+    monkeypatch.setattr(llm, "_openai_compatible_generate", fake_external)
+
+    text = generate_migration_advice(
+        SHELL_SOURCE,
+        _asset("RSA-1024", UsageContext.signature, "deploy.sh"),
+        None,
+        model=MODEL,
+        backups=(_endpoint("gpt-oss-120b"),),
+    )
+
+    assert "ML-DSA-65" in text
+    assert seen == ["local", "gpt-oss-120b"], (
+        f"the local model answered once and was rejected; the retry must escalate, got {seen}"
+    )
+
+
+def test_advice_without_a_pool_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An install with no external provider makes exactly the call it always made."""
+    seen: list[str] = []
+
+    def fake_ollama(prompt: str, **kwargs: object) -> str:
+        seen.append("local")
+        return _GOOD_ADVICE
+
+    monkeypatch.setattr(llm, "_ollama_generate", fake_ollama)
+    monkeypatch.setattr(
+        llm,
+        "_openai_compatible_generate",
+        lambda *a, **k: pytest.fail("no external provider is configured"),
+    )
+
+    generate_migration_advice(
+        SHELL_SOURCE, _asset("RSA-1024", UsageContext.signature, "deploy.sh"), None, model=MODEL
+    )
+    assert seen == ["local"]

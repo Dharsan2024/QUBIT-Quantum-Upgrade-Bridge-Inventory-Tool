@@ -156,6 +156,46 @@ class TestResolutionIsRecorded:
         task = _task(session)
         assert task.resolution is None
 
+    def test_a_rejected_proposal_can_be_explicitly_reopened(self) -> None:
+        """A stale review verdict must not make the finding permanently unreachable."""
+        session = _session()
+        task = _task(session)
+        orchestrator = MigrationOrchestrator(session)
+
+        orchestrator._transition(task, "generate")
+        orchestrator._transition(task, "validation_passed")
+        orchestrator._transition(task, "reject")
+        session.commit()
+
+        reopened = orchestrator.reopen_task(task.id, reason="source changed while reviewing")
+
+        assert reopened.state == "ready"
+        assert reopened.resolution is None
+        assert reopened.last_error is None
+
+
+class TestRejectedTasksCanBeRegenerated:
+    def test_a_reviewer_rejection_returns_to_ready(self) -> None:
+        """Review rejection rejects a diff, not the finding itself.
+
+        The FSM explicitly allows ``rejected -> ready`` through ``regenerate``.  The desktop's
+        retry action calls ``resume_task``; if that helper ignores rejected tasks, a reviewer can
+        turn a valid finding into an unclickable terminal row despite the state machine promising
+        the opposite.
+        """
+        session = _session()
+        task = _task(session)
+        task.state = "rejected"
+        session.commit()
+
+        result = MigrationOrchestrator(session).resume_task(task.id)
+
+        assert result.state == "ready"
+        session.expire_all()
+        reloaded = session.get(MigrationTask, task.id)
+        assert reloaded is not None
+        assert reloaded.state == "ready"
+
 
 class TestTheFailureSurvivesTheRequest:
     """The bug that made every field above invisible in the running app.
@@ -201,3 +241,85 @@ class TestTheFailureSurvivesTheRequest:
         reloaded = session.get(MigrationTask, task_id)
         assert reloaded is not None
         assert reloaded.resolution == RESOLUTION_SATISFIED
+
+
+# ── `advise_task` on a finding no rule matched ───────────────────────────────
+#
+# `advise_task` routes through the same `_route` a patch attempt uses, so it can spend the
+# configured pool instead of always the local model. `_route` reads `rule.id` unconditionally --
+# fine for every OTHER caller, which always has a real rule by construction, but `advise_task` is
+# the one caller that can legitimately reach it with `rule = None`: the case `resolve_guided`
+# exists for, where the queue used to just say "no rule matched" and stop. That path was
+# unreachable until advice started being routed, so nothing had exercised it.
+
+
+def _task_with_no_matching_rule(session: Session, tmp_path) -> MigrationTask:
+    """A finding real enough to read (a file on disk) but that no shipped rule targets."""
+    from qubit_core.db import AssetRow
+    from qubit_core.mapping import asset_to_row
+
+    source_file = tmp_path / "notes" / "README.txt"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text(
+        "QUBIT-TEST-NO-SUCH-ALGORITHM appears here, in prose.\n", encoding="utf-8"
+    )
+
+    project = ProjectRow(name="t2", slug="t2")
+    session.add(project)
+    session.flush()
+    scan = ScanRow(project_id=project.id, seq=1, status="succeeded")
+    session.add(scan)
+    session.flush()
+
+    asset = CryptoAsset(
+        id=uuid.uuid4(),
+        # No shipped rule's `matches` block names this algorithm -- verified directly against
+        # `match_rule(asset, load_rules())`, which returns `None` for it.
+        algorithm="QUBIT-TEST-NO-SUCH-ALGORITHM",
+        usage_context=UsageContext.unknown,
+        source_scanner=SourceScanner.code,
+        asset_type=AssetType.algorithm_use,
+        location=Location(file_path=str(source_file), line=1),
+        quantum_vulnerable=QuantumVulnerability(vulnerable=True, attack=QuantumAttack.shor),
+        discovered_at=datetime.now(UTC),
+        risk=RiskAnnotation(
+            score=0.9, ci_low=0.9, ci_high=0.9, mosca_margin_years=-3.0, priority_rank=1
+        ),
+    )
+    row: AssetRow = asset_to_row(asset, project_id=project.id, scan_id=scan.id)
+    session.add(row)
+    session.flush()
+
+    plan = MigrationPlan(project_id=project.id, scan_id=scan.id)
+    session.add(plan)
+    session.flush()
+    unit = MigrationUnit(plan_id=plan.id, label="notes/README.txt")
+    session.add(unit)
+    session.flush()
+    task = MigrationTask(plan_id=plan.id, unit_id=unit.id, asset_id=row.id, state="ready")
+    session.add(task)
+    session.commit()
+    return task
+
+
+class TestAdviceOnAFindingNoRuleMatched:
+    def test_advise_task_does_not_500_when_no_rule_matched(self, tmp_path) -> None:
+        """The regression: `_route` used `rule.id` unconditionally and `rule` can be `None` here.
+
+        Measured live: every unpatched finding on two completed twin runs came back
+        `advice_model == "qubit-guided"` with the pool never touched, and the endpoint this test
+        drives answered `POST .../advise` with a 500. This reproduces that 500 directly against
+        the orchestrator, with no Ollama and no external provider configured -- an install with
+        nothing configured is exactly the shape that must not crash.
+        """
+        session = _session()
+        task = _task_with_no_matching_rule(session, tmp_path)
+        orchestrator = MigrationOrchestrator(session)
+
+        # No provider configured, no Ollama reachable at the default port from a test process --
+        # `advise_task` must still return a task, carrying the deterministic plan, rather than
+        # raising out of `_route` before generation is ever attempted.
+        result = orchestrator.advise_task(task.id, force=True)
+
+        assert result.advice_text, "a finding with no matching rule must still get a plan"
+        assert result.advice_model is not None

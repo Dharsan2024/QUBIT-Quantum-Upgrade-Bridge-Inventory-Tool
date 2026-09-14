@@ -63,6 +63,9 @@ def test_project_crud_and_scan_asset_flow(tmp_path: Path) -> None:
         scan_id = scan_payload["scan"]["id"]
         scan = _wait_for_scan(client, scan_id)
         assert scan["status"] == "succeeded"
+        # Async handlers must finish the ScanRow itself, not only the Job row.  The dashboard
+        # reads this value for the completion time and the trend API orders by it.
+        assert scan["finished_at"] is not None
 
         assets_resp = client.get(f"/api/v1/scans/{scan_id}/assets")
         assert assets_resp.status_code == 200

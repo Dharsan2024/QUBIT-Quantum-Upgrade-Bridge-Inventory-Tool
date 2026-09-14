@@ -7,7 +7,8 @@ These tests are the admission controls plus the traps that were measured while b
 Each trap would, on its own, have made the oracle useless in a specific direction — and two of them
 were found by the controls failing, not by reading documentation:
 
-* **Ruby's signature `verify` returns a boolean; Python's raises.** A negative written the Python way
+* **Ruby's signature `verify` returns a boolean; Python's raises.** A negative written the
+  Python way
   never fires, so a `verify` that ignores its arguments passes all three negatives and the harness
   licenses itself while catching nothing.
 * **AEAD rejection is the opposite — it raises.** Within one library the two families need opposite
@@ -27,14 +28,13 @@ import shutil
 import subprocess
 
 import pytest
-
 from qubit_migrate.oracles.ruby_harness import (
-    RUBY_SHAPES,
-    UNSUPPORTED,
     _RB_AEAD_CORRECT,
     _RB_AEAD_IGNORES_TAG,
     _RB_SIG_ACCEPTS_ANYTHING,
     _RB_SIG_CORRECT,
+    RUBY_SHAPES,
+    UNSUPPORTED,
     build,
     parameter_set,
     ruby_controls,
@@ -46,9 +46,7 @@ _IMAGE = "qubit-eval/inkwell:sandbox"
 def _docker_ready() -> bool:
     if shutil.which("docker") is None:
         return False
-    probe = subprocess.run(
-        ["docker", "image", "inspect", _IMAGE], capture_output=True, timeout=60
-    )
+    probe = subprocess.run(["docker", "image", "inspect", _IMAGE], capture_output=True, timeout=60)
     return probe.returncode == 0
 
 
@@ -68,7 +66,9 @@ class TestPlanConstruction:
         verdict against the patch — something a harness hardcoding the rule's target could never
         discover.
         """
-        assert parameter_set('k = OpenSSL::PKey.generate_key("ML-DSA-87")', "ML-DSA-65") == "ML-DSA-87"
+        assert (
+            parameter_set('k = OpenSSL::PKey.generate_key("ML-DSA-87")', "ML-DSA-65") == "ML-DSA-87"
+        )
 
     def test_the_rule_target_is_the_fallback(self) -> None:
         assert parameter_set("nothing here", "ML-DSA-65") == "ML-DSA-65"
@@ -252,6 +252,10 @@ def test_gcm_accepts_a_truncated_tag() -> None:
     )
     result = subprocess.run(
         ["docker", "run", "--rm", "--network=none", _IMAGE, "ruby", "-e", script],
-        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=300,
     )
     assert result.stdout.strip() == "ACCEPTED", result.stdout + result.stderr

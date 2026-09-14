@@ -18,7 +18,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from qubit_api.jobs.handlers import _plan_repo_root
 
 
@@ -50,9 +49,7 @@ def _session(project_root, plan_project_id, scan_project_id, targets):
 
     project_id, scan_id = uuid4(), uuid4()
     rows = {
-        ("ScanRow", scan_id): _Row(
-            project_id=scan_project_id and project_id, targets=targets
-        ),
+        ("ScanRow", scan_id): _Row(project_id=scan_project_id and project_id, targets=targets),
     }
     if project_root is not None:
         rows[("ProjectRow", project_id)] = _Row(root_path=str(project_root))
@@ -63,28 +60,32 @@ def _session(project_root, plan_project_id, scan_project_id, targets):
 
 def test_plan_without_project_id_still_finds_the_project_root(tree: Path):
     """The case the dashboard actually produces."""
-    session, plan = _session(tree, plan_project_id=False, scan_project_id=True,
-                             targets=[str(tree / "lib")])
+    session, plan = _session(
+        tree, plan_project_id=False, scan_project_id=True, targets=[str(tree / "lib")]
+    )
     assert _plan_repo_root(session, plan) == tree
 
 
 def test_plan_with_its_own_project_id_is_unchanged(tree: Path):
-    session, plan = _session(tree, plan_project_id=True, scan_project_id=True,
-                             targets=[str(tree / "lib")])
+    session, plan = _session(
+        tree, plan_project_id=True, scan_project_id=True, targets=[str(tree / "lib")]
+    )
     assert _plan_repo_root(session, plan) == tree
 
 
 def test_scan_target_is_still_the_fallback_when_there_is_no_project(tree: Path):
     """A scan with no project behind it has nothing better to offer, and the target is right."""
-    session, plan = _session(None, plan_project_id=False, scan_project_id=False,
-                             targets=[str(tree / "lib")])
+    session, plan = _session(
+        None, plan_project_id=False, scan_project_id=False, targets=[str(tree / "lib")]
+    )
     assert _plan_repo_root(session, plan) == tree / "lib"
 
 
 def test_a_project_root_that_no_longer_exists_falls_back(tree: Path, tmp_path: Path):
     """A stale `root_path` must not beat a target that is really there."""
-    session, plan = _session(tmp_path / "gone", plan_project_id=False, scan_project_id=True,
-                             targets=[str(tree / "lib")])
+    session, plan = _session(
+        tmp_path / "gone", plan_project_id=False, scan_project_id=True, targets=[str(tree / "lib")]
+    )
     assert _plan_repo_root(session, plan) == tree / "lib"
 
 

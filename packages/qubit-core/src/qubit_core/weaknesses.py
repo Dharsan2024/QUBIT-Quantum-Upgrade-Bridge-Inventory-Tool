@@ -120,6 +120,36 @@ def _ecb_mode(family: str | None, extra: dict[str, Any]) -> Weakness | None:
     )
 
 
+def _cbc_unauthenticated(family: str | None, extra: dict[str, Any]) -> Weakness | None:
+    """The CBC counterpart to `_ecb_mode`. Unauthenticated CBC provides no integrity --
+    ciphertext can be truncated, reordered or bit-flipped undetected, padding-oracle territory --
+    and is otherwise a sound cipher, differing from the ECB case in no field the registry reads.
+
+    Distinct from `_ecb_mode`'s remedy: the fix here is the MODE, not necessarily the key, and a
+    backward-compatible dual-path migration reusing the same key works exactly the way
+    `code-ecb-01` already handles ECB. See `code-cbc-01.yaml`.
+    """
+    if family not in BLOCK_CIPHER_FAMILIES:
+        return None
+    if str(extra.get("mode", "")).upper() != "CBC":
+        return None
+    return Weakness(
+        id="cbc-unauthenticated",
+        title="Block cipher used in CBC mode without a MAC",
+        cwe="CWE-327",
+        authority=(
+            "NIST SP 800-38A; OWASP Cryptographic Storage Cheat Sheet "
+            "(use authenticated encryption)"
+        ),
+        remedy=(
+            "Encrypt with an AEAD mode - AES-GCM, or ChaCha20-Poly1305 where AES hardware "
+            "acceleration is absent - using the SAME key already in use, generating a fresh "
+            "nonce per message and storing it with the ciphertext."
+        ),
+        detail={"mode": "CBC", "family": family},
+    )
+
+
 def _pkcs1v15(family: str | None, usage: str | None, extra: dict[str, Any]) -> Weakness | None:
     if family != "RSA":
         return None
@@ -256,6 +286,7 @@ def derive(
     facts = extra or {}
     found = [
         _ecb_mode(family, facts),
+        _cbc_unauthenticated(family, facts),
         _pkcs1v15(family, usage_context, facts),
         _kdf_iterations(algorithm, facts),
         _short_rsa(algorithm, key_size),
@@ -270,6 +301,7 @@ def derive(
 KNOWN_WEAKNESS_IDS = frozenset(
     {
         "ecb-mode",
+        "cbc-unauthenticated",
         "pkcs1v15-padding",
         "kdf-iterations-below-floor",
         "rsa-key-too-short",

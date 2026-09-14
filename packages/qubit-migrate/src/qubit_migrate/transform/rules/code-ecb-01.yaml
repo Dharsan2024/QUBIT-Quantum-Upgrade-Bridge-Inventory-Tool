@@ -37,11 +37,27 @@ semantic_note: >
   therefore changes from bare ciphertext to nonce-plus-ciphertext-plus-tag. Existing records must be
   re-encrypted, so the old ECB decrypt path has to survive until they have been.
 prompt_constraints:
+  # The first two bullets replace a single line that used to sit fifth, reading "Keep a decrypt path
+  # for the existing ECB ciphertext". It was true and it was ignored. Measured on medivault-emr: the
+  # AES-ECB to AES-GCM rewrite of `encounters.seal_note` passed applies, parses, compiles and rescan
+  # and broke `test_a_legacy_note_decrypts` and `test_a_legacy_checksum_still_verifies`, because a
+  # patched module round-trips its own output perfectly and only a suite with a legacy fixture row
+  # can tell. Stated as a decision the model has to make and report, not as one bullet among six,
+  # because the answer differs between two functions that look identical - and the same run migrated
+  # `exports.encrypt_export_bundle`, which is the same rule on the same primitive and IS free.
+  - "FIRST decide whether ciphertext written by the OLD path still exists anywhere: a database column, a spool file kept past tonight, a queued message, a fixture with a hard-coded ciphertext. The code answers this - a decrypt function documented as the reader of a stored column has stored data behind it; a bundle rebuilt from the database on demand does not. State which you concluded, and the evidence, in the security notes."
+  - "If old ciphertext EXISTS, a backward-compatible read path is MANDATORY - not a follow-up, not a TODO. The reader must try the new format and fall back to decrypting the old one for records written before this change, and the writer must keep producing something the fallback can distinguish. Without it this patch is a data-loss event that every gate below the project's own test suite will pass."
   - "Use an AEAD mode - AES-256-GCM, or ChaCha20-Poly1305 where AES hardware acceleration is absent. Never CBC as the replacement for ECB: it fixes the pattern leak but still provides no integrity."
   - "Generate a FRESH random nonce for every encryption. Do not derive it from the plaintext, do not use a counter that resets, and do not hardcode it - nonce reuse under GCM is catastrophic and reveals the authentication key."
   - "Store the nonce with the ciphertext. It is not secret; it is required to decrypt."
   - "Store and VERIFY the authentication tag. Discarding it silently removes the integrity guarantee that is half the reason for this change."
-  - "Keep a decrypt path for the existing ECB ciphertext so stored data stays readable while it is re-encrypted. Removing it makes this migration a data-loss event."
+  # Measured on medivault-emr `app/services/exports.py`: the patch for the bundle cipher also
+  # reworked `seal_export_manifest`/`open_export_manifest` in the same file - AES-256-GCM, a fresh
+  # nonce, already correct and explicitly a negative control - and `test_tampering_is_detected`
+  # stopped seeing a flipped bit. Nothing outside this repository owns that code, so it is not a
+  # contract the guard can refuse; it is an in-repo control the patch simply broke, and the place to
+  # stop that is the instruction that produced it.
+  - "Change ONLY the flagged function and whatever reads back what it writes. Other cryptography in this file is not part of this task, and an AEAD call already there is a control that is already CORRECT: do not route it through your new helper, do not re-slice its nonce/ciphertext/tag layout, and never remove or bypass its tag verification. If a shared helper would be tidier, leave it untidy."
   - "If the encryption was relied on to make equal plaintexts compare equal - a deterministic lookup or a de-duplication key - that property is GONE. Say so in the security notes and use a keyed hash (HMAC-SHA-256) for the lookup column instead."
 example_language: python
 example:

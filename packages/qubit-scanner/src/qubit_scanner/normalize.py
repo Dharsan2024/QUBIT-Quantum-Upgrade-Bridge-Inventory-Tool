@@ -11,6 +11,7 @@ the risk engine applies worst-case assumptions later. Nothing is silently droppe
 from __future__ import annotations
 
 import hashlib
+import re
 
 from qubit_core import (
     AssetType,
@@ -78,7 +79,33 @@ _SIGNING_WORDS = ("sign", "signer", "signing", "signature", "verify", "verifier"
 _TRANSPORT_WORDS = ("encrypt", "decrypt", "wrap", "unwrap", "keyexchange", "exchange", "kem")
 
 
-def _usage_from_surroundings(extra: dict[str, object]) -> str | None:
+#: Signature curves and the SAME curve's agreement algorithm. An EC keypair is one keypair; which
+#: of the two it is depends entirely on the operation performed with it, and a rule that matches
+#: only the GENERATION call cannot see that operation. So when the surrounding code turns out to
+#: say key agreement, the curve stays and only the operation is corrected.
+_AGREEMENT_TWIN: dict[str, str] = {
+    "ECDSA-P256": "ECDH-P256",
+    "ECDSA-P384": "ECDH-P384",
+    "ECDSA-P521": "ECDH-P521",
+}
+
+
+def _path_words(file_path: str | None) -> tuple[str, ...]:
+    """The FILE's own name, split into whole words.
+
+    Whole words, not substrings, and this is the whole point of the helper: `design.py` contains
+    "sign" and has nothing to do with signing, while `keyexchange.py` and `key_exchange.py` both
+    genuinely announce what the module is for. Splitting first and comparing exactly is what
+    separates the two -- a substring test would classify every `design*.py` in existence as a
+    signing module.
+    """
+    if not file_path:
+        return ()
+    stem = file_path.replace("\\", "/").rsplit("/", 1)[-1].rsplit(".", 1)[0].lower()
+    return tuple(w for w in re.split(r"[^a-z0-9]+", stem) if w)
+
+
+def _usage_from_surroundings(extra: dict[str, object], file_path: str | None = None) -> str | None:
     """What the enclosing function and class say this key is for, or None if they say nothing.
 
     The scanner already records `enclosing_function` and `enclosing_class` on every code finding
@@ -117,11 +144,32 @@ def _usage_from_surroundings(extra: dict[str, object]) -> str | None:
             return "signature"
         if any(word in name for word in _TRANSPORT_WORDS):
             return "kex"
+
+    # The FILE, last and only when everything closer said nothing. A module called
+    # `keyexchange.py` is about key exchange; that is not a guess, it is what the author named it.
+    # Asked last because it is the least local fact available -- a function or class name beats it
+    # every time, and an operation in scope beats them both.
+    #
+    # Measured on `medivault-emr`: `generate_referral_keypair` performs no operation the vocabulary
+    # above knows (`generate_private_key`, `public_bytes`) and is named after neither signing nor
+    # transport, so every closer signal was silent and the finding kept the detection rule's
+    # hardcoded guess of `signature` -- which sent a P-256 KEY AGREEMENT keypair to
+    # `py-signature-01`, a signature rule, for the whole evaluation. The file it lives in is called
+    # `keyexchange.py`.
+    words = _path_words(file_path)
+    if words:
+        if any(word in words for word in _SIGNING_WORDS):
+            return "signature"
+        if any(word in words for word in _TRANSPORT_WORDS):
+            return "kex"
     return None
 
 
 def _reconcile_usage_with_algorithm(
-    usage: str, canon: object, extra: dict[str, object] | None = None
+    usage: str,
+    canon: object,
+    extra: dict[str, object] | None = None,
+    file_path: str | None = None,
 ) -> str:
     """Correct a rule's declared usage when the resolved algorithm makes it impossible.
 
@@ -150,9 +198,25 @@ def _reconcile_usage_with_algorithm(
     # needs no help, and the reclassification is what decides which migration rule claims the
     # finding, so it must not fire on agreement.
     if family in _AMBIGUOUS_FAMILIES and usage in {"kex", "signature", "unknown"}:
-        surrounding = _usage_from_surroundings(extra or {})
+        surrounding = _usage_from_surroundings(extra or {}, file_path)
         if surrounding is not None and surrounding != usage:
             return surrounding
+
+    # An EC KEY GENERATION that the surrounding code says is a key agreement.
+    #
+    # `PY-CRYPTOGRAPHY-EC-KEYGEN` matches every `ec.generate_private_key(...)` and hardcodes
+    # `ECDSA-P256`/`signature`, because a key generation on its own genuinely does not say what the
+    # key is for -- the rule's own comment admits it. That guess is right often enough to keep, and
+    # it is only ever overturned HERE, on a positive key-agreement signal from the surrounding
+    # code. No signal leaves it exactly as it was; a signing signal agrees with it and changes
+    # nothing. So the one behaviour that changes is the one that was measurably wrong.
+    #
+    # `normalize` re-labels the algorithm to the same curve's agreement twin when this fires, since
+    # an ECDSA-P256 asset with `usage=kex` would be a contradiction the next reader has to
+    # untangle. See `_AGREEMENT_TWIN`.
+    if usage == "signature" and family in _SIGNATURE_ONLY_FAMILIES:
+        if _usage_from_surroundings(extra or {}, file_path) == "kex":
+            return "kex"
     return usage
 
 
@@ -183,7 +247,20 @@ def normalize(det: Detection, *, occurrence: int = 1) -> CryptoAsset:
         extra=raw_ctx.get("extra", {}) or {},
     )
     usage = det.usage_context if det.usage_context in _VALID_USAGE else "unknown"
-    usage = _reconcile_usage_with_algorithm(usage, canon, context.extra)
+    declared_usage = usage
+    usage = _reconcile_usage_with_algorithm(
+        usage, canon, context.extra, getattr(det.location, "file_path", None)
+    )
+    # A signature curve the surroundings just re-read as key agreement is the SAME curve doing the
+    # other operation, so the curve is kept and only the operation is corrected. Leaving the label
+    # at ECDSA while `usage_context` says `kex` would hand every downstream reader a contradiction
+    # -- the migrate rules match on both, and the HNDL score reads the usage.
+    if usage == "kex" and declared_usage == "signature" and algorithm in _AGREEMENT_TWIN:
+        twin = algorithms.resolve(_AGREEMENT_TWIN[algorithm], key_size)
+        if twin is not None:
+            canon = twin
+            algorithm = twin.canonical
+            qv = twin.quantum_vulnerable()
 
     # Classical weaknesses of the CALL, not of the algorithm name. The registry cannot see these:
     # it knows AES-256 is a sound cipher and has no way to know this call runs it in ECB, or that

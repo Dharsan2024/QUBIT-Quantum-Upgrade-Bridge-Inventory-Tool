@@ -69,7 +69,9 @@ def _attach_pool(session: Session) -> None:
 
 def _orchestrator(session: Session, order: str) -> MigrationOrchestrator:
     orch = MigrationOrchestrator(session)
-    orch.config = MigrateConfig(engine_order=order)  # type: ignore[arg-type]
+    orch.config = MigrateConfig(  # type: ignore[arg-type]
+        engine_order=order, allow_external_source_processing=True
+    )
     return orch
 
 
@@ -79,6 +81,17 @@ class TestTheDefaultIsUnchanged:
 
     def test_default_is_cheapest_first(self) -> None:
         assert MigrateConfig().engine_order == "cheapest-first"
+
+    def test_external_source_processing_requires_explicit_opt_in(self, session: Session) -> None:
+        _attach_pool(session)
+        engines = MigrationOrchestrator(session)._engines()
+        assert [engine.name for engine in engines] == [MigrateConfig().model]
+
+    def test_external_source_processing_setting_round_trips_through_environment(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("QUBIT_MIGRATE_ALLOW_EXTERNAL_SOURCE_PROCESSING", "true")
+        assert MigrateConfig().allow_external_source_processing is True
 
     def test_local_leads(self, session: Session) -> None:
         _attach_pool(session)
@@ -132,3 +145,45 @@ def test_the_setting_round_trips_through_the_environment(
 ) -> None:
     monkeypatch.setenv("QUBIT_MIGRATE_ENGINE_ORDER", order)
     assert MigrateConfig().engine_order == order
+
+
+class TestSingleEngineOnly:
+    """The fixed-model ablation arm: restrict `_engines()` to the primary local engine alone,
+    with no escalation to any attached pool — regardless of `engine_order`."""
+
+    def test_default_is_off(self) -> None:
+        assert MigrateConfig().single_engine_only is False
+
+    def test_with_a_pool_attached_only_local_is_returned(self, session: Session) -> None:
+        _attach_pool(session)
+        orch = MigrationOrchestrator(session)
+        orch.config = MigrateConfig(  # type: ignore[arg-type]
+            single_engine_only=True, allow_external_source_processing=True
+        )
+        engines = orch._engines()
+        assert [e.name for e in engines] == [MigrateConfig().model]
+        assert engines[0].metered is False
+
+    def test_overrides_external_first_too(self, session: Session) -> None:
+        """A pool restriction is a hard cap, not a preference `engine_order` can reopen."""
+        _attach_pool(session)
+        orch = MigrationOrchestrator(session)
+        orch.config = MigrateConfig(  # type: ignore[arg-type]
+            single_engine_only=True,
+            engine_order="external-first",
+            allow_external_source_processing=True,
+        )
+        engines = orch._engines()
+        assert len(engines) == 1
+        assert engines[0].metered is False
+
+    def test_with_nothing_attached_it_still_returns_local(self, session: Session) -> None:
+        orch = MigrationOrchestrator(session)
+        orch.config = MigrateConfig(single_engine_only=True)  # type: ignore[arg-type]
+        assert [e.name for e in orch._engines()] == [MigrateConfig().model]
+
+    def test_the_setting_round_trips_through_the_environment(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("QUBIT_MIGRATE_SINGLE_ENGINE_ONLY", "true")
+        assert MigrateConfig().single_engine_only is True

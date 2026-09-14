@@ -83,5 +83,5 @@ def test_the_old_import_is_dropped_not_left_blank():
     """
     first, _ = _apply_hash_swap(TWO_WEAK_IMPORTS, "go", only_line=MD5_CALL)
     second, _ = _apply_hash_swap(first, "go", only_line=SHA1_CALL)
-    import_block = second[second.index("import ("): second.index(")\n")]
+    import_block = second[second.index("import (") : second.index(")\n")]
     assert [ln for ln in import_block.splitlines() if not ln.strip()] == [], import_block

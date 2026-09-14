@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from qubit_core.db.models import Base
@@ -101,6 +103,72 @@ class TestSandboxImage:
 
         assert orch._sandbox_image_for(repo) == MigrateConfig().test_sandbox_image
 
+    def test_a_desktop_import_uses_its_unique_local_repo_image(
+        self, orch: MigrationOrchestrator, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Imported projects do not retain the corpus directory name used by the image builder.
+
+        The desktop creates a readable user-facing directory such as
+        ``validator-20260913-paymesh-gateway``. Its origin still identifies ``paymesh-gateway``;
+        when the existing dependency image is named ``qubit-eval/paymesh:sandbox``, selecting the
+        stock Maven image first makes the baseline fail on missing dependencies and silently skips
+        the strongest validation rung.
+        """
+        repo = tmp_path / "validator-20260913-paymesh-gateway"
+        _git_repo(repo)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/example/paymesh-gateway.git"],
+            cwd=repo,
+            check=True,
+        )
+        real_run = subprocess.run
+
+        def fake_run(argv, **kwargs):
+            if argv[:3] == ["docker", "image", "inspect"]:
+                return subprocess.CompletedProcess(argv, 1, b"", b"No such image")
+            if argv[:3] == ["docker", "image", "ls"]:
+                if argv[-1] == "qubit-eval/paymesh-gateway":
+                    return subprocess.CompletedProcess(argv, 0, b"", b"")
+                assert argv[-1] == "qubit-eval/paymesh"
+                return subprocess.CompletedProcess(argv, 0, b"qubit-eval/paymesh:sandbox\n", b"")
+            return real_run(argv, **kwargs)
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+
+        assert orch._sandbox_image_for(repo, "java") == "qubit-eval/paymesh:sandbox"
+
+    def test_ambiguous_local_repo_images_do_not_guess(
+        self, orch: MigrationOrchestrator, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Two images for one shorthand need explicit operator selection, not a random tag."""
+        repo = tmp_path / "validator-20260913-sentinel-idp"
+        _git_repo(repo)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/example/sentinel-idp.git"],
+            cwd=repo,
+            check=True,
+        )
+        real_run = subprocess.run
+
+        def fake_run(argv, **kwargs):
+            if argv[:3] == ["docker", "image", "inspect"]:
+                return subprocess.CompletedProcess(argv, 1, b"", b"No such image")
+            if argv[:3] == ["docker", "image", "ls"]:
+                if argv[-1] == "qubit-eval/sentinel-idp":
+                    return subprocess.CompletedProcess(argv, 0, b"", b"")
+                assert argv[-1] == "qubit-eval/sentinel"
+                return subprocess.CompletedProcess(
+                    argv,
+                    0,
+                    b"qubit-eval/sentinel:old\nqubit-eval/sentinel:sandbox\n",
+                    b"",
+                )
+            return real_run(argv, **kwargs)
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+
+        assert orch._sandbox_image_for(repo, "go") == "golang:1.23-alpine"
+
     def test_an_explicitly_configured_image_is_never_substituted(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -167,3 +235,32 @@ class TestSuiteDetection:
         (tmp_path / "src").mkdir()
         (tmp_path / "README.md").write_text("hi")
         assert _has_test_suite(tmp_path) is False
+
+
+class TestSuiteCommand:
+    def test_a_ruby_project_without_rake_uses_its_minitest_file(
+        self, orch: MigrationOrchestrator, tmp_path
+    ) -> None:
+        """A missing Rakefile is a runner-selection issue, not a red test baseline."""
+        test_file = tmp_path / "test" / "crypto_contract_test.rb"
+        test_file.parent.mkdir()
+        test_file.write_text("# minitest\n", encoding="utf-8")
+
+        command = orch._test_command_for(
+            SimpleNamespace(plan_id=uuid4()), tmp_path, "ruby"
+        )
+
+        assert command == "ruby -Ilib -Itest test/crypto_contract_test.rb"
+
+    def test_a_rakefile_remains_the_ruby_project_authority(
+        self, orch: MigrationOrchestrator, tmp_path
+    ) -> None:
+        (tmp_path / "Rakefile").write_text("task :test\n", encoding="utf-8")
+        (tmp_path / "test").mkdir()
+        (tmp_path / "test" / "unit_test.rb").write_text("# minitest\n", encoding="utf-8")
+
+        command = orch._test_command_for(
+            SimpleNamespace(plan_id=uuid4()), tmp_path, "ruby"
+        )
+
+        assert command == "rake test"

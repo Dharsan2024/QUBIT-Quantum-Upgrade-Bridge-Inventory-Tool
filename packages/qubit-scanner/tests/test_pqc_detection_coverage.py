@@ -25,15 +25,15 @@ from __future__ import annotations
 
 import pytest
 import yaml
-
 from qubit_scanner.api import scan_paths
 
 RULES = None
 
 
 def _rules_root():
-    import qubit_scanner.catalog as catalog
     from pathlib import Path
+
+    import qubit_scanner.catalog as catalog
 
     return Path(catalog.__file__).parent / "rules"
 
@@ -78,10 +78,11 @@ def test_a_language_that_can_be_migrated_can_be_confirmed(language: str) -> None
     targeted = bool({"signature", "kex", "tls", "unknown"} & contexts)
     if not targeted or language in EXEMPT:
         pytest.skip(f"{language} emits {sorted(contexts)}; no PQC migration targets it")
+    hit = sorted(contexts & {"signature", "kex", "tls", "unknown"})
     assert _pqc_rule_ids(language), (
-        f"{language} emits {sorted(contexts & {'signature', 'kex', 'tls', 'unknown'})} findings that "
-        f"`code-signature-01`/`code-kex-01` will target, but ships no rule recognising ML-DSA or "
-        f"ML-KEM — so a correct migration of this language can never pass the rescan gate"
+        f"{language} emits {hit} findings that `code-signature-01`/`code-kex-01` will target, but "
+        f"ships no rule recognising ML-DSA or ML-KEM — so a correct migration of this language can "
+        f"never pass the rescan gate"
     )
 
 

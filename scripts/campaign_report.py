@@ -2,7 +2,8 @@
 
 One pass is an anecdote. The generator is a language model, so the same finding can be handled
 differently on two runs; a single-run percentage is not a measurement. This reads every pass under
-`qubit-v2/data/campaign/pass-*/` and reports, per twin and overall, the mean with its observed range.
+`qubit-v2/data/campaign/pass-*/` and reports, per twin and overall, the mean with its observed
+range.
 
 Every number is read from the JSON. Nothing is transcribed by hand.
 
@@ -72,7 +73,10 @@ def main() -> int:
     a("# QUBIT against four digital twins — campaign results\n")
     a(f"**{passes} independent pass(es)** over four applications, each driven through the shipped")
     a("desktop application (`qubit-desktop.exe`) over the same HTTP routes its own buttons call.")
-    a("No in-process orchestrator and no side engine: a route that is broken or silently swallowing")
+    a(
+        "No in-process orchestrator and no side engine: a route that is broken or silently "
+        "swallowing"
+    )
     a("an error is visible here and is invisible to a library-level harness.\n")
     a("Each twin is **duplicated first** and the copy migrated — a migrated twin is a spent twin.")
     a("Attribution comes from **the bytes on disk**, diffed against the pristine twin, never from")
@@ -80,7 +84,10 @@ def main() -> int:
 
     # ------------------------------------------------------------------ headline
     a("## Headline\n")
-    a("| twin | stack | findings | correctly handled | false migrations | controls hit | suite green |")
+    a(
+        "| twin | stack | findings | correctly handled | false migrations | controls hit "
+        "| suite green |"
+    )
     a("|---|---|---|---|---|---|---|")
     all_correct: list[float] = []
     total_findings = 0
@@ -96,15 +103,22 @@ def main() -> int:
         all_correct.extend(c / n for c in correct)
         total_false.extend(false_m)
         total_findings += n
-        a(f"| {name} | {runs[0]['language']} | {n} | {spread(correct)} = **{pct:.0f}%** | "
-          f"{spread(false_m)} | {spread(controls)} | {green}/{len(runs)} |")
-    a(f"\n**Overall: {statistics.mean(all_correct) * 100:.0f}% correctly handled** across "
-      f"{total_findings} findings in 4 stacks, with a mean of "
-      f"{statistics.mean(total_false):.1f} false migration(s) per pass.\n")
+        a(
+            f"| {name} | {runs[0]['language']} | {n} | {spread(correct)} = **{pct:.0f}%** | "
+            f"{spread(false_m)} | {spread(controls)} | {green}/{len(runs)} |"
+        )
+    a(
+        f"\n**Overall: {statistics.mean(all_correct) * 100:.0f}% correctly handled** across "
+        f"{total_findings} findings in 4 stacks, with a mean of "
+        f"{statistics.mean(total_false):.1f} false migration(s) per pass.\n"
+    )
 
     a("> *Correctly handled* means the disposition QUBIT produced is the disposition the manifest")
-    a("> names: a finding marked `migrate` was migrated, one marked `refuse` was left byte-identical.")
-    a("> It is **not** \"this fraction of vulnerabilities was migrated\" — much of the score is")
+    a(
+        "> names: a finding marked `migrate` was migrated, one marked `refuse` was left "
+        "byte-identical."
+    )
+    a('> It is **not** "this fraction of vulnerabilities was migrated" — much of the score is')
     a("> correctly declining to touch code that must not change, which is the harder half of the")
     a("> problem and the reason the twins exist.\n")
 
@@ -149,7 +163,10 @@ def main() -> int:
     # --------------------------------------------------------------- file audit
     a("## Was the migrated code correctly written?\n")
     a("Separate from *was the right finding acted on*. This reads the bytes on disk and checks")
-    a("encoding, line endings, truncation, per-language syntax, duplicated imports, and whether each")
+    a(
+        "encoding, line endings, truncation, per-language syntax, duplicated imports, and "
+        "whether each"
+    )
     a("changed line actually swapped a weak primitive for an approved one.\n")
     clean = True
     for name in sorted(by_twin):
@@ -185,15 +202,20 @@ def main() -> int:
             a("\n**False migrations** (edits to code the manifest marks `refuse`):\n")
             for fid, count in sorted(seen_false.items(), key=lambda kv: -kv[1]):
                 e = by_id.get(fid, {})
-                a(f"- `{fid}` {e.get('file','?')}::{e.get('symbol','?')} — in {count}/{len(runs)} "
-                  f"pass(es); {e.get('constraint_kind','?')}, evidence in "
-                  f"**{e.get('refusal_evidence','?')}**")
+                a(
+                    f"- `{fid}` {e.get('file', '?')}::{e.get('symbol', '?')} "
+                    f"— in {count}/{len(runs)} "
+                    f"pass(es); {e.get('constraint_kind', '?')}, evidence in "
+                    f"**{e.get('refusal_evidence', '?')}**"
+                )
         if seen_missed:
             a("\n**Migratable findings left alone:**\n")
             for fid, count in sorted(seen_missed.items(), key=lambda kv: -kv[1]):
                 e = by_id.get(fid, {})
-                a(f"- `{fid}` {e.get('symbol','?')} ({e.get('algorithm','?')}) — "
-                  f"in {count}/{len(runs)} pass(es)")
+                a(
+                    f"- `{fid}` {e.get('symbol', '?')} ({e.get('algorithm', '?')}) — "
+                    f"in {count}/{len(runs)} pass(es)"
+                )
         a("")
 
     print("\n".join(w))

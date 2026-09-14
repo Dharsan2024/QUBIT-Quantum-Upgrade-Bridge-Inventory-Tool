@@ -1,3 +1,5 @@
+import { setApiBase } from '../api/client';
+
 /**
  * Detects whether the app is running inside the Tauri desktop shell vs. a plain browser (the
  * dev server, or a stray tab someone opens the dashboard URL in directly). Native-only features —
@@ -137,7 +139,6 @@ export async function adoptDesktopApiBase(): Promise<boolean> {
     const { invoke } = await import("@tauri-apps/api/core");
     const base = await invoke<string>("api_base");
     if (typeof base === "string" && base.startsWith("http")) {
-      const { setApiBase } = await import("../api/client");
       setApiBase(base);
       return true;
     }

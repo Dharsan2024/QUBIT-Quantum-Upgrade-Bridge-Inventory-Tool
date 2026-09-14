@@ -33,7 +33,14 @@ prompt_constraints:
   - "Keep the existing X25519/ECDH exchange; ADD ML-KEM-768, do not replace it."
   - "Combine both shared secrets into the KDF input; never use only one of them."
   - "Use cryptography's mlkem module (MLKEM768PrivateKey); do NOT import liboqs."
-  - "Preserve the function signatures so existing callers keep working."
+  # ECDH is symmetric - both peers run the same call and get the same secret - and a KEM is not.
+  # Measured on medivault-emr: the patch for `negotiate_referral_key` passed applies, parses,
+  # compiles and rescan, and broke `test_both_clinics_derive_the_same_secret` and
+  # `test_a_third_party_derives_something_else`, which assert exactly that symmetry. The rule's own
+  # example used to compute `ciphertext, pq_shared = kem_public.encapsulate()` and never return the
+  # ciphertext, so it demonstrated the bug it needed to prevent.
+  - "A KEM is NOT symmetric the way ECDH is: one side encapsulates and the other decapsulates, and the encapsulation ciphertext has to reach the peer. Return it, or write it into the message the peer already receives. A hybrid that computes a ciphertext and drops it round-trips perfectly against itself and derives nothing the peer can match."
+  - "Preserve the function signatures so existing callers keep working. If the signature has nowhere to carry the encapsulation ciphertext - a function that takes a peer's public key and returns only the shared secret - then this is a wire-protocol change and not a source edit. Change nothing, and say that in the security notes."
 example:
   before: |
     from cryptography.hazmat.primitives.asymmetric import x25519
@@ -50,17 +57,24 @@ example:
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     from cryptography.hazmat.primitives import hashes
 
-    def derive_shared(peer_public_bytes: bytes, peer_kem_public: bytes) -> bytes:
+    # The INITIATOR's half. Returns the encapsulation alongside the key, because the responder
+    # cannot decapsulate without it: dropping `kem_ciphertext` here leaves a function that agrees
+    # with itself and with nobody else. The responder's half calls decapsulate(kem_ciphertext) and
+    # concatenates in the same order.
+    def derive_shared(
+        peer_public_bytes: bytes, peer_kem_public: bytes
+    ) -> tuple[bytes, bytes]:
         priv = x25519.X25519PrivateKey.generate()
         peer = x25519.X25519PublicKey.from_public_bytes(peer_public_bytes)
         classical_shared = priv.exchange(peer)
 
         kem_public = mlkem.MLKEM768PublicKey.from_public_bytes(peer_kem_public)
-        ciphertext, pq_shared = kem_public.encapsulate()
+        kem_ciphertext, pq_shared = kem_public.encapsulate()
 
         # Hybrid: remains secure while EITHER primitive holds.
         combined = classical_shared + pq_shared
-        return HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"hs").derive(combined)
+        key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"hs").derive(combined)
+        return kem_ciphertext, key
 rescan_expect:
   present:
     algorithm_prefix: ["ML-KEM-768"]

@@ -242,8 +242,12 @@ export interface MigrationTask {
   last_error: string | null;
   /** Why a `deferred` task is parked. "satisfied" = an earlier patch already covered this finding,
    *  or the dependency pin already meets the PQC floor — finished work, not a failure.
-   *  "unresolved" = QUBIT could not migrate it. Both share one FSM state, so without this the
-   *  queue showed completed work as a warning and sent the reader to fix something correct. */
+   *  "unresolved" = QUBIT could not migrate it and it will be retried on a later run. "guided" =
+   *  no rule offered a patch, so a written procedure is the output. "refused" = a patch WAS
+   *  possible and QUBIT declined to write it, because the algorithm belongs to a party outside
+   *  this repository — also a written explanation, but a decision, not an absence. All four share
+   *  one FSM state, so without this the queue showed completed and declined work as a warning and
+   *  sent the reader to fix something that was already correct. */
   resolution: string | null;
   algorithm: string | null;
   key_size: number | null;

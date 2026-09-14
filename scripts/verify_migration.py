@@ -5,7 +5,8 @@ necessary question: **is what landed on disk correct code?**
 
 A patch can be attributed to the right finding and still be wrong in the file — a mangled line, a
 truncated tail, a duplicated import, a swap to something that is not actually an approved algorithm,
-CRLF where the file used LF, an edit that silently moved a neighbouring line. `rescan` cannot see any
+CRLF where the file used LF, an edit that silently moved a neighbouring line. `rescan` cannot
+see any
 of that: it re-runs the scanner, and the scanner is looking for algorithms, not for damage.
 
 Every check here reads the bytes on disk and compares them against the pristine twin. Nothing
@@ -36,20 +37,48 @@ OUT = REPO / "test-output"
 #: migration -- it is a rewrite that happened to change the algorithm name, and the scanner would
 #: report it as success either way because the weak name is gone.
 APPROVED = (
-    "SHA-256", "SHA256", "SHA-384", "SHA384", "SHA-512", "SHA512", "SHA3",
-    "sha256", "sha384", "sha512",
-    "AES-256-GCM", "AES-256", "aes-256-gcm", "AESGCM", "GCM",
-    "ML-DSA", "MLDSA", "ML-KEM", "MLKEM", "Ed25519", "ECDSA", "SLH-DSA",
-    "Argon2", "argon2", "scrypt", "bcrypt", "PBKDF2WithHmacSHA256",
-    "SHA256withRSA", "SHA256withECDSA", "SHA2_256",
+    "SHA-256",
+    "SHA256",
+    "SHA-384",
+    "SHA384",
+    "SHA-512",
+    "SHA512",
+    "SHA3",
+    "sha256",
+    "sha384",
+    "sha512",
+    "AES-256-GCM",
+    "AES-256",
+    "aes-256-gcm",
+    "AESGCM",
+    "GCM",
+    "ML-DSA",
+    "MLDSA",
+    "ML-KEM",
+    "MLKEM",
+    "Ed25519",
+    "ECDSA",
+    "SLH-DSA",
+    "Argon2",
+    "argon2",
+    "scrypt",
+    "bcrypt",
+    "PBKDF2WithHmacSHA256",
+    "SHA256withRSA",
+    "SHA256withECDSA",
+    "SHA2_256",
 )
 
 #: Names that must never appear in a line a migration just wrote.
 WEAK = ("MD5", "md5", "SHA-1", "SHA1", "sha1", "DES", "RC4", "Blowfish", "ECB")
 
 LANGUAGE_BY_SUFFIX = {
-    ".py": "python", ".rb": "ruby", ".go": "go", ".java": "java",
-    ".js": "javascript", ".ts": "typescript",
+    ".py": "python",
+    ".rb": "ruby",
+    ".go": "go",
+    ".java": "java",
+    ".js": "javascript",
+    ".ts": "typescript",
 }
 
 
@@ -102,7 +131,8 @@ def audit_file(original: Path, migrated: Path, rel: str) -> dict[str, Any]:
     before_lines, after_lines = before.splitlines(), after.splitlines()
     if len(after_lines) < len(before_lines) * 0.9:
         problems.append(
-            f"file shrank from {len(before_lines)} to {len(after_lines)} lines -- possible truncation"
+            f"file shrank from {len(before_lines)} to {len(after_lines)} lines "
+            "-- possible truncation"
         )
 
     # 3. Syntax.
@@ -133,10 +163,24 @@ def audit_file(original: Path, migrated: Path, rel: str) -> dict[str, Any]:
         )
         if new_text and not looks_like_import:
             left = [w for w in WEAK if w in new_text]
-            if left and not any(w in old_text for w in left if w in ("ECDSA",)):
-                # Only a problem if the weak name was supposed to go: it is still a problem when
-                # the same weak name is on both sides, because then nothing was migrated.
-                if all(w in old_text for w in left):
+            if left:
+                if tag == "insert":
+                    # An INSERT has no "before", so every weak name in it looks introduced — and
+                    # the commonest reason for one is a DUAL-PATH migration, which is the correct
+                    # answer for a signature whose old artefacts must still verify.
+                    #
+                    # Measured on inkwell-esign: the model added `ml_dsa_signing_key`,
+                    # `sign_document_ml_dsa` and `verify_document_ml_dsa` beside the retained
+                    # legacy path — exactly what the manifest asks for — and this check called it
+                    # two PROBLEMS. A verifier that reports the right answer as a defect is worse
+                    # than no verifier, because it is the one a reviewer is asked to trust.
+                    change["note"] = f"new code alongside a retained legacy path: {left}"
+                    notes.append(
+                        f"line {i1 + 1}: inserted code names {', '.join(left)} — dual-path "
+                        "migration, or a legacy branch kept deliberately"
+                    )
+                elif all(w in old_text for w in left):
+                    # The same weak name on both sides: nothing was migrated here.
                     change["note"] = f"weak name still present after the edit: {left}"
                     notes.append(f"line {i1 + 1}: weak name survives ({', '.join(left)})")
                 else:
@@ -178,8 +222,15 @@ def audit_twin(name: str) -> dict[str, Any]:
         rel = "/".join(rel_parts)
         before = original_root / rel
         if not before.is_file():
-            files.append({"file": rel, "problems": ["file did not exist before the migration"],
-                          "changes": [], "notes": [], "changed_hunks": 0})
+            files.append(
+                {
+                    "file": rel,
+                    "problems": ["file did not exist before the migration"],
+                    "changes": [],
+                    "notes": [],
+                    "changed_hunks": 0,
+                }
+            )
             continue
         if before.read_bytes() == path.read_bytes():
             continue

@@ -609,14 +609,12 @@ def _is_import_swap(pattern: str | re.Pattern[str]) -> bool:
     lowered = text.lower()
     return (
         lowered.startswith(('"crypto/', "'crypto/", '"golang.org/', "require(", "require '"))
-        or lowered.startswith(('import ', 'from ', 'use ', '#include'))
+        or lowered.startswith(("import ", "from ", "use ", "#include"))
         or ("/" in text and text.startswith(('"', "'")))
     )
 
 
-def _apply_hash_swap(
-    source: str, language: str, only_line: int | None = None
-) -> tuple[str, bool]:
+def _apply_hash_swap(source: str, language: str, only_line: int | None = None) -> tuple[str, bool]:
     """Replace weak-hash constructors with SHA-256 for a non-Python language.
 
     Returns ``(new_source, changed)``. ``changed`` is False when the language has no table *or* when
@@ -681,7 +679,9 @@ def _apply_hash_swap(
             continue
         old_module = _module_alias(pattern)
         new_module = _module_alias(replacement)
-        body = "".join(ln for i, ln in enumerate(lines) if i not in drop and not _looks_like_import(ln))
+        body = "".join(
+            ln for i, ln in enumerate(lines) if i not in drop and not _looks_like_import(ln)
+        )
         still_used = bool(old_module) and f"{old_module}." in body
         current = "".join(ln for i, ln in enumerate(lines) if i not in drop)
         already_imported = replacement in current
@@ -716,9 +716,8 @@ def _module_alias(token: str) -> str:
 
 def _looks_like_import(line: str) -> bool:
     stripped = line.strip()
-    return (
-        stripped.startswith(("import ", "from ", "require ", "use ", "#include"))
-        or (stripped.startswith(('"', "'")) and "/" in stripped)
+    return stripped.startswith(("import ", "from ", "require ", "use ", "#include")) or (
+        stripped.startswith(('"', "'")) and "/" in stripped
     )
 
 

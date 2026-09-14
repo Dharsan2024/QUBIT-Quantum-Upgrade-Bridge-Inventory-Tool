@@ -253,10 +253,40 @@ def annotate_scan_risk(session: Session, scan_id: UUID) -> int:
     return count
 
 
+def workspace_root() -> Path:
+    """Where a repository QUBIT cloned for itself lives.
+
+    Beside the database, so a checkout the tool made is as easy to find and delete as the data
+    about it, and never inside the user's own directories.
+
+    Shared by the two places that clone: creating a project from a `git_url`, and scanning a target
+    that is itself a URL. They MUST agree — a scan that cloned somewhere else would leave the
+    project's `root_path` pointing at a different tree than the one that was scanned, and the
+    migration would then patch files no finding came from.
+    """
+    from qubit_core.db import default_db_url
+
+    url = default_db_url()
+    if url.startswith("sqlite:///"):
+        return Path(url[len("sqlite:///") :]).parent / "workspaces"
+    return Path.home() / ".qubit" / "workspaces"
+
+
 def is_git_url(s: str) -> bool:
-    """True if the target is a remote git repo URL rather than a local path."""
+    """True if the target is a remote git repo URL rather than a local path.
+
+    Requires an actual scheme or the `git@host:` scp-like prefix. It used to ALSO treat any
+    string ending in `.git` as a remote URL, with no regard for what came before it — a LOCAL
+    path named that way (`/home/x/secret.git`, a Windows path, a `../../../elsewhere/target.git`
+    traversal) took this branch, which SKIPS `validate_targets`'s allowlist check entirely and is
+    handed straight to `git clone` in `_clone_into_workspace` (which performs no allowlist check
+    of its own). `git clone` succeeds on a local path just as readily as a remote one — verified:
+    cloning a local `.git`-suffixed directory pulled its `.env` file. Every real caller in this
+    codebase (the dashboard, the twin-evaluation scripts) already supplies a scheme-prefixed URL,
+    so dropping the suffix check costs nothing real. See test_scan_target_allowlist.py.
+    """
     s = s.strip()
-    return s.startswith(("http://", "https://", "git@", "ssh://", "git://")) or s.endswith(".git")
+    return s.startswith(("http://", "https://", "git@", "ssh://", "git://"))
 
 
 def validate_targets(

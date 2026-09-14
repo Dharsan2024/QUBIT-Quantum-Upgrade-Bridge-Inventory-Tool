@@ -255,9 +255,7 @@ def _count_patches(workdir: Path) -> int:
 
 def _run_unit(argv: list[str], env: dict[str, str], db: Path, result: ArmResult) -> None:
     env = {**env, "QUBIT_DB_URL": f"sqlite:///{db.as_posix()}"}
-    proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
-        argv, capture_output=True, text=True, env=env, timeout=3600, check=False
-    )
+    proc = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=3600, check=False)
     if proc.returncode not in (0, 2, 3):
         result.failures.append(f"{argv[-1]}: exit {proc.returncode}: {proc.stderr[-200:]}")
 

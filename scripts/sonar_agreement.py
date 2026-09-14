@@ -22,7 +22,7 @@ print(f"sonar python test files: {len(files)}")
 
 # Fixed argv from `cli_command`, no shell, and the only path is this repository's own vendored
 # corpus.
-r = subprocess.run(  # noqa: S603 - fixed argv, no shell
+r = subprocess.run(
     cli_command("scan", str(CORPUS), "--json"),
     capture_output=True,
     # `text=True` alone would decode with the Windows locale codec; a non-Latin-1 byte in a

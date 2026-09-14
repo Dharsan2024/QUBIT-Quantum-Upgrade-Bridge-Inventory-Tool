@@ -1,4 +1,4 @@
-""""Already migrated" is a claim about a LINE, not about a file.
+""" "Already migrated" is a claim about a LINE, not about a file.
 
 The pre-flight probe that parks a task as `satisfied` used to ask: has an earlier patch for the same
 (rule, file) been applied in this plan? That was correct while codemods rewrote whole files -- one
@@ -34,6 +34,7 @@ from qubit_core.schemas import (
 )
 from qubit_migrate.state import MigrationPlan, MigrationTask, MigrationUnit
 from qubit_migrate.state.models import PatchProposal
+from qubit_migrate.orchestrator import _relocate_finding_line
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -93,9 +94,12 @@ def _task_at(session: Session, project, scan, plan, unit, line: int) -> Migratio
 def _applied_patch(session: Session, task: MigrationTask) -> None:
     session.add(
         PatchProposal(
-            task_id=task.id, file_path=FILE, generator="template",
+            task_id=task.id,
+            file_path=FILE,
+            generator="template",
             base_sha256="0" * 64,
-            diff_text="--- a\n+++ b\n", status="applied",
+            diff_text="--- a\n+++ b\n",
+            status="applied",
         )
     )
     session.flush()
@@ -174,12 +178,57 @@ class TestSiblingFindingsAreNotSatisfied:
         first = _task_at(session, project, scan, plan, unit, line=33)
         session.add(
             PatchProposal(
-                task_id=first.id, file_path=FILE, generator="template",
+                task_id=first.id,
+                file_path=FILE,
+                generator="template",
                 base_sha256="0" * 64,
-                diff_text="--- a\n+++ b\n", status="proposed",
+                diff_text="--- a\n+++ b\n",
+                status="proposed",
             )
         )
         second = _task_at(session, project, scan, plan, unit, line=33)
         session.commit()
 
         assert _lines_already_migrated(session, second, RULE_ID) == set()
+
+
+class TestLineShiftReanchoring:
+    def test_an_earlier_edit_above_the_finding_moves_its_anchor(self) -> None:
+        """A current line number must not be compared with an old task's stored line.
+
+        This is the Sentinel shape: an import removal shifted the next finding onto the prior
+        task's scan-time line.  The scan evidence still uniquely identifies the later call, and
+        relocation finds its new line rather than treating that numeric collision as completion.
+        """
+        original = """package cryptox
+import \"crypto/md5\"
+
+func keep() {}
+func cache(data []byte) string {
+    return md5.Sum(data).String()
+}
+"""
+        asset = CryptoAsset(
+            algorithm="MD5",
+            usage_context=UsageContext.hash,
+            source_scanner=SourceScanner.code,
+            asset_type=AssetType.algorithm_use,
+            location=Location(file_path="internal/cryptox/internal.go", line=6),
+            # The scanner records two surrounding lines when they exist.  Retaining that exact
+            # shape matters: the anchor is the finding's offset within this window.
+            evidence={
+                "snippet": (
+                    "func keep() {}\nfunc cache(data []byte) string {\n"
+                    "    return md5.Sum(data).String()\n}"
+                )
+            },
+            quantum_vulnerable=QuantumVulnerability(vulnerable=True, attack=QuantumAttack.grover),
+            discovered_at=datetime.now(UTC),
+            risk=RiskAnnotation(
+                score=0.4, ci_low=0.4, ci_high=0.4, mosca_margin_years=10.0, priority_rank=1
+            ),
+        )
+
+        current = original.replace('import "crypto/md5"\n', "")
+
+        assert _relocate_finding_line(asset, current) == 5

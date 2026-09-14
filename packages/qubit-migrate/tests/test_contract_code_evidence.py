@@ -26,7 +26,6 @@ guard, and the same file holds digests that must stay migratable.
 from __future__ import annotations
 
 import pytest
-
 from qubit_migrate.protocol_contract import external_contract
 
 JAVA_ACQUIRER = (
@@ -77,7 +76,9 @@ class TestTheCodeSaysTheAlgorithmIsRequired:
         Half the weak-hash call sites in any codebase name their algorithm in a log line or an
         exception. Treating that as a contract would refuse nearly everything.
         """
-        assert external_contract("MD5", "x/Svc.java", f'log.info({text});\nmd = digest(body);') is None
+        assert (
+            external_contract("MD5", "x/Svc.java", f"log.info({text});\nmd = digest(body);") is None
+        )
 
 
 class TestCredentialDigestsOutsidePython:

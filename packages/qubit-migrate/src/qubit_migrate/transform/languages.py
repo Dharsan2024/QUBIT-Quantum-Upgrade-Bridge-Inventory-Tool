@@ -213,6 +213,7 @@ __all__ = [
     "TS_GRAMMAR",
     "language_aliases",
     "language_for_suffix",
+    "locally_bound",
     "parse_error",
 ]
 
@@ -237,8 +238,169 @@ _IMPORT_NODES: dict[str, tuple[str, ...]] = {
     "cpp": ("preproc_include",),
 }
 
-#: Qualified reference: `pkg.Symbol`, `pkg::Symbol`, `pkg->Symbol`. Captures the qualifier only.
-_QUALIFIER = re.compile(r"\b([a-z][A-Za-z0-9_]*)\s*(?:\.|::)\s*[A-Za-z_]\w*")
+#: Qualified reference: `pkg.Symbol`, `pkg::Symbol`. Captures the qualifier only.
+#:
+#: The leading `(?<![.\w:])` restricts this to the ROOT of a dotted chain. Without it the pattern
+#: also matched at every interior position, so one fully-qualified Java reference —
+#: `org.bouncycastle.pqc.jcajce.provider.BouncyCastlePQCProvider` — yielded `org`, `bouncycastle`,
+#: `pqc`, `jcajce` AND `provider`, none of which is a package anything imports. Only the first
+#: segment of a chain can require an import; every later one is a member of whatever the segment
+#: before it resolved to.
+_QUALIFIER = re.compile(r"(?<![.\w:])([a-z][A-Za-z0-9_]*)\s*(?:\.|::)\s*[A-Za-z_]\w*")
+
+#: Roots of a reverse-DNS package path. A fully-qualified reference spells the package out at the
+#: use site and needs no import at all, and nothing is ever imported under these names alone —
+#: `import org;` is not a statement in any language here — so a chain rooted at one of them can
+#: never be a missing import. Listed rather than inferred from chain length, because `os.path.join`
+#: is also a three-segment chain and `os` genuinely does need importing.
+_FULLY_QUALIFIED_ROOTS = frozenset(
+    {"org", "com", "net", "io", "java", "javax", "jakarta", "edu", "gov", "sun"}
+)
+
+#: Nodes that BIND a name, per language: after one of these, the identifier is a local variable,
+#: parameter or field, not a package. Field names first (`left` for Go's `:=` and `range`, `name`
+#: for Java's declarators), falling back to the node's direct `identifier` children — which is what
+#: Go's `parameter_declaration` and Java's `formal_parameter` need.
+#:
+#: Without this, a qualifier check that is otherwise correct reports every local the patch
+#: introduces as an unimported package. Measured on this corpus: one accepted-shaped Java patch was
+#: rejected for 17 "missing imports", 13 of which were variables it declared itself (`encap`,
+#: `kpg`, `mlkemKeyPair`, ...); a Go patch was rejected for `priv`, declared on the line above its
+#: use as `pub, priv, err := mldsa65.GenerateKey(rand.Reader)`. Differencing against the original
+#: file cannot cancel these, because the patch is precisely where they first appear.
+_BINDING_NODES: dict[str, tuple[str, ...]] = {
+    "go": (
+        "short_var_declaration",
+        "var_spec",
+        "const_spec",
+        "parameter_declaration",
+        "range_clause",
+    ),
+    "java": (
+        "variable_declarator",
+        "formal_parameter",
+        "catch_formal_parameter",
+        "enhanced_for_statement",
+    ),
+    # `as_pattern_target` rather than `as_pattern`: the latter's first child is the expression
+    # being bound FROM (`open(...)` in `with open(p) as fh`), and binding its callee would be
+    # exactly backwards.
+    "python": ("assignment", "parameters", "for_statement", "as_pattern_target"),
+    "javascript": ("variable_declarator", "formal_parameters", "catch_clause"),
+    "typescript": ("variable_declarator", "formal_parameters", "catch_clause"),
+    "rust": ("let_declaration", "parameter"),
+    "csharp": ("variable_declarator", "parameter"),
+    "kotlin": ("property_declaration", "parameter"),
+    "scala": ("val_definition", "var_definition", "parameter"),
+    "swift": ("property_declaration", "parameter"),
+    "php": ("assignment_expression", "simple_parameter"),
+    "dart": ("initialized_variable_definition", "formal_parameter"),
+    "c": ("declaration", "parameter_declaration"),
+    "cpp": ("declaration", "parameter_declaration"),
+}
+
+
+def _first_identifier(node: Any) -> str | None:
+    """The first `identifier` in ``node`` in source order, itself included. None if it has none."""
+    if node.type == "identifier":
+        return str(node.text.decode("utf-8", "replace"))
+    for child in getattr(node, "children", None) or []:
+        found = _first_identifier(child)
+        if found is not None:
+            return found
+    return None
+
+
+#: Names the language itself provides, which are used with member access and imported by nobody.
+#: `bytes.fromhex(...)` needs no import, so reporting `bytes` as one is the same false positive as
+#: reporting a local. Deliberately short: only builtins that are actually used as `name.member`,
+#: since anything else never reaches `_QUALIFIER` in the first place.
+_LANGUAGE_BUILTINS: dict[str, frozenset[str]] = {
+    "python": frozenset(
+        {
+            "bytes",
+            "bytearray",
+            "str",
+            "int",
+            "float",
+            "dict",
+            "list",
+            "set",
+            "tuple",
+            "object",
+            "type",
+            "super",
+            "self",
+            "cls",
+        }
+    ),
+    "go": frozenset({"string", "byte", "rune", "error"}),
+    "java": frozenset({"this", "super"}),
+    "javascript": frozenset({"this", "console", "JSON", "Math", "Object", "Array", "Promise"}),
+    "typescript": frozenset({"this", "console", "JSON", "Math", "Object", "Array", "Promise"}),
+    "ruby": frozenset({"self"}),
+    "rust": frozenset({"self", "Self"}),
+}
+
+
+def locally_bound(source: str, language: str) -> set[str]:
+    """Names ``source`` binds as a local, parameter or field — never a package.
+
+    Read from the parse tree rather than by regex, because the distinction being drawn is
+    syntactic: `encap` in `KEM.Encapsulator encap = ...` is a declaration, and `encap` in
+    `encap.getSharedSecret()` is a use of it. Only a parser separates those reliably.
+
+    Returns an empty set for a language with no grammar or no binding nodes mapped, which leaves
+    the caller exactly as strict as it was before — the safe direction for an unmapped language.
+    """
+    lang = (language or "").lower()
+    grammar = TS_GRAMMAR.get(lang)
+    wanted = _BINDING_NODES.get(lang, ())
+    names: set[str] = set()
+    if grammar is None or not wanted:
+        return names
+    try:
+        from tree_sitter_language_pack import get_parser  # type: ignore[import-untyped]
+
+        tree = get_parser(grammar).parse(source.encode("utf-8", errors="replace"))
+    except Exception:
+        return names
+
+    def collect(node: Any) -> None:
+        # `left` covers Go's `a, b := ...` and `range`; `name` covers Java's declarators. Both are
+        # the side that BINDS, so the right-hand side — where the package qualifiers actually live
+        # — is never harvested. Falling back to direct identifier children only when neither field
+        # exists keeps `parameter_declaration`/`formal_parameter` working without reaching into
+        # an initializer.
+        target = node.child_by_field_name("left") or node.child_by_field_name("name")
+        if target is not None:
+            stack = [target]
+            while stack:
+                cur = stack.pop()
+                if cur.type == "identifier":
+                    names.add(cur.text.decode("utf-8", "replace"))
+                stack.extend(getattr(cur, "children", None) or [])
+            return
+        # No binding field: each direct child introduces at most one name, and it is that child's
+        # FIRST identifier in source order. Taking only the first is what separates a parameter
+        # from its own type annotation — Python's `peer_public: bytes` is a `typed_parameter`
+        # whose identifiers are `peer_public` then `bytes`, and Go's `a string` and Java's
+        # `String arg` put the type on the other side. Recursing is required because a plain
+        # `identifier` child is only the simplest of these shapes; `typed_parameter`,
+        # `default_parameter` and both splat patterns wrap theirs.
+        for child in getattr(node, "children", None) or []:
+            first = _first_identifier(child)
+            if first is not None:
+                names.add(first)
+
+    def walk(node: Any) -> None:
+        if node.type in wanted:
+            collect(node)
+        for child in getattr(node, "children", None) or []:
+            walk(child)
+
+    walk(tree.root_node)
+    return names
 
 
 #: Keywords that open an import statement in some language. Stripped before the path is read, so
@@ -377,10 +539,30 @@ def unresolved_qualifiers(source: str, language: str) -> set[str]:
     only what a patch newly broke is ever reported. Local variables produce false positives on
     their own (`t.Run`, `err.Error`), which is exactly why the caller must diff rather than
     treat this as an absolute answer.
+
+    Differencing alone is not enough, though, and that was a real defect rather than a theoretical
+    one: it can only cancel a name that appears in BOTH versions, so every local a patch newly
+    introduces still looked like a missing import. `locally_bound` removes those at the source, and
+    `_FULLY_QUALIFIED_ROOTS` removes the reverse-DNS chains that need no import in the first place.
+    What remains is the case this stage exists for — a package qualifier with no import to bind it.
     """
     imported = _import_names(source, language)
-    used = set(_QUALIFIER.findall(_STRINGS_AND_COMMENTS.sub(" ", source)))
-    return used - imported
+    # Read USES from the body only. An import statement spells its own package path out --
+    # `from cryptography.hazmat.primitives.kdf.hkdf import HKDF` -- and that path is a qualified
+    # reference to any regex, so scanning the whole file reported `cryptography` as a package
+    # nothing imports. It cancelled by differencing whenever the import was already there, and bit
+    # exactly when it was not: a patch that ADDS a dotted `from` import, which is the single most
+    # common shape in a PQC migration, was rejected for the root of the import it had just added.
+    body = _body_without_imports(source, language)
+    used = set(_QUALIFIER.findall(_STRINGS_AND_COMMENTS.sub(" ", body)))
+    lang = (language or "").lower()
+    return (
+        used
+        - imported
+        - locally_bound(source, language)
+        - _FULLY_QUALIFIED_ROOTS
+        - _LANGUAGE_BUILTINS.get(lang, frozenset())
+    )
 
 
 def _body_without_imports(source: str, language: str) -> str:

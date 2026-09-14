@@ -130,6 +130,11 @@ class GenerateRequest(BaseModel):
     generator: Literal["auto", "llm", "template"] = "auto"
 
 
+class ReopenTaskRequest(BaseModel):
+    #: Retained in the task event so a reopened reviewer verdict remains auditable.
+    reason: str = Field("reopening for a fresh proposal", min_length=1, max_length=500)
+
+
 class PatchOut(BaseModel):
     id: UUID
     task_id: UUID
@@ -537,6 +542,11 @@ def run_plan(
             .where(
                 or_(
                     MigrationTask.state == "ready",
+                    # A rejected proposal is stale feedback, not a terminal finding.  The
+                    # orchestrator regenerates it through `rejected -> ready`; include it here so
+                    # a plan-level retry has the same recovery path as the row-level Generate
+                    # control.
+                    MigrationTask.state == "rejected",
                     and_(
                         MigrationTask.state == "deferred",
                         MigrationTask.resolution == RESOLUTION_UNRESOLVED,
@@ -695,6 +705,28 @@ def generate_patch(
     except (ValueError, NotImplementedError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return _patch_out(patch)
+
+
+@router.post("/migrate/tasks/{task_id}/reopen", response_model=TaskOut)
+def reopen_task(
+    task_id: UUID,
+    payload: ReopenTaskRequest,
+    session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+) -> TaskOut:
+    """Reopen a rejected proposal so QUBIT can generate a fresh, current-source diff.
+
+    This is intentionally explicit.  It preserves the rejected patch as review evidence instead
+    of silently retrying a human rejection, while making a stale proposal recoverable without
+    rebuilding the whole plan.
+    """
+    task = require_task(session, task_id, tenant_id)
+    orch = MigrationOrchestrator(session)
+    try:
+        reopened = orch.reopen_task(task.id, reason=payload.reason)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return _task_out(reopened, session.get(AssetRow, reopened.asset_id))
 
 
 class AdviseRequest(BaseModel):

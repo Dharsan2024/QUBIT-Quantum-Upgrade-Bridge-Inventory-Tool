@@ -60,7 +60,10 @@ def main() -> int:
 
     # ---------------------------------------------------------------- headline
     w("## Headline\n")
-    w("| twin | stack | findings | correctly handled | false migrations | controls hit | suite after |")
+    w(
+        "| twin | stack | findings | correctly handled | false migrations | controls hit "
+        "| suite after |"
+    )
     w("|---|---|---|---|---|---|---|")
     tot_correct = tot_false = tot_controls = tot_findings = 0
     green = 0
@@ -77,10 +80,15 @@ def main() -> int:
         tot_false += false_m
         tot_controls += controls
         tot_findings += n
-        w(f"| {r['twin']} | {r['language']} | {n} | {correct} ({pct(correct, n)}) | "
-          f"{false_m} | {controls} | {suite} |")
-    w(f"| **total** | — | **{tot_findings}** | **{tot_correct}** ({pct(tot_correct, tot_findings)}) "
-      f"| **{tot_false}** | **{tot_controls}** | {green}/{len(results)} green |\n")
+        w(
+            f"| {r['twin']} | {r['language']} | {n} | {correct} ({pct(correct, n)}) | "
+            f"{false_m} | {controls} | {suite} |"
+        )
+    w(
+        f"| **total** | — | **{tot_findings}** | "
+        f"**{tot_correct}** ({pct(tot_correct, tot_findings)}) "
+        f"| **{tot_false}** | **{tot_controls}** | {green}/{len(results)} green |\n"
+    )
 
     w("*Correctly handled* means the disposition the manifest names is the disposition QUBIT")
     w("produced: a finding marked `migrate` was migrated, and a finding marked `refuse` was left")
@@ -96,8 +104,14 @@ def main() -> int:
     w("## What the evidence ladder actually established\n")
     w("A `skipped` gate never counts as a pass, so the level a patch reaches is the level it can")
     w("defend. Counts are over every patch proposed, accepted or not.\n")
-    w("| twin | " + " | ".join(f"`{g}`" for g in
-                               ("applies", "parses", "symbols", "compiles", "behaves", "tests", "rescan")) + " |")
+    w(
+        "| twin | "
+        + " | ".join(
+            f"`{g}`"
+            for g in ("applies", "parses", "symbols", "compiles", "behaves", "tests", "rescan")
+        )
+        + " |"
+    )
     w("|---|" + "---|" * 7)
     for r in results:
         cells = []
@@ -119,7 +133,10 @@ def main() -> int:
         w(f"### {r['twin']} — {r['language']}\n")
         w(f"- {r['assets']} crypto assets inventoried, {r['tasks']} migration tasks")
         w(f"- migration run: {r['run_seconds']}s (whole evaluation {r['total_seconds']}s)")
-        w(f"- task resolutions: " + ", ".join(f"`{k}` {v}" for k, v in sorted(r["resolutions"].items())))
+        w(
+            "- task resolutions: "
+            + ", ".join(f"`{k}` {v}" for k, v in sorted(r["resolutions"].items()))
+        )
         suite = r["suite_after_migration"]
         w(f"- the twin's own suite after migration: **{'green' if suite['green'] else 'RED'}**")
         if suite["tail"]:
@@ -128,18 +145,28 @@ def main() -> int:
             w("\n**False migrations** — edits to code the manifest marks `refuse`:\n")
             for fid in s["false_migrations"]:
                 e = by_id.get(fid, {})
-                w(f"- `{fid}` {e.get('file','?')}::{e.get('symbol','?')} — {e.get('constraint_kind','?')}, "
-                  f"refusal evidence in **{e.get('refusal_evidence','?')}**")
-                w(f"  - {e.get('reason','')[:200]}")
+                w(
+                    f"- `{fid}` {e.get('file', '?')}::{e.get('symbol', '?')} "
+                    f"— {e.get('constraint_kind', '?')}, "
+                    f"refusal evidence in **{e.get('refusal_evidence', '?')}**"
+                )
+                w(f"  - {e.get('reason', '')[:200]}")
         if s["expected_migrate_but_not_migrated"]:
             w("\n**Not migrated** — findings the manifest marks `migrate` that were left alone:\n")
             for fid in s["expected_migrate_but_not_migrated"]:
                 e = by_id.get(fid, {})
-                w(f"- `{fid}` {e.get('file','?')}::{e.get('symbol','?')} ({e.get('algorithm','?')})")
+                w(
+                    f"- `{fid}` {e.get('file', '?')}::{e.get('symbol', '?')} "
+                    f"({e.get('algorithm', '?')})"
+                )
         if s["unmapped_outcomes"]:
-            w(f"\n{s['unmapped_outcomes']} outcome(s) could not be attributed to a manifest entry. "
-              "These are reported rather than dropped: quietly excluding them would inflate every "
-              "rate above.")
+            w(
+                f"\n{s['unmapped_outcomes']} outcome(s) could not be attributed "
+                f"to a manifest entry. "
+                "These are reported rather than dropped: quietly excluding them would inflate "
+                "every "
+                "rate above."
+            )
         w("")
 
     # ------------------------------------------------------------ refusal evidence

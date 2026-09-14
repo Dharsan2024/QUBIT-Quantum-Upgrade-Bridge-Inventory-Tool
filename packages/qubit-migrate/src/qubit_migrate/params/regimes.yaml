@@ -212,6 +212,12 @@ regimes:
       # From TR-02102-4 (the SSH profile), Version 2026-01, §3.1.3. Classical SSH key exchange
       # methods 1-6 are recommended only "bis Ende 2031", on the same post-quantum ground.
       ssh_classical_kex: { recommended_until: 2031 }
+      # From TR-02102-3 (the IPsec/IKEv2 profile), Version 2026-01 (27.01.2026), §3.2.4
+      # "Schlüsseleinigungsverfahren", Table 6's Hinweis 1. The classical Diffie-Hellman groups
+      # (MODP 3072/4096, the NIST and Brainpool curves) are recommended standalone ("allein")
+      # only until end-2031, and "2032+" once hybridised -- the identical shape TLS and SSH
+      # already carry, read from a THIRD separate BSI document rather than assumed to generalise.
+      ipsec_classical_kex: { recommended_until: 2031 }
     # What BSI says it INTENDS to recommend for SSH, once the RFC is adopted -- named verbatim in
     # §3.1.3 from draft-ietf-sshm-mlkem-hybrid-kex.
     #
@@ -223,6 +229,19 @@ regimes:
         status: "intended, pending RFC"
         source: "draft-ietf-sshm-mlkem-hybrid-kex"
         algorithms: [mlkem768nistp256-sha256, mlkem1024nistp384-sha384]
+      # TR-02102-3 §3.2.4, Table 6, Hinweis 1, verbatim: "[RFC 9370] ermöglicht eine hybride
+      # Schlüsseleinigung in IKEv2. Das BSI beabsichtigt, für die quantensichere
+      # Schlüsseleinigung die Verfahren ml-kem-768 und ml-kem-1024 aus dem Internet-Draft [...]
+      # in Kombination mit einem klassischen Schlüsseleinigungsverfahren aus Tabelle 6
+      # ('hybrid') zu empfehlen, sobald der zugehörige RFC verabschiedet wurde."
+      # ("RFC 9370 enables hybrid key agreement in IKEv2. BSI intends to recommend ML-KEM-768
+      # and ML-KEM-1024 [...] combined with a classical key-agreement method from Table 6
+      # ('hybrid'), once the corresponding RFC has been adopted.")
+      ipsec_hybrid_kex:
+        status: "intended, pending RFC"
+        source: "draft-ietf-ipsecme-ikev2-mlkem"
+        carrier_rfc: "RFC 9370"  # the multi-KEX extension to IKEv2 the hybrid construction rides on
+        algorithms: [ML-KEM-768, ML-KEM-1024]
     applies_to: "German federal administration and regulated sectors"
     construction: hybrid
     # ADVISORY, not violation. **This was encoded as a hard violation and that was wrong.**

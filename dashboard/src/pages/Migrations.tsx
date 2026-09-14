@@ -265,7 +265,8 @@ function TaskRow({
           {task.rule_id &&
             !task.is_guided &&
             (task.state === 'ready' ||
-              (task.state === 'deferred' && task.resolution === 'unresolved')) && (
+              (task.state === 'deferred' && task.resolution === 'unresolved') ||
+              task.state === 'rejected') && (
               <span className="inline-flex items-center gap-2">
                 {/* `template` is only offered when the rule actually has a codemod. Offering it
                   unconditionally meant choosing it on any of the ten LLM-only rules returned
@@ -298,17 +299,19 @@ function TaskRow({
                   title={
                     task.state === 'deferred'
                       ? (task.last_error ?? 'The last attempt did not produce a valid patch.')
-                      : undefined
+                      : task.state === 'rejected'
+                        ? 'The previous proposal was rejected. Generate a new diff using the review feedback.'
+                        : undefined
                   }
                 >
                   {gen.isPending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : task.state === 'deferred' ? (
+                  ) : task.state === 'deferred' || task.state === 'rejected' ? (
                     <RefreshCw className="h-3.5 w-3.5" />
                   ) : (
                     <Wand2 className="h-3.5 w-3.5" />
                   )}
-                  {task.state === 'deferred' ? 'Retry' : 'Generate'}
+                  {task.state === 'deferred' || task.state === 'rejected' ? 'Regenerate' : 'Generate'}
                 </button>
               </span>
             )}
@@ -1244,10 +1247,18 @@ function ProjectMigration({ projectId }: { projectId: string }) {
   // queue is genuinely done rather than merely quiet. `guided` and `settled` are deliberately not
   // counted as failures: one is a written remediation, the other work that was already correct, and
   // folding either into "failed" is what made a healthy run read as a broken one.
+  //
+  // `refused` (the algorithm belongs to a party outside this repository) folds into the same
+  // "guided" count here, not a bucket of its own: both mean "QUBIT decided, wrote why, nothing to
+  // click Generate on", which is exactly what this label already says. The backend's own run
+  // summary keeps them as separate fields (`refused` vs `needs_guidance`) because an operator
+  // reading THAT number cares whether QUBIT was capable and declined or had nothing to offer —
+  // this is a per-row live count, not that summary, and merging them here is what stops it from
+  // silently undercounting every refused row as this queue re-renders mid-run.
   const liveCounts = {
     prepared: tasks.filter((t) => ['proposed', 'approved', 'applied'].includes(t.state)).length,
     remaining: tasks.filter((t) => ['pending', 'ready', 'generating'].includes(t.state)).length,
-    guided: tasks.filter((t) => t.resolution === 'guided').length,
+    guided: tasks.filter((t) => t.resolution === 'guided' || t.resolution === 'refused').length,
     settled: tasks.filter((t) => t.resolution === 'satisfied').length,
     failed: tasks.filter(
       (t) =>
@@ -1418,7 +1429,10 @@ function ProjectMigration({ projectId }: { projectId: string }) {
                     : runOutcome.applied > 0
                       ? `Migration partly applied — ${runOutcome.applied} of ${runOutcome.total} finding${runOutcome.total === 1 ? '' : 's'} written to disk, ${runOutcome.failed} could not be written. Nothing was changed for those; the reasons are below.`
                       : runOutcome.failed > 0
-                        ? `Nothing was written — all ${runOutcome.failed} change${runOutcome.failed === 1 ? '' : 's'} were refused. The files are unchanged; the reasons are below.`
+                        ? // Not "refused": that word now names the opposite outcome — a finding
+                          // QUBIT deliberately declined to edit. These are the ones it could not
+                          // produce a usable change for at all.
+                          `Nothing was written — no usable change was produced for ${runOutcome.failed} finding${runOutcome.failed === 1 ? '' : 's'}. The files are unchanged; the reasons are below.`
                         : `Migration finished — ${runOutcome.generated} patch${runOutcome.generated === 1 ? '' : 'es'} generated, none written.`}
               </div>
               <div className="metric-label mt-1 flex flex-wrap gap-x-3">
@@ -1456,6 +1470,25 @@ function ProjectMigration({ projectId }: { projectId: string }) {
                 {(runOutcome.needs_guidance ?? 0) > 0 && (
                   <span title="No codemod or LLM rule matches these findings. Each has a guidance button in the queue — QUBIT explains what to change by hand, why, and how to verify it.">
                     · {runOutcome.needs_guidance} need guided review
+                  </span>
+                )}
+                {/* A refusal is a correct decision, not a shortfall, and a rejection is the gate
+                    doing its job. Both were inside "could not be migrated" until a run reported 18
+                    failures for a set that held 6 ownership refusals, 7 gate rejections and 2 real
+                    failures. `covered` is a sub-count of `refused`, so it is shown above and
+                    subtracted here rather than counted twice. */}
+                {(runOutcome.refused ?? 0) - (runOutcome.covered ?? 0) > 0 && (
+                  <span title="The algorithm here belongs to a party outside this repository — a Gravatar URL keyed by MD5, a webhook field the remote names sha1=, an established KDF. Changing it would break the exchange, so QUBIT refused and wrote guidance instead.">
+                    · {(runOutcome.refused ?? 0) - (runOutcome.covered ?? 0)} refused (not ours to
+                    change)
+                  </span>
+                )}
+                {(runOutcome.rejected ?? 0) > 0 && (
+                  <span
+                    className="text-[color:var(--color-warn)]"
+                    title="A patch was generated and a validation stage — symbols, compiles, behaves, rescan or the project's own test suite — turned it down. The bad patch was caught before anything was written. Each is retried on the next run."
+                  >
+                    · {runOutcome.rejected} rejected by a validation gate
                   </span>
                 )}
                 {runOutcome.failed > 0 && (

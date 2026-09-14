@@ -346,11 +346,18 @@ export interface MigrationRunResult {
   failed: number;
   from_cache: number;
   needs_guidance: number;
+  /** QUBIT decided no edit is correct here — the algorithm is fixed by a party outside this
+   *  repository (a Gravatar URL keyed by MD5, a webhook `sha1=` field, an established KDF), or the
+   *  file already meets the rule. A verdict, not a shortfall. Includes `covered`. */
+  refused?: number;
+  /** A patch WAS generated and a validation stage turned it down. The gate working, not the tool
+   *  failing — these were inside `failed` until the run reported 18 failures for 2 real ones. */
+  rejected?: number;
   /** `apply` runs only: findings with no patch prepared, so nothing was written for them. */
   no_patch?: number;
   repo_root: string | null;
   applied_to_disk: boolean;
-  failures: { task_id: string; rule_id: string; detail: string }[];
+  failures: { task_id: string; rule_id: string; detail: string; bucket?: string }[];
 }
 
 export interface JobStatus {

@@ -19,7 +19,6 @@ passed to `hmac.new`) and Go, so the fix is a normaliser rather than a Ruby spec
 from __future__ import annotations
 
 import pytest
-
 from qubit_scanner.api import scan_paths
 from qubit_scanner.code.scanner import _digest_name
 
@@ -42,7 +41,9 @@ class TestTheNormaliser:
     def test_a_digest_expression_resolves_to_its_algorithm(self, expression, expected) -> None:
         assert _digest_name(expression) == expected
 
-    @pytest.mark.parametrize("text", ["nothing here", "", "encrypt(payload)", "sha1_migration_done"])
+    @pytest.mark.parametrize(
+        "text", ["nothing here", "", "encrypt(payload)", "sha1_migration_done"]
+    )
     def test_text_naming_no_digest_resolves_to_nothing(self, text: str) -> None:
         """Returning None is what lets the caller emit no algorithm rather than a fabricated one.
 

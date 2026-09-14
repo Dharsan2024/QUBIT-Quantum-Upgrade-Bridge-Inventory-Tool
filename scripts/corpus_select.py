@@ -227,7 +227,7 @@ def score_corpus(repo: Path, rules: list[Any]) -> Score:
 
     # `cli_command` builds the argv itself and the only interpolated value is a directory this
     # script was pointed at; there is no shell and no user string in the command.
-    result = subprocess.run(  # noqa: S603 - fixed argv, no shell, path from the operator
+    result = subprocess.run(
         cli_command("scan", str(repo), "--json"),
         capture_output=True,
         # Explicit encoding: `text=True` alone decodes with the LOCALE codec (cp1252 on

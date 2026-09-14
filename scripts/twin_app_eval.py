@@ -34,11 +34,10 @@ import stat
 import subprocess
 import sys
 import time
-from pathlib import Path
-from typing import Any
-
 import urllib.error
 import urllib.request
+from pathlib import Path
+from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "scripts"))
@@ -53,32 +52,42 @@ OUT = REPO / "test-output"
 # --------------------------------------------------------------------------------------- transport
 
 
-def call(
-    method: str, path: str, body: dict[str, Any] | None = None, timeout: int = 1800
-) -> Any:
+def call(method: str, path: str, body: dict[str, Any] | None = None, timeout: int = 1800) -> Any:
     """One request against the running app. Raises with the server's own detail on an error.
 
     The long default timeout is deliberate: `/plans/{id}/run` generates and validates every patch
     in the plan synchronously, and on a Java twin that includes a Maven test run per patch inside a
     container. A short timeout here would report a working migration as a client failure.
+
+    Retries a 503 specifically: the server sends one, with `Retry-After`, ONLY when SQLite's
+    single writer was busy with something else and nothing was changed — its own detail text says
+    "try again in a moment". Measured: a concurrent process writing to the same qubit.db (a
+    watchdog reclaiming a stranded task, a second harness run) can collide with this exact call,
+    and treating it like any other HTTP error crashed a whole twin's run over one transient
+    contention -- the run had otherwise settled 16/21 tasks. Every other status still raises
+    immediately; only this one is a "nothing happened yet, ask again" signal by construction.
     """
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(
-        f"{API}{path}",
-        data=data,
-        method=method,
-        headers={
-            "Authorization": f"Bearer {TOKEN}",
-            **({"Content-Type": "application/json"} if data else {}),
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
-            return json.loads(raw) if raw else None
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode(errors="replace")[:600]
-        raise RuntimeError(f"{method} {path} -> {exc.code}: {detail}") from None
+    for attempt in range(6):
+        req = urllib.request.Request(  # noqa: S310 — scheme fixed by API's own default, local server
+            f"{API}{path}",
+            data=data,
+            method=method,
+            headers={
+                "Authorization": f"Bearer {TOKEN}",
+                **({"Content-Type": "application/json"} if data else {}),
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+                raw = resp.read()
+                return json.loads(raw) if raw else None
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode(errors="replace")[:600]
+            if exc.code == 503 and attempt < 5:
+                time.sleep(int(exc.headers.get("Retry-After", "5")) if exc.headers else 5)
+                continue
+            raise RuntimeError(f"{method} {path} -> {exc.code}: {detail}") from None
 
 
 def app_is_up() -> bool:
@@ -116,13 +125,19 @@ def wait_for_scan(sid: str, timeout: int = 1800) -> dict[str, Any]:
 #: turned down, and omitting them means a plan containing one is polled until the timeout rather
 #: than reported. They are outcomes of the run, and the report counts them as such.
 TERMINAL_STATES = {
-    "applied", "deferred", "verified", "proposed", "approved",
-    "failed", "rejected", "apply_failed",
+    "applied",
+    "deferred",
+    "verified",
+    "proposed",
+    "approved",
+    "failed",
+    "rejected",
+    "apply_failed",
 }
 
 
 def wait_for_plan(
-    plan_id: str, timeout: int = 5400, stall_after: int = 60
+    plan_id: str, timeout: int = 5400, stall_after: int = 180
 ) -> list[dict[str, Any]]:
     """Block until every task in the plan reaches a terminal state.
 
@@ -133,8 +148,14 @@ def wait_for_plan(
     to stop.
 
     `stall_after` counts consecutive polls with no change in how many tasks have settled. At the
-    5s interval that is five minutes of complete stillness, which a running generation never has:
-    even one model call moves a task within that window.
+    5s interval that is fifteen minutes of complete stillness.
+
+    Five minutes was the first choice and it was too tight: one Java patch legitimately takes that
+    long with nothing settling, because a repair loop is up to three model calls and each candidate
+    costs a Maven baseline plus a Maven test run inside a container. It fired on a healthy paymesh
+    run at 13/17. The threshold has to exceed the slowest single patch in the corpus, not the
+    average one — a false stall discards a run that was working, which is the more expensive
+    mistake of the two.
     """
     deadline = time.time() + timeout
     last: list[dict[str, Any]] = []
@@ -149,9 +170,7 @@ def wait_for_plan(
         unchanged = unchanged + 1 if settled == settled_before else 0
         settled_before = settled
         if unchanged >= stall_after:
-            stuck = sorted(
-                {t.get("state") for t in last if t.get("state") not in TERMINAL_STATES}
-            )
+            stuck = sorted({t.get("state") for t in last if t.get("state") not in TERMINAL_STATES})
             raise RuntimeError(
                 f"plan {plan_id} stalled at {settled}/{len(last)} settled for "
                 f"{unchanged * 5}s; tasks stuck in {stuck}"
@@ -215,8 +234,9 @@ def changed_lines(original: Path, migrated: Path) -> dict[str, set[int]]:
 def _rmtree_force(path: Path) -> None:
     """Delete a tree that contains a `.git` directory, on Windows.
 
-    Git marks everything under `.git/objects` read-only, and `shutil.rmtree` raises `PermissionError`
-    on the first one. With `ignore_errors=True` that failure is silent, the directory survives, and
+    Git marks everything under `.git/objects` read-only, and `shutil.rmtree` raises
+    `PermissionError` on the first one. With `ignore_errors=True` that failure is silent, the
+    directory survives, and
     the `copytree` that follows fails with
 
         [WinError 183] Cannot create a file when that file already exists
@@ -224,8 +244,9 @@ def _rmtree_force(path: Path) -> None:
     which reads as a bug in the copy rather than in the delete. Observed on the inkwell run the
     moment copies started keeping their `.git`.
     """
+
     def clear_readonly(func, target, _exc):
-        os.chmod(target, stat.S_IWRITE)
+        Path(target).chmod(stat.S_IWRITE)
         func(target)
 
     shutil.rmtree(path, onerror=clear_readonly)
@@ -256,12 +277,16 @@ def run_twin(twin_name: str) -> dict[str, Any]:
     scan_root = app / twin.scan_subdir if twin.scan_subdir else app
     started = time.time()
 
-    project = call("POST", "/projects", {"name": f"eval-{twin_name}-{int(started)}",
-                                         "root_path": str(app)})
+    project = call(
+        "POST", "/projects", {"name": f"eval-{twin_name}-{int(started)}", "root_path": str(app)}
+    )
     pid = project["id"]
 
-    scan = call("POST", f"/projects/{pid}/scans",
-                {"targets": [str(scan_root)], "scanners": ["code"], "run_risk": True})
+    scan = call(
+        "POST",
+        f"/projects/{pid}/scans",
+        {"targets": [str(scan_root)], "scanners": ["code"], "run_risk": True},
+    )
     # 202: the route dispatches to the job runner and returns immediately with status "running",
     # nesting the scan under "scan". Reading assets straight off this response yields an empty
     # inventory and a migration plan over nothing -- which is exactly how the first run of this
@@ -269,15 +294,47 @@ def run_twin(twin_name: str) -> dict[str, Any]:
     sid = (scan.get("scan") or scan).get("id") or scan.get("scan_id")
     wait_for_scan(sid)
     assets = call("GET", f"/scans/{sid}/assets")
-    asset_rows = assets if isinstance(assets, list) else assets.get("items", assets.get("assets", []))
+    asset_rows = (
+        assets if isinstance(assets, list) else assets.get("items", assets.get("assets", []))
+    )
 
-    plan = call("POST", "/migrate/plans", {"scan_id": sid, "force": True})
+    # Use the plan the SCAN produced, and build one only if there is none.
+    #
+    # The scan job builds a plan itself, so posting another creates a second plan over the same
+    # scan — and `build_plan` will not hand the same asset to two plans. Whichever plan is built
+    # second therefore gets whatever the first did not claim, which on a fast twin is nothing:
+    #
+    #   paymesh-gateway   plan A: 17 tasks    plan B (mine): 0 tasks
+    #
+    # `POST /plans/{id}/run` on the empty one then returns
+    # `409 This plan has no ready tasks — every finding is already migrated or parked`, which is
+    # true of that plan and reads as if the findings had been handled. The whole twin produced
+    # nothing, and the message pointed away from the cause.
+    plans = call("GET", "/migrate/plans")
+    plans = plans if isinstance(plans, list) else plans.get("items", [])
+    mine = [p for p in plans if str(p.get("scan_id")) == str(sid)]
+    if mine:
+        # Newest, and the one that actually holds tasks: a duplicate left by an earlier attempt
+        # would otherwise be picked purely for being newer.
+        with_tasks = [p for p in mine if (p.get("stats") or {}).get("tasks")]
+        plan = max(with_tasks or mine, key=lambda p: p["created_at"])
+    else:
+        plan = call("POST", "/migrate/plans", {"scan_id": sid, "force": True})
     plan_id = plan.get("id") or plan.get("plan_id")
+    task_count = (plan.get("stats") or {}).get("tasks")
+    if not task_count:
+        raise RuntimeError(
+            f"plan {plan_id} has no tasks for a scan with {len(asset_rows)} assets — "
+            f"plan stats: {plan.get('stats')}"
+        )
 
     # The whole migration, in the one call the "Run plan" button makes.
     run_started = time.time()
-    call("POST", f"/migrate/plans/{plan_id}/run",
-         {"apply": True, "generate": True, "generator": "auto"})
+    call(
+        "POST",
+        f"/migrate/plans/{plan_id}/run",
+        {"apply": True, "generate": True, "generator": "auto"},
+    )
     # This route ALSO dispatches to the job runner, so the POST returns in milliseconds with every
     # task still `ready`. Reading the queue here reports a migration that did nothing -- the first
     # run of this harness recorded exactly that, as `run_seconds: 0.0` over 20 untouched tasks.
@@ -304,7 +361,7 @@ def run_twin(twin_name: str) -> dict[str, Any]:
             # tally for every run, so the evidence-ladder table was blank while the ladder was
             # working perfectly well. A harness that reports nothing looks exactly like a gate that
             # never ran, which is the confusion this whole project exists to remove.
-            stages = ((patch.get("validation") or {}).get("stages") or {})
+            stages = (patch.get("validation") or {}).get("stages") or {}
             for name, stage in stages.items():
                 status = (stage or {}).get("status") or "?"
                 stage_tally.setdefault(name, {}).setdefault(status, 0)
@@ -316,7 +373,7 @@ def run_twin(twin_name: str) -> dict[str, Any]:
         rel = (task.get("file_path") or "").replace("\\", "/")
         app_posix = app.as_posix().rstrip("/") + "/"
         if rel.startswith(app_posix):
-            rel = rel[len(app_posix):]
+            rel = rel[len(app_posix) :]
         line = task.get("line")
         # The finding's own line is the honest test of "was this finding acted on". A patch that
         # rewrote a different part of the file has not migrated THIS asset.
@@ -371,9 +428,23 @@ def run_suite(twin: Any, app: Path) -> dict[str, Any]:
     # migration that was in fact clean. A harness that can report a failure the tool did not cause
     # is worse than one that reports nothing.
     proc = subprocess.run(
-        ["docker", "run", "--rm", "--network=none", "-v", f"{app}:/work", "-w", "/work",
-         twin.sandbox_image, "sh", "-c", twin.test_command_in_sandbox],
-        capture_output=True, text=True, timeout=1800,
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network=none",
+            "-v",
+            f"{app}:/work",
+            "-w",
+            "/work",
+            twin.sandbox_image,
+            "sh",
+            "-c",
+            twin.test_command_in_sandbox,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=1800,
         env={**os.environ, "MSYS_NO_PATHCONV": "1"},
     )
     tail = (proc.stdout + proc.stderr).strip().splitlines()
@@ -402,9 +473,11 @@ def main() -> int:
 
     if not app_is_up():
         print("The desktop app is not answering on", API, file=sys.stderr)
-        print("Launch qubit-desktop.exe first; this harness deliberately refuses to start its own\n"
-              "engine, because a side engine would not be evidence about the shipped app.",
-              file=sys.stderr)
+        print(
+            "Launch qubit-desktop.exe first; this harness deliberately refuses to start its own\n"
+            "engine, because a side engine would not be evidence about the shipped app.",
+            file=sys.stderr,
+        )
         return 2
 
     results = []
@@ -417,14 +490,16 @@ def main() -> int:
             results.append({"twin": name, "error": str(exc)})
             continue
         s = result["score"]
-        print(f"  tasks={result['tasks']} in {result['run_seconds']}s  "
-              f"correct={len(s['correct'])} "
-              f"false_migrations={len(s['false_migrations'])} "
-              f"missed={len(s['expected_migrate_but_not_migrated'])} "
-              f"controls_hit={len(s['controls_wrongly_migrated'])} "
-              f"unmapped={s['unmapped_outcomes']}  "
-              f"suite_after={'green' if result['suite_after_migration']['green'] else 'RED'}",
-              flush=True)
+        print(
+            f"  tasks={result['tasks']} in {result['run_seconds']}s  "
+            f"correct={len(s['correct'])} "
+            f"false_migrations={len(s['false_migrations'])} "
+            f"missed={len(s['expected_migrate_but_not_migrated'])} "
+            f"controls_hit={len(s['controls_wrongly_migrated'])} "
+            f"unmapped={s['unmapped_outcomes']}  "
+            f"suite_after={'green' if result['suite_after_migration']['green'] else 'RED'}",
+            flush=True,
+        )
         results.append(result)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

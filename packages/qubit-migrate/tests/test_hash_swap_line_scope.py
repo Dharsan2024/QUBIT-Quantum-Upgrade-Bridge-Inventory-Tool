@@ -17,7 +17,6 @@ imports `crypto/sha1` without calling it does not compile, and neither does one 
 from __future__ import annotations
 
 import pytest
-
 from qubit_migrate.transform.codemods import _apply_hash_swap
 
 RUBY_TWO_SITES = """\
@@ -143,4 +142,3 @@ def test_import_classification(token, expected):
     from qubit_migrate.transform.codemods import _is_import_swap
 
     assert _is_import_swap(token) is expected
-

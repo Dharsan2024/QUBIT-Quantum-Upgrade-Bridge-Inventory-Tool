@@ -182,9 +182,7 @@ def run_tests(twin: Twin, app: Path) -> dict[str, Any]:
         cwd = app
 
     # argv comes from the TWINS table above — a fixed literal in this file, never from a caller.
-    proc = subprocess.run(  # noqa: S603
-        argv, cwd=cwd, capture_output=True, text=True, timeout=1800
-    )
+    proc = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=1800)
     out = proc.stdout + proc.stderr
 
     # Each ecosystem announces its result differently; take the last line that looks like one.
@@ -354,8 +352,12 @@ def _symbol_ranges(app: Path, rel: str) -> dict[str, tuple[int, int]]:
     """
     suffix = Path(rel).suffix.lower()
     language = {
-        ".py": "python", ".rb": "ruby", ".go": "go", ".java": "java",
-        ".js": "javascript", ".ts": "typescript",
+        ".py": "python",
+        ".rb": "ruby",
+        ".go": "go",
+        ".java": "java",
+        ".js": "javascript",
+        ".ts": "typescript",
     }.get(suffix)
     if language is None:
         return {}
@@ -447,9 +449,23 @@ def score(app: Path, outcomes: list[dict[str, Any]], truth: dict[str, Any]) -> d
                     finding_id = entry["id"]
                     break
 
-        # `applied` is what actually happened to the repository; everything else is a refusal in
-        # one form or another (guard, failing gate, no codemod).
-        acted = "migrated" if outcome.get("applied") else "not-migrated"
+        # `applied` is what actually happened to the repository. Everything else splits in two,
+        # and collapsing that split is what let a false migration hide through two full campaigns.
+        #
+        # A finding the run never SETTLED -- still generating, or parked unresolved when the retry
+        # budget ran out -- also did not reach disk, so under the old two-valued `acted` it scored
+        # exactly like a finding the checker deliberately declined. For a `refuse` finding that
+        # meant full credit for reasoning the tool never performed, and a campaign that stalled
+        # read as a campaign that reasoned well. Measured: paymesh-gateway scored a perfect
+        # 0 false migrations in one round on a run that never finished three of its tasks, one of
+        # which was the false migration the next round exposed the moment it settled it.
+        resolution = (outcome.get("outcome") or "").lower()
+        if outcome.get("applied"):
+            acted = "migrated"
+        elif any(k in resolution for k in ("unresolved", "generating", "ready")) or not resolution:
+            acted = "unsettled"
+        else:
+            acted = "refused"
         rows.append(
             {
                 "file": rel,
@@ -473,6 +489,7 @@ def score(app: Path, outcomes: list[dict[str, Any]], truth: dict[str, Any]) -> d
     false_migration: list[str] = []
     not_migrated: list[str] = []
     control_touched: list[str] = []
+    never_settled: list[str] = []
 
     for entry in [*truth["findings"], *truth["negative_controls"]]:
         seen = verdicts.get(entry["id"])
@@ -484,7 +501,19 @@ def score(app: Path, outcomes: list[dict[str, Any]], truth: dict[str, Any]) -> d
             # A control that was migrated is a false positive on already-correct cryptography.
             (control_touched if migrated else correct).append(entry["id"])
         elif expected == "refuse":
-            (false_migration if migrated else correct).append(entry["id"])
+            if migrated:
+                false_migration.append(entry["id"])
+            elif "refused" in seen:
+                # The tool declined it and said why. This is the only thing that earns credit
+                # here: an observed refusal.
+                correct.append(entry["id"])
+            else:
+                # Every occurrence of this finding is unsettled, so nothing was ever observed
+                # about it. It did not reach disk, so the repository is unharmed -- but the run
+                # never demonstrated that the checker would decline it, and crediting it as
+                # `correct` is what made an unfinished campaign indistinguishable from a
+                # correct one. Reported in its own bucket instead.
+                never_settled.append(entry["id"])
         elif migrated:
             correct.append(entry["id"])
         else:
@@ -528,6 +557,11 @@ def score(app: Path, outcomes: list[dict[str, Any]], truth: dict[str, Any]) -> d
         "correct": sorted(correct),
         "false_migrations": sorted(false_migration),
         "expected_migrate_but_not_migrated": sorted(not_migrated),
+        #: `refuse` findings the run never settled. NOT counted as correct: nothing was observed
+        #: about them, and crediting an unobserved cell is how a stalled campaign scores like a
+        #: careful one. Read this beside `correct` -- a large number here means the headline is
+        #: resting on findings the run did not reach.
+        "refuse_expected_but_never_settled": sorted(never_settled),
         "controls_wrongly_migrated": sorted(control_touched),
         "auto_migratable": sorted(auto_migratable),
         "auto_migrated": sorted(auto_migrated),

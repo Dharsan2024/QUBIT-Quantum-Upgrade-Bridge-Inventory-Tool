@@ -14,7 +14,12 @@ import urllib.error
 
 import pytest
 from qubit_migrate.transform import llm
-from qubit_migrate.transform.llm import OllamaError, _generate, _openai_compatible_generate
+from qubit_migrate.transform.llm import (
+    GENERATION_SEED,
+    OllamaError,
+    _generate,
+    _openai_compatible_generate,
+)
 
 
 def test_generate_default_provider_calls_ollama(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -203,6 +208,28 @@ def test_openai_compatible_generate_sets_a_real_user_agent(
     agent = seen.get("User-agent") or seen.get("User-Agent") or ""
     assert agent.startswith("qubit-migrate/")
     assert "urllib" not in agent
+
+
+def test_the_external_call_pins_the_same_seed_the_local_engine_uses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`_ollama_generate_once` has always pinned `seed` alongside `temperature: 0` and is
+    genuinely reproducible; this path sent temperature alone. Hosted OpenAI-compatible backends
+    are widely documented as not bit-reproducible at temperature 0 without a seed, which is the
+    mechanism behind an ownership-correct finding generating a different patch — sometimes a
+    passing one, sometimes not — on two runs against an unchanged repository.
+    """
+    bodies: list[dict[str, object]] = []
+
+    def fake_urlopen(req, timeout: float):
+        bodies.append(json.loads(req.data))
+        return _FakeResponse({"choices": [{"message": {"content": "file"}}]})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    _openai_compatible_generate(
+        "prompt", model="m", base_url="https://api.example.com/v1", api_key="k"
+    )
+    assert bodies[0]["seed"] == GENERATION_SEED
 
 
 def test_reasoning_effort_is_dropped_and_retried_when_a_model_rejects_it(
@@ -959,3 +986,174 @@ def test_a_rejected_key_is_skipped_even_as_the_only_engine(monkeypatch: pytest.M
 
     assert tried == ["only", "local", "local"], tried
     llm._ENGINE_REFUSED.clear()
+
+
+def test_openai_compatible_generate_has_a_hard_wall_clock_watchdog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`urlopen(timeout=N)` alone does not bound a hosted call, and this function used to trust it.
+
+    `urlopen`'s `timeout` bounds each individual socket READ, not the call as a whole: a peer that
+    keeps the connection open and sends so much as a keep-alive byte before the deadline resets the
+    clock, and the read can block again indefinitely. `_ollama_generate` has documented this and
+    defended against it with a daemon-thread watchdog since it was written; this function called
+    `urlopen` directly with no such defense, so every HOSTED provider inherited exactly the gap the
+    Ollama path was built to close.
+
+    Measured live, through the desktop app: a MediVault migration task and a Paymesh one both sat
+    in `generating` for 15+ minutes with no docker container running and Ollama itself idle --
+    consistent with a hosted call wedged on a connection that never timed out on its own.
+
+    Simulated here as a mock that blocks well past `timeout` without ever raising
+    `socket.timeout`/`URLError` -- the shape a genuinely wedged connection takes, and the one
+    `urlopen`'s own `timeout=` argument cannot be trusted to catch.
+    """
+    import time
+
+    def wedged(req, timeout):
+        time.sleep(999)
+
+    monkeypatch.setattr("urllib.request.urlopen", wedged)
+
+    started = time.monotonic()
+    with pytest.raises(OllamaError, match="did not answer within"):
+        _openai_compatible_generate(
+            "x", model="m", base_url="https://example.invalid", api_key="k", timeout=1
+        )
+    elapsed = time.monotonic() - started
+
+    # The watchdog's own margin is `timeout + 15`; generous bounds here so the test is not flaky
+    # under load while still failing hard if the watchdog were removed (in which case this would
+    # hang for the full 999s and the test runner's own timeout would kill it instead).
+    assert elapsed < 30, f"the watchdog should fire at ~16s, took {elapsed:.1f}s"
+
+
+# --- Escalation past an engine that produced a REJECTED candidate -------------------------------
+#
+# The dispatcher used to step down the chain only on a transport failure, so a model that answered
+# confidently and wrongly was asked again on every repair attempt while the rest of the pool stayed
+# idle. `avoid` carries the repair loop's verdict into the routing decision.
+
+
+def _endpoint(model: str) -> llm.ExternalEndpoint:
+    return llm.ExternalEndpoint(
+        base_url=f"https://{model}.example.com/v1",
+        model=model,
+        api_key="k",
+        budget_tokens=8000,
+    )
+
+
+def test_local_escalates_into_the_pool_once_it_has_been_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A local model in `avoid` is not asked again while a pooled engine is available."""
+    calls: list[str] = []
+
+    def fake_ollama(prompt: str, **kwargs: object) -> str:
+        calls.append("ollama")
+        return "local answer"
+
+    def fake_external(prompt: str, **kwargs: object) -> str:
+        calls.append(str(kwargs["model"]))
+        return "pooled answer"
+
+    monkeypatch.setattr(llm, "_ollama_generate", fake_ollama)
+    monkeypatch.setattr(llm, "_openai_compatible_generate", fake_external)
+
+    ran: list[str] = []
+    result = _generate(
+        "prompt",
+        model="qwen2.5-coder:7b-instruct-q4_K_M",
+        backups=(_endpoint("gpt-oss-120b"),),
+        avoid={"qwen2.5-coder:7b-instruct-q4_K_M"},
+        on_engine=ran.append,
+    )
+
+    assert result == "pooled answer"
+    assert calls == ["gpt-oss-120b"], "the rejected local model must not be asked again"
+    assert ran == ["openai-compatible:gpt-oss-120b"]
+
+
+def test_local_is_still_used_when_nothing_has_been_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The escalation is conditional: an empty `avoid` leaves the cheapest-first order intact."""
+    calls: list[str] = []
+    monkeypatch.setattr(llm, "_ollama_generate", lambda *a, **k: calls.append("ollama") or "local")
+    monkeypatch.setattr(
+        llm,
+        "_openai_compatible_generate",
+        lambda *a, **k: pytest.fail("the pool must not be spent while local has not been tried"),
+    )
+
+    ran: list[str] = []
+    assert (
+        _generate(
+            "prompt",
+            model="local-model",
+            backups=(_endpoint("gpt-oss-120b"),),
+            on_engine=ran.append,
+        )
+        == "local"
+    )
+    assert calls == ["ollama"]
+    assert ran == ["local-model"]
+
+
+def test_external_chain_skips_an_engine_that_was_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """On the external route the same verdict moves the work to the next ranked engine."""
+    calls: list[str] = []
+
+    def fake_external(prompt: str, **kwargs: object) -> str:
+        calls.append(str(kwargs["model"]))
+        return f"answer from {kwargs['model']}"
+
+    monkeypatch.setattr(llm, "_openai_compatible_generate", fake_external)
+    monkeypatch.setattr(
+        llm, "_ollama_generate", lambda *a, **k: pytest.fail("a pooled engine could still answer")
+    )
+
+    result = _generate(
+        "prompt",
+        model="primary",
+        base_url="https://primary.example.com/v1",
+        provider="openai-compatible",
+        api_key="k",
+        backups=(_endpoint("second"),),
+        avoid={"openai-compatible:primary"},
+    )
+
+    assert result == "answer from second"
+    assert calls == ["second"]
+
+
+def test_every_engine_rejected_falls_back_to_trying_again_rather_than_failing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Escalation degrades, never stops: with the pool exhausted the best engine is re-asked."""
+    calls: list[str] = []
+
+    def fake_external(prompt: str, **kwargs: object) -> str:
+        calls.append(str(kwargs["model"]))
+        return "answer"
+
+    monkeypatch.setattr(llm, "_openai_compatible_generate", fake_external)
+    monkeypatch.setattr(
+        llm, "_ollama_generate", lambda *a, **k: pytest.fail("an external engine can still answer")
+    )
+
+    result = _generate(
+        "prompt",
+        model="primary",
+        base_url="https://primary.example.com/v1",
+        provider="openai-compatible",
+        api_key="k",
+        backups=(_endpoint("second"),),
+        avoid={"openai-compatible:primary", "openai-compatible:second"},
+    )
+
+    assert result == "answer"
+    assert calls == ["primary"], "the unfiltered walk restarts at the ranked primary"

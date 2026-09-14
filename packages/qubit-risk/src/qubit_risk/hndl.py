@@ -14,7 +14,6 @@ import functools
 from dataclasses import dataclass, field
 
 import numpy as np
-from scipy import stats
 
 from .config import RiskConfig
 from .timeline import TimelineCurve
@@ -22,8 +21,16 @@ from .timeline import TimelineCurve
 _GL_POINTS = 512
 
 
-def _shelf_dist(shelf_spec: dict) -> stats.rv_continuous:
-    """Return the frozen shelf-life distribution for a sensitivity class."""
+def _shelf_dist(shelf_spec: dict) -> "stats.rv_continuous":
+    """Return the frozen shelf-life distribution for a sensitivity class.
+
+    `scipy.stats` is imported here, not at module level -- its own __init__ eagerly pulls in
+    scipy.optimize -> scipy.sparse.linalg -> the arpack sparse-eigensolver DLL for functionality
+    this module never touches (only `lognorm`), and a module-level import forced that chain onto
+    anyone who merely imports `qubit_risk` (see the identical fix in `timeline/simulator.py`).
+    """
+    from scipy import stats
+
     if "fixed" in shelf_spec:
         # near-degenerate LogNormal so the integral machinery still applies
         return stats.lognorm(s=1e-6, scale=float(shelf_spec["fixed"]))
@@ -41,6 +48,8 @@ def _f_a_at(curve: TimelineCurve, years: np.ndarray) -> np.ndarray:
 def _get_integral_cache(
     fixed: float | None, mu_ln: float | None, sigma_ln: float | None
 ) -> tuple[float, float, float, np.ndarray, np.ndarray]:
+    from scipy import stats
+
     if fixed is not None:
         if fixed == 0.0:
             return 0.0, 0.0, 0.0, np.array([]), np.array([])

@@ -154,6 +154,7 @@ def test_every_weakness_carries_an_authority_and_a_remedy() -> None:
     """A finding without a source is an opinion, and a finding without a remedy is a complaint."""
     cases = [
         {"algorithm": "AES", "family": "AES", "usage_context": "e", "extra": {"mode": "ECB"}},
+        {"algorithm": "AES", "family": "AES", "usage_context": "e", "extra": {"mode": "CBC"}},
         {
             "algorithm": "RSA-2048",
             "family": "RSA",
@@ -218,3 +219,53 @@ def test_a_verified_jwt_produces_no_weakness() -> None:
         ids(algorithm="RS256", family="RSA", usage_context="token", extra={"jwt_verification": ""})
         == []
     )
+
+
+def test_cbc_mode_without_a_mac_is_a_weakness_of_a_sound_cipher() -> None:
+    """The CBC counterpart to `test_ecb_mode_is_a_weakness_of_a_sound_cipher`. Unauthenticated
+    CBC provides no integrity -- ciphertext can be truncated, reordered or bit-flipped
+    undetected -- and AES-256 in CBC is otherwise a sound cipher, differing from the ECB case
+    in no field the registry reads."""
+    assert ids(
+        algorithm="AES-256",
+        family="AES",
+        key_size=256,
+        usage_context="encryption-at-rest",
+        extra={"mode": "CBC"},
+    ) == ["cbc-unauthenticated"]
+
+
+def test_cbc_and_ecb_are_mutually_exclusive() -> None:
+    """A call is in exactly one mode; the two weaknesses must never both fire on one asset."""
+    assert ids(
+        algorithm="AES-256", family="AES", key_size=256,
+        usage_context="encryption-at-rest", extra={"mode": "ECB"},
+    ) == ["ecb-mode"]
+    assert ids(
+        algorithm="AES-256", family="AES", key_size=256,
+        usage_context="encryption-at-rest", extra={"mode": "CBC"},
+    ) == ["cbc-unauthenticated"]
+
+
+def test_aead_modes_are_not_flagged_as_unauthenticated_cbc() -> None:
+    for mode in ("GCM", "CCM", "OCB", "GCM-SIV", "CTR"):
+        assert (
+            ids(
+                algorithm="AES-256",
+                family="AES",
+                key_size=256,
+                usage_context="encryption-at-rest",
+                extra={"mode": mode},
+            )
+            == []
+        ), mode
+
+
+def test_rsa_is_never_flagged_cbc_unauthenticated() -> None:
+    """RSA is not a block cipher in the sense this weakness cares about; the family gate must
+    exclude it regardless of anything a scanner might put in `extra["mode"]`."""
+    found = ids(
+        algorithm="RSA-3072", family="RSA", key_size=3072,
+        usage_context="signature", extra={"mode": "CBC"},
+    )
+    assert "cbc-unauthenticated" not in found

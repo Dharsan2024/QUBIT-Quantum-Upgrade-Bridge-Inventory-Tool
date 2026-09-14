@@ -12,7 +12,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from scipy import stats
 
 from ..config import RiskConfig, load_config
 from . import surface_code as sc
@@ -40,6 +39,17 @@ def _sample(dist: dict, size: int, rng: np.random.Generator) -> np.ndarray:
     if kind == "uniform":
         return rng.uniform(dist["low"], dist["high"], size)
     if kind == "truncnorm":
+        # Imported here, not at module level: `scipy.stats`'s own __init__ eagerly pulls in
+        # scipy.optimize -> scipy.sparse.linalg -> the arpack sparse-eigensolver DLL, a heavy
+        # native dependency chain this module needs for exactly one univariate distribution draw.
+        # A module-level import forced that chain to load for anyone who merely imports
+        # `qubit_risk` (its top-level __init__ re-exports this module), including tests with
+        # nothing to do with timeline simulation -- measured to be the trigger for an
+        # intermittent `ImportError: DLL load failed ... paging file is too small` under Windows
+        # memory pressure in `qubit_risk/tests/test_regressor.py`, which imports only the
+        # unrelated regressor submodule.
+        from scipy import stats
+
         a = (dist["low"] - dist["mu"]) / dist["sigma"]
         b = (dist["high"] - dist["mu"]) / dist["sigma"]
         return stats.truncnorm.rvs(

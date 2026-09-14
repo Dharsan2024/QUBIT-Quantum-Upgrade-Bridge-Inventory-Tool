@@ -82,7 +82,8 @@ RULE = SimpleNamespace(
 
 
 def _install(monkeypatch, result: StageResult) -> None:
-    """Make `_stage_rescan` return exactly `result`, so the test is about the flag, not the scanner."""
+    """Make `_stage_rescan` return exactly `result`, so the test is about the flag, not the
+    scanner."""
     import qubit_migrate.transform.validate as validate
 
     monkeypatch.setattr(validate, "_stage_rescan", lambda *a, **k: result)
@@ -92,8 +93,12 @@ class TestVacuousPasses:
     def test_a_vacuous_pass_is_flagged_on_the_closure(self, orchestrator, asset, monkeypatch):
         _install(
             monkeypatch,
-            StageResult("pass", "rescan ok, but the 'gone' criterion does not name 'AES-128'",
-                        0.0, vacuous=True),
+            StageResult(
+                "pass",
+                "rescan ok, but the 'gone' criterion does not name 'AES-128'",
+                0.0,
+                vacuous=True,
+            ),
         )
         verify = orchestrator._rescan_verifier(RULE, asset, "lib/inkwell/crypto/internal.rb")
         assert verify is not None
@@ -133,8 +138,13 @@ class TestVacuousPasses:
     def test_a_failing_rescan_is_never_satisfied(self, orchestrator, asset, monkeypatch):
         _install(
             monkeypatch,
-            StageResult("fail", "Expected 'AES-128' gone, but still found", 0.0,
-                        expectation="gone", expected="AES-128"),
+            StageResult(
+                "fail",
+                "Expected 'AES-128' gone, but still found",
+                0.0,
+                expectation="gone",
+                expected="AES-128",
+            ),
         )
         already = orchestrator._rescan_verifier(RULE, asset, "lib/inkwell/crypto/internal.rb")
 
@@ -142,7 +152,8 @@ class TestVacuousPasses:
         assert (already("src") is None and not already.last_vacuous) is False
 
     def test_last_vacuous_defaults_to_false_before_any_call(self, orchestrator, asset, monkeypatch):
-        """A probe that throws must not leave the attribute unset and read as non-vacuous by luck."""
+        """A probe that throws must not leave the attribute unset and read as non-vacuous by
+        luck."""
         _install(monkeypatch, StageResult("pass", "rescan ok", 0.0))
         verify = orchestrator._rescan_verifier(RULE, asset, "lib/inkwell/crypto/internal.rb")
         assert verify.last_vacuous is False

@@ -75,8 +75,14 @@ _TOML_PIN_RE = re.compile(
 
 
 def _floor_for(name: str) -> str | None:
-    """The PQC-capable floor for a package, or None if we have no verified one."""
-    return _MIN_PQC_VERSIONS.get(name.strip().lower().replace("_", "-"))
+    """The PQC-capable floor for a package, or None if we have no verified one.
+
+    Keyed on the last colon-delimited segment so Maven's `groupId:artifactId` form resolves to the
+    same entry as the bare artifact id — see `rules._library_key`, which is the matching half of
+    this and documents the measured cost of the two disagreeing.
+    """
+    key = name.rsplit(":", 1)[-1].strip().lower().replace("_", "-")
+    return _MIN_PQC_VERSIONS.get(key)
 
 
 def _below_floor(current: str, floor: str) -> bool:
@@ -181,6 +187,140 @@ def _apply_dependency_bump(source: str, filename: str) -> tuple[str, bool]:
     if name.endswith((".csproj", ".vbproj", ".fsproj")):
         return _bump_nuget(source)
     return source, False
+
+
+# ---------------------------------------------------------------------------
+# Adding a PQC provider (manifests whose ecosystem has no in-library upgrade path)
+# ---------------------------------------------------------------------------
+# `bump_crypto_dependency` raises a floor, which only works where the SAME library gained PQC in a
+# later release (pyca/cryptography, BouncyCastle). In npm, Cargo, Composer and RubyGems there is no
+# such release: post-quantum support lives in a DIFFERENT package. A floor bump cannot express "add
+# a dependency", so those ecosystems had no rule at all and every finding in them was reported as
+# manual work — the largest single block of "no migration rule" on the 21-app demo corpus.
+#
+# Like `dep-pqc-01` this is a PREREQUISITE patch, not a migration on its own: it makes the PQC
+# primitives importable so the structural code rewrite has something to call. The rule says so.
+#
+# Every package and version below was verified against that ecosystem's own registry API at
+# authoring time rather than recalled — npm registry, crates.io and Packagist.
+#
+# ADOPTION IS PART OF THE BAR, not just existence. This tool tells people what to put in their
+# cryptographic dependency path, so an obscure package here is worse than no rule: it converts an
+# honest "no automated fix" into confident, automated bad advice, and the operator has no way to
+# know the difference. Each entry below was checked for real-world usage at authoring time, and
+# three candidates were REJECTED on that basis rather than included to raise a coverage number:
+#
+#   * RubyGems `ml_kem` — 836 downloads in total.
+#   * pub.dev `mlkem_native` — 107 downloads/30d, 0 likes; `custom_post_quantum` — 45/30d.
+#   * SwiftPM — no PQC provider established at all; `swift-crypto` 4.5.1 ships none.
+#
+# Ruby, Dart and Swift findings therefore stay on the guidance path, which says truthfully that no
+# vetted provider exists yet, rather than being handed a dependency nobody has vetted.
+_PQC_PROVIDERS: dict[str, tuple[str, str]] = {
+    # manifest filename (lowercased) -> (package, version constraint)
+    # npm 0.7.0, audited, ~346k downloads/week.
+    "package.json": ("@noble/post-quantum", "^0.7.0"),
+    # RustCrypto, crates.io 0.3.2, ~3.6M downloads/90d. Not independently audited — noted in the
+    # rule's semantic_note so the operator reviewing the patch is told.
+    "cargo.toml": ("ml-kem", "0.3.2"),
+    # Packagist v0.3.2. Adoption is modest (~1.3k/month), included because Paragon Initiative
+    # Enterprises is an established security vendor and this is the reference pure-PHP FIPS
+    # 203/204/205 implementation — there is no better-adopted alternative in the ecosystem.
+    "composer.json": ("paragonie/pqcrypto_compat", "^0.3.2"),
+}
+
+#: The `go` directive floor whose stdlib carries ML-KEM. Go is its own case: PQC arrived IN the
+#: standard library (`crypto/mlkem`, Go 1.24), so the transform is neither a package add nor a
+#: library floor but a LANGUAGE version bump. `crypto/mldsa` followed in 1.27; 1.24 is used here
+#: because it is what the KEM target needs, and demanding 1.27 for a key-exchange finding would
+#: force a toolchain upgrade this migration does not require.
+_GO_MLKEM_FLOOR = (1, 24)
+_GO_DIRECTIVE_RE = re.compile(
+    r"^(?P<indent>[ \t]*)go[ \t]+(?P<ver>\d+\.\d+(?:\.\d+)?)[ \t]*$", re.M
+)
+
+
+def _json_dep_insert(source: str, block: str, name: str, version: str) -> tuple[str, bool]:
+    """Insert `"name": "version"` as the first entry of a JSON manifest's dependency object.
+
+    Textual rather than `json.loads` + `json.dumps`: re-serialising reformats the whole file and
+    produces a diff nobody can review. Inserting FIRST means the new entry always carries a
+    trailing comma, which is valid whenever an entry follows; an empty object is handled separately
+    because there the comma would be a syntax error.
+    """
+    if f'"{name}"' in source:
+        return source, False  # already declared — idempotent
+    m = re.search(rf'"{re.escape(block)}"\s*:\s*\{{', source)
+    if m is None:
+        return source, False
+    brace = m.end() - 1
+    close = source.find("}", brace)
+    if close == -1:
+        return source, False
+    body = source[brace + 1 : close]
+    existing = re.search(r"\n(?P<indent>[ \t]+)\S", body)
+    indent = existing.group("indent") if existing else "    "
+    entry = f'"{name}": "{version}"'
+    injected = f"\n{indent}{entry}," if body.strip() else f"\n{indent}{entry}\n"
+    return source[: brace + 1] + injected + source[brace + 1 :], True
+
+
+def _add_cargo_dependency(source: str, name: str, version: str) -> tuple[str, bool]:
+    """Append to Cargo.toml's `[dependencies]` table, before the next section header."""
+    if re.search(rf"^[ \t]*{re.escape(name)}[ \t]*=", source, re.M):
+        return source, False
+    m = re.search(r"^\[dependencies\][ \t]*$", source, re.M)
+    if m is None:
+        return source, False
+    rest = source[m.end() :]
+    nxt = re.search(r"^\[", rest, re.M)
+    cut = m.end() + (nxt.start() if nxt else len(rest))
+    head, tail = source[:cut], source[cut:]
+    # Preserve the blank line that separated this table from the next section. Appending after it
+    # instead leaves the new pin abutting `[dev-dependencies]` — valid TOML, but it reads as a
+    # mistake in the diff a reviewer has to approve.
+    head = head.rstrip("\n") + "\n"
+    entry = f'{name} = "{version}"  # QUBIT: FIPS-203 ML-KEM provider\n'
+    separator = "\n" if tail.strip() else ""
+    return head + entry + separator + tail.lstrip("\n"), True
+
+
+def _bump_go_directive(source: str) -> tuple[str, bool]:
+    """Raise go.mod's `go` directive to the release whose stdlib carries `crypto/mlkem`."""
+    m = _GO_DIRECTIVE_RE.search(source)
+    if m is None:
+        return source, False
+    current = tuple(int(p) for p in m.group("ver").split(".")[:2])
+    if current >= _GO_MLKEM_FLOOR:
+        return source, False  # already at or past the floor
+    floor = ".".join(str(p) for p in _GO_MLKEM_FLOOR)
+    line = f"{m.group('indent')}go {floor}  // QUBIT: stdlib crypto/mlkem needs Go {floor}+"
+    return source[: m.start()] + line + source[m.end() :], True
+
+
+def _apply_add_pqc_dependency(source: str, filename: str) -> tuple[str, bool]:
+    """Make PQC primitives importable in a manifest whose ecosystem needs a new package.
+
+    npm, Composer, Cargo and Go are handled here because their edits are one-liners with
+    ecosystem-specific quirks already solved above. Everything else — Maven, Gradle, sbt, NuGet,
+    SwiftPM, pip — lives in `dependency_codemods`, which reads the same verified playbook the
+    guided paths quote.
+    """
+    name = filename.lower()
+    if name == "go.mod":
+        return _bump_go_directive(source)
+    provider = _PQC_PROVIDERS.get(name)
+    if provider is not None:
+        pkg, version = provider
+        if name == "package.json":
+            return _json_dep_insert(source, "dependencies", pkg, version)
+        if name == "composer.json":
+            return _json_dep_insert(source, "require", pkg, version)
+        if name == "cargo.toml":
+            return _add_cargo_dependency(source, pkg, version)
+    from .dependency_codemods import add_dependency_for_manifest
+
+    return add_dependency_for_manifest(source, filename)
 
 
 # ---------------------------------------------------------------------------
@@ -456,23 +596,129 @@ HASH_SWAP_DEPENDENCY_NOTES: dict[str, str] = {
 }
 
 
-def _apply_hash_swap(source: str, language: str) -> tuple[str, bool]:
+def _is_import_swap(pattern: str | re.Pattern[str]) -> bool:
+    """Does this swap rewrite a module/package reference rather than a call site?
+
+    Import swaps have to be treated separately from usage swaps, because they are the one kind
+    whose correct scope is the whole file: Go will not compile a file that imports `crypto/sha1`
+    and never calls it, so rewriting a `sha1.New()` on one line while leaving the import alone
+    produces a patch that fails `compiles` -- and rewriting the import while another line still
+    calls `sha1.Sum` produces one that fails just as hard in the other direction.
+    """
+    text = pattern if isinstance(pattern, str) else pattern.pattern
+    lowered = text.lower()
+    return (
+        lowered.startswith(('"crypto/', "'crypto/", '"golang.org/', "require(", "require '"))
+        or lowered.startswith(("import ", "from ", "use ", "#include"))
+        or ("/" in text and text.startswith(('"', "'")))
+    )
+
+
+def _apply_hash_swap(source: str, language: str, only_line: int | None = None) -> tuple[str, bool]:
     """Replace weak-hash constructors with SHA-256 for a non-Python language.
 
     Returns ``(new_source, changed)``. ``changed`` is False when the language has no table *or* when
     nothing matched — the caller turns that into "no patch" rather than an empty diff, which is what
     stops a rule from reporting success on a file it never touched.
+
+    **Scoped to ``only_line`` when one is given.** This function used to rewrite every match in the
+    file, which the registry entry has described as a "line-scoped token swap" since long before it
+    was one. A task owns exactly ONE finding, and the other occurrences of the same algorithm in the
+    same file are other tasks with their own dispositions — several of which are deliberate
+    refusals. Measured on the Ruby twin, through the desktop app: one patch rewrote all five SHA-1
+    call sites in `crypto/documents.rb`, four of which the manifest marks REFUSE (a persisted
+    content address, the digest signatures commit to, a certificate thumbprint owned by a CA, and a
+    de-duplication key). Every syntactic gate passed it, and the twin's own suite went red.
+
+    Imports are the exception and are handled file-wide, because their correct scope genuinely is
+    the file — see `_is_import_swap`. An import is REPLACED only once the old module has no callers
+    left; while another line still uses it, the new module is added ALONGSIDE, so neither an unused
+    import nor a missing one can reach `compiles`.
     """
     swaps = _HASH_SWAPS.get(language, ())
     if not swaps:
         return source, False
-    new_source = source
-    for pattern, replacement in swaps:
-        if isinstance(pattern, str):
-            new_source = new_source.replace(pattern, replacement)
-        else:
-            new_source = pattern.sub(replacement, new_source)
-    return new_source, new_source != source
+
+    usage = tuple((p, r) for p, r in swaps if not _is_import_swap(p))
+    imports = tuple((p, r) for p, r in swaps if _is_import_swap(p))
+
+    def swap_all(text: str, table: tuple[_Swap, ...]) -> str:
+        for pattern, replacement in table:
+            if isinstance(pattern, str):
+                text = text.replace(pattern, replacement)
+            else:
+                text = pattern.sub(replacement, text)
+        return text
+
+    if only_line is None:
+        return (lambda out: (out, out != source))(swap_all(source, swaps))
+
+    lines = source.splitlines(keepends=True)
+    if not 1 <= only_line <= len(lines):
+        # A line outside the file means the caller's asset and the file on disk disagree. Swapping
+        # the whole file "just in case" is how a refusal turns into a migration, so do nothing.
+        return source, False
+
+    index = only_line - 1
+    rewritten = swap_all(lines[index], usage)
+    if rewritten == lines[index]:
+        return source, False
+    lines[index] = rewritten
+
+    # Now the imports, in the light of what the file still calls.
+    #
+    # Every decision below is made against the CURRENT `lines`, never against `source`. A file that
+    # imports both `crypto/md5` and `crypto/sha1` has two import swaps to make, and a run that
+    # decides each one against the original text replaces both with `crypto/sha256` -- so does a
+    # second task patching a file the first already migrated. Measured on sentinel-idp: three files
+    # came out with two and three `"crypto/sha256"` lines each, and the package did not build
+    # (`sha256 redeclared in this block`). Every syntactic gate except `compiles` passed them.
+    drop: set[int] = set()
+    for pattern, replacement in imports:
+        if not isinstance(pattern, str) or not any(pattern in ln for ln in lines):
+            continue
+        old_module = _module_alias(pattern)
+        new_module = _module_alias(replacement)
+        body = "".join(
+            ln for i, ln in enumerate(lines) if i not in drop and not _looks_like_import(ln)
+        )
+        still_used = bool(old_module) and f"{old_module}." in body
+        current = "".join(ln for i, ln in enumerate(lines) if i not in drop)
+        already_imported = replacement in current
+
+        for i, line in enumerate(lines):
+            if i in drop or pattern not in line:
+                continue
+            if still_used:
+                # Another call site keeps the old module alive, so it stays. Add the new one only
+                # if something actually calls it and it is not already there.
+                if new_module and f"{new_module}." not in current:
+                    continue
+                if not already_imported:
+                    lines[i] = line + line.replace(pattern, replacement)
+                    already_imported = True
+            elif already_imported:
+                # The old module has no callers left and the new one is already imported, so this
+                # line is now redundant. Rewriting it in place is what produced the duplicates.
+                drop.add(i)
+            else:
+                lines[i] = line.replace(pattern, replacement)
+                already_imported = True
+
+    out = "".join(ln for i, ln in enumerate(lines) if i not in drop)
+    return out, out != source
+
+
+def _module_alias(token: str) -> str:
+    """`"crypto/sha1"` -> `sha1`: the name a Go import is referred to by at its call sites."""
+    return token.strip("\"'").rsplit("/", 1)[-1] if "/" in token else ""
+
+
+def _looks_like_import(line: str) -> bool:
+    stripped = line.strip()
+    return stripped.startswith(("import ", "from ", "require ", "use ", "#include")) or (
+        stripped.startswith(('"', "'")) and "/" in stripped
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -487,6 +733,7 @@ _CODEMOD_REGISTRY: dict[str, str] = {
     "weakhash_to_sha256": "non-Python weak hash -> SHA-256 (line-scoped token swap)",
     "harden_tls_config": "nginx/Apache/OpenSSH -> hybrid-PQC, AEAD-only posture",
     "bump_crypto_dependency": "manifest pin -> a version that provides PQC primitives",
+    "add_pqc_dependency": "manifest -> declares a PQC provider (or raises go.mod's go directive)",
 }
 
 
@@ -522,9 +769,16 @@ def run_codemod(
         # Derived from the file extension when not supplied, so callers (the orchestrator) do not
         # need to know the language to run a codemod.
         lang = (language or _SUFFIX_TO_LANGUAGE.get(file_path.suffix.lower(), "")).lower()
-        new_source, changed = _apply_hash_swap(source, lang)
+        # The asset's own line, so this swap touches THIS finding and not its neighbours. The
+        # Python codemod has been scoped this way since `apply_weakhash_codemod` grew `only_line`;
+        # this path was still rewriting whole files.
+        new_source, changed = _apply_hash_swap(
+            source, lang, asset.location.line if asset.location else None
+        )
     elif codemod_name == "bump_crypto_dependency":
         new_source, changed = _apply_dependency_bump(source, file_path.name.lower())
+    elif codemod_name == "add_pqc_dependency":
+        new_source, changed = _apply_add_pqc_dependency(source, file_path.name.lower())
     else:  # pragma: no cover - registry and dispatch are kept in sync by test_codemod_registry
         return None
 

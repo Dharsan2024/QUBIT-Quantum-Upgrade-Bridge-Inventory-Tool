@@ -61,6 +61,16 @@ _TRANSITIONS: dict[str, dict[str, str]] = {
     "verifying": {
         "verify_pass": "verified",
         "verify_fail": "apply_failed",
+        # An interrupted verification is not a failed one, and it needed somewhere to go.
+        #
+        # `generating` has always been deferrable; `verifying` was not, so a run that died between
+        # applying a patch and finishing its verification left the task in a state with no way out.
+        # No later run selects `verifying` — it is neither `ready` nor `deferred` — so the work was
+        # stranded and the plan could never settle.
+        #
+        # Routing it through `verify_fail` instead would be the wrong record: it asserts the
+        # verification ran and rejected the patch, when in fact it never returned an answer.
+        "defer": "deferred",
     },
     "verified": {},  # terminal (no transitions out)
     "apply_failed": {"revert": "ready", "defer": "deferred"},

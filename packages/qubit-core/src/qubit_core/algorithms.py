@@ -893,6 +893,23 @@ for _b in _BARE_FAMILY.values():
 # as a 2048-bit one, which is worse than returning nothing.
 _SIZED_FAMILIES = {"rsa": "RSA", "aes": "AES", "dh": "DH", "dsa": "DSA", "camellia": "Camellia"}
 
+# Families whose canonical name embeds a CURVE rather than a bit length -- `ECDSA-P384`, not
+# `ECDSA-384`. That `P` is the only reason this is a second table instead of another entry in
+# `_SIZED_FAMILIES`, and omitting it was not harmless for exactly the reason the DH note above
+# gives: `resolve("ECDSA", 384)` skipped the sizing step, fell through to the alias table, and
+# returned **ECDSA-P256** -- every EC certificate reported as P-256 whatever curve it actually
+# used, a P-521 one included.
+#
+# Measured on NVIDIA's own agent-skill signing chain (`skill.oms.sig`, secp384r1 throughout): all
+# three certificates came back labelled `ECDSA-P256` beside a `key_size` of 384, which is the same
+# asset described two contradictory ways in one row. The Shor verdict was right either way, so this
+# is precision rather than a missed vulnerability -- but the curve drives the risk score and the
+# ML-DSA parameter set the migration targets, so a wrong curve is a wrong migration.
+#
+# For an EC key `key_size` IS the curve's prime size, so the mapping is direct. A curve outside the
+# canonical set (secp256k1, brainpool) finds no entry and falls through exactly as it does today.
+_CURVE_FAMILIES = {"ecdsa": "ECDSA", "ecdh": "ECDH"}
+
 # Block/stream cipher mode-of-operation suffixes used by OpenSSL and Node cipher strings. A mode
 # says nothing about quantum security, so it is stripped when resolving (see resolve() step 4).
 _CIPHER_MODES = frozenset(
@@ -1181,6 +1198,16 @@ def resolve(name: str, key_size: int | None = None) -> CanonicalAlgorithm | None
         sized = _BY_CANONICAL.get(f"{_SIZED_FAMILIES[key]}-{key_size}")
         if sized is not None:
             return sized
+
+    # 2b. bare EC family + the curve's prime size -> that specific curve. Separate from step 2
+    #     because the canonical spells the curve (`ECDSA-P384`), not the length. Guarded on
+    #     `key_size` so the curve-less signature-algorithm path (`ecdsa-with-SHA384`, resolved by
+    #     `_x509_signature_component` straight out of `_BARE_FAMILY`) keeps reporting a bare
+    #     family and never has a curve invented for it.
+    if key_size and key in _CURVE_FAMILIES:
+        curved = _BY_CANONICAL.get(f"{_CURVE_FAMILIES[key]}-P{key_size}")
+        if curved is not None:
+            return curved
 
     # 3. exact canonical / alias hit
     hit = _BY_KEY.get(key)

@@ -41,7 +41,7 @@ async function seedScan(): Promise<{ scanId: string; projectId: string; slug: st
     await fetch(`${API_BASE}/api/v1/projects/${projectId}/scans`, {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ targets: ['demo-lab/vulnapp-python'], run_risk: true }),
+      body: JSON.stringify({ targets: ['demo-lab/medivault-emr'], run_risk: true }),
     })
   ).json();
   const scanId = created.scan.id as string;

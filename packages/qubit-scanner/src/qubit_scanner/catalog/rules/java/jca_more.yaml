@@ -23,6 +23,9 @@ rules:
       # The transformation string is "AES/CBC/PKCS5Padding"; the registry resolves the leading
       # family and the mode/padding are evidence, not security-relevant to the quantum verdict.
       algorithm: { literal: AES }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -132,7 +135,9 @@ rules:
         - { capture: meth, equals: getInstance }
         - { capture: algo, regex: '^"Hmac' }
     extract:
-      algorithm: { literal: HMAC }
+      # `@algo` is already the full "HmacSHA256"-style literal, so the digest name is right there
+      # — see python/cryptography_more.yaml's PY-HMAC-NEW for why this must not be `{literal: HMAC}`.
+      algorithm: { from: algo, resolve: hmac-digest }
     asset: { asset_type: algorithm-use, usage_context: token }
     confidence: high
     examples:
@@ -159,6 +164,9 @@ rules:
         - { capture: algo, regex: '^"PBKDF2' }
     extract:
       algorithm: { literal: PBKDF2 }
+      prf:
+        from: call
+        resolve: kdf-prf
     asset: { asset_type: algorithm-use, usage_context: password }
     confidence: high
     examples:
@@ -190,12 +198,18 @@ rules:
         (method_invocation
           object: (identifier) @obj
           name: (identifier) @meth
-          arguments: (argument_list [(string_literal) (identifier)] @algo)) @call
+          arguments: (argument_list . [(string_literal) (identifier)] @algo)) @call
       where:
         - { capture: obj, equals: Cipher }
         - { capture: meth, equals: getInstance }
     extract:
       algorithm: { from: algo, resolve: jca-transformation }
+      mode:
+        from: call
+        resolve: cipher-mode
+      padding:
+        from: call
+        resolve: padding-scheme
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: medium
     examples:
@@ -218,7 +232,7 @@ rules:
         (method_invocation
           object: (identifier) @obj
           name: (identifier) @meth
-          arguments: (argument_list [(string_literal) (identifier)] @algo)) @call
+          arguments: (argument_list . [(string_literal) (identifier)] @algo)) @call
       where:
         - { capture: obj, equals: MessageDigest }
         - { capture: meth, equals: getInstance }
@@ -238,3 +252,30 @@ rules:
         - |
           import javax.crypto.Cipher;
           class A { void f() throws Exception { Cipher.getInstance("AES/GCM/NoPadding"); } }
+
+  # The PBKDF2 *parameters* live at a different call site from the PBKDF2 *algorithm*:
+  # `SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")` names the PRF, `new PBEKeySpec(pw, salt,
+  # 1000, 128)` decides whether it is usable. Only the second one can say the work factor is a
+  # 1990s number, which is why it needs a rule of its own rather than an extractor on the first.
+  - id: JAVA-JCA-PBEKEYSPEC
+    title: new PBEKeySpec(password, salt, iterations, keyLength)
+    match:
+      query: |
+        (object_creation_expression type: (type_identifier) @cls) @call
+      where:
+        - { capture: cls, in: [PBEKeySpec] }
+    extract:
+      algorithm: { literal: PBKDF2 }
+      iterations:
+        from: call
+        resolve: kdf-iterations
+    asset: { asset_type: algorithm-use, usage_context: password }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import javax.crypto.spec.PBEKeySpec;
+          class A { void f() { PBEKeySpec s = new PBEKeySpec(pw, salt, 1000, 128); } }
+      negative:
+        - |
+          class A { void f() { SecretKeySpec s = new SecretKeySpec(key, "AES"); } }

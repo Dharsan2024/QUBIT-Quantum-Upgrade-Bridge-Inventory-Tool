@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from qubit_core import row_to_asset
 from sqlalchemy.orm import Session
 
+from ..auth import get_current_tenant
 from ..deps import get_session
 from ..services import require_asset
 
@@ -48,6 +49,7 @@ def _family_from_algorithm(algorithm: str) -> str:
 def get_asset_recommendation(
     asset_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> AssetRecommendation:
     """Return the PQC migration recommendation for a single cryptographic asset (E1).
 
@@ -58,7 +60,7 @@ def get_asset_recommendation(
 
     Returns 404 if the asset is not found or not quantum-vulnerable (no action needed).
     """
-    row = require_asset(session, asset_id)
+    row = require_asset(session, asset_id, tenant_id)
     asset = row_to_asset(row)
 
     # Not vulnerable → no recommendation needed
@@ -83,6 +85,7 @@ def get_asset_recommendation(
     # it surfaces as a 500 rather than silently degrading to a lower-confidence recommendation.
     from qubit_migrate.agility import resolve_target
     from qubit_migrate.kb import lookup_kb
+    from qubit_migrate.regimes import is_hybrid
     from qubit_migrate.transform.rules import load_rules, match_rule
 
     # --- 1. Migration rule (highest confidence — a hand-authored, tested transform) ---
@@ -93,11 +96,36 @@ def get_asset_recommendation(
         lib_name = lib.get("name", "") if isinstance(lib, dict) else str(lib)
         lib_ver = lib.get("min_version", "") if isinstance(lib, dict) else ""
         pqc = tgt.get("pqc_target") or tgt.get("algorithm", "")
-        mode = "hybrid" if "hybrid" in pqc.lower() else "pure"
+        group = tgt.get("hybrid_group") or None
+        # The rule DECLARES its construction. Read it.
+        #
+        # This used to be `"hybrid" if "hybrid" in pqc.lower() else "pure"` — a substring search
+        # for the word "hybrid" in the target's NAME. No hybrid is named that way:
+        # `X25519MLKEM768` is the industry-standard hybrid and contains no such word, so 11 of the
+        # 24 rules — including every key-exchange rule, the harvest-now-decrypt-later case — were
+        # reported to the operator as `pure` while carrying `mode: hybrid` two keys away and a
+        # rationale that reads "Migrate to a HYBRID construction". The response contradicted
+        # itself.
+        #
+        # It also inverted the compliance answer, which is the part that does damage: a pure
+        # ML-KEM-768 is an ANSSI certified-track violation and a BSI advisory, while
+        # X25519MLKEM768 satisfies both.
+        #
+        # `is_hybrid` is the fallback rather than the primary because a rule that states its mode
+        # is authoritative about it; the structural check is for rules that omit it.
+        mode = tgt.get("mode") or ("hybrid" if is_hybrid(pqc, group, None) else "pure")
         return AssetRecommendation(
             asset_id=asset.id,
             current=current,
-            target={"algorithm": pqc, "mode": mode, "parameter_set": pqc},
+            # `hybrid_group` is carried through: "hybrid" alone does not tell an operator WHICH
+            # hybrid, and the regimes differ on exactly that — X25519MLKEM768 is approved by BSI
+            # and ANSSI and below grade for CNSA 2.0 and ASD.
+            target={
+                "algorithm": pqc,
+                "mode": mode,
+                "parameter_set": pqc,
+                **({"hybrid_group": group} if group else {}),
+            },
             library={"name": lib_name, "min_version": lib_ver},
             rationale=rule.semantic_note or f"Apply {rule.title}",
             source="rule",

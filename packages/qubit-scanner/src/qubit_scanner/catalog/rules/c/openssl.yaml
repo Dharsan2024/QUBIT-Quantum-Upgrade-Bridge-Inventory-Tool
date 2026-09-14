@@ -68,6 +68,12 @@ rules:
         - { capture: alg, regex: '^EVP_' }
     extract:
       algorithm: { from: alg, resolve: openssl-evp }
+      mode:
+        from: call
+        resolve: cipher-mode
+      padding:
+        from: call
+        resolve: padding-scheme
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -144,7 +150,9 @@ rules:
       where:
         - { capture: fn, in: [HMAC, HMAC_Init, HMAC_Init_ex] }
     extract:
-      algorithm: { literal: HMAC }
+      # See python/cryptography_more.yaml's PY-HMAC-NEW for why this reads the real digest
+      # (`HMAC(EVP_sha256(), ...)`) instead of hardcoding "HMAC" regardless of what was called.
+      algorithm: { from: call, resolve: hmac-digest }
     asset: { asset_type: algorithm-use, usage_context: token }
     confidence: high
     examples:
@@ -205,6 +213,12 @@ rules:
         - { capture: fn, in: [PKCS5_PBKDF2_HMAC, PKCS5_PBKDF2_HMAC_SHA1] }
     extract:
       algorithm: { literal: PBKDF2 }
+      iterations:
+        from: call
+        resolve: kdf-iterations
+      prf:
+        from: call
+        resolve: kdf-prf
     asset: { asset_type: algorithm-use, usage_context: password }
     confidence: high
     examples:
@@ -315,6 +329,9 @@ rules:
             ]
     extract:
       algorithm: { literal: RSA }
+      padding:
+        from: call
+        resolve: padding-scheme
     asset: { asset_type: algorithm-use, usage_context: kex }
     confidence: high
     examples:

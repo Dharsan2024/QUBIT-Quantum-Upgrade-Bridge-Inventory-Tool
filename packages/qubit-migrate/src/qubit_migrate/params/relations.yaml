@@ -1,0 +1,270 @@
+# Metamorphic relations — the `behaves` stage (evidence level L3)
+#
+# THE CONTRIBUTION. Metamorphic testing is established for testing a single
+# static cryptographic implementation for logic bugs and side-channel leaks. It
+# has never been used as the ACCEPTANCE ORACLE for an automated migration.
+# Confirmed unoccupied by two independent surveys.
+#
+# The move: treat the cryptographic primitive itself as the metamorphic
+# transformation variable. If a workflow authenticates a payload under ECDSA,
+# then transforming the source to ML-DSA must preserve the authentication
+# outcome — even though the intermediate bitstrings, buffer sizes, API
+# signatures and key material have all changed completely.
+#
+# Why this works where a test suite does not:
+#   * needs no project dependencies      — runs on the patched file alone
+#   * needs no coverage                  — available for EVERY finding
+#   * needs no maintainer test suite     — which is usually absent or unrelated
+#
+# Every relation has a POSITIVE and a NEGATIVE form. The negative is what makes
+# it an oracle rather than a smoke test: a rewrite that silently does nothing,
+# or accepts everything, passes the positive form and fails the negative one.
+
+version: "1.0.0-draft"
+
+# Selected by the rule's usage_context, which QUBIT already resolves when it
+# matches or synthesises the rule. No new inference is required.
+relations:
+
+  # ---------------------------------------------------------------------------
+  signature:
+    applies_to_usage: [signature, token, firmware_signature]
+    description: >
+      A signature scheme must verify what it signed, and must refuse everything
+      else. The negative relations are the ones that catch a no-op rewrite.
+    positive:
+      - id: sig-roundtrip
+        relation: "verify(pk, m, sign(sk, m)) == True"
+        rationale: "The primitive functions at all."
+    negative:
+      - id: sig-wrong-key
+        relation: "verify(pk2, m, sign(sk1, m)) == False"
+        rationale: >
+          Catches a rewrite that returns a constant, or a verify that ignores
+          its key argument. A migration that always verifies is worse than none.
+      - id: sig-tampered-message
+        relation: "verify(pk, m XOR bitflip, sign(sk, m)) == False"
+        rationale: "Catches a verify that ignores the message."
+      - id: sig-truncated
+        relation: "verify(pk, m, sign(sk, m)[:-1]) == False"
+        rationale: "Catches signature-length or parsing errors that fail open."
+    invariants:
+      - id: sig-size-class
+        relation: "len(sign(sk, m)) is within the declared range for the target parameter set"
+        rationale: >
+          ML-DSA signatures are far larger than ECDSA. A signature of classical
+          size after a claimed ML-DSA migration means the old path is still live.
+        note: "Advisory, not a gate — sizes vary by encoding."
+
+  # ---------------------------------------------------------------------------
+  kex:
+    applies_to_usage: [kex, key_agreement, key_transport]
+    description: >
+      A KEM must produce agreement between the two sides and disagreement
+      between mismatched sides.
+    positive:
+      - id: kem-agreement
+        relation: "ss_b == ss_a where (ct, ss_a) = encaps(pk); ss_b = decaps(sk, ct)"
+        rationale: "The shared secret actually agrees. This is the whole point of a KEM."
+    negative:
+      - id: kem-mismatched-keypair
+        relation: "decaps(sk2, ct_for_pk1) != ss_a"
+        rationale: >
+          Catches a rewrite that derives the secret from something other than
+          the encapsulation — e.g. a hard-coded value or a reused buffer.
+      - id: kem-corrupted-ciphertext
+        relation: "decaps(sk, ct XOR bitflip) != ss_a"
+        rationale: >
+          ML-KEM is designed to return a pseudorandom secret rather than an
+          error, so this asserts INEQUALITY, not an exception. Getting this
+          wrong is the easiest way to write a broken relation.
+    invariants:
+      - id: kem-secret-length
+        relation: "len(ss) == 32 for ML-KEM-768 and ML-KEM-1024"
+        rationale: "Cheap check that the target parameter set was actually used."
+
+  # ---------------------------------------------------------------------------
+  aead:
+    applies_to_usage: [aead, encryption, data_at_rest, data_in_transit]
+    description: >
+      Authenticated encryption must round-trip and must reject tampering. Note
+      this family is usually a GROVER problem, not Shor — see the guard below.
+    positive:
+      - id: aead-roundtrip
+        relation: "decrypt(k, encrypt(k, m, ad), ad) == m"
+        rationale: "Plaintext recovery."
+      - id: aead-nonce-uniqueness
+        relation: "encrypt(k, m, ad) twice under fresh nonces differs"
+        rationale: >
+          Catches an implementation that IGNORES its nonce argument — a stub, or
+          a rewrite backed by a deterministic mode. Completely invisible to
+          parse, symbol, compile and rescan, and invisible to the round trip
+          too, because the ciphertext still decrypts perfectly.
+
+          Positive rather than an invariant: it is deterministic and directly
+          falsifiable, so it must be able to FAIL the stage. Stated limit — this
+          exercises the primitive as the patch names it, so it catches an
+          implementation that ignores the nonce, NOT a constant nonce hardcoded
+          in the application's own call site. See the harness module docstring.
+    negative:
+      - id: aead-tampered-ciphertext
+        relation: "decrypt(k, ct XOR bitflip, ad) RAISES"
+        rationale: >
+          The authentication tag must be checked. A migration that drops tag
+          verification passes every syntactic gate and destroys the security
+          property — exactly the class of defect L2 cannot see.
+
+          Must RAISE, not merely return something different. Measured: an
+          implementation that decrypts with a bare CTR stream and slices the tag
+          off unread returns garbage for a flipped ciphertext, and "returns
+          something different" is satisfied by any stream cipher for free. The
+          weaker form recorded that broken implementation as correctly
+          rejecting. Every AEAD negative in this family therefore requires an
+          exception; the inequality form is reserved for ML-KEM, whose rejection
+          is genuinely implicit.
+      - id: aead-truncated-tag
+        relation: "decrypt(k, ct[:-1], ad) raises or returns None"
+        rationale: >
+          Distinct from a bitflip: a truncated tag tests that the tag LENGTH is
+          enforced, not merely that its bytes are compared. An implementation
+          that compares only the bytes it was given accepts a 1-byte tag.
+      - id: aead-tampered-aad
+        relation: "decrypt(k, ct, ad') raises or returns None  where ad' != ad"
+        rationale: >
+          Associated data must be bound. The harness uses two non-empty,
+          distinct AADs and never the None/b"" pair: measured against
+          `cryptography` 49.0.0, those two are interchangeable, so a relation
+          built on them cannot fail.
+      - id: aead-wrong-key
+        relation: "decrypt(k2, encrypt(k1, m, ad), ad) raises or returns None"
+        rationale: "Catches a key argument that is ignored."
+    invariants:
+      - id: aead-ciphertext-expansion
+        relation: "len(ct) - len(m) equals the target's tag length (16 for GCM)"
+        rationale: >
+          Advisory. An expansion of 0 means authentication was dropped entirely,
+          but a non-standard tag length is a design choice rather than a defect,
+          so this reports and never fails.
+
+  # ---------------------------------------------------------------------------
+  hash:
+    applies_to_usage: [hash, integrity, fingerprint]
+    description: >
+      Hashes are a GROVER problem answered by a longer digest, not a Shor
+      problem answered by a lattice scheme. These relations exist to check a
+      digest-length migration, NOT to justify migrating a hash to ML-DSA.
+    positive:
+      - id: hash-determinism
+        relation: "H(m) == H(m)"
+        rationale: "Trivial, but catches a rewrite that introduced state."
+      - id: hash-digest-length
+        relation: "len(H(m)) >= the declared digest size of the target"
+        rationale: >
+          MD5 -> SHA-384 must actually widen the digest, and a truncated one is
+          the defect that survives every other gate: it hashes, it is
+          deterministic, and the scanner reads SHA-384 straight out of the
+          source while the security is that of a 128-bit hash. Only the length
+          says otherwise.
+
+          The expected size is substituted into the fragment at build time and
+          the relation is DROPPED when the target's size is unknown, rather than
+          defaulting to a comparison that always holds.
+    negative:
+      - id: hash-distinct-inputs
+        relation: "H(m1) != H(m2) for m1 != m2"
+        rationale: >
+          Catches an implementation that ignores its input — a stub, or a
+          rewrite that hashes a constant. The harness uses a ONE-BYTE
+          difference deliberately: a rewrite that hashes only a prefix of its
+          input is caught by a near-identical pair and missed by two wildly
+          different ones.
+    guard: >
+      This family must never be used to license a lattice migration. If the
+      synthesiser declines a hash finding (it does), no relation here applies.
+
+  # ---------------------------------------------------------------------------
+  # Hybrid / composite targets — required by the policy engine.
+  composite_signature:
+    applies_to_usage: [signature, token]
+    applies_to_construction: [hybrid]
+    description: >
+      A composite signature must be valid under BOTH component algorithms, and
+      must fail if EITHER component is invalid. This is what makes it defence in
+      depth rather than two signatures in a trench coat.
+    positive:
+      - id: composite-roundtrip
+        relation: "verify_composite(pk_composite, m, sign_composite(sk_composite, m)) == True"
+        rationale: "Both components verify."
+    negative:
+      - id: composite-prefix-corrupted
+        relation: "verify_composite RAISES when a byte near the start of the signature is flipped"
+      - id: composite-suffix-corrupted
+        relation: "verify_composite RAISES when a byte near the end of the signature is flipped"
+    negative_rationale: >
+      Named for what the harness measures, not for what one would prefer to
+      measure. `cryptography` 49.0.0 ships no composite primitive — probed, the
+      `composite` and `compositemldsa` modules do not exist — so a hybrid patch
+      defines the construction itself and the wire format is the patch's own
+      choice. The harness therefore cannot address "the classical component" by
+      name.
+
+      Realised positionally instead. The two probes cover both halves in
+      whichever order the patch encoded them, and together they establish that
+      no contiguous region of the signature is ignored. If either passes while a
+      half is decorative, that half gives no protection: the classical one
+      against a PQC implementation flaw, the PQC one against a quantum
+      adversary. Those are the two reasons a regime requires hybrid at all.
+    note: >
+      Both negatives are mandatory for a hybrid patch to reach L3. A composite
+      that ignores either half is the most dangerous possible outcome of this
+      whole project, because it looks compliant and protects against nothing.
+
+# -----------------------------------------------------------------------------
+# VERIFIED API FACTS -- probed against cryptography 49.0.0 on 2026-09-02.
+#
+# Recorded because two of these are traps that would make the harness fail every
+# CORRECT patch, and neither is obvious from the relation notation above.
+#
+#   ML-DSA  mldsa.MLDSA{44,65,87}PrivateKey.generate()
+#           priv.sign(data) -> bytes            (3309 bytes for ML-DSA-65)
+#           priv.public_key().verify(sig, data) -> None, raises InvalidSignature
+#           NOTE: verify RAISES, it does not return False. A relation written as
+#           "verify(...) == False" is always false and would pass vacuously.
+#
+#   ML-KEM  mlkem.MLKEM{512,768,1024}PrivateKey.generate()
+#           pub.encapsulate() -> (SHARED_SECRET, CIPHERTEXT)   <-- SECRET FIRST
+#           TRAP: the intuitive order is (ct, ss) and it is WRONG. Binding it the
+#           intuitive way passes the 32-byte secret to decapsulate, which raises
+#           "Invalid ML-KEM-768 ciphertext" -- so every correct kex patch would
+#           fail the positive relation for a reason that has nothing to do with
+#           the patch. Measured: len(ss)=32, len(ct)=1088 for ML-KEM-768.
+#           priv.decapsulate(ct) -> shared secret
+#
+#   ML-KEM rejection semantics -- IMPLICIT, and the relation must allow both:
+#           wrong LENGTH  ciphertext -> raises ValueError
+#           wrong CONTENT ciphertext -> returns a DIFFERENT secret, no raise
+#           mismatched keypair       -> returns a DIFFERENT secret, no raise
+#           So kem-corrupted-ciphertext and kem-mismatched-keypair assert
+#           INEQUALITY, and accept an exception as an equally valid rejection.
+#
+# -----------------------------------------------------------------------------
+# Execution contract
+execution:
+  sandbox: "the existing validation container, --network=none"
+  target: "the patched file alone; the harness imports it and exercises the relations"
+  dependencies: "only the crypto library the target algorithm lives in"
+  timeout_seconds: 60
+  outcome:
+    all_positive_pass_and_all_negative_pass: "L3 achieved"
+    any_positive_fails: "fail — the primitive does not work"
+    any_negative_passes_when_it_should_fail: "fail — the rewrite is unsound; this is the important case"
+    harness_could_not_run: "skipped, with the reason; caps the level at L2"
+
+# -----------------------------------------------------------------------------
+# Honest limits, for the paper's threats-to-validity section.
+limits:
+  - "A relation tests the primitive as the patched file uses it, not the whole application's protocol."
+  - "It cannot detect a correct primitive wired into the wrong place in a larger flow — that needs L4 or L5."
+  - "Relations are generated from the usage context, so a mislabelled context yields the wrong oracle."
+  - "Nothing here addresses implementation security: constant-time behaviour, side channels, or memory safety. See 07-out-of-scope.md."
+  - "A published framework detected roughly half of injected faults with three relations and fifty test cases. Expect a similar ceiling: this raises confidence, it does not prove correctness."

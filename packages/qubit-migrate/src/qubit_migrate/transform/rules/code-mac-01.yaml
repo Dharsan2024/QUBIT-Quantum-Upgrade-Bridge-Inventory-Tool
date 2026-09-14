@@ -12,7 +12,9 @@ matches:
   # SHA-256 or SHA-1. HMAC-SHA1/MD5 name a broken one outright. HMAC-SHA-256/384/512 are already
   # quantum-safe and are deliberately NOT matched — there is nothing to migrate.
   algorithm: ["HMAC", "HMAC-SHA1", "HMAC-MD5", "CMAC", "GMAC"]
-  usage_context: ["token", "signature", "hash", "unknown"]
+  # `mac` was absent, so every finding the scanner labelled with its most accurate usage context
+  # — seven detection rules across the catalog emit it — matched no migration rule at all.
+  usage_context: ["mac", "token", "signature", "hash", "unknown"]
   library_name: [null]
 target:
   algorithm: HS256

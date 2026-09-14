@@ -48,7 +48,9 @@ rules:
         - { capture: pkg, equals: hmac }
         - { capture: fn, equals: New }
     extract:
-      algorithm: { literal: HMAC }
+      # See python/cryptography_more.yaml's PY-HMAC-NEW: reads the real digest
+      # (`hmac.New(sha256.New, key)`) instead of hardcoding "HMAC" regardless of what was called.
+      algorithm: { from: call, resolve: hmac-digest }
     asset: { asset_type: algorithm-use, usage_context: token }
     confidence: high
     examples:

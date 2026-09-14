@@ -174,18 +174,20 @@ fn spawn_api(root: &std::path::Path, port: u16) -> std::io::Result<Child> {
         port_str.as_str(),
     ];
 
-    // Prefer the venv's uvicorn directly: it removes the `uv run` resolution layer and two extra
-    // process hops, which measurably shortens cold start (the app previously took ~26s to bind vs
-    // ~3s warm). Fall back to `uv run` when there's no venv (fresh clone).
-    let venv_uvicorn = root.join(".venv").join("Scripts").join("uvicorn.exe");
-    let venv_uvicorn_nix = root.join(".venv").join("bin").join("uvicorn");
-    let mut cmd = if venv_uvicorn.is_file() {
-        let mut c = Command::new(venv_uvicorn);
-        c.args(args);
+    // Run the venv interpreter directly, not the Windows `uvicorn.exe` console-script wrapper.
+    // That wrapper starts a second Python process and then exits, so killing the `Child` stored by
+    // Tauri can leave the real API process listening after the desktop window closes. `python -m
+    // uvicorn` gives the app ownership of the actual server process and also avoids the `uv run`
+    // resolution layer on normal installs. Fall back to `uv run` for a fresh clone without a venv.
+    let venv_python = root.join(".venv").join("Scripts").join("python.exe");
+    let venv_python_nix = root.join(".venv").join("bin").join("python");
+    let mut cmd = if venv_python.is_file() {
+        let mut c = Command::new(venv_python);
+        c.arg("-m").arg("uvicorn").args(args);
         c
-    } else if venv_uvicorn_nix.is_file() {
-        let mut c = Command::new(venv_uvicorn_nix);
-        c.args(args);
+    } else if venv_python_nix.is_file() {
+        let mut c = Command::new(venv_python_nix);
+        c.arg("-m").arg("uvicorn").args(args);
         c
     } else {
         let mut c = Command::new("uv");
@@ -264,6 +266,95 @@ fn serve_ui_from_api(handle: tauri::AppHandle, port: u16) {
     });
 }
 
+/// Keep the API child alive for as long as the window is open.
+///
+/// The child was spawned once at setup and never looked at again. When uvicorn exited -- killed by
+/// something else on the machine, or dying on its own -- nothing noticed: the window stayed open
+/// showing whatever it had last loaded, and every request from then on failed with
+/// `Failed to fetch`. `BootGate` cannot help, because it only runs once before the app renders.
+/// Observed directly: `qubit-desktop.exe` running with no `uvicorn` process at all and nothing
+/// listening on the port, while the UI still displayed a populated dashboard.
+///
+/// Restarts are rate-limited rather than unbounded. A child that cannot bind its port, or dies on
+/// an unmigrated database, would otherwise be respawned forever, and a hot loop of failing starts
+/// is worse than an app that stops and says so -- the log is where the reason lives either way.
+fn supervise_api(handle: tauri::AppHandle, root: std::path::PathBuf, port: u16) {
+    std::thread::spawn(move || {
+        const MAX_RESTARTS: u32 = 5;
+        let mut restarts = 0u32;
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+
+            // `try_wait` reaps without blocking. Holding the lock only long enough to ask keeps
+            // window teardown -- which takes the same lock to kill the child -- from deadlocking
+            // against this thread.
+            let exited = {
+                let state = handle.state::<ApiProcess>();
+                let mut slot = match state.0.lock() {
+                    Ok(slot) => slot,
+                    Err(_) => return,
+                };
+                match slot.as_mut() {
+                    // Taken by the window-close handler: the app is going away, so stop watching.
+                    None => return,
+                    Some(child) => match child.try_wait() {
+                        Ok(Some(status)) => Some(status),
+                        Ok(None) => None,
+                        // The handle is unusable; another poll would report the same thing.
+                        Err(_) => return,
+                    },
+                }
+            };
+
+            let Some(status) = exited else { continue };
+            if restarts >= MAX_RESTARTS {
+                eprintln!(
+                    "QUBIT: the API exited ({status}) and has already been restarted \
+                     {MAX_RESTARTS} times; not restarting again. See the API log."
+                );
+                return;
+            }
+            restarts += 1;
+            eprintln!(
+                "QUBIT: the API exited ({status}); restarting it (attempt {restarts} of \
+                 {MAX_RESTARTS})."
+            );
+            match spawn_api(&root, port) {
+                Ok(child) => {
+                    if let Ok(mut slot) = handle.state::<ApiProcess>().0.lock() {
+                        *slot = Some(child);
+                    }
+                }
+                Err(e) => eprintln!("QUBIT: could not restart the API on port {port}: {e}"),
+            }
+        }
+    });
+}
+
+/// Stop the server process *and* every wrapper/worker it started.
+///
+/// On Windows, a venv Python launcher may hand work to the uv-managed interpreter and exit later;
+/// `Child::kill()` only reaches that immediate launcher. `taskkill /T` is the platform-provided
+/// process-tree operation, so the API cannot survive the Tauri window that owns it. On Unix the
+/// venv interpreter execs the server, making the direct child kill sufficient.
+fn stop_api(child: &mut Child) {
+    #[cfg(windows)]
+    {
+        let pid = child.id().to_string();
+        let _ = Command::new("taskkill")
+            .args(["/PID", pid.as_str(), "/T", "/F"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = child.kill();
+    }
+    let _ = child.wait();
+}
+
 fn main() {
     tauri::Builder::default()
         // One instance, always. Each launch spawns its own uvicorn against the SAME SQLite file, so
@@ -291,6 +382,7 @@ fn main() {
                     Ok(child) => {
                         *app.state::<ApiProcess>().0.lock().unwrap() = Some(child);
                         serve_ui_from_api(app.handle().clone(), port);
+                        supervise_api(app.handle().clone(), root.clone(), port);
                     }
                     Err(e) => {
                         eprintln!(
@@ -313,13 +405,13 @@ fn main() {
             if let tauri::WindowEvent::Destroyed = event {
                 if let Some(child) = window
                     .state::<ApiProcess>()
-                    .0
-                    .lock()
-                    .unwrap()
-                    .take()
-                    .as_mut()
-                {
-                    let _ = child.kill();
+                .0
+                .lock()
+                .unwrap()
+                .take()
+                .as_mut()
+            {
+                    stop_api(child);
                 }
             }
         })

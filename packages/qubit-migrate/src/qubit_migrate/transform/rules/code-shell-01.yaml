@@ -1,0 +1,44 @@
+id: code-shell-01
+language: multi
+title: "Key generation and signing in shell, PowerShell or SQL → guided path"
+matches:
+  source_scanner: [code]
+  file_suffix: [".sh", ".bash", ".zsh", ".ps1", ".psm1", ".sql"]
+  algorithm:
+    ["RSA", "RSA-1024", "RSA-2048", "RSA-3072", "RSA-4096", "DSA", "DSA-1024", "DSA-2048",
+    "EC", "ECDSA", "ECDSA-P256", "ECDSA-P384", "ECDSA-P521", "ECDH", "ECDH-P256",
+    "X25519", "X448", "Ed25519", "Ed448", "DH", "DH-1024", "DH-2048", "DH-3072", "DH-4096"]
+  usage_context: ["kex", "signature", "token", "tls", "encryption-at-rest", "unknown"]
+  library_name: [null]
+target:
+  algorithm: X25519MLKEM768
+  mode: hybrid
+  hybrid_group: X25519MLKEM768
+  category: 3
+  fips: FIPS-203
+data_compat: in_place
+# Guided rather than LLM, from measurement rather than caution. `code-kex-01` briefly claimed these
+# suffixes and the local model returned the file unchanged every time, because there is no ML-KEM
+# rewrite of `openssl genrsa` or `ssh-keygen -t rsa` to make: the key those commands produce is
+# consumed by a protocol whose post-quantum answer lives in configuration, not in the script.
+#
+# Before this rule those findings matched nothing at all and reported "no migration rule". A
+# doomed rewrite and a shrug are both worse than a correct set of commands.
+remediation: guided
+semantic_note: >
+  A provisioning script that runs `openssl genrsa`, `ssh-keygen -t rsa` or `openssl req` is
+  generating a key for something else to use, and that something else decides what is possible.
+  For SSH the post-quantum answer is not a different key at all: OpenSSH's harvest-now-decrypt-later
+  exposure is in the KEY EXCHANGE, and `KexAlgorithms sntrup761x25519-sha512@openssh.com` (default
+  since OpenSSH 9.x) closes it while the host key stays Ed25519 or rsa-sha2-512. Re-keying the host
+  does nothing for recorded sessions; changing the KEX does. QUBIT patches that directly through
+  cfg-ssh-01 when it can see the sshd_config.
+  For X.509, OpenSSL 3.5 will generate an ML-DSA-65 key today - `openssl genpkey -algorithm
+  ML-DSA-65` - so the script itself can change, but only once the CA and every verifier can handle
+  it. Public CAs still cannot issue ML-DSA end-entity certificates under the CA/Browser Forum
+  baseline requirements; an internal PKI can.
+  For TLS termination the change is again configuration: `ssl_ecdh_curve X25519MLKEM768` on a
+  terminator built against OpenSSL 3.5, whose default keyshares already offer that group.
+prompt_constraints:
+  - "Do not rewrite `openssl genrsa` or `ssh-keygen` into a post-quantum key generation call unless the consumer of that key can actually use it."
+rescan_expect: null

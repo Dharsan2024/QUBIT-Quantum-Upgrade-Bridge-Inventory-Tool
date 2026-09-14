@@ -48,10 +48,18 @@ def evaluate_gate(task: MigrationTask, session: Session) -> dict[str, Any]:
 
     required = _get_required_approvals(asset_row, gates)
 
-    # Count approved patches for this task. A PatchProposal with status == "approved" has passed
-    # review; the gate requires `required` such approvals before apply is allowed.
-    approved_patches = [p for p in task.patches if p.status == "approved"]
-    current = len(approved_patches)
+    # DISTINCT approvers, not a raw row count. `review_patch` takes an `actor` and now records it
+    # on the patch as `approved_by`; a multi-approval gate exists specifically so ONE person
+    # cannot be the whole control, and counting rows instead of people let them be exactly that:
+    # approve, defer, regenerate, approve again -- two "approved" `PatchProposal` rows, one actor,
+    # satisfying a 2-approval PHI/financial gate (`governance_policy.yaml`) alone.
+    #
+    # `None` (a patch approved before `approved_by` existed) is excluded from the set rather than
+    # counted as a distinct approver of its own -- an unknown approver is not evidence of a second
+    # real one, and treating it as one would make the fix a no-op for exactly the rows it exists
+    # to stop trusting blindly.
+    approvers = {p.approved_by for p in task.patches if p.status == "approved" and p.approved_by}
+    current = len(approvers)
 
     status = "passed" if current >= required else "blocked"
     return {

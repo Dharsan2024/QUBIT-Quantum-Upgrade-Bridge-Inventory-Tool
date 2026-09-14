@@ -1,0 +1,39 @@
+id: cert-pqc-01
+language: x509
+title: "X.509 certificate on a quantum-vulnerable key → guided re-issuance"
+matches:
+  source_scanner: [cert]
+  algorithm:
+    ["RSA", "RSA-1024", "RSA-2048", "RSA-3072", "RSA-4096", "DSA", "DSA-1024", "DSA-2048",
+    "EC", "ECDSA", "ECDSA-P256", "ECDSA-P384", "ECDSA-P521", "ECDSA-secp256k1",
+    "Ed25519", "Ed448", "X.509"]
+  usage_context: ["signature", "kex", "tls", "token", "unknown"]
+  library_name: [null]
+target:
+  algorithm: ML-DSA-65
+  mode: pure
+  parameter_set: ML-DSA-65
+  category: 3
+  fips: FIPS-204
+data_compat: in_place
+# `guided`, not `auto`. Every certificate finding in the corpus previously matched NO rule at all
+# and fell through to the no-rule path; the alternative — matching it to an LLM rule — would have
+# been worse, because a code model handed a .pem produces a confidently corrupted certificate.
+remediation: guided
+semantic_note: >
+  A certificate is a signed object. Editing the bytes invalidates the CA signature, so there is no
+  patch QUBIT or any model can write: the only real remediation is re-issuance on a new key. That
+  is a procedure involving a CA, not an edit, which is why this rule resolves to a guided path with
+  the exact commands rather than attempting a rewrite.
+  Two facts shape the urgency. First, for TLS the harvest-now-decrypt-later exposure is in the KEY
+  EXCHANGE, not the certificate signature - enabling the X25519MLKEM768 hybrid group on the
+  terminator protects recorded traffic today and needs no new certificate, while a signature cannot
+  be forged retroactively from a recording. Second, public CAs are still bound by CA/Browser Forum
+  baseline requirements that do not yet permit ML-DSA end-entity certificates, so for anything
+  publicly trusted the honest answer today is "prepare, and do the key exchange now". An internal
+  PKI can issue ML-DSA-65 immediately with OpenSSL 3.5 or BouncyCastle 1.79+.
+  Size is the trap: an ML-DSA-65 signature is 3,309 bytes against 256 for RSA-2048 and 64 for
+  ECDSA P-256, so chains grow by kilobytes and anything with a fixed-width signature field breaks.
+prompt_constraints:
+  - "Never propose editing a certificate file. Re-issuance is the only correct remediation."
+rescan_expect: null

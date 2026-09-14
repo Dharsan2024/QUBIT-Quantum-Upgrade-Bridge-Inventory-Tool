@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 
-from .db.models import AssetRow
+from .db.models import DEFAULT_TENANT_ID, AssetRow
 from .fingerprint import fingerprint as compute_fingerprint
 from .schemas import (
     AssetType,
@@ -27,12 +27,18 @@ def asset_to_row(
     *,
     scan_id: uuid.UUID,
     project_id: uuid.UUID,
+    tenant_id: uuid.UUID | None = None,
     occurrence: int = 1,
 ) -> AssetRow:
-    """Flatten a domain ``CryptoAsset`` into an ``AssetRow`` ready for insert."""
+    """Flatten a domain ``CryptoAsset`` into an ``AssetRow`` ready for insert.
+
+    ``tenant_id`` omitted means the default tenant, which is what a single-team install always
+    wants and what keeps every existing caller working unchanged.
+    """
     fp = asset.fingerprint or compute_fingerprint(asset, occurrence=occurrence)
     return AssetRow(
         id=asset.id,
+        tenant_id=tenant_id if tenant_id is not None else DEFAULT_TENANT_ID,
         scan_id=scan_id,
         project_id=project_id,
         fingerprint=fp,

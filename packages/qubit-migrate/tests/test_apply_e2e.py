@@ -9,6 +9,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
 from qubit_core.db import Base, ProjectRow, ScanRow
 from qubit_core.mapping import asset_to_row
 from qubit_core.schemas import (
@@ -105,6 +106,49 @@ def test_generate_approve_apply_verify(tmp_path: Path) -> None:
     assert report is not None and report.passed
 
 
+def test_generate_approve_apply_verify_when_the_file_is_crlf(tmp_path: Path) -> None:
+    """OpenSSL's `apps/passwd.c` is CRLF as OpenSSL itself committed it (confirmed via
+    ``git show HEAD:apps/passwd.c``, independent of any local checkout config) — this is not a
+    Windows/autocrlf artifact, so a repo whose tracked file is genuinely CRLF must patch cleanly
+    on any platform. Before the fix, `old_new_to_diff` always built an LF diff (every reader in
+    this codebase normalizes on read), which `git apply --check` correctly rejected against the
+    real CRLF bytes — the patch's status became "failed" and the task parked, unwritable, forever.
+    """
+    repo = tmp_path / "repo_crlf"
+    repo.mkdir(parents=True)
+    (repo / "app.py").write_text(VULN_SOURCE.replace("\n", "\r\n"), encoding="utf-8", newline="")
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    # Isolated from checkout conversion on purpose: the CRLF here is the file's OWN committed
+    # content, exactly like OpenSSL's, not something a local `core.autocrlf=true` introduced.
+    _git(repo, "config", "core.autocrlf", "false")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "init")
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    _seed(session, repo)
+
+    orch = MigrationOrchestrator(session)
+    plan = orch.build_plan()
+    task = orch.get_queue(plan.id)[0]
+    assert task.rule_id == "py-weakhash-01"
+
+    patch = orch.generate_patch(task.id, repo_root=repo)
+    assert patch.status == "proposed", patch.validation_json
+    assert "\r\n" in patch.diff_text  # the diff matches the file's real on-disk bytes
+
+    orch.review_patch(patch.id, approve=True, note="crlf e2e")
+    applied = orch.apply_patch(patch.id, repo_root=repo, branch="pqc-migration")
+    assert applied.status == "applied"
+
+    new_bytes = (repo / "app.py").read_bytes()
+    assert b"\r\n" in new_bytes  # still CRLF — the fix doesn't rewrite the file's convention
+    assert b"md5" not in new_bytes.lower()
+
+
 def _seed_named(session: Session, repo: Path, name: str):
     """A second project whose vulnerable file has the SAME repo-relative path as the first."""
     project = ProjectRow(name=name, slug=name)
@@ -165,3 +209,253 @@ def test_migrating_one_project_does_not_block_another_with_the_same_relative_pat
     orch.review_patch(patch_two.id, approve=True)
     assert orch.apply_patch(patch_two.id, repo_root=second).status == "applied"
     assert "md5" not in (second / "app.py").read_text(encoding="utf-8")
+
+
+def test_apply_ignores_dirty_state_outside_repo_root(tmp_path: Path) -> None:
+    """A dirty file OUTSIDE `repo_root` must not block applying a patch INSIDE it.
+
+    `git status --porcelain` reports the whole repository it is run in, not the directory it is run
+    from. So whenever `repo_root` is a SUBDIRECTORY of a larger working tree — any scan target that
+    is not its own repo: a copied folder, an extracted archive, a subproject — unrelated edits
+    elsewhere in that outer tree were reported as this migration's own dirty state and every apply
+    was refused.
+
+    Measured: migrating a plain copy of the 21-app demo corpus that happened to sit inside this
+    monorepo's working tree failed 246 of 250 real findings with "Dirty git tree", entirely because
+    of edits in the monorepo that `repo_root` had nothing to do with. The fix is the `-- .`
+    pathspec; this test is what keeps it.
+    """
+    outer = tmp_path / "outer"
+    (outer / "sub").mkdir(parents=True)
+    _git(outer, "init")
+    _git(outer, "config", "user.email", "test@example.com")
+    _git(outer, "config", "user.name", "Test")
+
+    repo_root = outer / "sub"
+    (repo_root / "app.py").write_text(VULN_SOURCE, encoding="utf-8")
+    (outer / "unrelated.txt").write_text("committed\n", encoding="utf-8")
+    _git(outer, "add", ".")
+    _git(outer, "commit", "-m", "init")
+
+    # Dirty the OUTER tree only. `repo_root` itself stays clean.
+    (outer / "unrelated.txt").write_text("edited after the commit\n", encoding="utf-8")
+
+    # Precondition: unscoped status sees the outer edit, scoped status does not. If this ever
+    # stops holding, the guard is no longer testing what it claims to.
+    assert _git(repo_root, "status", "--porcelain").stdout.strip(), "expected outer tree dirty"
+    assert not _git(repo_root, "status", "--porcelain", "--", ".").stdout.strip()
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    _seed(session, repo_root)
+
+    orch = MigrationOrchestrator(session)
+    plan = orch.build_plan()
+    task = orch.get_queue(plan.id)[0]
+    patch = orch.generate_patch(task.id, repo_root=repo_root)
+    assert patch.status == "proposed", patch.validation_json
+    orch.review_patch(patch.id, approve=True)
+
+    applied = orch.apply_patch(patch.id, repo_root=repo_root)
+    assert applied.status == "applied"
+    assert "md5" not in (repo_root / "app.py").read_text(encoding="utf-8")
+
+
+def test_unrelated_dirt_inside_the_repo_does_not_block_a_patch(tmp_path: Path) -> None:
+    """The guard has to be about the file being written, not about the repository's mood.
+
+    Refusing on ANY uncommitted edit under `repo_root` made QUBIT unusable on a repository with
+    work in progress, which is the normal state of one. A single unrelated edit refused every
+    patch in the run with "Dirty git tree", and the message named neither the file nor why it
+    mattered — so a migration reported one patch written and twenty refused, all twenty for edits
+    in files no patch would have touched.
+
+    Nothing is given up: the file this patch writes is still protected, and more strictly, by the
+    sha256 guard that follows.
+    """
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    _git(repo_root, "init")
+    _git(repo_root, "config", "user.email", "test@example.com")
+    _git(repo_root, "config", "user.name", "Test")
+    (repo_root / "app.py").write_text(VULN_SOURCE, encoding="utf-8")
+    (repo_root / "notes.md").write_text("committed\n", encoding="utf-8")
+    _git(repo_root, "add", ".")
+    _git(repo_root, "commit", "-m", "init")
+
+    # Work in progress in a file no patch will touch.
+    (repo_root / "notes.md").write_text("still editing this\n", encoding="utf-8")
+    assert _git(repo_root, "status", "--porcelain", "--", ".").stdout.strip(), "repo must be dirty"
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    _seed(session, repo_root)
+
+    orch = MigrationOrchestrator(session)
+    plan = orch.build_plan()
+    task = orch.get_queue(plan.id)[0]
+    patch = orch.generate_patch(task.id, repo_root=repo_root)
+    assert patch.status == "proposed", patch.validation_json
+    orch.review_patch(patch.id, approve=True)
+
+    applied = orch.apply_patch(patch.id, repo_root=repo_root)
+
+    assert applied.status == "applied"
+    assert "md5" not in (repo_root / "app.py").read_text(encoding="utf-8")
+    # The unrelated edit is untouched -- QUBIT wrote its file and nothing else.
+    assert (repo_root / "notes.md").read_text(encoding="utf-8") == "still editing this\n"
+
+
+def test_uncommitted_edits_to_the_patched_file_itself_still_block(tmp_path: Path) -> None:
+    """The half that must not be lost. A file edited under QUBIT's feet is refused, because the
+    diff was computed against content that is no longer there and `git apply` would either fail or
+    silently land somewhere unintended."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    _git(repo_root, "init")
+    _git(repo_root, "config", "user.email", "test@example.com")
+    _git(repo_root, "config", "user.name", "Test")
+    (repo_root / "app.py").write_text(VULN_SOURCE, encoding="utf-8")
+    _git(repo_root, "add", ".")
+    _git(repo_root, "commit", "-m", "init")
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+    _seed(session, repo_root)
+
+    orch = MigrationOrchestrator(session)
+    plan = orch.build_plan()
+    task = orch.get_queue(plan.id)[0]
+    patch = orch.generate_patch(task.id, repo_root=repo_root)
+    orch.review_patch(patch.id, approve=True)
+
+    # Someone edits the very file the patch was generated against.
+    (repo_root / "app.py").write_text(
+        VULN_SOURCE + "\n# edited after generation\n", encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match=r"changed since generation|uncommitted edits"):
+        orch.apply_patch(patch.id, repo_root=repo_root)
+
+
+class TestTheWrittenFileMustMatchWhatWasValidated:
+    """`git apply` returning 0 is not proof the file holds what the gates judged.
+
+    The stages run on an in-memory `patched_source`; the diff is derived from it; what reaches
+    disk is `git apply`'s reconstruction of that diff. Every patch audited on this installation
+    had all three agree -- 6 of 6 files byte-identical to HEAD plus their stored diffs -- but
+    nothing MADE them agree, and a patch write is the one step where being wrong silently
+    corrupts a user's source.
+    """
+
+    def test_a_normal_apply_satisfies_the_guard(self, tmp_path: Path) -> None:
+        """The guard must not reject the ordinary case, or every migration stops working."""
+        repo = _make_repo(tmp_path)
+        engine = create_engine("sqlite://")
+        Base.metadata.create_all(engine)
+        session = Session(engine)
+        _seed(session, repo)
+
+        orch = MigrationOrchestrator(session)
+        plan = orch.build_plan()
+        task = orch.get_queue(plan.id)[0]
+        patch = orch.generate_patch(task.id, repo_root=repo)
+        orch.review_patch(patch.id, approve=True, note="guard")
+
+        applied = orch.apply_patch(patch.id, repo_root=repo)
+
+        assert applied.status == "applied"
+        assert "md5" not in (repo / "app.py").read_text(encoding="utf-8")
+
+    def test_a_file_that_does_not_hold_the_change_is_reverted_and_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The guard's whole purpose. `git apply` is made to report success while writing
+        nothing, which is the shape of the corruption being defended against: a return code that
+        says the change landed when the file does not hold it.
+        """
+        repo = _make_repo(tmp_path)
+        engine = create_engine("sqlite://")
+        Base.metadata.create_all(engine)
+        session = Session(engine)
+        _seed(session, repo)
+
+        orch = MigrationOrchestrator(session)
+        plan = orch.build_plan()
+        task = orch.get_queue(plan.id)[0]
+        patch = orch.generate_patch(task.id, repo_root=repo)
+        orch.review_patch(patch.id, approve=True, note="guard")
+
+        real_run = subprocess.run
+
+        def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+            # Swallow the forward apply so the file keeps its ORIGINAL content, then let the
+            # reverse check run for real against that unchanged file -- which must fail.
+            if list(cmd[:2]) == ["git", "apply"] and "-R" not in cmd:
+                return subprocess.CompletedProcess(cmd, 0, b"", b"")
+            return real_run(cmd, *args, **kwargs)
+
+        # `apply_patch` imports subprocess inside the function, so the module object is the only
+        # place the name can be intercepted.
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        with pytest.raises(Exception) as caught:
+            orch.apply_patch(patch.id, repo_root=repo)
+
+        assert "does not match the change that was validated" in str(caught.value)
+        assert (repo / "app.py").read_text(encoding="utf-8") == VULN_SOURCE, (
+            "the file must be left as it was, not half-written"
+        )
+
+
+class TestVerifyActuallyLooksAtTheFile:
+    """`verify_task` used to transition to `verify_pass` and return `passed=True` unconditionally.
+
+    It carried a comment saying real verification would arrive in a later milestone. It never did,
+    so the one method whose entire job is to answer "did the migration hold?" answered yes without
+    looking -- including for a file that had since been reverted or overwritten by something else.
+    """
+
+    def _applied(self, tmp_path: Path):  # type: ignore[no-untyped-def]
+        repo = _make_repo(tmp_path)
+        engine = create_engine("sqlite://")
+        Base.metadata.create_all(engine)
+        session = Session(engine)
+        _seed(session, repo)
+        orch = MigrationOrchestrator(session)
+        plan = orch.build_plan()
+        task = orch.get_queue(plan.id)[0]
+        patch = orch.generate_patch(task.id, repo_root=repo)
+        orch.review_patch(patch.id, approve=True, note="verify")
+        orch.apply_patch(patch.id, repo_root=repo)
+        return orch, task, repo
+
+    def test_a_migration_that_held_verifies(self, tmp_path: Path) -> None:
+        orch, task, _ = self._applied(tmp_path)
+
+        report = orch.verify_task(task.id)
+
+        assert report is not None and report.passed
+
+    def test_a_file_reverted_after_apply_does_not_verify(self, tmp_path: Path) -> None:
+        """The case the stub could never fail: the patch applied, then the file went back to its
+        vulnerable content. The finding is present on disk, so verification must say so."""
+        orch, task, repo = self._applied(tmp_path)
+        (repo / "app.py").write_text(VULN_SOURCE, encoding="utf-8")
+
+        report = orch.verify_task(task.id)
+
+        assert report is not None
+        assert not report.passed, "md5 is back in the file; verification must not pass"
+
+    def test_a_file_deleted_after_apply_does_not_verify(self, tmp_path: Path) -> None:
+        orch, task, repo = self._applied(tmp_path)
+        (repo / "app.py").unlink()
+
+        report = orch.verify_task(task.id)
+
+        assert report is not None
+        assert not report.passed

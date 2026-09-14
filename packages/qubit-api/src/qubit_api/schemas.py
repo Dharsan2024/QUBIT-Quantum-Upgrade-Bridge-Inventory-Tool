@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, Field
@@ -42,6 +42,12 @@ class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     root_path: str | None = None
     description: str | None = None
+    #: A git URL to clone before scanning, for a repository that is not on this machine yet.
+    #:
+    #: The CLI has always been able to start from a URL; the desktop app could not, so anything not
+    #: already checked out had to be cloned by hand first. `root_path` wins when both are given --
+    #: an explicit local checkout is never silently replaced by a fresh clone.
+    git_url: str | None = None
 
 
 class ProjectPatch(BaseModel):
@@ -92,6 +98,24 @@ class ProjectPlanRef(BaseModel):
     #: what the project currently looks like. The app says so rather than showing a stale queue
     #: as though it were current.
     stale: bool = False
+
+    # ── Live progress ────────────────────────────────────────────────────────
+    # `tasks` and the three rule-kind counts above describe what the plan was BUILT as; they never
+    # move once it exists. These describe where the work has actually GOT to, which is what lets
+    # the Migration Hub separate a migration still in flight from one that is done. Derived from
+    # the tasks' own FSM states, so they cannot drift from the queue the operator sees.
+    #: Written to disk: `applied`, `verifying` and `verified`.
+    written: int = 0
+    #: Written AND proven by a rescan.
+    verified: int = 0
+    #: Prepared and waiting to be written: a diff exists and has not been rejected.
+    prepared: int = 0
+    #: Not yet attempted, or attempted and still to be retried. What is left to do.
+    outstanding: int = 0
+    #: Resolved by a written remediation procedure rather than an edit QUBIT can make.
+    guided: int = 0
+    #: Nothing left to migrate — an earlier patch covered it, or it already met the PQC floor.
+    satisfied: int = 0
 
 
 class ProjectOverview(BaseModel):
@@ -251,3 +275,142 @@ class TrendPoint(BaseModel):
     vulnerable: int
     median_risk: float | None = None
     negative_mosca: int
+
+
+class ThreatIntelSourceOut(BaseModel):
+    """One entry of the fixed, curated allowlist — not user-editable, just displayed."""
+
+    id: str
+    url: str
+    label: str
+    note: str
+
+
+class ThreatIntelConfigOut(BaseModel):
+    enabled: bool
+    check_interval_hours: int
+    last_checked_at: UtcDateTime | None = None
+    sources: list[ThreatIntelSourceOut]
+
+
+class ThreatIntelConfigPatch(BaseModel):
+    """Both fields optional so a client can flip just the toggle without re-sending the interval."""
+
+    enabled: bool | None = None
+    check_interval_hours: int | None = Field(default=None, ge=1, le=24 * 30)
+
+
+class ThreatIntelSnapshotOut(BaseModel):
+    id: UUID
+    source_id: str
+    source_url: str
+    fetched_at: UtcDateTime
+    content_hash: str | None = None
+    excerpt: str
+    fetch_error: str | None = None
+    changed_from_previous: bool
+    reviewed: bool
+    reviewed_at: UtcDateTime | None = None
+    reviewer_note: str | None = None
+
+
+LlmProvider = Literal["ollama", "openai-compatible"]
+
+
+class LlmProviderConfigOut(BaseModel):
+    """Never carries the decrypted key -- only whether one is saved, and its last 4 characters so
+    a user can recognise which key is active without QUBIT ever decrypting it for a response.
+    """
+
+    provider: LlmProvider
+    base_url: str | None = None
+    model: str | None = None
+    api_key_configured: bool
+    api_key_last4: str | None = None
+    #: The selected model's real context window, read from the provider. None when unknown, in
+    #: which case generation falls back to `MigrateConfig.llm_context_tokens`.
+    context_tokens: int | None = None
+    #: The optional SECOND endpoint, tried when the primary refuses a request. Same
+    #: never-the-plaintext-key rule as above.
+    backup_base_url: str | None = None
+    backup_model: str | None = None
+    backup_api_key_configured: bool = False
+    backup_api_key_last4: str | None = None
+    backup_context_tokens: int | None = None
+    updated_at: UtcDateTime
+
+
+class LlmProviderConfigPatch(BaseModel):
+    """Every field optional so a client can, e.g., change only the model without re-sending the
+    key. ``api_key`` omitted means "keep the existing one"; an empty string clears it.
+    """
+
+    provider: LlmProvider | None = None
+    base_url: str | None = None
+    model: str | None = None
+    api_key: str | None = None
+    backup_base_url: str | None = None
+    backup_model: str | None = None
+    backup_api_key: str | None = None
+
+
+class LlmProviderVerifyResult(BaseModel):
+    ok: bool
+    detail: str
+
+
+class LlmEngineIn(BaseModel):
+    """An engine being attached to the pool.
+
+    The key comes in and is never returned: `LlmEngineOut` carries only its last four characters,
+    which is enough for an operator to tell two keys for the same model apart and not enough to be
+    a leak.
+    """
+
+    label: str = Field(min_length=1, max_length=128)
+    base_url: str = Field(min_length=1, max_length=512)
+    model: str = Field(min_length=1, max_length=128)
+    api_key: str = Field(min_length=1)
+    #: The provider's EFFECTIVE per-request allowance. On a free tier this is a rate limit well
+    #: below the model's advertised context window, and using the window instead earns a 413.
+    context_tokens: int | None = Field(default=None, ge=1)
+    enabled: bool = True
+
+
+class LlmEngineOut(BaseModel):
+    """A pooled engine as reported back. Never carries the key."""
+
+    id: UUID
+    label: str
+    base_url: str
+    model: str
+    api_key_last4: str
+    context_tokens: int | None
+    enabled: bool
+
+
+class LlmEnginePatch(BaseModel):
+    """Change one pooled engine. Omitted fields are left alone."""
+
+    label: str | None = Field(default=None, min_length=1, max_length=128)
+    context_tokens: int | None = Field(default=None, ge=1)
+    #: Rest a key whose quota is spent without re-entering it tomorrow.
+    enabled: bool | None = None
+
+
+class LlmProviderModelsOut(BaseModel):
+    """What the CONFIGURED provider actually offers right now, read live from it.
+
+    Read live rather than shipped as a hardcoded list on purpose: free-tier model lineups rotate
+    (providers add and delist models on their own schedule), so a list compiled into QUBIT would
+    be wrong within months and would send a user to configure a model that no longer exists.
+    """
+
+    models: list[str]
+    #: "" when the list came back fine; otherwise why it could not be read, so the UI can say
+    #: "couldn't reach the provider" instead of silently showing an empty dropdown.
+    error: str = ""
+
+
+class ThreatIntelReviewRequest(BaseModel):
+    note: str | None = None

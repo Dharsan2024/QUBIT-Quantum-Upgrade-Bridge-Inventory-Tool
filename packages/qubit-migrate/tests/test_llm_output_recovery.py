@@ -156,6 +156,11 @@ class TestRetryableVersusFatal:
         calls: list[str] = []
 
         def fake_generate(prompt: str, **_: object) -> str:
+            # The self-review pass is a second call to the same server. Counting it
+            # here would count a different property: this test is about the DRAFT
+            # being re-prompted after a truncation, which the review is not part of.
+            if "You are reviewing a cryptographic migration patch" in prompt:
+                return "VERDICT: OK"
             calls.append(prompt)
             if len(calls) == 1:
                 raise ModelOutputError("hit its output limit before finishing the file")
@@ -204,3 +209,73 @@ class TestRetryableVersusFatal:
             llm.installed_models = original_installed  # type: ignore[assignment]
 
         assert len(calls) == 1, "a dead server must not be asked three times"
+
+
+class TestTheAnswerBudgetFitsTheAnswer:
+    """`num_predict` has to hold a whole REWRITTEN file, which is longer than the original.
+
+    Measured across every before/after pair in the rule pack, a structural migration
+    (kex/signature) expands the file by a mean of 3.15x and up to 5.3x: replacing public-key
+    encryption with a KEM is a KEM+DEM construction with new imports, a derived key, a nonce and
+    an AEAD call where there was one line. Even the "simple" swaps average 2.56x.
+
+    Budgeting from the PROMPT instead of the file made this correct only for small files, and the
+    reason is arithmetic: prompt = instructions + example + file, so `len(prompt)/3` covers a
+    3.15x answer only while instructions + example exceed ~2.15x the file. True at 40 lines, false
+    at 200. That is exactly what the run showed — three of five recorded Go rejections were
+    `num_predict` truncation at the 4096 floor, reported as the model failing the task.
+    """
+
+    def test_a_mid_size_file_is_not_truncated(self) -> None:
+        """The band that actually broke: fits the prompt gate, answer did not fit the budget."""
+        from qubit_migrate.transform.llm import _output_budget
+
+        source = "x" * (200 * 45)  # ~200 lines of Go at ~45 chars/line
+        prompt = ("instructions and example " * 200) + source
+
+        budget = _output_budget(prompt, source)
+        needed = int(len(source) * 3.15) // 3  # the measured structural expansion
+
+        assert budget >= needed, (
+            f"a {len(source)}-char file needs ~{needed} output tokens for a structural rewrite "
+            f"but only {budget} were allowed — the answer is cut off and a possibly-correct "
+            f"rewrite is thrown away as 'truncated'"
+        )
+
+    def test_every_file_the_router_admits_can_have_its_answer_emitted(self) -> None:
+        """The invariant that makes truncation unreachable rather than merely less likely.
+
+        The router already refuses files whose PROMPT will not fit the context window. This pins
+        the other half: the largest file it still admits must have an answer budget big enough for
+        a 3.15x expansion, so no file can pass the input gate only to be truncated on output.
+        """
+        from qubit_migrate.config import MigrateConfig
+        from qubit_migrate.transform.llm import _output_budget
+
+        config = MigrateConfig()
+        largest_admitted = int(config.llm_context_tokens * config.llm_max_prompt_fraction) * 3
+        source = "x" * largest_admitted
+
+        budget = _output_budget(source + ("scaffolding " * 400), source)
+        needed = int(largest_admitted * 3.15) // 3
+
+        assert budget >= needed, (
+            f"the router admits files up to {largest_admitted} chars, but the answer budget tops "
+            f"out at {budget} tokens against the ~{needed} such a file needs. Raise "
+            f"_MAX_PREDICT or lower llm_max_prompt_fraction so the two gates agree."
+        )
+
+    def test_a_small_file_keeps_the_floor_and_is_not_penalised(self) -> None:
+        """The fix may only ever RAISE a budget. A small file must still get the 4096 floor."""
+        from qubit_migrate.transform.llm import _MIN_PREDICT, _output_budget
+
+        tiny = "package main\nfunc f() {}\n"
+        assert _output_budget(tiny, tiny) == _MIN_PREDICT
+
+    def test_the_source_aware_budget_never_lowers_the_prompt_derived_one(self) -> None:
+        """A caller with no source in hand must not come off worse than before the change."""
+        from qubit_migrate.transform.llm import _output_budget
+
+        prompt = "y" * 60_000
+        assert _output_budget(prompt, "") == _output_budget(prompt)
+        assert _output_budget(prompt, "x" * 100) >= _output_budget(prompt)

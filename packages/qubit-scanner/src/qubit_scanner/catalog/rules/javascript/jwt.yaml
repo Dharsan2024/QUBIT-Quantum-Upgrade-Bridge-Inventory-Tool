@@ -113,3 +113,42 @@ rules:
             const token = jwt.sign(payload, secret, { algorithm: 'HS256' });
             return token;
           }
+
+  # JWT signature verification bypassed: `algorithms: ['none']`, or `jwt.decode` used where
+  # `jwt.verify` was meant. Both are the classic JWT authentication bypass (CWE-347) - the claims
+  # are read and trusted without the signature being checked.
+  #
+  # `jwt.decode` is flagged deliberately: in `jsonwebtoken` it does NOT verify, and using its
+  # result for an authorization decision is the single most common way this goes wrong.
+  - id: JS-JWT-VERIFICATION-DISABLED
+    title: jwt.decode / algorithms none
+    match:
+      query: |
+        (call_expression
+          function: (member_expression
+            object: (identifier) @obj
+            property: (property_identifier) @meth)) @call
+      where:
+        - { capture: obj, in: [jwt, jsonwebtoken] }
+        - { capture: meth, in: [decode, verify] }
+        - capture: call
+          regex: '["'']none["'']|\.decode\('
+    extract:
+      algorithm: { literal: UNRESOLVED }
+      jwt_verification:
+        from: call
+        resolve: jwt-verification
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          const jwt = require("jsonwebtoken");
+          const claims = jwt.decode(token);
+        - |
+          const jwt = require("jsonwebtoken");
+          const claims = jwt.verify(token, key, { algorithms: ["none"] });
+      negative:
+        - |
+          const jwt = require("jsonwebtoken");
+          const claims = jwt.verify(token, key, { algorithms: ["RS256"] });

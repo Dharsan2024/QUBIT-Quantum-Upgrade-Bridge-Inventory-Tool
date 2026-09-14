@@ -18,6 +18,33 @@ class PrioritizedTask:
     rank: int  # 1-based, lower = migrate first
 
 
+def _tiebreak(asset: CryptoAsset) -> tuple[str, int, str]:
+    """Stable ordering for assets of equal priority: file path, then line, then id.
+
+    The tie-break used to be `str(asset.id)` alone, commented "for stability" — and it delivered
+    stability of the SORT while leaving the RESULT random, because `CryptoAsset.id` is a `uuid4`
+    generated afresh on every scan. Measured: three runs of one plan over three equal-priority
+    findings produced three different orders — `[gamma, alpha, beta]`, `[alpha, gamma, beta]`,
+    `[beta, gamma, alpha]` — on a fresh database each time.
+
+    That matters beyond tidiness. Ties are the COMMON case, not the exotic one: three MD5 findings
+    in one file have identical risk, identical effort and therefore identical WSJF. A random work
+    order means two runs of the same plan credit `AlreadySatisfied` to different tasks, fill
+    the learned-patch store in a different order, and produce per-task timings that cannot be
+    compared — which is fatal for a measurement programme whose whole point is reproducibility.
+
+    Path and line are intrinsic to the finding, so identical input now yields identical order. The
+    id stays as the last resort, keeping the sort total when two findings genuinely share a
+    location.
+    """
+    location = asset.location
+    return (
+        str(getattr(location, "file_path", "") or ""),
+        int(getattr(location, "line", 0) or 0),
+        str(asset.id),
+    )
+
+
 def rank_ready_frontier(
     assets: list[CryptoAsset],
     *,
@@ -39,10 +66,9 @@ def rank_ready_frontier(
         mosca = a.risk.mosca_margin_years if a.risk else 0.0
         effort = estimate_effort(a, **(effort_map.get(a.id, {})))
         priority = score / effort.points if effort.points else 0.0
-        # Sort key: (-priority, mosca_margin asc, str(id) for stability)
         scored.append((-priority, mosca, a, effort))
 
-    scored.sort(key=lambda t: (t[0], t[1], str(t[2].id)))
+    scored.sort(key=lambda t: (t[0], t[1], *_tiebreak(t[2])))
 
     result: list[PrioritizedTask] = []
     for rank, (neg_priority, _, asset, effort) in enumerate(scored, start=1):

@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+import base64
+import contextlib
+import hashlib
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from qubit_core.db import (
     Base,
     get_engine,
@@ -11,13 +17,52 @@ from qubit_core.db import (
     stamp_head,
     upgrade_to_head,
 )
+from sqlalchemy.exc import OperationalError
 
 from .routers import assets_router, meta_router, projects_router, registry_router, scans_router
 from .routers.jobs import router as jobs_router
+from .routers.llm_provider import router as llm_provider_router
 from .routers.migrate import router as migrate_router
 from .routers.recommendation import router as recommendation_router
 from .routers.risk import router as risk_router
+from .routers.threat_intel import router as threat_intel_router
 from .settings import Settings
+
+logger = logging.getLogger(__name__)
+
+# Poll granularity for the opt-in threat-intel background check, not the check interval itself
+# (that's ThreatIntelConfig.check_interval_hours, user-set, minimum 1 hour). Waking this often
+# just means "due" is noticed within 15 minutes of the configured interval elapsing.
+_THREAT_INTEL_POLL_SECONDS = 900
+
+
+async def _threat_intel_poll_loop(sf) -> None:
+    """Runs a threat-intel check when the user has opted in and the configured interval has
+    elapsed. This is the one deliberate exception to QUBIT's offline stance (see
+    ``qubit_risk.threat_intel``), so a failure here — DNS down, NIST unreachable, whatever — must
+    never take the app down with it; it just tries again next poll."""
+    from qubit_core.db.models import ThreatIntelConfig
+    from qubit_core.schemas import utcnow
+    from qubit_risk.threat_intel import check_now
+
+    while True:
+        await asyncio.sleep(_THREAT_INTEL_POLL_SECONDS)
+        try:
+            with sf() as session:
+                config = session.get(ThreatIntelConfig, 1)
+                if not config or not config.enabled:
+                    continue
+                elapsed = (
+                    None
+                    if config.last_checked_at is None
+                    else (utcnow() - config.last_checked_at).total_seconds()
+                )
+                if elapsed is not None and elapsed < config.check_interval_hours * 3600:
+                    continue
+                check_now(session, config)
+                session.commit()
+        except Exception:
+            logger.exception("threat_intel: background check failed")
 
 
 @asynccontextmanager
@@ -34,12 +79,63 @@ async def lifespan(app: FastAPI):
     # Crash recovery: nothing may stay stuck in queued/running after a kill -9 (M2 acceptance).
     runner.recover_orphaned()
 
+    poll_task = asyncio.create_task(_threat_intel_poll_loop(sf))
+
     yield
+
+    poll_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await poll_task
+
+
+#: The single inline script the API adds to the dashboard page it serves, and its CSP hash.
+#:
+#: Kept together and derived from one another on purpose. They are two halves of one decision, and
+#: while they lived apart the policy blocked the script for the entire life of the feature:
+#: `script-src 'self'` refused the API's own inline script, so `window.__QUBIT_API_BASE__` was
+#: never defined and the client worked only by falling back to a default that happened to be
+#: right. Measured in the running desktop app — the variable was `null` and every cold start
+#: logged three CSP errors.
+API_BASE_SCRIPT = b'window.__QUBIT_API_BASE__="/api/v1";'
+API_BASE_SCRIPT_HASH = (
+    "sha256-" + base64.b64encode(hashlib.sha256(API_BASE_SCRIPT).digest()).decode()
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     app = FastAPI(title="QUBIT API", version="0.1.0", lifespan=lifespan)
+
+    @app.exception_handler(OperationalError)
+    async def _busy_database(_request: Request, exc: OperationalError) -> JSONResponse:
+        """Turn "database is locked" into an honest 503 instead of a bare 500, everywhere.
+
+        SQLite allows exactly one writer. A migration generating in the background holds the write
+        lock in bursts, so ANY concurrent write — saving Settings, deleting a scan, renaming a
+        project — can lose the race and exhaust `PRAGMA busy_timeout` (20s). The hot paths retry
+        (`retry_write_on_lock` / `commit_with_retry`), but a retry budget can still be spent, and
+        the failure then reached the user as "500 Internal Server Error" with nothing to act on.
+
+        Measured: a queue of overlapping generations produced exactly that, and it read as the
+        model failing when the database was simply busy. One handler covers every endpoint, which
+        is safer than wrapping each write site individually. Anything that is NOT a lock error is
+        re-raised untouched — a schema or constraint fault is a real bug and must not be dressed
+        up as transient.
+        """
+        if "database is locked" not in str(exc).lower():
+            raise exc
+        logger.warning("write lock contention on %s: answering 503", _request.url.path)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": (
+                    "The database is busy with another operation and this request could not get a "
+                    "turn to write. Nothing was changed — try again in a moment."
+                )
+            },
+            headers={"Retry-After": "5"},
+        )
+
     app.state.settings = settings  # authoritative app-wide (auth reads this, not a fresh Settings)
     engine = get_engine(settings.db_url)
     app.state.engine = engine
@@ -56,6 +152,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         else:
             Base.metadata.create_all(engine)
             stamp_head(settings.db_url)
+
+        # Every scoped table has a NOT NULL tenant_id, so the default team's row must exist before
+        # the first request. Seeded here rather than only in the migration, because the
+        # `create_all()` branch above never runs a migration body — a fresh desktop install would
+        # otherwise fail its first project insert on a foreign-key violation.
+        from qubit_core.db.tenants import ensure_default_tenant
+
+        with app.state.session_factory() as session:
+            ensure_default_tenant(session)
 
     # CORS: the desktop app's WebView loads the dashboard from tauri://localhost (or
     # http://tauri.localhost on Windows WebView2), which is a DIFFERENT origin from the API on
@@ -92,7 +197,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; "
-            "script-src 'self'; "
+            # The API injects ONE inline script (see `API_BASE_SCRIPT`). `script-src 'self'`
+            # blocked it -- the API's own policy refusing the API's own script -- so
+            # `window.__QUBIT_API_BASE__` was never defined and the client only worked by falling
+            # back to a default that happened to be right.
+            #
+            # A HASH rather than 'unsafe-inline': this permits exactly those bytes and nothing
+            # else, so an injection anywhere else in the page is still refused. Derived from the
+            # script itself, so the two cannot drift apart again.
+            f"script-src 'self' '{API_BASE_SCRIPT_HASH}'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: blob:; "
             "font-src 'self' data:; "
@@ -128,6 +241,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(risk_router, prefix=settings.api_prefix, dependencies=guard)
     app.include_router(migrate_router, prefix=settings.api_prefix, dependencies=guard)
     app.include_router(recommendation_router, prefix=settings.api_prefix, dependencies=guard)
+    app.include_router(threat_intel_router, prefix=settings.api_prefix, dependencies=guard)
+    app.include_router(llm_provider_router, prefix=settings.api_prefix, dependencies=guard)
 
     _mount_dashboard(app, settings)
     return app
@@ -172,7 +287,7 @@ def _mount_dashboard(app: FastAPI, settings: Settings) -> None:
     # gets the marker, so the Vite dev server and `vite preview` — where the API is on another
     # origin — are untouched and keep their own configuration. A RELATIVE base is used because
     # page and API share an origin by construction here, which makes it port-agnostic.
-    _MARKER = b'<script>window.__QUBIT_API_BASE__="/api/v1";</script>'
+    _MARKER = b"<script>" + API_BASE_SCRIPT + b"</script>"
 
     def _index_with_api_base() -> Response:
         html = index.read_bytes()

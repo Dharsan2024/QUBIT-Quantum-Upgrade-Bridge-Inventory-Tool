@@ -10,16 +10,33 @@ Stages 3 (compile) and 4 (tests) are M2 (require Docker sandbox).
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+import os
+import re
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from .languages import LANGUAGE_TO_EXT, TS_GRAMMAR, parse_error
+from ..oracles import relations_for
+from ..oracles.controls import ControlReport, run_controls
+from ..oracles.harness import build as build_harness
+from ..regimes import hybrid_components
+from .languages import (
+    LANGUAGE_TO_EXT,
+    TS_GRAMMAR,
+    _import_names,
+    parse_error,
+    unresolved_qualifiers,
+    unused_imports,
+)
 from .languages import SUFFIX_TO_LANGUAGE as _SUFFIX_TO_LANGUAGE
 from .scanner_cli import cli_command
 
@@ -63,13 +80,166 @@ class StageResult:
     expectation: str = ""
     #: The algorithm prefix that expectation named, e.g. "ML-KEM".
     expected: str = ""
+    #: Set on `rescan` when the expectation this stage checked CANNOT BE FAILED by this
+    #: asset. A rule lists every algorithm it can migrate; when none of them describes the
+    #: asset in hand, the check asks whether some other algorithm is absent from the file —
+    #: and it always is. The result is a `pass` that carries no information.
+    #:
+    #: Recorded rather than repaired, deliberately. Narrowing the fallback would change the
+    #: acceptance rate mid-measurement and destroy comparability with everything already
+    #: recorded; and the SIZE of this bucket is itself a finding — "N% of accepted patches
+    #: were checked against a criterion their algorithm could not fail" says more about
+    #: automated migration tooling than any acceptance rate does. It is countable now, which
+    #: is the precondition for reporting it and then fixing it.
+    vacuous: bool = False
+    #: Set when this gate CANNOT run on this input by construction, as opposed to merely not
+    #: having run. The ladder conflated the two and that cost real evidence:
+    #:
+    #: * `compiles` skipped because Docker was down, or because the image was never pulled, has
+    #:   established NOTHING. It must keep capping the level exactly as it always has.
+    #: * `compiles` skipped because Go has no meaningful single-file compile check is a gate that
+    #:   can never run for that language, at any time, on any machine — see
+    #:   `_NO_SINGLE_FILE_COMPILE`. No daemon and no image would change the answer.
+    #:
+    #: NOT a pass, and deliberately not implemented as one. `evidence_level` REMOVES an
+    #: inapplicable gate from its rung's gate set rather than counting it green, so a rung whose
+    #: gates are all inapplicable is still refused, and `evidence_basis` records which gates were
+    #: dropped so no reader can mistake a reduced rung for a full one.
+    #:
+    #: `status` stays `"skipped"` on purpose. `passed`, `partial`, the stored records, the API's
+    #: rejecting-stage lookup and every dashboard tally read the status; this flag refines the
+    #: REASON for the skip, it does not add a sixth outcome to a field they already switch on.
+    not_applicable: bool = False
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        record: dict[str, Any] = {
             "status": self.status,
             "detail": self.detail[:4096],
             "duration_s": round(self.duration_s, 3),
         }
+        if self.vacuous:
+            # Only written when true, so the key's presence is the query: existing records
+            # predate the flag and must not be read as "measured, and not vacuous".
+            record["vacuous"] = True
+        if self.not_applicable:
+            # Same convention, same reason: records written before this flag existed must not read
+            # as "we checked, and the gate was applicable".
+            record["not_applicable"] = True
+        return record
+
+
+#: The evidence ladder. Each rung is a strictly stronger statement than the one below it, and a
+#: patch is recorded at the highest rung whose gates ACTUALLY RAN AND PASSED.
+#:
+#: This exists because `passed: bool` collapsed six very different states into one word, and that
+#: is why the old headline number could not be defended: 216 of 216 accepted patches were flagged
+#: `partial`, 20 were accepted with every stage skipped, and `tests` had never run on a single one
+#: — 0 of 292. "74% passed validation" was a claim about a gate, not about a migration.
+#:
+#: Read the rungs as: L0 the diff is well formed and the result parses · L1 names resolve and the
+#: module loads · L2 the SCANNER's opinion changed (compatible with a reused nonce or a dropped
+#: auth tag) · L3 the primitive demonstrably works AND demonstrably fails when it should · L4
+#: behaviour preserved on lines the project's own suite executes.
+#:
+#: A rung may be awarded on FEWER gates than it names, but only when the missing gate is
+#: impossible rather than absent — see `StageResult.not_applicable` and `evidence_level`. When
+#: that happens `evidence_basis` records which gates were dropped, because a rung earned on a
+#: reduced gate set is a weaker statement than the same number earned on the full one.
+_EVIDENCE_LADDER: tuple[tuple[int, tuple[str, ...]], ...] = (
+    (0, ("applies", "parses")),
+    (1, ("symbols", "compiles")),
+    (2, ("rescan",)),
+    (3, ("behaves",)),
+    (4, ("tests",)),
+)
+
+#: Nothing was established. Distinct from level 0, which is a real claim about the diff.
+NO_EVIDENCE = -1
+
+
+def _applicable_gates(stages: dict[str, StageResult], names: tuple[str, ...]) -> list[StageResult]:
+    """The gates of one rung that could actually have run on this input.
+
+    See `StageResult.not_applicable`. A gate is dropped here ONLY when it is impossible for this
+    language, never when it merely did not run.
+    """
+    results = [stages.get(name, StageResult("skipped")) for name in names]
+    return [g for g in results if not g.not_applicable]
+
+
+def evidence_level(stages: dict[str, StageResult]) -> int:
+    """The highest ladder rung whose applicable gates all passed, or `NO_EVIDENCE`.
+
+    A `skipped` gate caps the level and never counts as a pass — that equivalence is the single
+    assumption that produced every inflated number this project has had to retract. A gate that
+    did not run has established nothing, and saying so costs a smaller number and buys a
+    defensible one.
+
+    An INAPPLICABLE gate is a different claim and is handled differently: it leaves the rung's
+    gate set instead of joining it as a pass. Why that is the honest reading, and not a way to
+    make the numbers larger:
+
+    * Rung 1 claims "names resolve and the module loads". For Go it has two gates and one of them
+      — `compiles` — can never run, because a single Go file with no module and no dependency
+      graph is not something the toolchain will judge. `symbols` was added for exactly this gap,
+      after the go-ethereum run where 23 of 27 written files did not compile: its dominant cause
+      was imports deleted while their callers stayed, and imports added and never referenced,
+      which in Go is a compile ERROR. `symbols` catches precisely that. It does not catch type
+      errors, so the rung is genuinely weaker for Go than for Python — which is why the reduced
+      gate set is RECORDED (see `evidence_basis`) rather than papered over.
+    * The alternative — cap those nine languages at L0 forever — is not the conservative choice,
+      it is the uninformative one. It reports a Go patch that passed `symbols`, `rescan` and the
+      project's own test suite identically to one whose every gate failed. Measured on the
+      sentinel-idp run: 7 of 7 patches at L0, two of them carrying the strongest evidence this
+      tool produces.
+    * What is NOT relaxed: `behaves` still caps Go at rung 2. Its skip reason is "no metamorphic
+      harness has been probed for go" — a gap in this tool that somebody could close, not a
+      property of the language, so it stays a plain skip. Nothing exercised the cryptography those
+      Go patches installed, and the ladder must keep saying so.
+    """
+    reached = NO_EVIDENCE
+    for rung, names in _EVIDENCE_LADDER:
+        gates = _applicable_gates(stages, names)
+        # Every gate on this rung is inapplicable, so nothing could have run and nothing was
+        # established. Awarding a rung on an empty gate set is how "we could not check" turns into
+        # "it checked out" — `all([])` is True, and that is the one way this could have inflated.
+        if not gates:
+            break
+        # A vacuous gate is a pass that could not have been a fail, so it is worth exactly as
+        # much as a skip. Admitting it here is how a criterion the asset satisfies by
+        # construction turns into a claim that the migration was verified.
+        if all(g.status == "pass" and not g.vacuous for g in gates):
+            reached = rung
+        else:
+            break
+    return reached
+
+
+def evidence_basis(stages: dict[str, StageResult]) -> dict[str, Any]:
+    """Which gates established the level, and which were dropped as inapplicable.
+
+    Recorded because a level alone is no longer self-describing: an L1 earned by `symbols` AND
+    `compiles` and an L1 earned by `symbols` with `compiles` impossible are different findings,
+    and a table that shows them as one number is the kind of claim this project has already had to
+    retract once. `reduced` is the field to group by — false means every gate the ladder names for
+    every rung up to `level` ran and passed; true means at least one rung was awarded on a smaller
+    gate set, and `not_applicable` names exactly which gates were missing from it.
+    """
+    level = evidence_level(stages)
+    established: list[str] = []
+    dropped: list[str] = []
+    for rung, names in _EVIDENCE_LADDER:
+        if rung > level:
+            break
+        for name in names:
+            gate = stages.get(name, StageResult("skipped"))
+            (dropped if gate.not_applicable else established).append(name)
+    return {
+        "level": level,
+        "established_by": established,
+        "not_applicable": dropped,
+        "reduced": bool(dropped),
+    }
 
 
 @dataclass
@@ -78,11 +248,32 @@ class ValidationReport:
     passed: bool = False
     partial: bool = False
 
+    @property
+    def evidence_level(self) -> int:
+        """See `evidence_level`. Derived rather than stored so it can never disagree with the
+        stages it is computed from."""
+        return evidence_level(self.stages)
+
+    @property
+    def evidence_basis(self) -> dict[str, Any]:
+        """See `evidence_basis`. Derived for the same reason `evidence_level` is."""
+        return evidence_basis(self.stages)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "stages": {k: v.as_dict() for k, v in self.stages.items()},
             "passed": self.passed,
             "partial": self.partial,
+            # Reported alongside `passed`, not instead of it, so existing readers keep working
+            # while the honest number becomes available. Anything reporting an acceptance RATE
+            # should report the distribution of this instead.
+            "evidence_level": self.evidence_level,
+            # The level's provenance, stored WITH the level so the two can never be separated in
+            # a report. A reader — or a reviewer of the paper's table — must be able to tell an L4
+            # established with `compiles` from one established without it, and the stages dict
+            # alone only allows that by re-deriving the ladder. Additive: every existing consumer
+            # reads `evidence_level` and the per-stage `status`, both unchanged.
+            "evidence_basis": self.evidence_basis,
         }
 
 
@@ -117,8 +308,31 @@ def _stage_applies(
 # _effective_language resolves it to a concrete language from the file extension before this is
 # consulted. Listing it made every cross-language patch skip syntax validation entirely.
 _NON_CODE_LANGUAGES = frozenset(
-    {"nginx", "apache", "httpd", "sshd_config", "ssh_config", "config", "manifest", ""}
+    # `x509` joins these for the same reason the others are here: a certificate is not source, has
+    # no grammar to parse it, and nothing in the syntax or sandbox stages can say anything true
+    # about it. cert-pqc-01 resolves to a guided path, never to a patch.
+    {"nginx", "apache", "httpd", "sshd_config", "ssh_config", "config", "manifest", "x509", ""}
 )
+
+#: Non-code languages the SCANNER can still read, mapped to the extension it dispatches on.
+#:
+#: `parses` and `compiles` must skip these — there is no grammar and no single-file compiler. But
+#: `rescan` needs neither: it needs a file the scanner will pick up. Conflating the two capabilities
+#: cost real evidence. Measured on the live database: 11 nginx/apache TLS-config patches were
+#: APPLIED having established nothing whatsoever, because `_stage_rescan` consulted
+#: `LANGUAGE_TO_EXT` (a source-file map) and skipped when the language was not in it — even though
+#: the scanner had found the weak TLS asset in that very file moments earlier.
+#:
+#: Config hardening is the highest-value transform QUBIT performs, since one `ssl_conf_command`
+#: line turns on X25519MLKEM768 for all traffic. It was also the least verified.
+_CONFIG_LANGUAGE_TO_EXT: dict[str, str] = {
+    "nginx": ".conf",
+    "apache": ".conf",
+    "httpd": ".conf",
+    "config": ".conf",
+    "sshd_config": ".conf",
+    "ssh_config": ".conf",
+}
 
 # Rule language -> tree-sitter grammar name. Imported rather than restated: this used to be a
 # 7-entry copy alongside a second copy of the suffix map in this same file, and the two drifted —
@@ -181,6 +395,209 @@ def _stage_parses(
     return StageResult("fail", problem, time.monotonic() - t0)
 
 
+#: Every stage `validate_patch` reports, in the order it runs them.
+#:
+#: Declared once so anything describing the gate reads it from here rather than restating it. The
+#: evidence pack's truth table enumerates 3**len(STAGE_NAMES) combinations and was hardcoded to five
+#: stages, so it silently kept asserting soundness over 243 of the 729 that exist once `symbols` was
+#: added — a documented "all combinations were evaluated" claim that had quietly stopped being true.
+STAGE_NAMES: tuple[str, ...] = (
+    "applies",
+    "parses",
+    "symbols",
+    "compiles",
+    # Between `compiles` and `tests` deliberately. `compiles` establishes that the module loads;
+    # `behaves` asks whether the cryptography it loaded actually works. It sits BELOW `tests` on
+    # the evidence ladder because a project suite is a stronger statement — and ABOVE it in build
+    # order because `behaves` needs no project dependencies, no coverage and no maintainer-written
+    # tests, so it is available for EVERY finding rather than the subset somebody happened to
+    # exercise.
+    "behaves",
+    "tests",
+    "rescan",
+)
+
+#: Languages whose compiler REFUSES a source file with an import it never uses. Everywhere else
+#: this is a lint warning at most (Python F401, Java/Rust/C# warnings), so it must not fail a
+#: patch — see `_stage_symbols`. A language property, deliberately not a judgement about style.
+_UNUSED_IMPORT_IS_AN_ERROR = frozenset({"go"})
+
+#: A quoted literal that could name an algorithm: letters first, then letters/digits/`/_.-`,
+#: 3-31 characters. Broad on purpose — the canonical registry (`resolve`) is the real filter,
+#: this only limits how many candidate substrings reach it per file.
+_ALGORITHM_LITERAL = re.compile(r"""["']([A-Za-z][A-Za-z0-9/_.-]{2,30})["']""")
+
+#: How many lines apart two algorithm-name literals can be and still plausibly describe ONE
+#: operation. Small on purpose: a file that legitimately supports several distinct algorithms
+#: (a dispatch table, a list of accepted values) spreads them wider than one crypto call and its
+#: immediately adjacent key/spec construction.
+_ALGORITHM_CONSISTENCY_WINDOW = 4
+
+
+def _algorithm_family_mismatches(source: str) -> set[tuple[str, str]]:
+    """Pairs of algorithm literals in `source`, same family, different canonical name, within
+    `_ALGORITHM_CONSISTENCY_WINDOW` lines of each other. Each pair is `(a, b)` with `a < b`.
+
+    Resolved through `qubit_core.algorithms.resolve` -- the same registry every finding in the
+    corpus is already scored against -- rather than a hand-rolled list, so "same family" here
+    means exactly what it means everywhere else in QUBIT.
+    """
+    from qubit_core.algorithms import resolve
+
+    literals: list[tuple[int, str]] = []
+    for i, line in enumerate(source.splitlines()):
+        for m in _ALGORITHM_LITERAL.finditer(line):
+            literals.append((i, m.group(1)))
+
+    mismatches: set[tuple[str, str]] = set()
+    for a in range(len(literals)):
+        line_a, text_a = literals[a]
+        resolved_a = resolve(text_a)
+        if resolved_a is None:
+            continue
+        for b in range(a + 1, len(literals)):
+            line_b, text_b = literals[b]
+            if line_b - line_a > _ALGORITHM_CONSISTENCY_WINDOW:
+                break
+            resolved_b = resolve(text_b)
+            if resolved_b is None or resolved_b.canonical == resolved_a.canonical:
+                continue
+            if resolved_a.family == resolved_b.family:
+                mismatches.add(tuple(sorted((resolved_a.canonical, resolved_b.canonical))))  # type: ignore[arg-type]
+    return mismatches
+
+
+def _new_algorithm_inconsistency(patched_source: str, original_source: str) -> list[str]:
+    """Algorithm-family mismatches the PATCH introduced — present in `patched_source`, absent
+    from `original_source` — so a file that already mixed algorithms before the patch (a
+    dispatch table, a migration-in-progress) is not penalised for a pattern it did not create.
+
+    Measured: `paymesh-gateway`'s `cardToken` patch left `Mac.getInstance("HmacSHA256")` next to
+    `new SecretKeySpec(..., "HmacSHA1")` two lines below — both name an HMAC variant, they
+    disagree, and nothing else in this pipeline could have caught it: Java has no single-file
+    `compiles` check and no `behaves` relations yet, so the patch was accepted at evidence level
+    2 with a JCE key-algorithm mismatch a real `MessageDigest`/`Mac` provider would reject (or
+    silently misuse) at runtime. `compiles` or `behaves` would each independently have caught the
+    underlying defect this stands in for; this is a cheap, language-agnostic proxy that needs
+    neither a sandbox nor a metamorphic relation.
+
+    Deliberately conservative and approximate: quoted-string extraction, not parsing, so it reads
+    string literals wherever they sit, comments included — a documentation string naming two
+    algorithms in the same breath can still trip this. That is why this only ever REJECTS newly
+    introduced pairs rather than asserting anything positive, which is the same trade every other
+    stage in this module makes: a false failure costs a repair round, a false pass costs a
+    silently broken patch, and the two are not symmetric.
+    """
+    new_pairs = _algorithm_family_mismatches(patched_source) - _algorithm_family_mismatches(
+        original_source
+    )
+    return sorted(f"{a} and {b}" for a, b in new_pairs)
+
+
+def _stage_symbols(
+    patched_source: str,
+    language: str = "python",
+    original_source: str | None = None,
+) -> StageResult:
+    """Does the patch still resolve its own names? The semantic check that is not language-locked.
+
+    `compiles` needs a toolchain in a Docker image, and `_COMPILE_SANDBOX` has five entries — so
+    for Go, Java, Rust, C#, Kotlin, Swift, Scala, Dart and TypeScript it can never run at all
+    (`_NO_SINGLE_FILE_COMPILE`), and back when a skipped stage counted as a pass that left
+    `parses` as the only real check for those languages. tree-sitter answers a much weaker
+    question than it appears to: `mldsa65.PublicKey` is syntactically perfect whether or not
+    `mldsa65` is imported.
+
+    That is also why this stage now CARRIES rung 1 alone for those nine languages: `compiles` is
+    marked inapplicable rather than skipped, the ladder judges the rung on the gates that could
+    have run, and `evidence_basis` records that the rung was earned without `compiles`. The
+    reduction is real — nothing here checks types — and it is reported rather than hidden.
+
+    Measured on the go-ethereum ML-DSA migration, which QUBIT reported as "31 changes prepared and
+    validated": 23 of the 27 written files did not compile. The dominant failure was the model
+    "removing ECDSA" by deleting the `ecdsa`/`elliptic`/`big` import lines while leaving every
+    call that used them, plus imports it added and never referenced — in Go an unused import is a
+    compile ERROR, not a warning. Every one of those passed `applies`, `parses` and `rescan`.
+
+    Both halves are diffed against the ORIGINAL file rather than judged absolutely, which is what
+    makes this safe to run on real code: `t.Run`, `err.Error` and `conn.Read` look exactly like
+    package references to any regex, but they appear in both versions and cancel out. Only what
+    the patch newly broke is reported.
+    """
+    t0 = time.monotonic()
+    lang = (language or "").lower()
+    if lang in _NON_CODE_LANGUAGES or lang not in TS_GRAMMAR:
+        return StageResult(
+            "skipped",
+            f"{lang or 'unknown'} has no grammar to resolve symbols against",
+            time.monotonic() - t0,
+        )
+    if original_source is None:
+        # Without a baseline this cannot separate "the patch broke it" from "it was always so".
+        return StageResult(
+            "skipped", "no original source to compare against", time.monotonic() - t0
+        )
+
+    problems = []
+    # Runs regardless of the import safety valve below: it reads quoted literals, not import
+    # nodes, so a grammar whose import mapping is too thin to trust `unresolved_qualifiers` on
+    # is irrelevant to it. See `_new_algorithm_inconsistency`.
+    new_algorithm_mismatches = _new_algorithm_inconsistency(patched_source, original_source)
+    if new_algorithm_mismatches:
+        problems.append(
+            f"names {', '.join(new_algorithm_mismatches)} within a few lines of each other — "
+            f"the same algorithm family with two different members, which reads as one "
+            f"operation constructed inconsistently rather than two independent ones"
+        )
+
+    # Safety valve. If import extraction finds nothing in a file that plainly imports something,
+    # this grammar's import nodes are not mapped well enough to judge it — and then EVERY newly
+    # added qualifier looks unresolved, so a perfectly correct patch that adds a package and its
+    # import would be rejected. Skipping is the honest answer; the alternative is a confident
+    # wrong one. Only the import-based half of this stage is affected; the algorithm-consistency
+    # check above still stands on its own.
+    if not _import_names(original_source, lang) and not _import_names(patched_source, lang):
+        if problems:
+            return StageResult("fail", "; ".join(problems), time.monotonic() - t0)
+        return StageResult(
+            "skipped",
+            f"no imports could be read from this {lang} file, so symbol resolution cannot judge it",
+            time.monotonic() - t0,
+        )
+
+    new_unresolved = sorted(
+        unresolved_qualifiers(patched_source, lang) - unresolved_qualifiers(original_source, lang)
+    )
+    new_unused = sorted(
+        unused_imports(patched_source, lang) - unused_imports(original_source, lang)
+    )
+
+    # An unresolved name is a hard error in EVERY language: the compiler, interpreter or runtime
+    # has nothing to bind it to.
+    if new_unresolved:
+        problems.append(
+            f"uses {', '.join(new_unresolved)} but the patch does not import "
+            f"{'it' if len(new_unresolved) == 1 else 'them'} — if you replace an algorithm you "
+            f"must add its import, and if you keep using one you must not delete its import"
+        )
+    # An unused import is NOT universally an error, and failing a working migration over a lint
+    # nit is the same over-strict-gate mistake that wasted three model attempts per finding
+    # elsewhere. Measured: the argon2 codemod correctly rewrites the only `hashlib.sha1` call and
+    # leaves `import hashlib` behind — dead, untidy, and completely valid Python. Rejecting that
+    # patch would throw away a correct migration. In Go the same leftover will not compile.
+    if new_unused and lang in _UNUSED_IMPORT_IS_AN_ERROR:
+        problems.append(
+            f"imports {', '.join(new_unused)} without ever using "
+            f"{'it' if len(new_unused) == 1 else 'them'}, which {lang} rejects at compile time"
+        )
+    if problems:
+        return StageResult("fail", "; ".join(problems), time.monotonic() - t0)
+    note = "every name the patch introduces resolves"
+    if new_unused:
+        note += f" (leaves {', '.join(new_unused)} imported but unused, which {lang} allows)"
+    return StageResult("pass", note, time.monotonic() - t0)
+
+
 def _scan_command(target: Path) -> list[str]:
     """The command that runs the scanner's public CLI over ``target``.
 
@@ -196,7 +613,12 @@ def _scan_source(source: str, ext: str) -> list[dict[str, Any]]:
     """Scan one in-memory source through the scanner's public CLI. [] when it cannot be read."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_file = Path(tmpdir) / f"probe{ext}"
-        tmp_file.write_text(source, encoding="utf-8")
+        # `newline="\n"` — every reader in this codebase uses `Path.read_text()`, whose universal
+        # newline translation strips `\r`, so `source` is always LF-only here. Without pinning the
+        # write side too, `write_text`'s default (`newline=None`) re-encodes those `\n` as
+        # `os.linesep` — CRLF on Windows — which the scanner/tree-sitter would then read back
+        # differently than the real repo file this probe is meant to stand in for.
+        tmp_file.write_text(source, encoding="utf-8", newline="\n")
         try:
             result = subprocess.run(
                 _scan_command(tmp_file),
@@ -271,6 +693,477 @@ def _occurrence_survived(
     )
 
 
+def _weakness_ids(asset: dict[str, Any]) -> set[str]:
+    """The weakness ids the scanner attached to one asset's evidence, or the empty set."""
+    extra = ((asset.get("evidence") or {}).get("context") or {}).get("extra") or {}
+    return {
+        str(w["id"]) for w in extra.get("weaknesses", []) if isinstance(w, dict) and w.get("id")
+    }
+
+
+def _weakness_occurrence_survived(
+    *,
+    still_present: list[dict[str, Any]],
+    weakness_id: str,
+    patched_source: str,
+    original_source: str | None,
+    asset_line: int | None,
+    ext: str,
+) -> str | None:
+    """Did THIS task's own occurrence of the weakness survive the patch? Mirrors
+    `_occurrence_survived`, for the same reason: `weakness_gone` used to be checked whole-file --
+    ANY surviving occurrence of the named weakness anywhere in the patched source failed EVERY
+    task sharing that file, including one whose own occurrence the patch had correctly fixed.
+
+    That stopped being a corner case once `code-ecb-01`'s prompt began requiring a
+    backward-compatible read path for persisted data (see the rule): the mandated dual-path read
+    necessarily KEEPS one ECB decrypt in the file, for rows written in the old format. The
+    whole-file check rejected that patch outright, on every attempt, regardless of how correctly
+    it was written -- the rule demanded a shape its own gate could not accept.
+    """
+    lines_preserved = original_source is not None and len(original_source.splitlines()) == len(
+        patched_source.splitlines()
+    )
+
+    if asset_line is not None and lines_preserved:
+        at_line = [a for a in still_present if a.get("location", {}).get("line") == asset_line]
+        if at_line:
+            return (
+                f"Expected the {weakness_id!r} weakness gone from line {asset_line}, but it is "
+                f"still there"
+            )
+
+    if original_source is None:
+        lines = sorted(str((a.get("location") or {}).get("line")) for a in still_present)
+        return (
+            f"Expected the {weakness_id!r} weakness gone, but it is still present at "
+            f"line(s) {', '.join(lines)}"
+        )
+
+    before = [a for a in _scan_source(original_source, ext) if weakness_id in _weakness_ids(a)]
+    if len(still_present) < len(before):
+        return None
+    lines = sorted(str((a.get("location") or {}).get("line")) for a in still_present)
+    return (
+        f"Expected the {weakness_id!r} weakness gone, but the patch removed none of it: "
+        f"{len(before)} occurrence(s) before, {len(still_present)} after "
+        f"(line(s) {', '.join(lines)})"
+    )
+
+
+#: Image for the metamorphic harness. It needs the crypto library the target algorithm lives in,
+#: which `python:3.12-slim` does not carry — so this is a separate image from `_COMPILE_SANDBOX`,
+#: built from `qubit-v2/02-verification/Dockerfile.oracle`.
+#:
+#: Never pulled. QUBIT is offline by mandate, so the stage skips with the build command rather than
+#: fetching anything, exactly as `compiles` does.
+#: Environment override, so a corpus image can supply the imports the patched module needs.
+_ORACLE_IMAGE_ENV = "QUBIT_MIGRATE_ORACLE_IMAGE"
+
+#: A host directory mounted read-only and put on `PYTHONPATH` inside the oracle container.
+#:
+#: The harness writes the patched file to a temp dir and mounts only that, which is right for
+#: exercising a primitive in isolation — but a patched module that imports its OWN package cannot
+#: resolve it, and the stage skips with `ModuleNotFoundError: <the corpus>`. Measured on Flexget:
+#: 6 of 8 patches skipped for exactly that reason once the third-party imports were satisfied.
+#:
+#: Pointing this at the corpus root lets those modules import, so the relations can actually run.
+#: The tree is mounted READ-ONLY and the patched file still comes from the temp dir, so the thing
+#: under test remains the patch rather than whatever is on disk.
+_ORACLE_PYPATH_ENV = "QUBIT_MIGRATE_ORACLE_PYPATH"
+
+_DEFAULT_ORACLE_IMAGE = "qubit-eval/oracle:py312"
+
+
+def _oracle_image() -> str:
+    """The image the metamorphic harness runs in. Overridable, and it has to be.
+
+    The default carries the crypto library and nothing else, so a patched module importing anything
+    of its own -- loguru, psutil, feedparser -- fails at import and the stage skips with
+    `patched module did not import`.
+
+    Measured across every arm on both corpora: `behaves` skipped on **39 of 39** patches, and 11 of
+    those were exactly this, on Flexget patches whose SHA-1-to-SHA-256 transformation the relations
+    DO cover. The oracle was never given the chance to answer. The env override points it at a
+    corpus image that carries those imports.
+    """
+    return os.getenv(_ORACLE_IMAGE_ENV) or _DEFAULT_ORACLE_IMAGE
+
+
+#: Families whose admission controls have been verified IN THIS PROCESS, and the report that says
+#: so. Process-level because what is being established is a property of this image and this
+#: installed library, neither of which can change mid-run.
+#:
+#: `None` means "not yet attempted". An empty frozenset AFTER an attempt means the controls ran and
+#: did not behave -- a very different state, and one that must not be retried per patch: a broken
+#: oracle does not become correct on the ninth attempt, and re-running ten container pairs for
+#: every finding would cost more than the migrations do.
+_verified_families: frozenset[str] | None = None
+_control_report: ControlReport | None = None
+
+
+def _oracle_pypath_args() -> list[str]:
+    """Mount the corpus tree and expose it on `PYTHONPATH`, when one is configured.
+
+    Returns nothing when unset, so the default behaviour — an isolated temp dir — is unchanged.
+    """
+    root = os.getenv(_ORACLE_PYPATH_ENV)
+    if not root or not Path(root).is_dir():
+        return []
+    return ["-v", f"{Path(root).resolve()}:/src:ro", "-e", "PYTHONPATH=/src:/src/src"]
+
+
+#: Languages a metamorphic harness has been PROBED for — not merely written for.
+#:
+#: Each entry means the primitive families were exercised against the installed library in that
+#: language's own container and the conventions were MEASURED. Ruby's signature `verify` returns a
+#: boolean where Python's raises `InvalidSignature`, and its AEAD rejection raises where its
+#: signature does not; either assumption carried across from the other language would produce a
+#: harness that passes a no-op rewrite. See `oracles/ruby_harness.py` for the probe log.
+#:
+#: Go and Java are absent for a container reason rather than a harness one: Go 1.23 predates stdlib
+#: `crypto/mlkem` and the Maven image carries no BouncyCastle, so neither can run a PQC round trip
+#: offline yet.
+_ORACLE_LANGUAGES = frozenset({"python", "ruby"})
+
+#: The image the Ruby oracle runs in. Ruby's OpenSSL 3.5.7 provides ML-DSA, so no extra layer is
+#: needed over the twin's own sandbox — and sharing that image means a family licensed here is
+#: licensed against the very interpreter that will judge the patch.
+_RUBY_ORACLE_IMAGE = "qubit-eval/inkwell:sandbox"
+
+
+def _run_ruby_oracle(
+    source: str, target: str, usage_context: str, construction: str
+) -> dict[str, Any]:
+    """Render and execute the Ruby harness once.
+
+    Mirrors `_run_oracle` deliberately, container limits included: a Ruby verdict produced under
+    different constraints would not be comparable with a Python one, and the evidence ladder counts
+    them as the same rung.
+    """
+    from ..oracles.ruby_harness import build as build_ruby
+
+    plan = build_ruby(relations_for(usage_context, construction), source, target)
+    if not plan.runnable:
+        return {"status": "skipped", "reason": plan.skip_reason, "relations": []}
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        work = Path(tmpdir)
+        # Explicit LF: this is bind-mounted into a Linux container, and Python's default CRLF
+        # re-encoding on Windows breaks the driver the same way it broke `_stage_compiles`' scripts.
+        (work / "patched.rb").write_text(source, encoding="utf-8", newline="\n")
+        (work / "driver.rb").write_text(
+            plan.source.replace("__MODULE_PATH__", '"/work/patched.rb"'),
+            encoding="utf-8",
+            newline="\n",
+        )
+        try:
+            result = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--network=none",
+                    "--memory=1g",
+                    "--cpus=1",
+                    "--pids-limit=128",
+                    "-v",
+                    f"{tmpdir}:/work:ro",
+                    _RUBY_ORACLE_IMAGE,
+                    "ruby",
+                    "/work/driver.rb",
+                ],
+                capture_output=True,
+                timeout=90,
+            )
+        except subprocess.TimeoutExpired:
+            # Not a behavioural difference. Inconclusive rather than `fail`, for the same reason a
+            # slow-but-green suite must not be scored as a patch failure.
+            return {
+                "status": "skipped",
+                "reason": "the metamorphic harness timed out",
+                "relations": [],
+            }
+
+    raw = result.stdout.decode("utf-8", errors="replace").strip().splitlines()
+    if not raw:
+        return {
+            "status": "skipped",
+            "reason": "the harness produced no verdict: "
+            + result.stderr.decode("utf-8", errors="replace")[:300],
+            "relations": [],
+        }
+    try:
+        verdict: dict[str, Any] = json.loads(raw[-1])
+    except json.JSONDecodeError:
+        return {
+            "status": "skipped",
+            "reason": f"unreadable harness verdict: {raw[-1][:200]}",
+            "relations": [],
+        }
+    return verdict
+
+
+def _run_oracle(source: str, target: str, usage_context: str, construction: str) -> dict[str, Any]:
+    """Render and execute the harness once. The single path both controls and patches take.
+
+    Shared deliberately. A control that exercised a different code path from the thing it licenses
+    would establish nothing about it, which is the same error as trusting a gate that never ran.
+    """
+    plan = build_harness(relations_for(usage_context, construction), source, target)
+    if not plan.runnable:
+        return {"status": "skipped", "reason": plan.skip_reason, "relations": []}
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        work = Path(tmpdir)
+        # `newline="\n"`: bind-mounted into a Linux container, and Python's default re-encoding to
+        # CRLF on Windows breaks the harness exactly as it broke shell scripts in `_stage_compiles`.
+        (work / "patched.py").write_text(source, encoding="utf-8", newline="\n")
+        (work / "harness.py").write_text(plan.source, encoding="utf-8", newline="\n")
+        try:
+            result = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--network=none",
+                    "--memory=1g",
+                    "--cpus=1",
+                    "--pids-limit=128",
+                    "-v",
+                    f"{tmpdir}:/work:ro",
+                    *_oracle_pypath_args(),
+                    _oracle_image(),
+                    "python",
+                    "/work/harness.py",
+                ],
+                capture_output=True,
+                timeout=90,
+            )
+        except subprocess.TimeoutExpired:
+            # Not a behavioural difference. Inconclusive rather than `fail`, for the same reason a
+            # slow-but-green test suite must not be scored as a patch failure.
+            return {
+                "status": "skipped",
+                "reason": "the metamorphic harness timed out",
+                "relations": [],
+            }
+
+    raw = result.stdout.decode("utf-8", errors="replace").strip().splitlines()
+    if not raw:
+        return {
+            "status": "skipped",
+            "reason": "the harness produced no verdict: "
+            + result.stderr.decode("utf-8", errors="replace")[:300],
+            "relations": [],
+        }
+    try:
+        verdict: dict[str, Any] = json.loads(raw[-1])
+    except json.JSONDecodeError:
+        return {
+            "status": "skipped",
+            "reason": f"unreadable harness verdict: {raw[-1][:200]}",
+            "relations": [],
+        }
+    return verdict
+
+
+def verified_families() -> frozenset[str]:
+    """Families the admission controls have licensed, running them once if needed.
+
+    Until a family's two controls have both behaved, `behaves` reports `skipped` for it rather than
+    `pass`. That is the whole point: an oracle nobody has proven can FAIL is indistinguishable from
+    one that passes everything, and counting its verdicts as evidence is how a measurement becomes
+    unfalsifiable. See `oracles/controls.py`.
+    """
+    global _verified_families, _control_report
+    if _verified_families is not None:
+        return _verified_families
+    if not _docker_available() or not _image_present(_oracle_image()):
+        # Not a control failure -- the oracle cannot run at all, which the stage reports on its own
+        # with the build command. Left unset so it is retried if the image later appears.
+        return frozenset()
+    _control_report = run_controls(_run_oracle)
+    _verified_families = _control_report.families
+    return _verified_families
+
+
+#: Ruby's licensed families, cached like the Python set and for the same reason: the controls cost
+#: three containers and would otherwise run once per finding.
+_verified_ruby_families: frozenset[str] | None = None
+_ruby_control_report: ControlReport | None = None
+
+
+def verified_ruby_families() -> frozenset[str]:
+    """Families the RUBY admission controls have licensed.
+
+    Separate from `verified_families` rather than merged with it, because a licence is a statement
+    about one harness against one library. Python's positive control asserts that a broken `verify`
+    raises `InvalidSignature`; Ruby's returns `false`. Letting either license the other would mean
+    the family with no working negatives inherits the other's licence — which is exactly the
+    unfalsifiable oracle the admission gate exists to prevent.
+    """
+    global _verified_ruby_families, _ruby_control_report
+    if _verified_ruby_families is not None:
+        return _verified_ruby_families
+    if not _docker_available() or not _image_present(_RUBY_ORACLE_IMAGE):
+        # Not a control failure — the oracle cannot run at all, which the stage reports on its own.
+        # Left unset so it is retried if the image later appears.
+        return frozenset()
+
+    from ..oracles.ruby_harness import ruby_controls
+
+    _ruby_control_report = run_controls(_run_ruby_oracle, controls=ruby_controls())
+    _verified_ruby_families = _ruby_control_report.families
+    return _verified_ruby_families
+
+
+def ruby_control_report() -> ControlReport | None:
+    """The published Ruby control artifact, or None if the controls have not been run."""
+    return _ruby_control_report
+
+
+def control_report() -> ControlReport | None:
+    """The published control artifact, or None if the controls have not been run.
+
+    Published, not internal. Without it every `behaves` number in the paper is unfalsifiable: a
+    reader has no way to tell a gate that discriminates from one that says yes to everything.
+    """
+    return _control_report
+
+
+def _stage_behaves(
+    patched_source: str,
+    rule: Any | None,
+    language: str,
+    usage_context: str | None,
+    construction: str = "pure",
+) -> StageResult:
+    """Does the migrated primitive actually work, and does it fail when it should?
+
+    Every gate before this one asks a question about the TEXT of the patch. This one runs the
+    cryptography the patch installed and checks metamorphic relations against it — a round trip
+    that must hold, and rejections that must happen.
+
+    The negatives are why this is an oracle rather than a smoke test. Measured on a deliberately
+    broken patch that passes `applies`, `parses`, `symbols`, `compiles` and `rescan`: a signature
+    scheme whose `verify` accepts anything and whose `sign` returns bytes of exactly the right
+    length, so even the size advisory reads correct. Its round-trip relation PASSES. Only
+    `sig-wrong-key`, `sig-tampered-message` and `sig-truncated` catch it.
+
+    Runs in a container because it imports and executes model-generated code. Doing that on the
+    host would be the one place QUBIT ran an LLM's output directly, which is exactly what the
+    sandbox exists to prevent.
+    """
+    t0 = time.monotonic()
+
+    lang = (language or "").lower()
+    if lang not in _ORACLE_LANGUAGES:
+        return StageResult(
+            "skipped",
+            f"no metamorphic harness has been probed for {language} — probed: "
+            f"{', '.join(sorted(_ORACLE_LANGUAGES))}",
+            time.monotonic() - t0,
+        )
+
+    target = ""
+    if rule is not None:
+        target = str((getattr(rule, "target", None) or {}).get("algorithm") or "")
+    if not target:
+        return StageResult(
+            "skipped", "the rule declares no target algorithm to exercise", time.monotonic() - t0
+        )
+
+    relation_set = relations_for(usage_context, construction)
+    # Built by the LANGUAGE's own harness. This pre-check used `build_harness` unconditionally, so a
+    # Ruby patch was judged by Python's symbol search and skipped with
+    # "the patch references none of ['MLKEM768PrivateKey']" — a Python class name, about a Ruby
+    # file. Observed on the live run: the Ruby oracle was fully built, licensed and never reached,
+    # because the gate in front of it spoke the wrong language.
+    if lang == "python":
+        plan = build_harness(relation_set, patched_source, target)
+    else:
+        from ..oracles.ruby_harness import build as build_ruby
+
+        plan = build_ruby(relation_set, patched_source, target)
+    if not plan.runnable:
+        # Never `pass`. An oracle that did not run has established nothing, and recording that as
+        # success is the exact failure the admission controls exist to catch.
+        return StageResult("skipped", plan.skip_reason, time.monotonic() - t0)
+
+    if not _docker_available():
+        return StageResult("skipped", "docker unavailable", time.monotonic() - t0)
+    image = _oracle_image() if lang == "python" else _RUBY_ORACLE_IMAGE
+    if not _image_present(image):
+        return StageResult(
+            "skipped",
+            f"oracle image {image} is not built (QUBIT never pulls one itself) — run: "
+            f"docker build -t {image} -f qubit-v2/02-verification/Dockerfile.oracle .",
+            time.monotonic() - t0,
+        )
+
+    # THE ADMISSION GATE. A family whose controls have not both behaved cannot award evidence,
+    # however green its own relations come back. An oracle that reports `pass` for everything looks
+    # exactly like a working one from the outside; the controls are the only thing that tells the
+    # two apart, and running them once per process costs ten containers against thousands of
+    # findings.
+    licensed = verified_families() if lang == "python" else verified_ruby_families()
+    if relation_set.family not in licensed:
+        return StageResult(
+            "skipped",
+            f"the {lang} admission controls have not licensed the {relation_set.family!r} family, "
+            "so its verdicts are not evidence — see oracles/controls.py",
+            time.monotonic() - t0,
+        )
+
+    verdict = (
+        _run_oracle(patched_source, target, usage_context or "", construction)
+        if lang == "python"
+        else _run_ruby_oracle(patched_source, target, usage_context or "", construction)
+    )
+
+    status = str(verdict.get("status", "skipped"))
+    relations = verdict.get("relations") or []
+    ran = ", ".join(f"{r.get('id')}={r.get('outcome')}" for r in relations)
+    if status == "pass":
+        detail = f"{len(relations)} relations held ({ran})"
+    elif status == "fail":
+        detail = f"{verdict.get('reason', '')} [{ran}]"
+    else:
+        detail = str(verdict.get("reason", ""))
+
+    # Narrowed explicitly rather than cast: the harness is a subprocess and its status is whatever
+    # JSON it printed. Anything this code does not recognise becomes `skipped`, never `pass` -- an
+    # unrecognised verdict has established nothing.
+    outcome: StageStatus = "skipped"
+    if status == "pass":
+        outcome = "pass"
+    elif status == "fail":
+        outcome = "fail"
+    return StageResult(outcome, detail, time.monotonic() - t0)
+
+
+#: Symmetric parameter sets below the accepted floor, spelled out rather than derived.
+#:
+#: Narrow on purpose. This list decides when a rescan criterion that does not name the asset's
+#: algorithm may be replaced by one that does, and the cost of being too generous is high in a
+#: specific way: an algorithm that is ALREADY correct would be told to migrate, and the probe whose
+#: whole job is to skip already-correct files would start sending them to a model.
+#:
+#: `AES-256` is absent because it is the target, not a finding. A test asserts the two directions.
+_BELOW_SYMMETRIC_FLOOR = ("AES-128", "AES-192")
+
+
+def _names_a_parameter(algorithm: str) -> bool:
+    """Is this a symmetric parameter set that a migration is supposed to change?
+
+    True for `AES-128` and `AES-128-CBC`; false for bare `AES`, and false for `AES-256-GCM`, which
+    is where a correct migration LANDS. The distinction decides whether a rescan criterion that does
+    not name the asset's algorithm can be made failable by substituting it -- see the caller.
+    """
+    return algorithm.upper().startswith(_BELOW_SYMMETRIC_FLOOR)
+
+
 def _stage_rescan(
     patched_source: str,
     rule: Any | None,
@@ -278,6 +1171,7 @@ def _stage_rescan(
     asset_algorithm: str | None = None,
     original_source: str | None = None,
     asset_line: int | None = None,
+    target_rel_path: str | None = None,
 ) -> StageResult:
     """Run qubit scan --json on the patched source and check rescan_expect.
 
@@ -304,7 +1198,7 @@ def _stage_rescan(
     # Shared with the codemod dispatcher and the suffix map — see transform/languages.py. This was
     # a third private copy listing 7 languages, so the rescan (the only stage that checks the patch
     # actually removed the weak algorithm) silently skipped for the other 12.
-    ext = LANGUAGE_TO_EXT.get(language)
+    ext = LANGUAGE_TO_EXT.get(language) or _CONFIG_LANGUAGE_TO_EXT.get(language)
     if ext is None:
         return StageResult(
             "skipped",
@@ -313,8 +1207,15 @@ def _stage_rescan(
         )
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_file = Path(tmpdir) / f"patched{ext}"
-        tmp_file.write_text(patched_source, encoding="utf-8")
+        # The original BASENAME, not just the extension. The scanner's config dispatch is
+        # name-sensitive — `options-ssl-apache.conf` routes to the Apache parser because "apache"
+        # is in its name, and `sshd_config` to the OpenSSH one — so writing every patch to
+        # `patched.conf` sends an Apache file to nginx's stricter grammar and loses detections that
+        # the scan which produced the finding had made. Source languages are unaffected: their
+        # dispatch is by suffix, and the suffix is preserved either way.
+        name = Path(target_rel_path).name if target_rel_path else ""
+        tmp_file = Path(tmpdir) / (name if name and Path(name).suffix == ext else f"patched{ext}")
+        tmp_file.write_text(patched_source, encoding="utf-8", newline="\n")
 
         try:
             result = subprocess.run(
@@ -352,13 +1253,69 @@ def _stage_rescan(
             gone_prefixes = _prefixes(expect.get("gone", {}).get("algorithm_prefix", ""))
             present_prefixes = _prefixes(expect.get("present", {}).get("algorithm_prefix", ""))
 
+            # A HYBRID TARGET INVERTS THE EXPECTATION FOR ITS CLASSICAL HALF.
+            #
+            # For a pure migration, "ECDSA is gone" is success. For `ML-DSA-65+ECDSA-P256` it is
+            # the opposite: the classical component must SURVIVE, because a composite that keeps
+            # only the lattice half protects against nothing an implementation flaw in that half
+            # would expose -- which is the entire reason BSI and ANSSI require hybrid.
+            #
+            # Left unhandled, the gate rewarded exactly the wrong patch. A rewrite that dropped
+            # the classical signature satisfied `gone: ECDSA` and was ACCEPTED, while the correct
+            # composite -- which necessarily still contains ECDSA -- was REJECTED. The tool would
+            # have driven every hybrid migration toward the non-compliant outcome, and reported
+            # success for it.
+            components = hybrid_components(
+                str(((getattr(rule, "target", None) or {}).get("algorithm")) or "")
+            )
+            if components is not None:
+                pqc, classical = components
+                # Both halves must be detectable afterwards. Requiring only the PQC one would
+                # accept the same broken patch by a different route.
+                for half in (pqc, classical):
+                    if not any(half.upper().startswith(p.upper()) for p in present_prefixes):
+                        present_prefixes.append(half)
+                # And the classical half is no longer something to be rid of.
+                gone_prefixes = [
+                    p for p in gone_prefixes if not classical.upper().startswith(p.upper())
+                ]
+
             # Narrow `gone` to the prefixes that actually describe THIS patch's algorithm. A rule
             # lists every algorithm it can migrate; one patch migrates one of them, and the others
             # may legitimately still be in the file under a usage this rule does not own.
-            if asset_algorithm:
+            # Set when the `gone` check cannot be failed by this asset — see StageResult.vacuous.
+            vacuous = False
+            if asset_algorithm and gone_prefixes:
                 matching = [p for p in gone_prefixes if asset_algorithm.startswith(p)]
                 if matching:
                     gone_prefixes = matching
+                elif _names_a_parameter(asset_algorithm):
+                    # The rule's `gone` list does not describe this asset, so on its own the check
+                    # is unfailable. But when the asset's algorithm names a PARAMETER -- a key size
+                    # or a mode, as `AES-128` and `AES-128-CBC` do -- the migration is precisely a
+                    # change to that parameter, and "this parameter set is gone from this line" is a
+                    # criterion the asset can fail. So use the asset's own algorithm as the target.
+                    #
+                    # This is what makes `code-weakcipher-01` usable on such a finding. It declares
+                    # `gone: [DES, 3DES, RC4, ...]` with `present: [AES]`, so for ANY AES asset the
+                    # `gone` half never matched and the `present` half passed -- the file was
+                    # reported already-migrated and no model was called. Measured on inkwell-esign:
+                    # `encrypt_draft` and `decrypt_draft` are AES-128-CBC and were parked as
+                    # finished work, two of that twin's five migratable findings.
+                    #
+                    # An algorithm with NO parameter is deliberately left vacuous. The rule spells
+                    # `present` as bare `AES` because Go and C carry the key length on the key
+                    # VARIABLE rather than the call, so the scanner resolves a correct AES-256-GCM
+                    # rewrite to bare `AES` -- and demanding "AES gone" there would reject the
+                    # already-correct file this same probe exists to skip
+                    # (`test_a_file_that_already_meets_the_rule_is_not_sent_to_the_model`).
+                    # The parameter is the whole discriminator: it is present exactly when the
+                    # scanner could see what needs to change.
+                    gone_prefixes = [asset_algorithm]
+                else:
+                    # Falls through to the full list, unchanged. The asset satisfies it by
+                    # construction — its algorithm is not among the ones being checked for.
+                    vacuous = True
 
             for gone_prefix in gone_prefixes:
                 surviving = [
@@ -382,10 +1339,59 @@ def _stage_rescan(
                         expectation="gone",
                         expected=gone_prefix,
                     )
+            # `weakness_gone`: the expectation for a rule whose finding is a property of the
+            # CALL rather than the algorithm. An ECB migration leaves AES in the file - that is
+            # the point, AES is not the problem - so neither `gone` nor `present` can express
+            # "this is no longer ECB". Checking the weakness the scanner re-derives from the
+            # patched source is the only expectation that actually verifies such a fix.
+            #
+            # Occurrence-scoped through `_weakness_occurrence_survived`, exactly like `gone`
+            # above and for the identical reason: two ECB findings in one file are two tasks, and
+            # a whole-file "is any ECB left" check makes both unsatisfiable whenever the file
+            # mixes usages, or whenever a correct patch must deliberately keep one occurrence --
+            # see that function's docstring for the persisted-data case that made this necessary.
+            for weakness_id in _prefixes(expect.get("weakness_gone", "")):
+                surviving_weak = [a for a in assets if weakness_id in _weakness_ids(a)]
+                if not surviving_weak:
+                    continue
+                detail = _weakness_occurrence_survived(
+                    still_present=surviving_weak,
+                    weakness_id=weakness_id,
+                    patched_source=patched_source,
+                    original_source=original_source,
+                    asset_line=asset_line,
+                    ext=ext,
+                )
+                if detail is not None:
+                    return StageResult(
+                        "fail",
+                        detail,
+                        time.monotonic() - t0,
+                        expectation="weakness_gone",
+                        expected=weakness_id,
+                    )
+            if components is not None:
+                # EVERY half, not any. The "any one satisfies it" rule below exists because a rule
+                # may offer several ACCEPTABLE ALTERNATIVES; a composite's two halves are not
+                # alternatives, they are both required, and reading them as alternatives accepts a
+                # patch that shipped one of them.
+                for half in components:
+                    if not any(a.upper().startswith(half.upper()) for a in algos):
+                        return StageResult(
+                            "fail",
+                            f"{half!r} is missing after a migration to a composite target. Both "
+                            f"halves of {components[0]}+{components[1]} must be present — a "
+                            f"composite carrying only one of them satisfies the hybrid mandate on "
+                            f"paper and provides none of the defence in depth it exists for. "
+                            f"Algorithms: {algos}",
+                            time.monotonic() - t0,
+                            expectation="present",
+                            expected=half,
+                        )
             # Any ONE of the listed prefixes satisfies the expectation: a rule may offer several
             # acceptable targets (ML-KEM or a hybrid group), and requiring all of them at once would
             # reject a correct migration that picked one.
-            if present_prefixes and not any(a.startswith(tuple(present_prefixes)) for a in algos):
+            elif present_prefixes and not any(a.startswith(tuple(present_prefixes)) for a in algos):
                 return StageResult(
                     "fail",
                     f"Expected one of {present_prefixes!r} present, but not found. "
@@ -394,7 +1400,20 @@ def _stage_rescan(
                     expectation="present",
                     expected=present_prefixes[0],
                 )
-            return StageResult("pass", f"rescan ok. algorithms: {algos}", time.monotonic() - t0)
+            # `vacuous` rides on the PASS, which is the only place it matters: a fail is
+            # informative whatever the prefixes were, and a pass on an unfailable criterion
+            # is the thing that must never be counted as evidence.
+            return StageResult(
+                "pass",
+                (
+                    f"rescan ok, but the 'gone' criterion does not name {asset_algorithm!r} "
+                    f"so it could not have failed. algorithms: {algos}"
+                    if vacuous
+                    else f"rescan ok. algorithms: {algos}"
+                ),
+                time.monotonic() - t0,
+                vacuous=vacuous,
+            )
 
         except subprocess.TimeoutExpired:
             return StageResult("fail", "rescan timed out", time.monotonic() - t0)
@@ -442,6 +1461,63 @@ _COMPILE_SANDBOX: dict[str, tuple[str, str, list[str]]] = {
     "bash": ("bash:5.2", "patched.sh", ["bash", "-n", "/work/patched.sh"]),
 }
 
+#: Languages for which `compiles` is not unavailable but MEANINGLESS. Their toolchains cannot say
+#: anything true about one file with no project, no manifest and no resolved dependency graph, so
+#: no daemon and no pulled image would ever make this gate run. `_stage_compiles` marks these
+#: `not_applicable`, which is what lets the ladder judge rung 1 on `symbols` alone for them — the
+#: gate that was added for precisely this gap. See `evidence_level` for why that is honest and
+#: `_stage_symbols` for what it catches.
+#:
+#: Measured cost of not distinguishing them: on the sentinel-idp (Go) run, `compiles` skipped on
+#: 7 of 7 patches, the ladder broke at rung 1 every time, and all 7 were recorded at L0 —
+#: including the 2 that passed `symbols`, `rescan` AND the project's own test suite.
+#:
+#: Deliberately an explicit list rather than "anything absent from `_COMPILE_SANDBOX`". A language
+#: nobody has considered — a typo in a rule, a grammar added tomorrow — is "we do not know whether
+#: this could be checked", and only "it provably cannot be" may relax the ladder. `c`, `cpp`,
+#: `powershell` and `sql` are absent for that reason: they keep capping the level exactly as today.
+_NO_SINGLE_FILE_COMPILE = frozenset(
+    {
+        "go",
+        "java",
+        "rust",
+        "csharp",
+        "kotlin",
+        "scala",
+        "swift",
+        "dart",
+        # One language, two tree-sitter grammars (see `TS_GRAMMAR`). `tsc` needs a tsconfig and a
+        # resolved module graph for either, so listing one without the other would make a
+        # component's evidence level depend on whether it happens to contain JSX.
+        "typescript",
+        "tsx",
+    }
+)
+
+
+def _compile_is_inapplicable(language: str) -> StageResult | None:
+    """The `compiles` result for a language that can never have a single-file compile check.
+
+    None when the question is still open — either the check exists for this language, or nothing
+    is known about it — in which case the caller goes on to report why the gate did not run.
+
+    One statement of the rule, consulted by both callers on purpose. `validate_patch`'s `no_docker`
+    branch needs it as much as `_stage_compiles` does: whether Go can be compiled from a single
+    file does not depend on a Docker flag, and letting the flag answer it would make the same
+    patch record two different evidence levels in two runs of the same tool.
+    """
+    lang = (language or "").lower()
+    # `not in _COMPILE_SANDBOX` keeps the invariant local rather than relying on the two tables
+    # staying disjoint: if a real check is ever added for one of these languages, it wins.
+    if lang in _NO_SINGLE_FILE_COMPILE and lang not in _COMPILE_SANDBOX:
+        return StageResult(
+            "skipped",
+            f"no single-file compile check for {language} — it needs a project to build",
+            0.0,
+            not_applicable=True,
+        )
+    return None
+
 
 def _image_present(image: str) -> bool:
     """Is this image already pulled?
@@ -465,13 +1541,23 @@ def _image_present(image: str) -> bool:
 def _stage_compiles(patched_source: str, language: str = "python") -> StageResult:
     """Stage 3: run the language's own syntax check inside an isolated container (no network)."""
     t0 = time.monotonic()
-    spec = _COMPILE_SANDBOX.get((language or "").lower())
+    lang = (language or "").lower()
+    spec = _COMPILE_SANDBOX.get(lang)
     if spec is None:
+        # Two different skips, and the ladder treats them differently. `not_applicable` says the
+        # check cannot exist for this language; the fallback says only that none is configured
+        # here, which is not a claim about the language and must keep capping the level.
+        inapplicable = _compile_is_inapplicable(language)
+        if inapplicable is not None:
+            return inapplicable
         return StageResult(
             "skipped",
-            f"no single-file compile check for {language} — it needs a project to build",
+            f"no single-file compile check is configured for {language}",
             0.0,
         )
+    # Below here every skip is "did not run", never "cannot run": the check exists for this
+    # language and something in the environment stopped it. `not_applicable` stays false so the
+    # ladder keeps capping, which is the behaviour these two branches have always had.
     if not _docker_available():
         return StageResult("skipped", "docker unavailable", time.monotonic() - t0)
 
@@ -485,7 +1571,12 @@ def _stage_compiles(patched_source: str, language: str = "python") -> StageResul
         )
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        (Path(tmpdir) / filename).write_text(patched_source, encoding="utf-8")
+        # `newline="\n"` — without it, `write_text`'s default re-encodes `patched_source`'s `\n`
+        # as `os.linesep` (CRLF on Windows) before this file is bind-mounted into the Linux
+        # sandbox. A shell script then fails with a bogus syntax error on every `do`/`then`
+        # keyword (`$'do\r''`) — the CRLF is an artifact of the HOST write, not a defect in the
+        # patch. Found live on OpenSSL's `util/analyze-contention-log.sh`.
+        (Path(tmpdir) / filename).write_text(patched_source, encoding="utf-8", newline="\n")
         try:
             result = subprocess.run(
                 [
@@ -511,15 +1602,334 @@ def _stage_compiles(patched_source: str, language: str = "python") -> StageResul
         return StageResult("fail", detail, time.monotonic() - t0)
 
 
+#: Filename the JSON report is written to inside the sandbox, then read back from the copy.
+_REPORT_NAME = ".qubit-pytest-report.json"
+
+
+@dataclass(frozen=True)
+class _Baseline:
+    """What the project's own suite does BEFORE any patch is applied.
+
+    `passing` is the set of node ids that pass. It is what turns this stage from "did the exit code
+    change" into "did anything that worked stop working", and that distinction is the whole game: a
+    real repository almost always has a handful of tests that cannot run in an offline sandbox, and
+    under a plain exit-code comparison one of those made the entire stage `skipped` and discarded
+    the evidence from the other several thousand tests.
+    """
+
+    passing: frozenset[str]
+    collected: int
+    green: bool
+
+
+#: Baseline per (image, repo_root). It is byte-identical for every patch in a run, and re-deriving
+#: it per patch doubled the most expensive operation in the pipeline to re-learn the same fact --
+#: at 150 findings across 5 experiment arms, 750 suite runs of pure waste.
+_BASELINE_CACHE: dict[tuple[str, str], _Baseline | None] = {}
+
+#: Directories that must never be copied into the sandbox. A stray local virtualenv turns a
+#: per-patch tree copy into minutes of pure I/O, and this runs once per patch per arm.
+_COPY_IGNORES = shutil.ignore_patterns(
+    # `.git` is deliberately NOT ignored. A large share of Python projects derive their version
+    # from git at import time -- `versioningit` and `setuptools_scm` between them cover most of it
+    # -- and with the repository uninstalled from the image (which it must be, or the overlaid file
+    # is never read) that derivation is the only thing left. Measured on streamlink: without the
+    # git directory, `import streamlink` raised `ModuleNotFoundError: No module named
+    # 'versioningit'` from its own `_version.py`, so the suite could not start and no patch could
+    # ever be judged. The cost is bounded -- 756K for tornado, 1.2M for streamlink, 89M for the
+    # largest repository in the corpus -- and it is paid once per patch against a container run
+    # measured in minutes.
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".tox",
+    ".nox",
+    "node_modules",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "htmlcov",
+    "*.egg-info",
+)
+
+
+def _kill_container(name: str) -> None:
+    """`subprocess.run(timeout=)` kills the docker CLIENT, not the container it started.
+
+    Without this a timed-out suite keeps running, holding its CPU reservation, and every later run
+    on the machine looks slower than it is -- which silently corrupts any timing comparison
+    between experiment arms.
+    """
+    with contextlib.suppress(subprocess.TimeoutExpired, OSError):
+        subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=30)
+
+
+def _docker_run(work: Path, image: str, shell_cmd: str, timeout_s: float) -> tuple[int, str]:
+    """One sandboxed command. Offline, resource-capped, and killable."""
+    name = f"qubit-tests-{uuid.uuid4().hex[:12]}"
+    argv = [
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        name,
+        # The offline mandate. Also the reason a suite needing DNS shows up as a baseline failure
+        # rather than as evidence against a patch.
+        "--network=none",
+        # Not paranoia: without a CPU cap the `duration_s` this stage reports is a function of
+        # whatever else the machine is doing, and the timings stop being comparable across arms.
+        "--memory=2g",
+        "--cpus=2",
+        "--pids-limit=512",
+        # The image deliberately does NOT install the project -- if it did, `import pkg` would
+        # resolve to site-packages and the overlaid file would never be read, so every patch would
+        # score as behaviour-preserving. That makes the import path this stage's responsibility.
+        #
+        # `-w /work` alone only covers a FLAT layout, where `python -m pytest` puts the working
+        # directory on `sys.path`. A `src/` layout has nothing importable at /work at all, and the
+        # oracle controls said so plainly: on streamlink, `import streamlink` inside the sandbox
+        # raised ModuleNotFoundError, so the suite could not run and not one patch was ever judged.
+        # Both roots are listed because both layouts occur; a missing directory on PYTHONPATH is
+        # ignored by the interpreter, so this is safe for either.
+        "-e",
+        "PYTHONPATH=/work/src:/work",
+        "-v",
+        f"{work}:/work",
+        "-w",
+        "/work",
+        image,
+        "sh",
+        "-c",
+        shell_cmd,
+    ]
+    try:
+        result = subprocess.run(argv, capture_output=True, timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        _kill_container(name)
+        raise
+    return result.returncode, result.stdout.decode("utf-8", errors="replace")
+
+
+def _pytest_report(work: Path) -> tuple[frozenset[str], int] | None:
+    """Passing node ids and the collected count from `--json-report`, or None if unavailable.
+
+    None is not a failure -- it means the image cannot produce a per-test report (no pytest, or no
+    `pytest-json-report`), and the caller falls back to comparing exit codes.
+    """
+    path = work / _REPORT_NAME
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError):
+        return None
+    tests = data.get("tests")
+    if not isinstance(tests, list):
+        return None
+    passing = frozenset(
+        str(t.get("nodeid"))
+        for t in tests
+        if isinstance(t, dict) and t.get("outcome") == "passed" and t.get("nodeid")
+    )
+    return passing, len(tests)
+
+
+def _run_suite(
+    work: Path, image: str, command: str, timeout_s: float, *, fail_fast: bool = False
+) -> tuple[int, str, tuple[frozenset[str], int] | None]:
+    """Run the suite, preferring a per-test report and degrading gracefully when it is absent.
+
+    `fail_fast` is for the BASELINE only, where the single bit "is it red" is all that is wanted.
+    The patched run deliberately never uses `-x`: stopping at the first failure answers "something
+    broke" but never "how much broke", and it cannot distinguish a patch that broke one test from
+    one that broke the suite.
+    """
+    # `-p pytest_jsonreport` loads the plugin EXPLICITLY. Installing it is not enough: a
+    # project that sets `--disable-plugin-autoload` in its own addopts -- streamlink does, and
+    # it is a common choice for determinism -- leaves the plugin installed and unloaded, so
+    # pytest answers "unrecognized arguments: --json-report" and the stage falls back to
+    # comparing exit codes. That fallback then refuses any repository with a single
+    # permanently-red test, which is exactly what the per-test set difference exists to
+    # tolerate: streamlink has 7,228 passing tests and 4 that fail on the untouched tree.
+    # Pytest flags go only to pytest.
+    #
+    # These were appended to EVERY command regardless of language, so a Maven baseline ran as
+    #
+    #   mvn -B -o test -x -p pytest_jsonreport --json-report --json-report-file=/work/...
+    #
+    # `-x` and `-p` are not Maven options. The command errored, `_compute_baseline` recorded
+    # `green=False, collected=0`, and `_stage_tests` then reported, for every Java patch:
+    #
+    #   this suite does not run in the sandbox even before the patch
+    #   (missing dependencies, no network)
+    #
+    # — which is false in every particular. The same suite runs green in the same image with no
+    # network. Measured on paymesh-gateway: all five patches came back `tests: skipped` and every
+    # one was capped at evidence level 0, so the Java twin produced no behavioural evidence at all.
+    #
+    # `-x` is just as wrong for the others: `ruby -x` skips to a `#!ruby` line and `go test -x`
+    # prints the build commands instead of failing fast. Only pytest is asked for pytest behaviour.
+    is_pytest = "pytest" in command
+    if not is_pytest:
+        attempts = (f"{command} 2>&1",)
+    else:
+        report_flag = f" -p pytest_jsonreport --json-report --json-report-file=/work/{_REPORT_NAME}"
+        x_flag = " -x" if fail_fast else ""
+        attempts = (
+            f"{command}{x_flag}{report_flag} 2>&1",
+            f"{command}{x_flag} 2>&1",
+            "python -m unittest discover -s tests 2>&1",
+        )
+    code, out = 1, ""
+    for index, shell_cmd in enumerate(attempts):
+        (work / _REPORT_NAME).unlink(missing_ok=True)
+        code, out = _docker_run(work, image, shell_cmd, timeout_s)
+        parsed = _pytest_report(work)
+        if parsed is not None:
+            return code, out, parsed
+        if "No module named pytest" in out:
+            continue  # bare interpreter: fall through to the stdlib runner
+        if index == 0 and "json-report" in out:
+            continue  # pytest is there but the plugin is not: rerun without the flag
+        return code, out, None
+    return code, out, None
+
+
+def _materialise_pristine(repo_root: Path, work: Path) -> str:
+    """Put the UNMODIFIED tree in `work`. Returns how it was obtained, for the cache key.
+
+    `git archive HEAD` when `repo_root` is a git work tree, a plain copy otherwise.
+
+    The distinction is the whole point of this function. `repo_root` is the LIVE tree, and QUBIT
+    applies accepted patches straight into it -- so by the time the second finding is validated, the
+    "untouched tree" is not untouched. Copying it makes the baseline a picture of the tool's own
+    edits.
+    """
+    head = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        capture_output=True,
+        timeout=30,
+    )
+    if head.returncode == 0:
+        commit = head.stdout.decode("utf-8", "replace").strip()
+        work.mkdir(parents=True, exist_ok=True)
+        archive = subprocess.run(
+            ["git", "-C", str(repo_root), "archive", "--format=tar", commit],
+            capture_output=True,
+            timeout=300,
+        )
+        if archive.returncode == 0 and archive.stdout:
+            with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
+                tar.extractall(work)  # noqa: S202 - our own `git archive` output
+            return commit[:12]
+        shutil.rmtree(work, ignore_errors=True)
+    shutil.copytree(repo_root, work, ignore=_COPY_IGNORES)
+    return "worktree"
+
+
+def _compute_baseline(
+    repo_root: Path, image: str, command: str, timeout_s: float
+) -> _Baseline | None:
+    """What the untouched tree does. Computed once per (image, repo_root, commit), then cached.
+
+    **The baseline must come from the pristine tree, and `repo_root` is not pristine.** Accepted
+    patches are written into it as the run proceeds, so a baseline copied from it after the first
+    apply reflects those edits. When one of them breaks the suite, the baseline is red -- and
+    `_stage_tests` then reports, for every later patch,
+
+        this suite does not run in the sandbox even before the patch
+        (missing dependencies, no network)
+
+    which is a statement about the environment and is false. The real cause is the tool's own
+    earlier patch. The oracle switches itself off after the first bad patch and misattributes it.
+
+    Measured on `paymesh-gateway` through the desktop app: five patches were applied with
+    `tests: skipped` and that message, while the pristine tree at HEAD ran `22 tests, 0 failures,
+    BUILD SUCCESS` in the same image with no network. The first bad patch disabled the only gate
+    that could have caught the four that followed.
+
+    The commit is part of the cache key so a baseline is never reused across a checkout that moved.
+    """
+    result: _Baseline | None = None
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            work = Path(tmpdir) / "repo"
+            source = _materialise_pristine(repo_root, work)
+            key = (image, str(repo_root), source)
+            if key in _BASELINE_CACHE:
+                return _BASELINE_CACHE[key]
+            code, _out, parsed = _run_suite(work, image, command, timeout_s, fail_fast=False)
+            if parsed is not None:
+                passing, collected = parsed
+                result = _Baseline(passing=passing, collected=collected, green=code == 0)
+            else:
+                result = _Baseline(passing=frozenset(), collected=0, green=code == 0)
+    except (subprocess.TimeoutExpired, OSError, shutil.Error, tarfile.TarError):
+        return None
+    _BASELINE_CACHE[key] = result
+    return result
+
+
+#: Directories never worth walking when looking for tests -- vendored code and build output can
+#: contain thousands of files and none of them are this repository's suite.
+_TEST_SEARCH_SKIP = frozenset(
+    {".git", ".tox", ".venv", "venv", "node_modules", "build", "dist", "__pycache__", ".mypy_cache"}
+)
+
+
 def _has_test_suite(repo_root: Path) -> bool:
-    if (repo_root / "tests").is_dir():
+    """Is there plausibly a suite here at all?
+
+    A cheap pre-filter, not a verdict: it exists only to avoid paying for a container on a
+    repository that obviously has no tests. Being slightly too generous costs one baseline run,
+    which then finds nothing and skips honestly; being too strict costs the verdict entirely, with
+    a message that reads as a property of the repository rather than of this function.
+
+    It was too strict. Looking only at the repository ROOT missed wagtail -- a Django project whose
+    tests live inside each app rather than in a top-level `tests/`, and which declares its runner in
+    `tox.ini` -- and ansible, for the same reason. Measured on this installation: 16 of 84 patches
+    were refused with "no test suite detected in repo" against repositories that unambiguously have
+    one.
+    """
+    if (repo_root / "tests").is_dir() or (repo_root / "test").is_dir():
         return True
-    if (repo_root / "pytest.ini").exists() or (repo_root / "setup.cfg").exists():
-        return True
-    pyproject = repo_root / "pyproject.toml"
-    if not pyproject.exists():
-        return False
-    return "pytest" in pyproject.read_text(encoding="utf-8", errors="replace")
+    for marker in ("pytest.ini", "setup.cfg", "tox.ini", "conftest.py", "pyproject.toml"):
+        path = repo_root / marker
+        if path.is_file() and (
+            marker in ("pytest.ini", "conftest.py")
+            or "pytest" in path.read_text(encoding="utf-8", errors="replace")
+        ):
+            return True
+    # Nested suites: Django and Ansible both keep tests beside the code they cover. Bounded to three
+    # levels and stopped at the first hit, so this stays a filter rather than a tree walk.
+    for depth in range(1, 4):
+        pattern = "/".join(["*"] * depth)
+        for candidate in repo_root.glob(f"{pattern}/tests"):
+            if candidate.is_dir() and not (_TEST_SEARCH_SKIP & set(candidate.parts)):
+                return True
+        for candidate in repo_root.glob(f"{pattern}/test_*.py"):
+            if not (_TEST_SEARCH_SKIP & set(candidate.parts)):
+                return True
+
+    # Every marker above is a Python one, because this stage refused every other language outright
+    # until the twins made that refusal measurable. The conventions below are each language's
+    # standard location, so a project that follows its own ecosystem's layout is not told it has
+    # "no test suite" on the strength of not being Python.
+    for marker in ("pom.xml", "build.gradle", "build.gradle.kts", "go.mod", "Gemfile", "Rakefile"):
+        if (repo_root / marker).is_file():
+            return True
+    for depth in range(0, 4):
+        pattern = "/".join(["*"] * depth) + ("/" if depth else "")
+        for glob in (
+            f"{pattern}*_test.go",
+            f"{pattern}*Test.java",
+            f"{pattern}*_test.rb",
+            f"{pattern}test_*.rb",
+        ):
+            for candidate in repo_root.glob(glob):
+                if not (_TEST_SEARCH_SKIP & set(candidate.parts)):
+                    return True
+    return False
 
 
 def _stage_tests(
@@ -528,87 +1938,124 @@ def _stage_tests(
     target_rel_path: str | None,
     language: str = "python",
     original_source: str | None = None,
+    image: str = _SANDBOX_IMAGE,
+    command: str = "python -m pytest -q --continue-on-collection-errors",
+    timeout_s: float = 300.0,
 ) -> StageResult:
-    """Stage 4: copy the repo, overlay the patched file, run pytest inside the sandbox.
+    """Stage 4: copy the repo, overlay the patched file, run its own suite in the sandbox.
 
-    Network stays off; pytest comes from the host venv mounted read-only would be fragile,
-    so we use `python -m unittest`-compatible pytest bundled via pip cache only when the
-    image has it — otherwise the stage reports skipped (honest) rather than green.
+    This is the only stage in the pipeline that can tell you a migration PRESERVED BEHAVIOUR.
+    Every other stage is syntactic: `rescan` says the scanner stopped seeing RSA and started
+    seeing ML-KEM, which is equally true of a rewrite that reuses a nonce, drops an auth tag, or
+    breaks every caller.
+
+    Two things decide whether it is an oracle or theatre:
+
+    * **The image.** A bare interpreter has no pytest and none of the repo's dependencies, so the
+      suite dies on its own imports and this stage honestly declines to judge. Measured on this
+      installation: 292 patches, 292 skips. `MigrateConfig.test_sandbox_image` points it at an
+      image built from the target's pinned dependency spec.
+    * **What the image must NOT contain: the project itself.** If it is installed, `import pkg`
+      resolves to site-packages and the file overlaid into /work is never imported -- the stage
+      then reports `pass` for every patch regardless of content. Verify with a mutation control
+      before trusting a single number from it.
+
+    The verdict is a per-test set difference, not an exit-code comparison: a patch fails when
+    something that PASSED on the untouched tree stops passing. That is robust to the handful of
+    tests a real repository cannot run offline, which under the old comparison made the whole
+    stage `skipped` and discarded everything else.
     """
     t0 = time.monotonic()
-    if language != "python":
-        return StageResult("skipped", f"test sandbox is python-only (got {language})", 0.0)
+    # This stage refused every non-Python language here, which made the strongest rung on the
+    # evidence ladder unreachable for three of the four twins -- and, because a skipped rung still
+    # counts as `passed`, patches were applied to Ruby, Go and Java on `parses` + `compiles` alone.
+    # Measured on inkwell-esign: 6 of 14 findings were migrated against an explicit refusal, and
+    # the twin's own suite went red. Nothing below this line is Python-specific: without a pytest
+    # JSON report `parsed` is None and the verdict falls through to the exit-code comparison
+    # against the untouched tree, which is language-agnostic and already implemented.
     if repo_root is None or target_rel_path is None or Path(target_rel_path).is_absolute():
         return StageResult("skipped", "no repo_root/relative target for test run", 0.0)
     if not _has_test_suite(repo_root):
         return StageResult("skipped", "no test suite detected in repo", 0.0)
     if not _docker_available():
         return StageResult("skipped", "docker unavailable", time.monotonic() - t0)
+    # `_stage_compiles` has always guarded this; this stage did not, so `docker run` could silently
+    # PULL -- from a tool whose stated promise is that your code never leaves the machine.
+    if not _image_present(image):
+        return StageResult(
+            "skipped",
+            f"sandbox image {image} is not pulled (QUBIT never downloads one itself) — "
+            f"build or pull it first: docker pull {image}",
+            time.monotonic() - t0,
+        )
+
+    baseline = _compute_baseline(repo_root, image, command, timeout_s)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         work = Path(tmpdir) / "repo"
-        shutil.copytree(repo_root, work, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+        shutil.copytree(repo_root, work, ignore=_COPY_IGNORES)
         target = work / target_rel_path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(patched_source, encoding="utf-8")
-
-        def _run_in_sandbox(cmd: str) -> subprocess.CompletedProcess:
-            return subprocess.run(
-                [
-                    "docker",
-                    "run",
-                    "--rm",
-                    "--network=none",
-                    "-v",
-                    f"{work}:/work",
-                    "-w",
-                    "/work",
-                    _SANDBOX_IMAGE,
-                    "sh",
-                    "-c",
-                    cmd,
-                ],
-                capture_output=True,
-                timeout=300,
-            )
-
-        def _run_suite() -> tuple[int, str]:
-            result = _run_in_sandbox("python -m pytest -x -q 2>&1")
-            out = result.stdout.decode("utf-8", errors="replace")
-            if "No module named pytest" in out:
-                # base image has no pytest; fall back to the stdlib runner
-                result = _run_in_sandbox("python -m unittest discover -s tests 2>&1")
-                out = result.stdout.decode("utf-8", errors="replace")
-            return result.returncode, out
+        target.write_text(patched_source, encoding="utf-8", newline="\n")
 
         try:
-            code, out = _run_suite()
+            code, out, parsed = _run_suite(work, image, command, timeout_s)
         except subprocess.TimeoutExpired:
-            return StageResult("fail", "sandbox tests timed out", time.monotonic() - t0)
+            # A timeout used to be scored `fail`, which called a slow-but-green suite a broken
+            # patch. If the untouched tree cannot finish either, this says nothing about the patch.
+            if baseline is None:
+                return StageResult(
+                    "skipped",
+                    f"the suite did not finish within {timeout_s:.0f}s, and neither did the "
+                    "untouched tree, so it says nothing about this change",
+                    time.monotonic() - t0,
+                )
+            return StageResult(
+                "fail", f"sandbox tests timed out after {timeout_s:.0f}s", time.monotonic() - t0
+            )
+
+        # ── The oracle proper: a per-test set difference against the untouched tree ──
+        if parsed is not None and baseline is not None and baseline.collected > 0:
+            patched_passing, collected = parsed
+            regressions = sorted(baseline.passing - patched_passing)
+            if regressions:
+                shown = ", ".join(regressions[:10])
+                more = f" (+{len(regressions) - 10} more)" if len(regressions) > 10 else ""
+                return StageResult(
+                    "fail",
+                    f"{len(regressions)} test(s) that passed before this patch now do not: "
+                    f"{shown}{more}",
+                    time.monotonic() - t0,
+                )
+            if not baseline.passing:
+                return StageResult(
+                    "skipped",
+                    "no test passes on the untouched tree in this sandbox, so the suite cannot "
+                    "say anything about this change",
+                    time.monotonic() - t0,
+                )
+            return StageResult(
+                "pass",
+                f"all {len(baseline.passing)} tests that passed before this patch still pass "
+                f"({collected} collected)",
+                time.monotonic() - t0,
+            )
+
+        # ── Fallback: no per-test report available, so compare exit codes ──
         if code == 0:
             return StageResult(
                 "pass", out[:2048] or "tests green in sandbox", time.monotonic() - t0
             )
-
         # A red suite is only evidence against the PATCH if the same suite is green without it.
-        # The sandbox is a bare `python:3.12-slim` with no network, so a third-party project's
-        # tests fail on their own imports long before they reach the patched line: measured on the
-        # real `requests` checkout, every test module failed with ImportError and a perfectly good
-        # SHA-256 patch was rejected for it. Re-running the untouched tree is what tells those
-        # apart, and it costs an extra sandbox run only when something already failed.
-        if original_source is not None:
-            target.write_text(original_source, encoding="utf-8")
-            try:
-                baseline_code, _ = _run_suite()
-            except subprocess.TimeoutExpired:
-                baseline_code = 1
-            if baseline_code != 0:
-                return StageResult(
-                    "skipped",
-                    "this suite does not run in the sandbox even before the patch "
-                    "(missing dependencies, no network), so it says nothing about this change",
-                    time.monotonic() - t0,
-                )
+        # Measured on the real `requests` checkout: every test module failed with ImportError in a
+        # bare offline sandbox and a perfectly good SHA-256 patch was rejected for it.
+        if baseline is not None and not baseline.green:
+            return StageResult(
+                "skipped",
+                "this suite does not run in the sandbox even before the patch "
+                "(missing dependencies, no network), so it says nothing about this change",
+                time.monotonic() - t0,
+            )
         return StageResult("fail", out[:2048], time.monotonic() - t0)
 
 
@@ -624,6 +2071,15 @@ def validate_patch(
     asset_algorithm: str | None = None,
     original_source: str | None = None,
     asset_line: int | None = None,
+    #: The finding's usage context and the plan's construction, which together select the
+    #: metamorphic relation set. Optional so every existing caller keeps working: with no usage
+    #: context no relation family claims the finding and `behaves` reports `skipped` — which is
+    #: the honest answer, since an oracle that did not run has established nothing.
+    usage_context: str | None = None,
+    construction: str = "pure",
+    test_sandbox_image: str = _SANDBOX_IMAGE,
+    test_command: str = "python -m pytest -q --continue-on-collection-errors",
+    test_timeout_s: float = 300.0,
 ) -> ValidationReport:
     """Run validation stages 1 applies, 2 parses, 3 compiles, 4 tests, 5 rescan.
 
@@ -637,13 +2093,34 @@ def validate_patch(
 
     stages["applies"] = _stage_applies(diff_text, repo_root)
     stages["parses"] = _stage_parses(patched_source, language, original_source)
+    # Runs for EVERY language with a grammar, unlike `compiles` — which is what makes it the only
+    # semantic check most languages ever get. See `_stage_symbols` for what it caught.
+    stages["symbols"] = _stage_symbols(patched_source, language, original_source)
     if no_docker:
-        stages["compiles"] = StageResult("skipped", "no_docker configured")
+        # The language question is asked even here. Whether a single-file compile check can exist
+        # for Go is a fact about Go, not about this flag, and answering it differently in the two
+        # branches would make the same patch record two different evidence levels depending on how
+        # the run was configured. `behaves` and `tests` get no such treatment: both CAN run for
+        # these languages, so under `no_docker` they genuinely did not run and must keep capping.
+        stages["compiles"] = _compile_is_inapplicable(language) or StageResult(
+            "skipped", "no_docker configured"
+        )
+        stages["behaves"] = StageResult("skipped", "no_docker configured")
         stages["tests"] = StageResult("skipped", "no_docker configured")
     else:
         stages["compiles"] = _stage_compiles(patched_source, language)
+        stages["behaves"] = _stage_behaves(
+            patched_source, rule, language, usage_context, construction
+        )
         stages["tests"] = _stage_tests(
-            patched_source, repo_root, target_rel_path, language, original_source
+            patched_source,
+            repo_root,
+            target_rel_path,
+            language,
+            original_source,
+            image=test_sandbox_image,
+            command=test_command,
+            timeout_s=test_timeout_s,
         )
     stages["rescan"] = _stage_rescan(
         patched_source,
@@ -652,7 +2129,12 @@ def validate_patch(
         asset_algorithm,
         original_source=original_source,
         asset_line=asset_line,
+        target_rel_path=target_rel_path,
     )
+
+    # The gate's reported surface must match its declared one. Adding a stage without declaring it
+    # is how the evidence pack's "all 243 combinations were evaluated" claim silently went stale.
+    assert tuple(stages) == STAGE_NAMES, f"stages {tuple(stages)} != declared {STAGE_NAMES}"
 
     passed = all(v.status in ("pass", "skipped") for v in stages.values())
     partial = any(v.status == "skipped" for v in stages.values())
@@ -660,4 +2142,4 @@ def validate_patch(
     return ValidationReport(stages=stages, passed=passed, partial=partial)
 
 
-__all__ = ["StageResult", "ValidationReport", "validate_patch"]
+__all__ = ["STAGE_NAMES", "StageResult", "ValidationReport", "validate_patch"]

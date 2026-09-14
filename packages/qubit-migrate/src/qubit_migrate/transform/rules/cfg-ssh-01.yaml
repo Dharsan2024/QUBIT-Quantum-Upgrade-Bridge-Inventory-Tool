@@ -11,7 +11,17 @@ matches:
   file_name: ["sshd_config", "ssh_config", "sshd_config.*", "*.sshd_config"]
   algorithm:
     ["ssh-rsa", "ssh-dss", "DH-1024-group1", "DH-2048-group14", "HMAC-SHA1", "HMAC-MD5",
-     "3DES", "AES-128", "RC4", "ECDSA-P256"]
+     "3DES", "AES-128", "RC4", "ECDSA-P256",
+     # The ECDH curves an sshd_config names in KexAlgorithms. These are exactly the directives
+     # `harden_ssh` rewrites to sntrup761x25519-sha512, but only ECDSA-P256 (a HOST KEY algorithm)
+     # was listed, so the key-exchange findings this rule exists to fix matched nothing.
+     "ECDH-P256", "ECDH-P384", "ECDH-P521", "X25519",
+     # Host-key and KEX names the scanner reports verbatim from the directive. Measured on the
+     # corpus: `rsa-sha2` host-key findings and `DH-4096-group16` KEX findings matched no rule at
+     # all, in the very file this rule's codemod already knows how to harden.
+     "rsa-sha2", "rsa-sha2-256", "rsa-sha2-512", "ssh-ed25519", "Ed25519", "Ed448",
+     "DH-4096-group16",
+     "ECDSA-P384", "ECDSA-P521", "HMAC-SHA2-256", "HMAC-SHA2-512"]
   usage_context: ["kex", "signature", "token", "encryption-at-rest"]
   library_name: [null]
 target:
@@ -28,6 +38,20 @@ semantic_note: >
   (aes256-gcm, chacha20-poly1305), MACs to encrypt-then-MAC SHA-2, and host keys to Ed25519 plus
   rsa-sha2-* - dropping ssh-rsa, which is RSA with a SHA-1 signature and deprecated by OpenSSH 8.8+
   for that reason. Nothing stored is re-encrypted, so this takes effect on the next connection.
+
+  A deliberate choice with a known gap, recorded rather than glossed. `sntrup761` is **NTRU Prime**,
+  not ML-KEM: it is not a NIST-standardised algorithm, and it is here because it is what shipped
+  OpenSSH actually negotiates. BSI TR-02102-4 Version 2026-01 section 3.1.3 names two different
+  algorithms it intends to recommend once the RFC is adopted - `mlkem768nistp256-sha256` and
+  `mlkem1024nistp384-sha384`, from draft-ietf-sshm-mlkem-hybrid-kex - and recommends classical SSH
+  key exchange only "bis Ende 2031".
+
+  So this patch produces a hybrid that is post-quantum and deployable today, on a KEM that is not
+  the one the standards track is heading for. Emitting BSI's named pair instead would produce a
+  config no shipped server can negotiate, which is a worse failure than being off-track: it would
+  not survive the apply stage, let alone the rescan. The right answer changes when OpenSSH ships
+  the RFC algorithms, and until then the honest description of this rule's output is
+  "post-quantum, deployable, and not yet standards-aligned".
 codemod: harden_tls_config
 # The correct output here is a constant (the hybrid group / the version floor), so the codemod is
 # authoritative and an LLM must not replace it even under --generator llm.

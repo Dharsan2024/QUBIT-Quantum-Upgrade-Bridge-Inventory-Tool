@@ -47,6 +47,9 @@ rules:
         - { capture: xform, regex: '^"RSA(/|")' }
     extract:
       algorithm: { literal: RSA }
+      padding:
+        from: xform
+        resolve: padding-scheme
     asset: { asset_type: algorithm-use, usage_context: kex }
     confidence: medium
     examples:
@@ -73,6 +76,9 @@ rules:
         - { capture: xform, regex: '^"DES(/|")' }
     extract:
       algorithm: { literal: DES }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -99,6 +105,9 @@ rules:
         - { capture: xform, regex: '^"(DESede|DESede/)' }
     extract:
       algorithm: { literal: 3DES }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:

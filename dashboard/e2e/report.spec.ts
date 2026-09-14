@@ -166,6 +166,12 @@ test('report page lists discovered algorithms', async ({ page }) => {
   const main = reportMain(page);
   await expect(main).toContainText(/total assets/i, { timeout: 20_000 });
 
+  // The KPI headings render before their numbers arrive, so "total assets" being on the page is
+  // not evidence the report has loaded. Observed failing intermittently with "TOTAL ASSETS 0",
+  // "No assets in this scan." and the "Assembling report…" spinner all on screen at once — the
+  // assertions below then read an empty report and blame the scanner for a race in the test.
+  await expect(main.getByText(/assembling report/i)).toBeHidden({ timeout: 30_000 });
+
   // The seeded repo contains MD5, an RSA-2048 keygen, a P-256 key and a weak nginx TLS config, so the
   // inventory has to name them. This is the end-to-end proof: scanner -> API -> risk -> rendered page.
   const text = await main.innerText();

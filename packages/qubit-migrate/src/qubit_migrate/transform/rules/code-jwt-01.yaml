@@ -1,0 +1,79 @@
+id: code-jwt-01
+language: multi
+title: "JWT accepted without a verified signature → pinned algorithm and enforced verification"
+matches:
+  source_scanner: [code]
+  file_suffix: [".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".go", ".java", ".rb", ".php", ".cs"]
+  # The whole rule rests on this clause. The algorithm named at one of these call sites is often
+  # perfectly good and simply never applied, so nothing about the ALGORITHM identifies the finding
+  # — only the fact, read at the call, that the signature is not checked.
+  weakness: [jwt-signature-not-verified]
+  usage_context: ["token", "signature", "unknown"]
+  library_name: [null]
+target:
+  algorithm: HS256
+  mode: pure
+  parameter_set: "the issuer's actual algorithm, pinned explicitly"
+  category: 1
+  fips: RFC-8725
+data_compat: in_place
+semantic_note: >
+  This is not a post-quantum finding and it is more urgent than most that are. A JSON Web Token
+  whose signature is never verified is a claim set anyone can write: change `sub` to another user
+  id, or `role` to `admin`, and the application believes it. RFC 8725 (JSON Web Token Best Current
+  Practices) names the two shapes directly - reject the `none` algorithm, and pin the expected
+  algorithm rather than trusting the one the token's own header declares.
+  Three call shapes reach here and the fix differs slightly for each. PyJWT's
+  `options={"verify_signature": False}` and the older `verify=False` switch verification off
+  outright; remove them and pass the key with an explicit `algorithms` list. An `algorithms` list
+  containing `"none"` accepts an unsigned token; remove that entry. And in JavaScript
+  `jwt.decode()` does not verify at all - it reads the token and checks nothing - so a claim from
+  it must never reach an authorization decision; use `jwt.verify()` with the key and an explicit
+  algorithm list.
+  The algorithm to pin is whatever the ISSUER actually signs with. Do not change it as part of
+  this fix: turning verification on and changing the algorithm in one step means a failure could
+  be either, and the token's post-quantum migration is a separate piece of work with its own rule.
+prompt_constraints:
+  - "Pin the algorithm explicitly. Never derive the accepted algorithm from the token's own header - that is the attack."
+  - "Never leave \"none\" in an accepted-algorithms list."
+  - "Pass the verification key. Turning verification on without a key does not verify anything."
+  - "Do not change WHICH algorithm the token is signed with; the issuer decides that and changing it here breaks every existing token."
+  - "In JavaScript, `jwt.decode` does not verify. Use `jwt.verify` wherever the claims are used for an authorization decision; `decode` is only acceptable for reading a token you have already verified."
+  - "Keep the failure path explicit: a token that fails verification must be rejected, not fall through to a default identity."
+example_language: python
+example:
+  before: |
+    import jwt
+
+    def current_user(token: str) -> dict:
+        # Signature never checked: any token with the right shape is believed.
+        return jwt.decode(token, settings.secret, options={"verify_signature": False})
+  after: |
+    import jwt
+
+    def current_user(token: str) -> dict:
+        """Verifies before trusting. A token that fails verification raises, and the caller must
+        treat that as unauthenticated rather than falling through to a default identity."""
+        return jwt.decode(
+            token,
+            settings.secret,
+            algorithms=["HS256"],  # pinned: never read from the token's own header
+        )
+example_javascript:
+  before: |
+    const jwt = require("jsonwebtoken");
+
+    function currentUser(token) {
+      // decode() does NOT verify — this trusts whatever the token claims.
+      return jwt.decode(token);
+    }
+  after: |
+    const jwt = require("jsonwebtoken");
+
+    function currentUser(token) {
+      // verify() checks the signature and throws when it fails; the caller must treat a throw as
+      // unauthenticated rather than returning a default identity.
+      return jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
+    }
+rescan_expect:
+  weakness_gone: ["jwt-signature-not-verified"]

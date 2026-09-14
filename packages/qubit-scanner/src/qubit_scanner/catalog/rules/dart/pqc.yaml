@@ -1,0 +1,30 @@
+schema: qubit-rule/v1
+language: dart
+library:
+  name: oqs.dart / pointycastle post-quantum
+  detect_imports: []
+# Dart's crypto packs detect RSA in `kex` context, so `code-kex-01` targets Flutter code -- and
+# without a PQC shape the resulting ML-KEM rewrite cannot be confirmed. Verified with a probe that
+# reported NOTHING DETECTED before this pack existed.
+rules:
+  - id: DART-PQC-CONSTRUCT
+    title: Signature('ML-DSA-65') / KeyEncapsulation('ML-KEM-768')
+    match:
+      query: |
+        (_ (identifier) @cls . (selector (argument_part))) @call
+      where:
+        - { capture: cls, regex: "^(Signature|KeyEncapsulation|KEM|MlKem|MlDsa|MLKem|MLDsa)$" }
+        - { capture: call, regex: "(?i)ml[-_]?(dsa|kem)|kyber|dilithium" }
+    extract:
+      algorithm: { from: call, resolve: pqc-in-text }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          void f() { final s = Signature('ML-DSA-65'); }
+        - |
+          void g() { final k = KeyEncapsulation('ML-KEM-768'); }
+      negative:
+        - |
+          void h() { final s = Signature('RSA-2048'); }

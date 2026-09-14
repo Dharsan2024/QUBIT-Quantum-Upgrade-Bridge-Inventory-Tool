@@ -70,8 +70,11 @@ ignore = ["S101"]                                       # assert is fine in test
 "**/tests/**" = ["S", "SIM"]
 "demo-lab/**" = ["S"]                                   # demo-lab is deliberately vulnerable
 # QUBIT legitimately orchestrates subprocesses (qubit CLI, git, openssl, nginx -t, docker) with
-# controlled args — S603/S607 are intended there, not injection risks.
+# controlled args — S603/S607 are intended there, not injection risks. The evaluation harness in
+# scripts/ does the identical thing (git clone, docker run against a pinned sandbox image) for the
+# identical reason.
 "packages/qubit-migrate/**" = ["S603", "S607"]
+"scripts/**" = ["S603", "S607"]
 "packages/qubit-bridge/**" = ["S603", "S607", "S110"]
 "packages/qubit-cli/src/qubit_cli/commands/demo.py" = ["S603", "S607"]
 # scanners intentionally swallow parse errors per-file (best-effort discovery, never abort a scan).

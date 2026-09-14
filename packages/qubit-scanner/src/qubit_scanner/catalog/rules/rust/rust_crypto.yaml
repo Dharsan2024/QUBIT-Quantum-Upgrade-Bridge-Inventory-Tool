@@ -53,6 +53,9 @@ rules:
         - { capture: fn, in: [new, new_from_slice, new_from_slices, new_with_iv, default] }
     extract:
       algorithm: { from: type, resolve: rust-crypto-type }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:

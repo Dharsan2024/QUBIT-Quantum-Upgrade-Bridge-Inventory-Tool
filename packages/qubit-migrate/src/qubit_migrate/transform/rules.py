@@ -56,6 +56,39 @@ class MigrationRule(BaseModel):
     #: shown to a file it actually demonstrates.
     example_language: str | None = None
     rescan_expect: dict[str, Any] | None = None
+    #: How this finding gets fixed. "auto" lets the orchestrator choose (codemod when the rule has
+    #: one, otherwise the model). "guided" says no edit QUBIT can make is the right answer, and the
+    #: task should resolve to a concrete guided path instead of burning three model attempts on
+    #: something structurally impossible.
+    #:
+    #: `guided` is a RESULT, not a failure. A certificate cannot be rewritten - editing the bytes
+    #: invalidates the CA signature - and an ecosystem with no trustworthy provider cannot have one
+    #: installed on the user's behalf. Both are answers; "manual change" was not.
+    remediation: str = "auto"
+
+    @field_validator("remediation")
+    @classmethod
+    def _valid_remediation(cls, v: str) -> str:
+        valid = {"auto", "guided"}
+        if v not in valid:
+            raise ValueError(f"remediation must be one of {valid}")
+        return v
+
+    @model_validator(mode="after")
+    def _known_weaknesses(self) -> MigrationRule:
+        """A `matches.weakness` naming an id the catalogue cannot produce is a rule that can never
+        fire. Caught at load time, where it is a typo, rather than at scan time, where it is a
+        silent coverage hole."""
+        from qubit_core.weaknesses import KNOWN_WEAKNESS_IDS
+
+        declared = self.matches.get("weakness") or []
+        unknown = [w for w in declared if w not in KNOWN_WEAKNESS_IDS]
+        if unknown:
+            raise ValueError(
+                f"rule {self.id} matches unknown weakness id(s) {unknown}; "
+                f"known ids are {sorted(KNOWN_WEAKNESS_IDS)}"
+            )
+        return self
 
     @model_validator(mode="before")
     @classmethod
@@ -143,6 +176,13 @@ def match_rule(
             name = Path(path).name.lower() if path else ""
             if not any(fnmatch(name, pattern.lower()) for pattern in name_list):
                 continue
+        # weakness match. The only clause that reads a property of the CALL rather than of the
+        # algorithm: `AES-256` is a sound cipher and `AES-256` in ECB mode is not, and the two are
+        # the same asset by every other field. A rule listing a weakness fires ONLY on findings
+        # carrying it, which is what lets an ECB rule exist without claiming every AES finding.
+        weakness_list = m.get("weakness")
+        if weakness_list and not _has_weakness(asset, weakness_list):
+            continue
         # algorithm match
         alg_list = m.get("algorithm")
         if alg_list and asset.algorithm not in alg_list:
@@ -155,10 +195,52 @@ def match_rule(
         lib_list = m.get("library_name")
         if lib_list is not None:
             asset_lib = asset.library.name if asset.library else None
-            if None not in lib_list and asset_lib not in lib_list:
+            if None not in lib_list and not _library_matches(asset_lib, lib_list):
                 continue
         return rule
     return None
+
+
+def _has_weakness(asset: CryptoAsset, wanted: list[Any]) -> bool:
+    """True when the scanner recorded one of ``wanted`` on this finding.
+
+    Weaknesses live in `evidence.context.extra["weaknesses"]` as dicts carrying the id, the CWE,
+    the authority and the remedy — see `qubit_core.weaknesses`. Read defensively because an asset
+    hydrated from an older scan has no such key at all.
+    """
+    evidence = getattr(asset, "evidence", None)
+    context = getattr(evidence, "context", None)
+    raw = (getattr(context, "extra", None) or {}).get("weaknesses")
+    if not isinstance(raw, list):
+        return False
+    present = {w.get("id") for w in raw if isinstance(w, dict)}
+    return any(w in present for w in wanted)
+
+
+def _library_key(name: str) -> str:
+    """A package name reduced to the form rules are written in.
+
+    Ecosystems qualify a package differently and the scanner reports what the manifest says, so an
+    exact string comparison silently fails on whole ecosystems. Maven names a dependency
+    `org.bouncycastle:bcprov-jdk18on` (groupId:artifactId) while the rule — and the version floor
+    table in `codemods._MIN_PQC_VERSIONS` — is keyed on `bcprov-jdk18on`. That mismatch made
+    `dep-pqc-01` unreachable for every Maven project: measured on the 21-app demo corpus, 4
+    BouncyCastle findings in `pom.xml` reported "no migration rule" even though a verified PQC
+    floor for that exact artifact was already on file.
+
+    Reduced to the last colon-delimited segment, lowercased, with `_` normalised to `-` (pip treats
+    the two as equivalent). npm scopes are deliberately NOT stripped: `@noble/post-quantum` and a
+    hypothetical unscoped `post-quantum` are different packages, and `/` is not a separator here.
+    """
+    return name.rsplit(":", 1)[-1].strip().lower().replace("_", "-")
+
+
+def _library_matches(asset_lib: str | None, lib_list: list[Any]) -> bool:
+    """True when the asset's library is one the rule names, comparing on `_library_key`."""
+    if asset_lib is None:
+        return False
+    key = _library_key(asset_lib)
+    return any(isinstance(x, str) and _library_key(x) == key for x in lib_list)
 
 
 __all__ = ["MigrationRule", "load_rules", "match_rule"]

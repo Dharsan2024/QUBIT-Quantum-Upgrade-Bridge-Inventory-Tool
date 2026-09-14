@@ -35,7 +35,15 @@ _JVM = ["java", "kotlin", "scala"]
 #: Every language a PQC rewrite is claimed for. Swift reaches ML-KEM/ML-DSA through CryptoKit's own
 #: types rather than a provider lookup, so it belongs in the coverage guarantee but not in the
 #: JVM-shaped assertion below.
-_PQC_LANGUAGES = [*_JVM, "swift"]
+#:
+#: Go was missing from this list, which is the only reason the gap it guards against survived: the
+#: scanner detected `crypto/mlkem` but nothing at all for ML-DSA, because ML-DSA is not in the Go
+#: standard library and the CIRCL package `code-signature-01` tells the model to use had no rule.
+#: The cost was not under-counting — stage-5 asserts `present: ML-DSA`, so EVERY Go signature
+#: migration was unwinnable by construction: a correct CIRCL rewrite inventoried as containing no
+#: post-quantum cryptography and the gate rejected it after three attempts. Measured on
+#: go-ethereum: 0 of 107 findings could pass, with 4 recorded failures naming this exact cause.
+_PQC_LANGUAGES = [*_JVM, "swift", "go"]
 
 
 def _examples_yielding(language: str, prefix: str) -> list[str]:

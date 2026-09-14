@@ -137,6 +137,9 @@ rules:
           regex: "^(TripleDES|DES|RC2|Rijndael|Aes)(CryptoServiceProvider|Managed|Cng)$"
     extract:
       algorithm: { from: cls, resolve: dotnet-crypto-class }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -169,6 +172,9 @@ rules:
         - { capture: cls, in: [Aes, TripleDES, DES, RC2, Rijndael] }
     extract:
       algorithm: { from: cls, resolve: dotnet-crypto-class }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -302,6 +308,12 @@ rules:
         - { capture: cls, in: [Rfc2898DeriveBytes, PasswordDeriveBytes] }
     extract:
       algorithm: { from: cls, resolve: dotnet-crypto-class }
+      iterations:
+        from: call
+        resolve: kdf-iterations
+      prf:
+        from: call
+        resolve: kdf-prf
     asset: { asset_type: algorithm-use, usage_context: kdf }
     confidence: high
     examples:

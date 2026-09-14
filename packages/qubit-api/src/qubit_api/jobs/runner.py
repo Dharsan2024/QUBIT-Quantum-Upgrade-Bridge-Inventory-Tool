@@ -8,7 +8,10 @@ from uuid import UUID
 
 import anyio
 from qubit_core.db import Job, RiskRun, ScanRow
+from qubit_core.db.session import retry_write_on_lock
 from qubit_core.schemas import utcnow
+from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from .bus import EventBus
@@ -44,24 +47,51 @@ class ProgressReporter:
                 job.progress = progress
                 job.stage = stage
                 job.message = message
-                session.commit()
-
-                # run_coroutine_threadsafe owns the coro (never GC'd un-awaited); skip if the loop
-                # is gone (test teardown) so no orphan coro is created.
-                if not self.loop.is_closed():
-                    asyncio.run_coroutine_threadsafe(
-                        self.bus.publish(
-                            "job.progress",
-                            {
-                                "job_id": str(self.job_id),
-                                "kind": job.kind,
-                                "progress": progress,
-                                "stage": stage,
-                                "message": message,
-                            },
-                        ),
-                        self.loop,
+                # Progress is TELEMETRY. It must never be able to kill the work it is describing,
+                # and it was: SQLite allows one writer, the migration itself writes constantly
+                # (task states, patches, outcomes), and a progress commit that lost that race
+                # raised `OperationalError: database is locked` out of `reporter.update` and
+                # straight through `migrate_handler`, failing the whole job. Observed on a certbot
+                # run at "Writing 1/1: .../misc.py" -- the patch had already been applied to disk
+                # and the job was still reported as failed, with two more runs queued behind it.
+                #
+                # Retried briefly because the lock is held for milliseconds, then given up on: a
+                # progress bar that misses a frame costs nothing, and the alternative is losing a
+                # migration that has already done its work.
+                try:
+                    retry_write_on_lock(session, lambda: None, attempts=3)
+                    session.commit()
+                except OperationalError:
+                    session.rollback()
+                    logger.warning(
+                        "job %s: progress update skipped, database busy (%s)",
+                        self.job_id,
+                        message[:80],
                     )
+
+                # `update()` runs on a worker thread (anyio.to_thread.run_sync), while `self.loop`
+                # closes on the EVENT LOOP thread — the `is_closed()` check below and the
+                # `run_coroutine_threadsafe` call are not atomic, so the loop can close in the gap
+                # between them (observed as a "coroutine 'EventBus.publish' was never awaited"
+                # RuntimeWarning surfacing on a LATER, unrelated test, once GC finally collected
+                # the orphaned coroutine `run_coroutine_threadsafe` never got to schedule).
+                # `run_coroutine_threadsafe` owns the coro once scheduling succeeds; on the race,
+                # `coro.close()` retires it deterministically instead of leaving it to GC.
+                if not self.loop.is_closed():
+                    coro = self.bus.publish(
+                        "job.progress",
+                        {
+                            "job_id": str(self.job_id),
+                            "kind": job.kind,
+                            "progress": progress,
+                            "stage": stage,
+                            "message": message,
+                        },
+                    )
+                    try:
+                        asyncio.run_coroutine_threadsafe(coro, self.loop)
+                    except RuntimeError:
+                        coro.close()
 
 
 class JobRunner:
@@ -116,11 +146,85 @@ class JobRunner:
                 .filter(RiskRun.status.in_(active))
                 .update({"status": "failed"}, synchronize_session=False)  # RiskRun has no error col
             )
+            tasks = self._recover_orphaned_tasks(session)
             session.commit()
-        counts = {"jobs": int(jobs), "scans": int(scans), "risk_runs": int(risk_runs)}
+        counts = {
+            "jobs": int(jobs),
+            "scans": int(scans),
+            "risk_runs": int(risk_runs),
+            "tasks": tasks,
+        }
         if any(counts.values()):
             logger.warning("Recovered orphaned records after restart: %s", counts)
         return counts
+
+    @staticmethod
+    def _recover_orphaned_tasks(session: Session) -> int:
+        """Recover `MigrationTask` rows a crashed job left mid-transition.
+
+        The job/scan/risk-run recovery above only touches the RECORD OF THE JOB. Nothing recovered
+        the WORK a migrate job was doing when it died -- a task killed mid-generation stays at
+        `generating` forever, and that state is neither `ready` (so a fresh "Build plan" run
+        never selects it) nor `deferred/unresolved` (so `resume_task` and the bulk retry query
+        never select it either). It is invisible to every path that would otherwise pick it back
+        up: a genuine dead end, reached by a crash rather than a bug in the migration itself.
+
+        A `generating` task orphaned by a crash is invisible to every retry path there is:
+        `resume_task` and the bulk retry query both select ONLY `deferred`/`unresolved`, and a
+        fresh "Build plan" run selects ONLY `ready`. `generating` is neither, so a task killed
+        mid-LLM-call stays there until someone reads the database directly and notices -- which
+        is how this was found, investigating what first looked like a stalled migrate job (it
+        turned out not to be one: a UTC-vs-local timestamp misread on my part made a genuine
+        513-second run look like it had been hung for five hours). The gap this closes is real
+        regardless of that; `test_llm_hard_timeout.py` covers the other real gap surfaced by the
+        same investigation -- `urlopen(timeout=...)` bounding each socket read, not a whole call.
+
+        `generating` and `verifying` are the two states a task can be orphaned in -- see the FSM
+        in `state/machine.py`. `generating` only has a `defer` event, so it is parked exactly as a
+        real failure is (`_fail_task`'s own shape): `deferred`/`unresolved`, immediately retryable.
+        `verifying` has no `defer` event at all, because a patch has already reached disk by then;
+        the honest move is `verify_fail` (`apply_failed`), which itself allows `revert` or `defer`
+        later -- claiming a verify that never ran actually passed would be worse than not knowing.
+        """
+        from qubit_migrate.orchestrator import RESOLUTION_UNRESOLVED
+        from qubit_migrate.state import MigrationTask, write_event
+        from qubit_migrate.state.machine import transition
+
+        recovered = 0
+        for from_state, event in (("generating", "defer"), ("verifying", "verify_fail")):
+            for task in session.scalars(
+                select(MigrationTask).where(MigrationTask.state == from_state)
+            ).all():
+                task.state = transition(from_state, event)
+                task.last_error = "interrupted by server restart"
+                if from_state == "generating":
+                    task.resolution = RESOLUTION_UNRESOLVED
+                write_event(
+                    session,
+                    task,
+                    from_state=from_state,
+                    to_state=task.state,
+                    actor="system",
+                    detail={"reason": "interrupted by server restart"},
+                )
+                recovered += 1
+        return recovered
+
+    def _mark_running(self, job_id: UUID) -> None:
+        """Record that the work has actually started, and when.
+
+        Best-effort for the same reason progress is: the status of a job must never be able to kill
+        the job. A lost write here costs a wrong label on one row; raising would cost the run.
+        """
+        try:
+            with self.sf() as session:
+                job = session.get(Job, job_id)
+                if job and job.status == "queued":
+                    job.status = "running"
+                    job.started_at = utcnow()
+                    session.commit()
+        except OperationalError:
+            logger.warning("job %s: could not mark running, database busy", job_id)
 
     def _finish(
         self,
@@ -134,6 +238,10 @@ class JobRunner:
             if not job:
                 return
             job.status = status
+            # Paired with `started_at`, this is the only record of how long a run took. Without it
+            # "how long does a migration of this repository take" is answerable only by watching
+            # one, which is not an answer a paper can carry.
+            job.finished_at = utcnow()
             if result is not None:
                 job.result = result
             if error is not None:
@@ -209,6 +317,14 @@ class JobRunner:
                 return
 
             reporter = ProgressReporter(job_id, self.sf, self.bus, cancel=flag)
+            # The job is only RUNNING once it holds its kind's slot. Nothing set this before, so
+            # every job read `queued` for its whole life however long it worked, and the two states
+            # an operator most needs to tell apart looked identical: a migration grinding through
+            # three hundred findings, and one waiting behind it for a semaphore that allows one
+            # migrate job at a time. Both said "queued", both sat at whatever progress they had.
+            # That is the shape of the "it's stuck" report — three clicks, three jobs, one of them
+            # working and two of them genuinely waiting, and no way to see which.
+            self._mark_running(job_id)
 
             try:
                 # Run the handler in a worker thread

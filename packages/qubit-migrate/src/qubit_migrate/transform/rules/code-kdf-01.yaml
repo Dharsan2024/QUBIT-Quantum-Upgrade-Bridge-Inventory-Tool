@@ -1,0 +1,116 @@
+id: code-kdf-01
+language: multi
+title: "PBKDF2 below the published work-factor floor → raised iterations or Argon2id"
+matches:
+  source_scanner: [code]
+  file_suffix:
+    [".py", ".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp",
+    ".hpp", ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart"]
+  # Matched on the WEAKNESS, not on "PBKDF2": a correctly configured PBKDF2 is an approved KDF and
+  # flagging it would be exactly the false-positive inflation that costs a scanner its credibility.
+  # The weakness only exists when the iteration count is a literal below the floor for its PRF.
+  weakness: [kdf-iterations-below-floor]
+  # `password` and `kdf` were matched by NO migration rule at all before this one. Nine detection
+  # rules across seven languages emit PBKDF2 findings; every one of them was a dead end.
+  usage_context: ["password", "kdf", "unknown"]
+  library_name: [null]
+target:
+  algorithm: PBKDF2
+  mode: pure
+  parameter_set: "PBKDF2-HMAC-SHA256 >= 600000 iterations, or Argon2id m=19456 t=2 p=1"
+  category: 1
+  fips: SP-800-132
+# A stored password hash cannot be recomputed without the password, so the old and new parameters
+# have to coexist until each user next signs in.
+data_compat: dual_read
+semantic_note: >
+  PBKDF2 itself is fine - it is an approved KDF under NIST SP 800-132 and the FIPS-compliant choice.
+  The iteration count is what makes it useful, and the count in this call is below the floor OWASP
+  publishes for its PRF: 600,000 for HMAC-SHA-256, 220,000 for HMAC-SHA-512, 1,400,000 for
+  HMAC-SHA-1. A four-digit count barely slows an offline attack on a stolen password table.
+  There are two correct destinations. Raising the iteration count is the smaller change and keeps
+  FIPS compliance. Moving to Argon2id (m=19456 KiB, t=2, p=1) is OWASP's primary recommendation
+  because it is memory-hard and therefore resists GPU and ASIC cracking that iteration count alone
+  does not. Either way the critical detail is the same: every hash ALREADY stored was derived with
+  the old parameters and cannot be recomputed without the plaintext password. The verify path must
+  accept both, re-deriving each stored hash on that user's next successful sign-in, until none of
+  the old ones remain.
+prompt_constraints:
+  - "If you keep PBKDF2, use the floor for the PRF in use: 600000 for HMAC-SHA-256, 220000 for HMAC-SHA-512, 1400000 for HMAC-SHA-1. Prefer moving the PRF to SHA-256 if it is currently SHA-1."
+  - "If you move to Argon2id, use m=19456 KiB, t=2, p=1 as the minimum, and take the implementation from a maintained library rather than writing one."
+  - "STORE THE PARAMETERS WITH THE HASH. A stored hash that does not record its own iteration count, salt and algorithm cannot be verified after this change, and cannot be upgraded again later. Use a self-describing encoding (PHC string format) or add explicit columns."
+  - "Keep verification working for hashes already in the database. Verify against the stored parameters, and re-derive with the new ones only after a successful sign-in. Do not silently invalidate every existing password."
+  - "Use a per-hash random salt of at least 16 bytes. If the current code uses a shared or derived salt, fix that in the same change."
+  - "Do not change the hash column width without saying so: an Argon2id PHC string is around 100 characters where a raw PBKDF2 digest may be 32 bytes."
+example_language: python
+example:
+  before: |
+    import hashlib
+
+    def hash_password(password: str, salt: bytes) -> bytes:
+        return hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 1000)
+
+    def verify(password: str, salt: bytes, stored: bytes) -> bool:
+        return hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 1000) == stored
+  after: |
+    import hashlib
+    import hmac
+    import os
+
+    # OWASP Password Storage Cheat Sheet: 600,000 iterations for PBKDF2-HMAC-SHA256.
+    PBKDF2_ITERATIONS = 600_000
+
+    def hash_password(password: str) -> str:
+        """Self-describing so the parameters can be raised again without breaking verification."""
+        salt = os.urandom(16)
+        digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, PBKDF2_ITERATIONS)
+        return f"pbkdf2_sha256${PBKDF2_ITERATIONS}${salt.hex()}${digest.hex()}"
+
+    def verify(password: str, stored: str) -> tuple[bool, str | None]:
+        """Verifies against the parameters the hash was WRITTEN with, so existing rows still work.
+
+        Returns (ok, upgraded_hash). When upgraded_hash is not None the caller should persist it:
+        that is how stored hashes move to the new work factor without a password reset.
+        """
+        _, iterations_text, salt_hex, digest_hex = stored.split("$")
+        iterations = int(iterations_text)
+        candidate = hashlib.pbkdf2_hmac(
+            "sha256", password.encode(), bytes.fromhex(salt_hex), iterations
+        )
+        if not hmac.compare_digest(candidate, bytes.fromhex(digest_hex)):
+            return False, None
+        return True, (hash_password(password) if iterations < PBKDF2_ITERATIONS else None)
+example_java:
+  before: |
+    PBEKeySpec spec = new PBEKeySpec(password, salt, 1000, 128);
+    SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+    return factory.generateSecret(spec).getEncoded();
+  after: |
+    // OWASP floor for HMAC-SHA-256 is 600,000. The PRF moves from SHA-1 to SHA-256 in the same
+    // change, and the iteration count is stored with the hash so it can be raised again later.
+    private static final int PBKDF2_ITERATIONS = 600_000;
+
+    PBEKeySpec spec = new PBEKeySpec(password, salt, PBKDF2_ITERATIONS, 256);
+    SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+    byte[] digest = factory.generateSecret(spec).getEncoded();
+    // Persist iterations and salt alongside digest; verify() must read them back rather than
+    // assuming the current constant, or every hash written before this deploy stops verifying.
+example_javascript:
+  before: |
+    import crypto from "node:crypto";
+
+    const digest = crypto.pbkdf2Sync(password, salt, 1000, 32, "sha256");
+  after: |
+    import crypto from "node:crypto";
+
+    // OWASP Password Storage Cheat Sheet: 600,000 iterations for PBKDF2-HMAC-SHA256.
+    const PBKDF2_ITERATIONS = 600_000;
+
+    const salt = crypto.randomBytes(16);
+    const digest = crypto.pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, 32, "sha256");
+    // Store as `pbkdf2_sha256$<iterations>$<salt hex>$<digest hex>` so verification reads the
+    // parameters the hash was written with, and upgrades it after a successful sign-in.
+rescan_expect:
+  # PBKDF2 stays - the algorithm was never the problem. What must be gone is the weakness the
+  # scanner derives from the iteration count it reads at the call site.
+  weakness_gone: ["kdf-iterations-below-floor"]

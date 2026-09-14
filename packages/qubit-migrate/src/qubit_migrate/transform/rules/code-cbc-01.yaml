@@ -1,0 +1,104 @@
+id: code-cbc-01
+language: multi
+title: "Unauthenticated CBC mode → AES-GCM (authenticated encryption, same key)"
+matches:
+  source_scanner: [code]
+  # Same suffix list as code-ecb-01, its structural sibling. This rule sorts before
+  # code-weakcipher-01 and py-weakcipher-01 for the same reason code-ecb-01 does: for a finding
+  # carrying the CBC weakness, the mode is the defect, and this rule says so precisely instead of
+  # treating it as a key-length migration.
+  file_suffix:
+    [".py", ".go", ".java", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp",
+    ".hpp", ".cs", ".php", ".rb", ".rs", ".kt", ".kts", ".scala", ".swift", ".dart", ".sh",
+    ".bash", ".ps1", ".psm1", ".sql"]
+  weakness: [cbc-unauthenticated]
+  # BARE "AES" ONLY, deliberately. AES-128/AES-192 need a KEY LENGTH change too (Grover halves
+  # effective security; 128 bits is below this project's post-quantum floor) — that is
+  # code-weakcipher-01's job, and it already reaches those findings correctly via
+  # `_names_a_parameter`. Adding "AES-128"/"AES-192" here would re-route them to a rule whose
+  # target explicitly does NOT touch the key, silently losing the length fix. `match_rule`'s
+  # algorithm clause is exact list membership, not a prefix match, so this exclusion is exact.
+  algorithm: [AES]
+  usage_context: ["encryption-at-rest", "unknown"]
+  library_name: [null]
+target:
+  # NOT "AES-256-GCM". The key this call site has may be shorter than 256 bits (measured: a real
+  # finding's key is 128-bit, from a separately-flagged KDF this rule must not touch) — naming a
+  # bit length here would read as license to invent or pad a key the call site does not have,
+  # which is a false migration by silently changing key material. "AES-GCM" names the mode
+  # change this rule actually makes and nothing about the key.
+  algorithm: AES-GCM
+  mode: pure
+  parameter_set: AES-GCM
+  category: 1
+  fips: FIPS-197
+# Ciphertext layout changes (CBC has no nonce/tag; GCM prepends a nonce and appends a tag), so
+# nothing already stored under the old format can be read by the new path without a compat shim.
+data_compat: reencrypt_required
+semantic_note: >
+  Unauthenticated CBC provides no integrity - ciphertext can be truncated, reordered or
+  bit-flipped undetected, padding-oracle territory. The fix is the MODE, not the key: switch to
+  an AEAD construction using the exact same key this call site already receives. A key-length or
+  KDF change is a DIFFERENT finding's concern - see any paired KDF-derivation finding on the same
+  key - and must not be conflated with this one. Deliberately mirrors code-ecb-01's shape: same
+  primitive-level defect (no authentication), same remedy (an AEAD mode with a backward-compatible
+  read path for anything already persisted), different mode name.
+prompt_constraints:
+  - "FIRST decide whether ciphertext written by the OLD CBC path still exists anywhere persisted: a database column, a spool file kept past tonight, a queued message, a fixture with a hard-coded ciphertext. The code answers this - a decrypt function documented as the reader of a stored column has stored data behind it; a value rebuilt from scratch on demand does not. State which you concluded, and the evidence, in the security notes."
+  - "If old ciphertext EXISTS, a backward-compatible read path is MANDATORY - not a follow-up, not a TODO. The reader must try the new format and fall back to decrypting the old one for records written before this change, and the writer must keep producing something the fallback can distinguish. Without it this patch is a data-loss event that every gate below the project's own test suite will pass."
+  - "Use an AEAD mode - AES-GCM, or ChaCha20-Poly1305 where AES hardware acceleration is absent. Never CBC as the replacement for CBC; the whole point is authentication."
+  - "Use the EXACT SAME key this function already receives. Do not change its length, do not re-derive it, do not touch the function that produces it - a key or KDF change is a separate finding's responsibility, and silently changing key material here is data loss exactly like skipping the backward-compatible read path is."
+  - "Generate a FRESH random nonce for every encryption. Do not derive it from the plaintext, do not use a counter that resets, and do not hardcode it - nonce reuse under GCM is catastrophic and reveals the authentication key."
+  - "Store the nonce with the ciphertext. It is not secret; it is required to decrypt."
+  - "Store and VERIFY the authentication tag. Discarding it silently removes the integrity guarantee that is half the reason for this change."
+  - "Change ONLY the flagged function and whatever reads back what it writes. Other cryptography in this file is not part of this task, including whatever derives the key - that is a separate finding's concern and already-correct code elsewhere is a control that is already CORRECT: do not route it through your new helper and do not touch it."
+example_language: python
+example:
+  before: |
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import pad
+
+    def encrypt_field(key: bytes, value: str) -> bytes:
+        iv = os.urandom(16)
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        return iv + cipher.encrypt(pad(value.encode(), 16))
+  after: |
+    import os
+
+    from Crypto.Cipher import AES
+
+    def encrypt_field(key: bytes, value: str) -> bytes:
+        """AES-GCM, same key. Returns nonce || ciphertext || tag, so the stored layout differs
+        from the CBC version and existing rows must be re-encrypted via decrypt_field_legacy."""
+        nonce = os.urandom(12)
+        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+        ciphertext, tag = cipher.encrypt_and_digest(value.encode())
+        return nonce + ciphertext + tag
+
+    def decrypt_field(key: bytes, blob: bytes) -> str:
+        nonce, ciphertext, tag = blob[:12], blob[12:-16], blob[-16:]
+        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+        return cipher.decrypt_and_verify(ciphertext, tag).decode()
+example_java:
+  before: |
+    Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+    byte[] iv = new byte[16];
+    random.nextBytes(iv);
+    c.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
+    byte[] ct = c.doFinal(plaintext);
+  after: |
+    // AES-GCM, the SAME key. The nonce is fresh per message and stored with the ciphertext; the
+    // 128-bit tag is appended by doFinal and verified on decrypt.
+    byte[] nonce = new byte[12];
+    SecureRandom.getInstanceStrong().nextBytes(nonce);
+    Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+    c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce));
+    byte[] ct = c.doFinal(plaintext);
+    byte[] stored = ByteBuffer.allocate(nonce.length + ct.length).put(nonce).put(ct).array();
+rescan_expect:
+  # The algorithm does NOT change - AES stays, and the key does not change either. What must
+  # change is the mode, which the scanner re-derives from the patched source into the same
+  # weakness the rule matched on.
+  weakness_gone: ["cbc-unauthenticated"]
+  present:
+    algorithm_prefix: ["AES", "ChaCha20"]

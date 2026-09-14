@@ -24,8 +24,14 @@ rules:
       positive:
         - |
           import java.security.KeyPairGenerator;
+          import java.security.Security;
           import org.bouncycastle.pqc.jcajce.provider.BouncyCastlePQCProvider;
-          class A { void f() throws Exception { KeyPairGenerator.getInstance("ML-KEM-768"); } }
+          class A {
+            void f() throws Exception {
+              Security.addProvider(new BouncyCastlePQCProvider());
+              KeyPairGenerator.getInstance("ML-KEM-768", "BCPQC");
+            }
+          }
       negative:
         - |
           import java.security.KeyPairGenerator;
@@ -51,8 +57,18 @@ rules:
       positive:
         - |
           import java.security.Signature;
+          import java.security.Security;
           import org.bouncycastle.pqc.jcajce.provider.BouncyCastlePQCProvider;
-          class A { void f() throws Exception { Signature.getInstance("ML-DSA-65"); } }
+          class A {
+            void f() throws Exception {
+              Security.addProvider(new BouncyCastlePQCProvider());
+              // BouncyCastle 1.79 has not renamed this API to ML-DSA yet; "Dilithium3" is the
+              // pre-standardization name for the ML-DSA-65 parameter set and is what the jar
+              // actually resolves -- measured, not assumed. "ML-DSA-65" raises
+              // NoSuchAlgorithmException on this provider version.
+              Signature.getInstance("Dilithium3", "BCPQC");
+            }
+          }
       negative:
         - |
           import java.security.Signature;

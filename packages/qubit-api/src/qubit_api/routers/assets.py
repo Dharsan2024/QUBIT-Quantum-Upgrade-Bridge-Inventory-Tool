@@ -10,6 +10,7 @@ from qubit_core.schemas import utcnow
 from sqlalchemy import asc, desc, func, select
 from sqlalchemy.orm import Session
 
+from ..auth import get_current_tenant
 from ..deps import get_session
 from ..schemas import AssetBatchRequest, AssetBatchResponse, CryptoAssetOut, Page
 from ..services import (
@@ -35,6 +36,7 @@ _SORT_FIELDS = {
 def list_scan_assets(
     scan_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
     algorithm: str | None = None,
     source_scanner: str | None = None,
     asset_type: str | None = None,
@@ -48,8 +50,8 @@ def list_scan_assets(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Page[CryptoAssetOut]:
-    require_scan(session, scan_id)
-    stmt = select(AssetRow).where(AssetRow.scan_id == scan_id)
+    require_scan(session, scan_id, tenant_id)
+    stmt = select(AssetRow).where(AssetRow.scan_id == scan_id, AssetRow.tenant_id == tenant_id)
     stmt = apply_asset_filters(
         stmt,
         algorithm=algorithm,
@@ -80,8 +82,9 @@ def list_scan_assets(
 def get_asset(
     asset_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> CryptoAssetOut:
-    row = require_asset(session, asset_id)
+    row = require_asset(session, asset_id, tenant_id)
     return to_asset_out(row)
 
 
@@ -94,6 +97,7 @@ def get_asset(
 def ingest_asset_batch(
     payload: AssetBatchRequest,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> AssetBatchResponse:
     """Ingest externally-discovered assets (the hybrid bridge's TLS probe) into the inventory.
 
@@ -107,13 +111,22 @@ def ingest_asset_batch(
     named project (created on first use) and attaches the assets to it. That keeps bridge findings
     diffable and CBOM-exportable through exactly the same endpoints a filesystem scan uses.
     """
-    project = session.scalar(select(ProjectRow).where(ProjectRow.slug == slugify(payload.project)))
+    # Resolved WITHIN the caller's tenant: the slug is unique per team now, so two teams each
+    # pushing a "bridge" project get their own, rather than the second landing in the first's.
+    project = session.scalar(
+        select(ProjectRow).where(
+            ProjectRow.slug == slugify(payload.project), ProjectRow.tenant_id == tenant_id
+        )
+    )
     if project is None:
-        project = ProjectRow(name=payload.project, slug=slugify(payload.project))
+        project = ProjectRow(
+            tenant_id=tenant_id, name=payload.project, slug=slugify(payload.project)
+        )
         session.add(project)
         session.flush()
 
     scan = ScanRow(
+        tenant_id=tenant_id,
         project_id=project.id,
         seq=next_scan_sequence(session, project.id),
         label=payload.label or "bridge probe",
@@ -130,7 +143,9 @@ def ingest_asset_batch(
     session.flush()
 
     for asset in payload.assets:
-        session.add(asset_to_row(asset, scan_id=scan.id, project_id=project.id))
+        session.add(
+            asset_to_row(asset, scan_id=scan.id, project_id=project.id, tenant_id=tenant_id)
+        )
     session.commit()
 
     return AssetBatchResponse(project_id=project.id, scan_id=scan.id, ingested=len(payload.assets))

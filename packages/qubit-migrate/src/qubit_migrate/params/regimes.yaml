@@ -1,0 +1,460 @@
+# QUBIT v2 — regulatory regimes
+#
+# The target algorithm for a finding is a function of the regime, not a
+# constant. These regimes disagree with each other; that disagreement is the
+# point of this file.
+#
+# VERIFIED 2026-09-02 against the OQS Scanner's compliance implementations
+# (vendor/open-quantum-secure/pkg/compliance/{cnsa2,anssi,bsi_tr_02102}.go),
+# which encode each framework as executable rules. That is a stronger source
+# than the consulting blogs the first draft used, and it CORRECTED two entries:
+#
+#   * BSI was recorded as "warns against default hybrid". WRONG — BSI TR-02102
+#     REQUIRES hybrid key exchange during the transition; pure standalone ML-KEM
+#     is explicitly not sufficient for new deployments.
+#   * CNSA 2.0 was recorded as "against hybrid by default". IMPRECISE — CNSA 2.0
+#     rejects hybrids that use a SUB-1024 ML-KEM variant. The objection is to the
+#     parameter grade, not to the hybrid construction itself.
+#
+# `confidence: verified-secondary` means: read from an executable encoding of the
+# framework, not from the primary standard document. Still verify against the
+# primary text before publication, but this is no longer synthesised from prose.
+
+version: "2.0.1-draft"
+default_regime: nist-civil
+
+regimes:
+
+  # ---------------------------------------------------------------------------
+  cnsa-2.0:
+    authority: "US National Security Agency"
+    source: "CNSA 2.0 FAQ + Announcing CNSA 2.0 (May 2025)"
+    # PRIMARY. Read from NSA's own FAQ in `vendor/standards/CNSA-2.0-FAQ.pdf`.
+    confidence: primary
+    source_section: "FAQ: What is NSA's position on the use of hybrid solutions?" 
+    applies_to: "US National Security Systems; by cascade FCEB / FedRAMP / DIB"
+    construction: pure_or_hybrid_at_grade
+    # Severity of a construction objection. DECLARED, never inferred: it was previously
+    # read by grepping `rationale` for the word "advisory", so an editorial edit to the
+    # prose would silently flip a regime between warning and blocking.
+    hybrid_severity: violation
+    rationale: >
+      CNSA 2.0 mandates ML-KEM-1024 and ML-DSA-87 exclusively. It does not
+      forbid hybrid constructions as such — it forbids hybrids built on a
+      sub-1024 ML-KEM variant. So X25519MLKEM768, the industry default, fails
+      on the 768, not on the hybrid.
+    # Hybrid is PERMITTED but not preferred, recorded as a distinct state rather than folded
+    # into "ok". NSA's FAQ, verbatim:
+    #
+    #   "NSA has confidence in CNSA 2.0 algorithms and WILL NOT REQUIRE NSS developers to use
+    #    hybrid certified products for security purposes. However, product availability and
+    #    interoperability requirements may lead to adopting hybrid solutions."
+    #
+    # and, on protocol accommodation:
+    #
+    #   "NSA recognizes that some protocols may require using hybrid-like constructions to
+    #    accommodate the larger sizes of ML-KEM-1024 or ML-DSA-87..."
+    #
+    # So it neither requires nor forbids: it declines to require, and names product availability,
+    # interoperability and protocol accommodation as reasons one may still be adopted. An operator
+    # told only "ok" cannot see that a pure target is the preferred architecture.
+    preferred_construction: pure
+    defaults:
+      kex:       { algorithm: ML-KEM, parameter_set: ML-KEM-1024 }
+      signature: { algorithm: ML-DSA, parameter_set: ML-DSA-87 }
+      # Stateful hash-based, single-tree only. SLH-DSA is excluded here despite FIPS 205 approval,
+      # so firmware signing has nowhere else to go.
+      firmware_signature: { algorithm: LMS, parameter_set: LMS-SHA256-M32-H10 }
+    minimum_grade:
+      ML-KEM: 1024          # ML-KEM-512 and ML-KEM-768 are insufficient
+      ML-DSA: 87            # ML-DSA-44 and ML-DSA-65 are insufficient
+    hybrid_rule: >
+      A hybrid KEM is acceptable only if its ML-KEM component meets the 1024
+      grade. Rule id in the reference implementation: cnsa2-hybrid-sub-1024.
+    excluded:
+      # Verbatim, from the FAQ: "While SLH-DSA is hash-based, it is not part of CNSA and is not
+      # approved for ANY use in NSS." Stronger than a signing-only exclusion, and it stands
+      # despite FIPS 205 approval — which is why an explicit list is the only thing that captures
+      # it. No amount of reasoning from "is it standardised" produces this rule.
+      - SLH-DSA
+      - HashML-DSA          # not approved
+      - HQC                 # not yet approved
+    # RESOLVED: there is no carve-out for firmware or root signing. This was once written as an
+    # empty `excluded_except: {}`, which the Regime model never declared and pydantic silently
+    # dropped -- documentation shaped like configuration. It is a comment because that is what it
+    # always was; a field would imply the engine consults it.
+    deadlines:
+      software_firmware_signing:  { support_by: 2025, exclusive_by: 2030 }
+      web_browsers_servers_cloud: { support_by: 2025, exclusive_by: 2033 }
+      traditional_networking:     { support_by: 2026, exclusive_by: 2030 }
+      operating_systems:          { support_by: 2027, exclusive_by: 2033 }
+      niche_equipment:            { support_by: 2030, exclusive_by: 2033 }
+      custom_and_legacy:          { exclusive_by: 2033 }
+      # NSM-10's outer horizon, stated in the May 2025 advisory.
+      all_nss_complete:           { exclusive_by: 2035 }
+
+  # ---------------------------------------------------------------------------
+  anssi:
+    authority: "Agence nationale de la sécurité des systèmes d'information (France)"
+    source: >-
+      ANSSI, "ANSSI views on the Post-Quantum Cryptography transition (2023 follow up)",
+      21 December 2023 - read as PDF, plus "ANSSI's views on crypto-agility"
+    confidence: primary
+    source_section: "4 Update on the French security visas delivery process"
+    applies_to: "French public sector and regulated operators"
+    construction: hybrid
+    # ADVISORY under the general-industry role, and the primary text is emphatic but never
+    # imperative: ANSSI "strongly emphasizes the necessity of hybridation", "encourages",
+    # and "recommends". None of those is `shall`. The `shall` appears only under 4, below.
+    hybrid_severity: advisory
+    # ANSSI has a TWOFOLD role, and the primary text draws the line itself. Under its advisory
+    # role for general industry it "encourages" and "recommends". Under its regulatory role for
+    # French security visas, section 4 is imperative -- verbatim:
+    #
+    #   "any product that includes post-quantum mitigation SHALL implement hybridation except
+    #    if the quantum mitigation only relies on hash-based signatures like XMSS, LMS or
+    #    SPHINCS+ for which hybridation is optional"
+    #
+    # Two fields because they are two different answers to the same question, and an installation
+    # seeking certification needs the strict one. Collapsing them either blocks uncertified French
+    # deployments that are fine, or passes certified ones that are not.
+    hybrid_severity_certified: violation
+    control_reference: "Security visa (CSPN / Common Criteria), phase 2 -- end products"
+    # Section 4's own exception, verbatim above. This is a THREE-WAY divergence, not a two-way
+    # one: ANSSI exempts SPHINCS+ by name, BSI exempts hash-based signatures
+    # "zustandsbehafteten und zustandslosen" (stateful and stateless alike), and the CNSA 2.0
+    # FAQ says SLH-DSA "is not part of CNSA and is not approved for any use in NSS". The same
+    # algorithm is exempted, exempted, and banned outright.
+    standalone_exempt: [SLH-DSA, LMS, XMSS]
+    # Section 4's SECOND carve-out, and the one that matters most to this tool: a platform
+    # product that hands raw crypto to an upper layer may ship pure PQC, "as hybridation will
+    # be part of upper user-oriented layers". A cryptographic library is exactly that, and
+    # libraries are the bulk of what QUBIT migrates -- so under the certified track a library's
+    # pure-PQC target is an advisory rather than a violation.
+    #
+    # It is a permission with a price, and the price is carried rather than dropped: ANSSI
+    # "will require in that case" both of the conditions below.
+    intermediate_product_severity: advisory
+    intermediate_product_conditions:
+      - "an implementation of a hybridation mode for test purposes"
+      - >-
+        user guidance documentation recommending the post-quantum algorithm be used
+        exclusively in combination with a recognised classical algorithm, as part of a
+        hybridation mode
+    rationale: >
+      Hybrid PQC+classical is what ANSSI wants, on the stated ground that PQC schemes "are
+      still not mature enough to solely ensure the security" -- several having fallen to
+      CLASSICAL attacks. How hard it wants that depends on who is asking. For general industry
+      ANSSI "encourages" and "recommends", so a pure target is an advisory. For a product
+      seeking a French security visa, section 4 says an end product "shall implement
+      hybridation" -- a violation -- while a platform product handing raw crypto upward may
+      ship pure PQC against two named conditions. ANSSI publishes no closed list of approved
+      algorithms as a matter of policy, so `excluded` is empty here by intent, not omission.
+    defaults:
+      kex:       { algorithm: X25519MLKEM768, parameter_set: X25519MLKEM768, hybrid_with: X25519 }
+      signature: { algorithm: ML-DSA, parameter_set: ML-DSA-65, hybrid_with: ECDSA-P256 }
+    approved_hybrid_kex:
+      - X25519MLKEM768
+      - SecP256r1MLKEM768
+      - SecP384r1MLKEM1024
+    also_approved:
+      - SLH-DSA             # approved, unlike CNSA 2.0
+      - ML-DSA              # all parameter levels
+    excluded: []
+    deadlines:
+      # 2030 is a SCOPE TRIGGER, not a deadline, and the difference inverts the advice. The
+      # primary text: hybrid mitigation is recommended "especially for security products aimed
+      # at offering a long-lasting protection of information (until after 2030) or that will
+      # potentially be used after 2030 without updates" -- i.e. if the data must survive past
+      # 2030 then hybrid is needed NOW, "in the short and medium term". Encoding it as
+      # `required_by: 2030-01-01` said the opposite: that there is time until 2030.
+      confidentiality_horizon_trigger:
+        after: "2030-01-01"
+        meaning: >-
+          data whose confidentiality must survive past this date, or a product still in use
+          past it without updates, is in scope for hybrid mitigation immediately
+      # The only DATED milestone ANSSI gives, and it has already passed: "First phase-2
+      # security visas for products implementing hybrid post-quantum cryptography are expected
+      # to be delivered around 2024-2025", accelerated from an original 2025 start.
+      security_visa_phase_2:
+        expected: "2024-2025"
+        status: "accelerated from the original agenda"
+    # ANSSI is deliberately more conservative than NIST and BSI on symmetric strength and says
+    # so in as many words: "This encouragement is slightly more conservative than NIST's and
+    # BSI's current recommendation." Encoded because it is checkable, and because it is the one
+    # place a target could satisfy NIST and fail ANSSI on a non-PQC primitive.
+    symmetric_floor:
+      block_cipher: AES-256
+      hash: SHA2-384
+
+  # ---------------------------------------------------------------------------
+  bsi-tr-02102:
+    authority: "Bundesamt für Sicherheit in der Informationstechnik (Germany)"
+    source: "BSI TR-02102-1 Cryptographic Mechanisms"
+    # PRIMARY. Read from BSI TR-02102-1 Version 2026-01 (23 January 2026), the German original,
+    # in `vendor/standards/BSI-TR-02102.pdf`.
+    confidence: primary
+    source_section: "2.2 Schlüsselableitung und Hybridisierung"
+    # From TR-02102-2 (the TLS profile), Version 2026-01, section 3.2 -- a separate document from
+    # the -1 that the rest of this entry is read from, and it carries a fact nothing else does.
+    #
+    # TLS 1.2 is recommended only "bis Ende 2031", and the stated reason is post-quantum, not
+    # classical: "da nach derzeitigem Kenntnisstand keine quantensicheren
+    # Schlüsseleinigungsverfahren für TLS 1.2 standardisiert werden". TLS 1.3 is "2032+".
+    #
+    # This makes a TLS 1.2 listener a MIGRATION BLOCKER rather than a weak-protocol finding: the
+    # hybrid group cannot be negotiated on it at any date. `cfg-tls-01` still retains TLS 1.2 for
+    # interoperability, and cites this so the compromise is dated rather than open-ended.
+    protocol_deadlines:
+      tls_1_2: { recommended_until: 2031, reason: "no PQC key agreement will be standardised" }
+      tls_1_3: { recommended_until: "2032+" }
+      not_recommended: [TLS 1.1, TLS 1.0, SSLv3, SSLv2]
+      # From TR-02102-4 (the SSH profile), Version 2026-01, §3.1.3. Classical SSH key exchange
+      # methods 1-6 are recommended only "bis Ende 2031", on the same post-quantum ground.
+      ssh_classical_kex: { recommended_until: 2031 }
+      # From TR-02102-3 (the IPsec/IKEv2 profile), Version 2026-01 (27.01.2026), §3.2.4
+      # "Schlüsseleinigungsverfahren", Table 6's Hinweis 1. The classical Diffie-Hellman groups
+      # (MODP 3072/4096, the NIST and Brainpool curves) are recommended standalone ("allein")
+      # only until end-2031, and "2032+" once hybridised -- the identical shape TLS and SSH
+      # already carry, read from a THIRD separate BSI document rather than assumed to generalise.
+      ipsec_classical_kex: { recommended_until: 2031 }
+    # What BSI says it INTENDS to recommend for SSH, once the RFC is adopted -- named verbatim in
+    # §3.1.3 from draft-ietf-sshm-mlkem-hybrid-kex.
+    #
+    # Recorded as `intended`, not `approved`, because it is not yet either. The distinction is the
+    # same one `nist_ir_8547_draft` carries: a draft a tool treats as binding is a tool that
+    # reports a requirement nobody has issued.
+    intended_recommendations:
+      ssh_hybrid_kex:
+        status: "intended, pending RFC"
+        source: "draft-ietf-sshm-mlkem-hybrid-kex"
+        algorithms: [mlkem768nistp256-sha256, mlkem1024nistp384-sha384]
+      # TR-02102-3 §3.2.4, Table 6, Hinweis 1, verbatim: "[RFC 9370] ermöglicht eine hybride
+      # Schlüsseleinigung in IKEv2. Das BSI beabsichtigt, für die quantensichere
+      # Schlüsseleinigung die Verfahren ml-kem-768 und ml-kem-1024 aus dem Internet-Draft [...]
+      # in Kombination mit einem klassischen Schlüsseleinigungsverfahren aus Tabelle 6
+      # ('hybrid') zu empfehlen, sobald der zugehörige RFC verabschiedet wurde."
+      # ("RFC 9370 enables hybrid key agreement in IKEv2. BSI intends to recommend ML-KEM-768
+      # and ML-KEM-1024 [...] combined with a classical key-agreement method from Table 6
+      # ('hybrid'), once the corresponding RFC has been adopted.")
+      ipsec_hybrid_kex:
+        status: "intended, pending RFC"
+        source: "draft-ietf-ipsecme-ikev2-mlkem"
+        carrier_rfc: "RFC 9370"  # the multi-KEX extension to IKEv2 the hybrid construction rides on
+        algorithms: [ML-KEM-768, ML-KEM-1024]
+    applies_to: "German federal administration and regulated sectors"
+    construction: hybrid
+    # ADVISORY, not violation. **This was encoded as a hard violation and that was wrong.**
+    #
+    # §2.2 verbatim, German original: "Um die langfristige Sicherheit einer Schlüsseleinigung zu
+    # gewährleisten, EMPFIEHLT diese Technische Richtlinie daher den Einsatz eines hybriden
+    # Schlüsseleinigungsverfahrens, bei dem ein quantensicheres mit einem klassischen Verfahren
+    # kombiniert wird."
+    #
+    # `empfiehlt` is "recommends". Not `fordert` (requires), not `muss` (must). The signature
+    # section uses the same verb: "Diese Technische Richtlinie EMPFIEHLT den Einsatz eines
+    # quantensicheren Signaturverfahrens grundsätzlich nur in Kombination mit einem klassischen
+    # Signaturverfahren."
+    #
+    # A rules engine that fails a pure-PQC target under BSI is stricter than the German text and
+    # generates false positives against a guideline that is asking for best practice. That is the
+    # same error as the one corrected in the other direction earlier — BSI recorded as "warns
+    # against hybrid" when it recommends it — and it is why `confidence` is load-bearing.
+    hybrid_severity: advisory
+    # BSI permits hash-based signatures to run STANDALONE, without hybridisation, because hash
+    # collision resistance carries no structured-lattice assumption to hedge against.
+    #
+    # Without this the engine reported a standalone SLH-DSA as `hybrid-required` VIOLATION under
+    # BSI — a false positive against the one regime that most explicitly approves it.
+    standalone_exempt: [SLH-DSA, LMS, XMSS]
+    rationale: >
+      CORRECTED. BSI REQUIRES hybrid key exchange during the transition —
+      "pure standalone ML-KEM is not sufficient for new deployments". The
+      earlier "warns against default hybrid" entry was wrong. BSI is also the
+      most permissive regime on parameter grade and on algorithm choice: every
+      ML-KEM and ML-DSA level is acceptable, and it approves conservative
+      alternatives the others do not.
+    defaults:
+      kex:       { algorithm: X25519MLKEM768, parameter_set: X25519MLKEM768, hybrid_with: X25519 }
+      signature: { algorithm: ML-DSA, parameter_set: ML-DSA-65 }
+    approved_hybrid_kex:
+      - X25519MLKEM768
+      - SecP256r1MLKEM768
+      - SecP384r1MLKEM1024
+    also_approved:
+      - SLH-DSA             # all parameter sets
+      - FrodoKEM
+      - HQC
+      - Classic McEliece
+    minimum_grade: {}       # no grade minimum beyond the hybrid recommendation
+    excluded: []
+    # TIERED, and both dates are about CLASSICAL-ONLY key agreement -- not about pure PQC.
+    #
+    #   "Der alleinige Einsatz von klassischen Schlüsseleinigungsverfahren wird nur noch bis
+    #    Ende 2031 empfohlen."
+    #   "Für Anwendungen mit sehr hohem Schutzbedarf sollte die Umstellung auf quantensichere
+    #    Verfahren bereits bis Ende 2030 erfolgen."
+    #   "Der Einsatz der Verfahren aus diesem Kapitel über das Jahr 2031 hinaus wird nur in
+    #    Kombination mit einem quantensicheren KEM-Verfahren [empfohlen]."
+    #
+    # So the deadline binds the thing QUBIT is migrating AWAY from, not the thing it migrates TO.
+    # A pure ML-KEM target never trips these; a codebase still on classical-only does, and after
+    # 2031 that is the hard failure.
+    deadlines:
+      classical_only_kex_general:        { deprecated_by: "2031-12-31" }
+      classical_only_kex_high_protection: { deprecated_by: "2030-12-31" }
+      quantum_safe_signatures:           { deprecated_by: "2035-12-31" }
+
+  # ---------------------------------------------------------------------------
+  asd-ism:
+    authority: "Australian Signals Directorate"
+    source: "ASD Information Security Manual"
+    # Upgraded from `secondary`: the ISM's own control text is now cited rather than inferred.
+    # ISM-1917 (Revision 3, Sep-25): "ML-KEM-768 will not be approved beyond 2030."
+    confidence: verified-secondary
+    control_reference: ISM-1917
+    # Permitted for legacy compatibility and interoperability, aligned to CNSA 2.0 parameters --
+    # explicitly NOT recommended as an architecture.
+    preferred_construction: pure
+    applies_to: "Australian government systems"
+    construction: pure_or_hybrid_at_grade
+    hybrid_severity: violation
+    rationale: >
+      Permits hybrid but mandates the highest parameter sets, and requires
+      cessation of classical algorithms by 2030 — faster than NIST IR 8547.
+    defaults:
+      kex:       { algorithm: ML-KEM, parameter_set: ML-KEM-1024 }
+      signature: { algorithm: ML-DSA, parameter_set: ML-DSA-87 }
+    minimum_grade:
+      ML-KEM: 1024
+      ML-DSA: 87
+    excluded: []
+    deadlines:
+      all_classical: { exclusive_by: 2030 }
+
+  # ---------------------------------------------------------------------------
+  nist-civil:
+    authority: "US National Institute of Standards and Technology"
+    source: "NIST IR 8547 (initial public draft) + FIPS 203/204/205"
+    confidence: primary
+    applies_to: "US civilian federal systems; the general-purpose default"
+    construction: either
+    hybrid_severity: advisory
+    rationale: >
+      IR 8547 sets deprecation dates without mandating a construction, so this
+      is the least opinionated regime and the safest default for an install that
+      has not chosen one. NOTE: IR 8547 is an INITIAL PUBLIC DRAFT — its 2030
+      and 2035 milestones must be presented as proposed, never as finalised.
+    defaults:
+      kex:       { algorithm: ML-KEM, parameter_set: ML-KEM-768 }
+      signature: { algorithm: ML-DSA, parameter_set: ML-DSA-65 }
+      hash:      { algorithm: SHA-256 }     # Grover, not Shor — see 03-risk-model
+    excluded: []
+    # TWO STREAMS OF AUTHORITY, and only one of them binds.
+    #
+    # NIST IR 8547 is still an **Initial Public Draft** — released for comment November 2024, never
+    # finalised. Its 2030/2035 dates are a proposed technical trajectory, and a compliance engine
+    # that enforces them is enforcing a draft.
+    #
+    # The binding deadlines come from the executive branch instead, and they are EARLIER:
+    # Executive Order 14412 (22 June 2026) and OMB M-26-15 (24 June 2026), which supersede NSM-10
+    # and M-23-02 and reach federal contractors through the FAR. An engine tracking only IR 8547
+    # would report an agency as compliant in 2031 that is in breach of federal policy.
+    deadlines:
+      # Proposed, not binding. Must be presented as draft wherever it is shown.
+      nist_ir_8547_draft:
+        rsa_2048_ecc_p256: { deprecated_by: 2030, disallowed_by: 2035 }
+        status: initial-public-draft
+      # Binding on federal agencies and covered contractors.
+      eo_14412:
+        key_establishment: { required_by: "2030-12-31" }
+        digital_signatures: { required_by: "2031-12-31" }
+        status: binding
+        supersedes: [NSM-10, OMB-M-23-02]
+
+# -----------------------------------------------------------------------------
+# The conflict, restated correctly.
+#
+# It is NOT "hybrid versus pure". BSI and ANSSI both require hybrid; CNSA 2.0
+# permits hybrid at grade. The real conflict is PARAMETER GRADE.
+known_conflicts:
+  - finding: "asymmetric key exchange"
+    bsi-tr-02102: "X25519MLKEM768 — hybrid REQUIRED"
+    anssi:        "X25519MLKEM768 — hybrid required (advisory severity)"
+    cnsa-2.0:     "rejects X25519MLKEM768 — sub-1024 ML-KEM component"
+    note: >
+      The industry-default hybrid fails CNSA 2.0 on the 768, not on the hybrid.
+  - finding: "signature"
+    cnsa-2.0: "ML-DSA-87 only; SLH-DSA and HashML-DSA excluded"
+    bsi-tr-02102: "ML-DSA-44/65/87 and SLH-DSA all approved"
+    note: >
+      Grade and algorithm set both differ. A composite signature also changes
+      the rescan expectation, since the classical component is retained
+      deliberately.
+  - finding: "long-lived firmware or root signing"
+    cnsa-2.0:   "SLH-DSA excluded, no carve-out — use ML-DSA-87"
+    bsi-tr-02102: "SLH-DSA approved, all parameter sets, and EXEMPT from hybrid"
+    anssi:      "SLH-DSA approved and EXEMPT from hybrid, by name"
+    nist-civil: "SLH-DSA (FIPS 205) suited to high-assurance long-lived signatures"
+    note: >
+      The sharpest divergence in this file, and every side of it is now quoted from the
+      publisher's own document rather than inferred.
+
+      ANSSI, follow-up position paper section 4: hybridation is required "except if the quantum
+      mitigation only relies on hash-based signatures like XMSS, LMS or SPHINCS+ for which
+      hybridation is optional".
+
+      BSI TR-02102-1 section 2.2 goes further and exempts stateful and stateless alike —
+      "zustandsbehafteten und zustandslosen".
+
+      NSA CNSA 2.0 FAQ: "While SLH-DSA is hash-based, it is not part of CNSA and is not approved
+      for any use in NSS."
+
+      So for one algorithm, two European regimes grant a special exemption FROM the hybrid
+      requirement, and the US national-security regime bans it outright. There is no target that
+      satisfies all three, and a tool that reports a single verdict for a firmware-signing
+      migration is hiding this rather than resolving it.
+
+# -----------------------------------------------------------------------------
+# UNIVERSAL TARGET — the most useful thing this file produces, and now a result
+# rather than a hypothesis.
+#
+# The conflict between these five regimes is GRADE, not construction. Once that
+# is established, one target clears all of them:
+#
+#   SecP384r1MLKEM1024
+#     * hybrid          -> satisfies the BSI and ANSSI hybrid preference
+#     * ML-KEM-1024     -> satisfies the CNSA 2.0 and ASD grade minimum
+#     * listed as an approved hybrid KEM by BOTH BSI and ANSSI
+#
+# It was blocked on one question the reference implementations could not answer:
+# they showed the sub-1024 hybrid is a violation, but not that an AT-GRADE hybrid
+# passes — CNSA might have objected to the construction itself.
+#
+# RESOLVED from the NSA's own FAQ, verbatim:
+#
+#   "NSA has confidence in CNSA 2.0 algorithms and will not require NSS
+#    developers to use hybrid certified products for security purposes. However,
+#    product availability and interoperability requirements may lead to adopting
+#    hybrid solutions."
+#
+# `will not require` is not `will not permit`, and the second sentence names the
+# grounds on which a hybrid is expected to be adopted anyway. So CNSA tolerates
+# an at-grade hybrid — which is why `preferred_construction: pure` yields a
+# `notice` there rather than a conflict.
+#
+# MEASURED across all five regimes, in both the general and certified contexts:
+# SecP384r1MLKEM1024 raises zero violations and zero advisories. Its worst
+# verdict anywhere is the CNSA/ASD notice that a pure target would be preferred.
+#
+# The contrast is the point. `X25519MLKEM768` — the industry default, what most
+# tools emit, and this file's own default for BSI and ANSSI — is a VIOLATION
+# under CNSA 2.0 and ASD ISM on grade. A migration tool that ships one default
+# and calls it compliant is wrong for two of these five regimes.
+universal_target:
+  kex: SecP384r1MLKEM1024
+  status: confirmed
+  resolved_by: "NSA CNSA 2.0 FAQ — 'will not require' hybrid, not 'will not permit'"
+  worst_verdict: "notice (CNSA 2.0 and ASD ISM prefer a pure target)"
+  # Kept because it is the counter-example that gives the result its force.
+  industry_default_fails: "X25519MLKEM768 — violation under cnsa-2.0 and asd-ism, below-grade"

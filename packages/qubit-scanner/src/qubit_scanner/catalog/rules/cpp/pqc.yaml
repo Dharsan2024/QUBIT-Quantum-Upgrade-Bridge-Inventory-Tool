@@ -1,0 +1,52 @@
+schema: qubit-rule/v1
+language: cpp
+library:
+  name: liboqs-cpp / OpenSSL 3.5 post-quantum
+  detect_imports: []
+rules:
+  - id: CPP-LIBOQS-PQC
+    title: 'oqs::Signature{"ML-DSA-65"} / oqs::KeyEncapsulation{"ML-KEM-768"}'
+    match:
+      query: |
+        (declaration
+          type: (qualified_identifier scope: (namespace_identifier) @ns name: (type_identifier) @cls)) @call
+      where:
+        - { capture: ns, in: [oqs, OQS] }
+        - { capture: cls, in: [Signature, KeyEncapsulation, KEM, Sig] }
+        - { capture: call, regex: "(?i)ml[-_]?(dsa|kem)|kyber|dilithium|falcon|sphincs" }
+    extract:
+      algorithm: { from: call, resolve: pqc-in-text }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          #include <oqs/oqs.h>
+          void f() { oqs::Signature signer{"ML-DSA-65"}; }
+        - |
+          void g() { oqs::KeyEncapsulation kem{"ML-KEM-768"}; }
+      negative:
+        - |
+          void h() { oqs::Signature signer{"RSA-2048"}; }
+
+  - id: CPP-OPENSSL-PQC-BYNAME
+    title: EVP_PKEY_CTX_new_from_name(NULL, "ML-DSA-65", NULL)
+    match:
+      query: |
+        (call_expression function: (identifier) @fn) @call
+      where:
+        - { capture: fn, regex: "^EVP_(PKEY_CTX_new_from_name|PKEY_Q_keygen|SIGNATURE_fetch|KEM_fetch)$" }
+        - { capture: call, regex: "(?i)ml[-_]?(dsa|kem)|kyber|dilithium" }
+    extract:
+      algorithm: { from: call, resolve: pqc-in-text }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          void f() { EVP_PKEY_CTX_new_from_name(NULL, "ML-DSA-65", NULL); }
+        - |
+          void g() { EVP_PKEY_Q_keygen(NULL, NULL, "ML-KEM-768"); }
+      negative:
+        - |
+          void h() { EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL); }

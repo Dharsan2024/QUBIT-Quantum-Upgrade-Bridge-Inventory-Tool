@@ -183,6 +183,9 @@ rules:
         - { capture: fn, regex: "(?i)^(encrypt|decrypt|encrypt_iv|decrypt_iv)$" }
     extract:
       algorithm: { from: algo, resolve: string-literal }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -207,6 +210,9 @@ rules:
       # pgcrypto's gen_salt takes 'des', 'xdes', 'md5' or 'bf'. That string is the whole decision
       # for how every password in the table is stored, and it is the only place it appears.
       algorithm: { from: algo, resolve: string-literal }
+      iterations:
+        from: call
+        resolve: kdf-iterations
     asset: { asset_type: algorithm-use, usage_context: kdf }
     confidence: high
     examples:

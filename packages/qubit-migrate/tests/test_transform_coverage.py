@@ -38,6 +38,7 @@ def _asset(
     usage: UsageContext = UsageContext.hash,
     path: str = "a.py",
     library: str | None = None,
+    line: int = 1,
 ) -> CryptoAsset:
     """A synthetic asset.
 
@@ -52,7 +53,7 @@ def _asset(
         algorithm=algorithm,
         usage_context=usage,
         quantum_vulnerable=QuantumVulnerability(vulnerable=True, attack=QuantumAttack.shor),
-        location=Location(file_path=path, line=1),
+        location=Location(file_path=path, line=line),
         library=LibraryRef(name=library) if library else None,
         evidence=Evidence(),
     )
@@ -76,10 +77,33 @@ def test_every_declared_codemod_is_registered() -> None:
 
 def test_every_rule_has_a_worked_example_for_the_llm() -> None:
     """The examples are few-shot prompt content now, not documentation, so a rule without one gives
-    the local model materially less to work from."""
+    the local model materially less to work from.
+
+    Scoped to the rules that actually reach the model. A `remediation: guided` rule never calls it:
+    a certificate cannot be rewritten, an ecosystem with no trustworthy provider cannot have one
+    installed, and a shell script generating an RSA key has no ML-KEM rewrite to make. Demanding a
+    worked "after" block for those would mean inventing a patch the rule exists to say is wrong.
+    Their substance lives in `semantic_note` and in the guided path built from it.
+    """
     load_rules.cache_clear()
-    without = [r.id for r in load_rules() if not r.example]
+    without = [r.id for r in load_rules() if not r.example and r.remediation != "guided"]
     assert not without, f"rules with no worked example: {without}"
+
+
+def test_every_guided_rule_explains_itself() -> None:
+    """A guided rule carries no patch, so its prose IS the deliverable.
+
+    Without a substantial `semantic_note` a guided outcome is indistinguishable from the "manual
+    change" dead end it replaced — the user is told the tool will not fix this and nothing else.
+    """
+    load_rules.cache_clear()
+    guided = [r for r in load_rules() if r.remediation == "guided"]
+    assert guided, "expected at least one guided rule"
+    thin = [r.id for r in guided if len(r.semantic_note.split()) < 60]
+    assert not thin, (
+        f"guided rules whose explanation is too thin to act on: {thin}. A guided path has to say "
+        "what to do instead, not just that QUBIT will not do it."
+    )
 
 
 def test_data_compat_reflects_real_migration_hazard() -> None:
@@ -132,13 +156,25 @@ def test_asset_routes_to_expected_rule(
         ("cryptography", "requirements.txt", "dep-pqc-01"),
         ("cryptography", "pyproject.toml", "dep-pqc-01"),
         ("bcprov-jdk18on", "pom.xml", "dep-pqc-01"),
-        # A package with no established floor must NOT be claimed: the rule would match, the
-        # codemod would find nothing to bump, and the app's Generate button would answer 422.
-        ("pyjwt", "requirements.txt", None),
-        # A manifest format the codemod cannot parse at all. Matching `.toml` by suffix claimed
-        # Cargo.toml and produced exactly that 422.
-        ("md-5", "Cargo.toml", None),
-        ("jsonwebtoken", "package.json", None),
+        # Maven reports `groupId:artifactId`, which never string-equalled the bare artifact id the
+        # rule and the floor table are keyed on — so this rule was unreachable for EVERY Maven
+        # project despite having a verified floor for this exact artifact on file.
+        ("org.bouncycastle:bcprov-jdk18on", "pom.xml", "dep-pqc-01"),
+        # `pyjwt` has no PQC-capable floor of its own, so `dep-pqc-01` still must not claim it —
+        # there is nothing to bump. `dep-pqc-03` claims it instead, and the distinction the test
+        # exists to protect still holds: it produces a real patch. A Python project signing RS256
+        # tokens needs ML-DSA from somewhere, `cryptography>=48.0.0` is where, and adding it is
+        # what unblocks the code-level migration rather than a change that only looks like one.
+        # (What Python still cannot do is emit RFC 9964 `alg` values through PyJWT; the playbook
+        # records that as an honest gap and the guided path says so.)
+        ("pyjwt", "requirements.txt", "dep-pqc-03"),
+        # These two used to be unclaimable for the same reason, and are now handled by dep-pqc-02.
+        # npm and Cargo never gained PQC in a later release of the flagged library — it lives in a
+        # separate package — so "raise a floor" could not express the change and the honest answer
+        # was to match nothing. `add_pqc_dependency` CAN express it, and produces a real patch
+        # (`ml-kem` / `@noble/post-quantum`), so claiming them no longer leads to that 422.
+        ("md-5", "Cargo.toml", "dep-pqc-02"),
+        ("jsonwebtoken", "package.json", "dep-pqc-02"),
     ],
 )
 def test_dependency_rule_only_claims_packages_it_can_actually_bump(
@@ -163,6 +199,40 @@ def test_dependency_rule_only_claims_packages_it_can_actually_bump(
         )
     )
     assert (rule.id if rule else None) == expected
+
+
+@pytest.mark.parametrize(
+    ("algorithm", "usage"),
+    [
+        ("MD5", UsageContext.hash),
+        ("SHA-1", UsageContext.hash),
+        ("3DES", UsageContext.encryption_at_rest),
+    ],
+)
+def test_pqc_provider_rule_does_not_claim_symmetric_or_hash_findings(
+    algorithm: str, usage: UsageContext
+) -> None:
+    """Declaring an ML-KEM provider must not be offered as the fix for a weak hash or cipher.
+
+    `dep-pqc-02` adds a post-quantum KEM/signature package. That is a real answer for a
+    Shor-breakable dependency and no answer at all for `md-5` or a DES crate: the finding is a
+    weak primitive in use, and the fix is to stop using it, not to make ML-KEM importable
+    alongside it. Claiming these would produce a patch that applies cleanly, passes review and
+    leaves the finding exactly where it was — the most damaging kind of wrong, because it looks
+    like progress. The rule's algorithm list is deliberately confined to Shor-breakable
+    primitives; this pins that boundary.
+    """
+    load_rules.cache_clear()
+    rule = match_rule(
+        _asset(
+            algorithm,
+            source=SourceScanner.config,
+            usage=usage,
+            path="Cargo.toml",
+            library="md-5",
+        )
+    )
+    assert (rule.id if rule else None) != "dep-pqc-02"
 
 
 def test_config_rules_do_not_claim_source_code_assets() -> None:
@@ -252,12 +322,12 @@ def test_cross_language_hash_swap_updates_the_import(tmp_path: Path) -> None:
     go_file.write_text(
         'package main\n\nimport "crypto/md5"\n\nfunc f(b []byte) { md5.New() }\n', encoding="utf-8"
     )
-    result = run_codemod("weakhash_to_sha256", _asset("MD5", path="main.go"), go_file)
+    result = run_codemod("weakhash_to_sha256", _asset("MD5", path="main.go", line=5), go_file)
     assert result is not None
     _, new_source = result
     assert '"crypto/sha256"' in new_source
     assert "sha256.New()" in new_source
-    assert "md5" not in new_source
+    assert "md5" not in new_source, "the sole caller went, so the import must go with it"
 
 
 def test_unknown_codemod_raises() -> None:

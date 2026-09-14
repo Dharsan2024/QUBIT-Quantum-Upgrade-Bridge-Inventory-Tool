@@ -35,6 +35,12 @@ def _git_out(repo: Path, *args: str) -> str:
         cwd=str(repo),
         capture_output=True,
         text=True,
+        # `encoding` explicitly: `text=True` alone decodes with the LOCALE codec, which is
+        # cp1252 on Windows. A commit message, branch or path carrying any non-Latin-1
+        # byte then raises inside the reader THREAD, where the traceback surfaces detached
+        # from the call that caused it. Observed exactly that while scanning a corpus.
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     return proc.stdout.strip() if proc.returncode == 0 else ""
@@ -66,6 +72,12 @@ def _clone_repo(url: str, dest: Path, *, shallow: bool) -> Path:
         ["git", "clone", *depth, url, str(dest)],  # noqa: S607
         capture_output=True,
         text=True,
+        # `encoding` explicitly: `text=True` alone decodes with the LOCALE codec, which is
+        # cp1252 on Windows. A commit message, branch or path carrying any non-Latin-1
+        # byte then raises inside the reader THREAD, where the traceback surfaces detached
+        # from the call that caused it. Observed exactly that while scanning a corpus.
+        encoding="utf-8",
+        errors="replace",
         timeout=600,
     )
     if proc.returncode != 0:

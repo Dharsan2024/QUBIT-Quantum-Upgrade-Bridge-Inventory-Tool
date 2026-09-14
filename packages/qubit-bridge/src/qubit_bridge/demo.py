@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 import sys
@@ -5,6 +6,16 @@ import time
 from pathlib import Path
 
 from rich.console import Console
+
+
+def _twin(name: str) -> str:
+    """Path to a twin in the digital-twin corpus.
+
+    The twins are independent git repositories kept outside this tree — which is what lets QUBIT's
+    `applies` rung run `git apply` against them at all. `QUBIT_TWINS` moves the corpus.
+    """
+    return str(Path(os.getenv("QUBIT_TWINS", "demo-lab")) / name)
+
 
 console = Console()
 
@@ -74,7 +85,7 @@ def run_phase_2(out_dir: Path, canned: bool = False):
         console.print("Canned mode: using fixture cbom.")
     else:
         cbom_path = out_dir / "cbom.json"
-        subprocess.run([_QUBIT, "scan", "demo-lab/vulnapp-python", "--cbom", str(cbom_path)])
+        subprocess.run([_QUBIT, "scan", _twin("medivault-emr"), "--cbom", str(cbom_path)])
         subprocess.run([_QUBIT, "bridge", "probe", "localhost:8443", "--push"])
 
 
@@ -90,7 +101,7 @@ def run_phase_4(out_dir: Path, canned: bool = False):
     The code-level remediation proof (scan → LLM/template patch → re-scan shows the vulnerable asset
     gone) is the SOFTWARE loop `qubit demo run` (fresh scratch repo). This bridge phase proves the
     RUNTIME half: the same service on the same port now negotiates the hybrid PQC group. We do not
-    re-apply code patches to the shared, checked-in `demo-lab/vulnapp-python` tree here — that would
+    re-apply code patches to the shared, checked-in `demo-lab/medivault-emr` tree here — that would
     require a dirty-tree write to a git-tracked dir; the software loop already showed remediation on
     a clean scratch copy.
     """
@@ -116,7 +127,7 @@ def run_phase_4(out_dir: Path, canned: bool = False):
             "--engine",
             "nginx",
             "--upstream",
-            "vulnapp-python:5000",
+            "medivault-emr:5001",
             "--port",
             "8443",
         ]

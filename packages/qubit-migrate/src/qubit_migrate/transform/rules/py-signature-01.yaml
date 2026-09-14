@@ -47,6 +47,13 @@ prompt_constraints:
   - "Use cryptography's mldsa module (MLDSA65PrivateKey); do NOT import liboqs."
   - "Keep the existing verification path so previously-issued signatures still verify."
   - "Do NOT invent a JOSE/JWT alg value for ML-DSA; patch the primitive, not the token header."
+  # Measured on medivault-emr: this rule claimed `ec.generate_private_key(ec.SECP256R1())` inside
+  # `keyexchange.generate_referral_keypair`, whose public half is serialised and sent to the partner
+  # clinic for an ECDH agreement. The scanner labelled the keygen `signature`; nothing signs with it.
+  # The patch passed applies, parses, compiles and rescan and broke both of the twin's key-agreement
+  # tests. An ML-DSA key cannot stand in for a key-agreement key at all, so there is no partially
+  # correct answer here - only "change nothing".
+  - "This rule replaces a SIGNING key. Check what the flagged key is actually used for in this file first: if it feeds a key agreement or key transport - `.exchange(`, an OAEP `.encrypt(`, a public half serialised and sent to a peer - then ML-DSA cannot replace it, because a signature key and a KEM key are not interchangeable. Change nothing and say so in the security notes."
   - "Preserve function signatures so existing callers keep working."
 example:
   before: |

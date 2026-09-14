@@ -153,8 +153,12 @@ class TestVerifiedTargetShapes:
         assert result.status != "fail", result.detail
 
     def test_a_language_the_scanner_cannot_verify_returns_nothing(self) -> None:
-        """Was `swift` until Swift gained CryptoKit ML-KEM rules; PHP still has no binding."""
-        assert ts.verified_target_shapes("php", "ML-KEM") == ()
+        """Was `swift` until Swift gained CryptoKit ML-KEM rules, then `php` until it gained an
+        OpenSSL 3.5 shape. `sql` is the end of that line rather than the next entry in it: its rule
+        pack emits `hash`, `kdf`, `mac` and `encryption-at-rest` and no asymmetric cryptography at
+        all, so no ML-KEM migration can target it and there is nothing to ship a shape for.
+        """
+        assert ts.verified_target_shapes("sql", "ML-KEM") == ()
 
     def test_lookup_is_cached_so_a_plan_does_not_re_ask_per_task(self) -> None:
         ts._cache.clear()
@@ -181,12 +185,33 @@ class TestUnverifiableIsADiagnosisNotAGate:
     def test_rust_is_winnable(self) -> None:
         assert unverifiable_reason(_kex_rule(), "rust") is None
 
-    @pytest.mark.parametrize("language", ["php", "ruby", "dart"])
-    def test_a_language_with_no_shipped_shape_is_named(self, language: str) -> None:
-        reason = unverifiable_reason(_kex_rule(), language)
+    @pytest.mark.parametrize("language", ["php", "ruby", "dart", "cpp", "bash", "powershell"])
+    def test_the_languages_that_were_unwinnable_now_are_not(self, language: str) -> None:
+        """These six were parametrised as unwinnable, and that was accurate when written.
+
+        They had no PQC shape at all, so `present: ML-KEM` could not be satisfied however correct
+        the rewrite was. The scanner now recognises ML-DSA and ML-KEM in each of them (see
+        `test_pqc_detection_coverage.py`), which is what makes the diagnosis flip.
+
+        Kept as a test rather than deleted: this is the assertion that would catch a regression in
+        those rule packs, and it fails loudly if one is removed.
+        """
+        assert unverifiable_reason(_kex_rule(), language) is None, (
+            f"{language} lost its PQC shape again — every ML-KEM migration in it is now "
+            "unwinnable, and the rescan will reject correct rewrites"
+        )
+
+    def test_a_language_with_no_shipped_shape_is_still_named(self) -> None:
+        """`sql` is the only one left, and correctly so.
+
+        Its rule pack emits `hash`, `kdf`, `mac` and `encryption-at-rest` and no asymmetric
+        cryptography, so no ML-KEM migration can target it and there is nothing to ship a shape
+        for. It keeps this test honest: the diagnosis still has to work.
+        """
+        reason = unverifiable_reason(_kex_rule(), "sql")
         assert reason is not None
         assert "ML-KEM" in reason
-        assert language in reason
+        assert "sql" in reason
         assert "candidate for migration advice" in reason
 
     def test_it_never_blocks_generation(self) -> None:

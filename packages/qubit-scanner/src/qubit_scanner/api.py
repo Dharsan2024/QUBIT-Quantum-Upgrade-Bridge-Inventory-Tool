@@ -11,6 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pathspec
+from qubit_core import CryptoAsset
 
 from .catalog import RuleCatalog
 from .certs.scanner import CertScanner
@@ -78,6 +79,18 @@ ProgressFn = Callable[[str, int, int], None]  # (stage, done, total)
 # scanner, and `secret`/`dependency` are real scanners with no provenance member of their own.
 # Conflating them is how the API ended up accepting a selection it could not act on.
 SCANNER_NAMES: frozenset[str] = frozenset({"code", "config", "cert", "secret", "dependency"})
+
+
+def _count_vulnerable(assets: list[CryptoAsset]) -> int:
+    """How many of these assets are quantum-vulnerable — see `ScanStats.vulnerable`.
+
+    This, not `assets`, is the figure a migration moves. Counted here rather than derived in the
+    UI so every consumer (app, CLI, evidence pack) reads the same number from the same place.
+    """
+    # `len([...])` rather than `sum(1 for ...)`: mypy resolves the generator form to the
+    # `sum(Iterable[bool])` overload when this module is checked alongside qubit-core and
+    # reports the int as an incompatible item type. Same result, no overload ambiguity.
+    return len([a for a in assets if a.quantum_vulnerable and a.quantum_vulnerable.vulnerable])
 
 
 def scan_paths(
@@ -195,6 +208,7 @@ def scan_paths(
         result.assets.append(normalize(det, occurrence=seen[key]))
 
     result.stats.assets = len(result.assets)
+    result.stats.vulnerable = _count_vulnerable(result.assets)
     result.stats.duration_s = round(time.perf_counter() - t0, 4)
     if progress is not None:
         progress("file", len(files), len(files))
@@ -250,6 +264,7 @@ async def scan_network(
         result.assets.append(normalize(det, occurrence=seen[key]))
 
     result.stats.assets = len(result.assets)
+    result.stats.vulnerable = _count_vulnerable(result.assets)
     result.stats.duration_s = round(time.perf_counter() - t0, 4)
     return result
 
@@ -280,6 +295,7 @@ async def scan_vault(
         result.assets.append(normalize(det, occurrence=seen[key]))
 
     result.stats.assets = len(result.assets)
+    result.stats.vulnerable = _count_vulnerable(result.assets)
     result.stats.duration_s = round(time.perf_counter() - t0, 4)
     return result
 

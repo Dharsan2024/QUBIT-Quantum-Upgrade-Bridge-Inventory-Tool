@@ -9,6 +9,13 @@ import type {
   ProjectOverview,
   RiskSummary,
   ScanSummary,
+  LearningStats,
+  LlmProvider,
+  LlmProviderConfig,
+  LlmProviderModels,
+  LlmProviderVerifyResult,
+  ThreatIntelConfig,
+  ThreatIntelSnapshot,
   TimelineResponse,
 } from "./types";
 
@@ -95,8 +102,17 @@ async function send<T>(path: string, method = "GET", body?: unknown): Promise<T>
 }
 
 // ── Auth / projects ───────────────────────────────────────────────────────────
-export async function whoami(): Promise<{ name: string; scopes: string }> {
-  return send<{ name: string; scopes: string }>("/auth/whoami");
+/** The current token's identity, including the team it speaks for.
+ *
+ *  `tenant` matters on a shared engine: a token is bound to exactly one team, so this is how a
+ *  user confirms whose projects they are about to act on before acting on them. */
+export async function whoami(): Promise<{
+  name: string;
+  scopes: string;
+  tenant: string;
+  tenant_id: string;
+}> {
+  return send<{ name: string; scopes: string; tenant: string; tenant_id: string }>("/auth/whoami");
 }
 
 /** Engine liveness + version. Anonymous endpoint — no token needed. */
@@ -149,12 +165,53 @@ export async function fetchScan(scanId: string): Promise<ScanSummary> {
 }
 
 /** Find (or create) the project a scan belongs to, by name. */
-async function ensureProject(name: string, description: string): Promise<string> {
+/** Normalised for comparison: a path is the same path whichever way it was typed.
+ *
+ *  Windows accepts either separator and is case-insensitive, and the API stores whatever it was
+ *  handed — so `X:\qubit-eval-corpus\certbot` and `x:/qubit-eval-corpus/certbot/` are one directory
+ *  written three ways, and comparing them literally makes each look like a different codebase. */
+function samePath(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const norm = (p: string) => p.trim().replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  return norm(a) === norm(b);
+}
+
+/** A target the API should clone rather than read from disk.
+ *
+ *  Mirrors `_GIT_URL` in `routers/projects.py`. Kept deliberately looser here: this only decides
+ *  which FIELD to send, and the server re-validates before anything reaches `git clone`. */
+export function isGitRemote(target: string): boolean {
+  const t = target.trim();
+  return /^(https?:\/\/|git@|ssh:\/\/|git:\/\/)/.test(t) || t.endsWith(".git");
+}
+
+async function ensureProject(
+  name: string,
+  description: string,
+  rootPath?: string,
+): Promise<string> {
   const projects = await fetchProjects();
-  const existing = projects.find((p) => p.name === name);
+  // A project IS the codebase it points at, so the root path identifies it and the display name
+  // does not. Matching on the name alone split a project in two the moment its name was edited or
+  // differed from the folder: scanning `X:\...\certbot__certbot` a second time derived the name
+  // `certbot__certbot`, did not match the existing `lab: certbot__certbot` over the SAME directory,
+  // and created a duplicate. Everything downstream then disagreed with itself — two scans both
+  // numbered #1 (the sequence is per project and each was correct), the Migration Hub showing one
+  // project's plan beside the other project's scan, and "Build plan" running against the older
+  // project's finished plan while the panel underneath read "no vulnerable assets in scope".
+  const byPath = rootPath ? projects.find((p) => samePath(p.root_path, rootPath)) : undefined;
+  const existing = byPath ?? projects.find((p) => p.name === name);
   if (existing) return existing.id;
   try {
-    const created = await send<{ id: string }>("/projects", "POST", { name, description });
+    // Recorded at creation, not only matched on. Without it every project the dashboard makes has
+    // a null root path, so the match above can never find one and the SECOND scan of a folder
+    // duplicates the project all over again — the fix would work once, for projects that happened
+    // to have a root path set by some other route, and never after.
+    const created = await send<{ id: string }>("/projects", "POST", {
+      name,
+      description,
+      ...(rootPath ? { root_path: rootPath } : {}),
+    });
     return created.id;
   } catch (e) {
     // 409 means another tab (or a double-click) created it between the read and the write.
@@ -169,9 +226,36 @@ async function ensureProject(name: string, description: string): Promise<string>
 /** Scan the given target paths into the stable dashboard project (risk analysis runs inline).
  *  Surfaces the API's error (e.g. "scan target does not exist") to the caller instead of hiding it. */
 export async function createScan(targets: string[]): Promise<ScanSummary> {
+  // A git remote is not a path, and the scan endpoint reads paths. The Scans page has offered
+  // "https://github.com/org/repo.git" in its placeholder since it was written, but nothing ever
+  // sent the URL anywhere that could clone it -- the project was created with the URL as its
+  // root_path and the scan then failed with "scan target does not exist". So the UI advertised a
+  // capability the client did not have.
+  //
+  // Cloning is the server's job: it owns the workspace, and a browser cannot clone anyway.
+  if (targets.length === 1 && isGitRemote(targets[0])) {
+    const project = await send<Project>("/projects", "POST", {
+      name: projectNameForTargets(targets, "files"),
+      description: targets[0],
+      git_url: targets[0],
+    });
+    if (!project.root_path) {
+      throw new Error("the server cloned the repository but reported no checkout path");
+    }
+    const cloned = await send<{ scan: ScanSummary }>(`/projects/${project.id}/scans`, "POST", {
+      // The CHECKOUT, not the URL: the scanner reads files.
+      targets: [project.root_path],
+      run_risk: true,
+    });
+    return cloned.scan;
+  }
+
   const projectId = await ensureProject(
     projectNameForTargets(targets, "files"),
     targets.join(", "),
+    // Only for a single-target scan: with several roots there is no one directory the project is,
+    // and matching on the first would fold two different multi-root scans together.
+    targets.length === 1 ? targets[0] : undefined,
   );
   const resp = await send<{ scan: ScanSummary }>(`/projects/${projectId}/scans`, "POST", {
     targets,
@@ -242,17 +326,38 @@ export async function resetAllProjects(): Promise<{ deleted: number }> {
   return send<{ deleted: number }>("/projects", "DELETE");
 }
 
+/** The gentlest of the three: throw away every migration plan and its tasks and patches, and keep
+ *  the scans and assets they were derived from. Rebuilding a plan costs nothing but a click, so
+ *  "start the migration over" should not also mean "rescan the corpus". */
+export async function clearAllMigrationPlans(): Promise<{ deleted: number }> {
+  return send<{ deleted: number }>("/migrate/plans", "DELETE");
+}
+
 // ── Bulk migration ───────────────────────────────────────────────────────────
 export interface MigrationRunResult {
   plan_id: string;
+  /** Which half ran. `generate` prepared patches and wrote nothing; `apply` wrote prepared
+   *  patches and ran no model; `full` is the single-shot run that does both. */
+  mode?: "generate" | "apply" | "full";
   total: number;
   generated: number;
   applied: number;
   covered: number;
   failed: number;
+  from_cache: number;
+  needs_guidance: number;
+  /** QUBIT decided no edit is correct here — the algorithm is fixed by a party outside this
+   *  repository (a Gravatar URL keyed by MD5, a webhook `sha1=` field, an established KDF), or the
+   *  file already meets the rule. A verdict, not a shortfall. Includes `covered`. */
+  refused?: number;
+  /** A patch WAS generated and a validation stage turned it down. The gate working, not the tool
+   *  failing — these were inside `failed` until the run reported 18 failures for 2 real ones. */
+  rejected?: number;
+  /** `apply` runs only: findings with no patch prepared, so nothing was written for them. */
+  no_patch?: number;
   repo_root: string | null;
   applied_to_disk: boolean;
-  failures: { task_id: string; rule_id: string; detail: string }[];
+  failures: { task_id: string; rule_id: string; detail: string; bucket?: string }[];
 }
 
 export interface JobStatus {
@@ -264,16 +369,51 @@ export interface JobStatus {
   message?: string | null;
   error?: string | null;
   result?: MigrationRunResult | null;
+  /** What the job was asked to do. `plan_id` is how a reopened page finds the run it belongs to,
+   *  and `apply` is how it knows whether to say "preparing" or "writing". */
+  payload?: { plan_id?: string; apply?: boolean; generate?: boolean } | null;
 }
 
-/** "Initiate migration": migrate every ready task in the plan. Returns the job to poll — the run
- *  happens off the request path because a plan of twenty findings takes minutes. */
+/** A migration already in flight for this plan, or null.
+ *
+ *  The run lives on the server; the page only watches it. Nothing recorded that, so the job id was
+ *  component state — leaving the Migration Hub unmounted the component, the id was lost, and coming
+ *  back showed a project with no run in progress and a "Build plan" button inviting a SECOND one.
+ *  The first was still going the whole time.
+ *
+ *  So the page asks. `apply` distinguishes the two halves, because a run that is preparing changes
+ *  must never be described as writing them. */
+export async function findRunningMigration(
+  planId: string,
+): Promise<{ id: string; mode: "generate" | "apply" } | null> {
+  const jobs = await send<JobStatus[]>("/jobs?limit=25");
+  const mine = jobs.find(
+    (j) =>
+      j.kind === "migrate" &&
+      ["queued", "running"].includes(j.status) &&
+      j.payload?.plan_id === planId,
+  );
+  if (!mine) return null;
+  return { id: mine.id, mode: mine.payload?.apply ? "apply" : "generate" };
+}
+
+/** Run one or both halves of a plan's migration. Returns the job to poll — the work happens off
+ *  the request path because a plan of twenty findings takes minutes.
+ *
+ *  - `{ generate: true, apply: false }` — "Build plan": prepare a patch per finding, touch nothing.
+ *  - `{ generate: false, apply: true }` — "Initiate migration": write the prepared patches in.
+ *  - neither — the single-shot run, which is what every caller got before the split. */
 export async function runPlan(
   planId: string,
-  opts: { apply?: boolean; generator?: "auto" | "llm" | "template" } = {},
+  opts: {
+    apply?: boolean;
+    generate?: boolean;
+    generator?: "auto" | "llm" | "template";
+  } = {},
 ): Promise<{ job: { id: string; kind: string }; tasks: number; warning: string }> {
   return send(`/migrate/plans/${planId}/run`, "POST", {
     apply: opts.apply ?? true,
+    generate: opts.generate ?? true,
     generator: opts.generator ?? "auto",
   });
 }
@@ -340,6 +480,11 @@ export async function fetchRiskSummary(scanId: string): Promise<RiskSummary> {
 /** Migration plans, newest first. With `projectId`, only that project's — plans built before
  *  plans carried a scope have a null `project_id` and are excluded by the filter rather than
  *  being silently attributed to a project they were not built from. */
+/** What the engine has learned from its own migrations. Local; nothing here leaves the machine. */
+export async function fetchLearning(): Promise<LearningStats> {
+  return send<LearningStats>("/migrate/learning");
+}
+
 export async function fetchPlans(projectId?: string): Promise<MigrationPlan[]> {
   const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
   return send<MigrationPlan[]>(`/migrate/plans${q}`);
@@ -440,4 +585,69 @@ export async function fetchReportPdf(scanId: string): Promise<Uint8Array> {
     throw new ApiError(res.status, detail ?? `${res.status} ${res.statusText}`);
   }
   return new Uint8Array(await res.arrayBuffer());
+}
+
+// ── Threat intelligence (optional, off by default) ─────────────────────────────
+// A fixed, curated allowlist of NIST reference pages — never "the whole web" — checked only when
+// the user opts in. A changed source is staged as a snapshot for review, never auto-applied to the
+// CRQC/Mosca parameters. See qubit_risk.threat_intel for the full rationale.
+export async function fetchThreatIntelConfig(): Promise<ThreatIntelConfig> {
+  return send<ThreatIntelConfig>("/threat-intel/config");
+}
+
+export async function patchThreatIntelConfig(
+  patch: Partial<Pick<ThreatIntelConfig, "enabled" | "check_interval_hours">>,
+): Promise<ThreatIntelConfig> {
+  return send<ThreatIntelConfig>("/threat-intel/config", "PATCH", patch);
+}
+
+/** Fetches every allowlisted source right now, regardless of the configured interval. */
+export async function runThreatIntelCheckNow(): Promise<ThreatIntelSnapshot[]> {
+  return send<ThreatIntelSnapshot[]>("/threat-intel/check-now", "POST");
+}
+
+export async function fetchThreatIntelSnapshots(limit = 20): Promise<ThreatIntelSnapshot[]> {
+  return send<ThreatIntelSnapshot[]>(`/threat-intel/snapshots?limit=${limit}`);
+}
+
+export async function reviewThreatIntelSnapshot(
+  snapshotId: string,
+  note?: string,
+): Promise<ThreatIntelSnapshot> {
+  return send<ThreatIntelSnapshot>(`/threat-intel/snapshots/${snapshotId}/review`, "POST", {
+    note: note ?? null,
+  });
+}
+
+// ── LLM provider (Ollama by default; an external OpenAI-compatible endpoint on opt-in) ────────
+// Which engine `qubit_migrate` calls for patch generation. Ollama stays the always-available
+// fallback: an external outage degrades generation, it never stops it. See Settings' own copy.
+export async function fetchLlmProviderConfig(): Promise<LlmProviderConfig> {
+  return send<LlmProviderConfig>("/llm-provider/config");
+}
+
+export async function patchLlmProviderConfig(patch: {
+  provider?: LlmProvider;
+  base_url?: string;
+  model?: string;
+  /** Omit to keep the existing key; empty string clears it. */
+  api_key?: string;
+  backup_base_url?: string;
+  backup_model?: string;
+  /** Same convention as `api_key`: omit to keep, empty string to clear. */
+  backup_api_key?: string;
+}): Promise<LlmProviderConfig> {
+  return send<LlmProviderConfig>("/llm-provider/config", "PATCH", patch);
+}
+
+/** Makes one real, cheap call against whatever is currently saved — never accepts a key in the
+ *  request, so a partially-typed key can never leak into this call. Save first, then verify. */
+export async function verifyLlmProvider(): Promise<LlmProviderVerifyResult> {
+  return send<LlmProviderVerifyResult>("/llm-provider/verify", "POST");
+}
+
+/** The models the SAVED provider actually offers, read live from it. Requires the config to be
+ *  saved first (an external provider needs its key to answer at all). */
+export async function fetchLlmProviderModels(): Promise<LlmProviderModels> {
+  return send<LlmProviderModels>("/llm-provider/models");
 }

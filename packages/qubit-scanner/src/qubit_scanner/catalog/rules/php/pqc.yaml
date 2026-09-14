@@ -1,0 +1,56 @@
+schema: qubit-rule/v1
+language: php
+library:
+  name: OpenSSL 3.5 / liboqs post-quantum
+  detect_imports: []
+# Without these a correct migration is UNWINNABLE, not merely under-counted: `code-signature-01`
+# and `code-kex-01` are `language: multi` and assert `present: ML-DSA` / `present: ML-KEM` at the
+# rescan stage, so a correct rewrite reports no PQC and the gate rejects it after three attempts.
+# Verified with a probe file that reported NOTHING DETECTED before this pack existed.
+rules:
+  - id: PHP-OPENSSL-PQC
+    title: openssl_pkey_new(['algorithm' => 'ML-DSA-65'])
+    match:
+      query: |
+        (function_call_expression function: (name) @fn) @call
+      where:
+        - { capture: fn, regex: "^openssl_(pkey_new|pkey_derive|sign|verify|encapsulate|decapsulate)$" }
+        - { capture: call, regex: "(?i)ml[-_]?(dsa|kem)|kyber|dilithium|falcon|sphincs" }
+    extract:
+      algorithm: { from: call, resolve: pqc-in-text }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          <?php
+          $k = openssl_pkey_new(['algorithm' => 'ML-DSA-65']);
+        - |
+          <?php
+          $k = openssl_pkey_new(['algorithm' => 'ML-KEM-768']);
+      negative:
+        - |
+          <?php
+          $k = openssl_pkey_new(['private_key_bits' => 2048]);
+
+  - id: PHP-OQS-PQC
+    title: liboqs PHP binding — new OQS\Signature('ML-DSA-65')
+    match:
+      query: |
+        (object_creation_expression) @call
+      where:
+        - { capture: call, regex: "(?i)(OQS|Oqs)" }
+        - { capture: call, regex: "(?i)ml[-_]?(dsa|kem)|kyber|dilithium" }
+    extract:
+      algorithm: { from: call, resolve: pqc-in-text }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: medium
+    examples:
+      positive:
+        - |
+          <?php
+          $s = new OQS\Signature('ML-DSA-65');
+      negative:
+        - |
+          <?php
+          $s = new OpenSSLSigner('sha256');

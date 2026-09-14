@@ -13,17 +13,24 @@ The bundled defaults in `_DEV_DEFAULT_TOKENS` are additionally accepted during b
 while `settings.api_token` is itself still a bundled default — i.e. while nothing has been
 configured. Setting `QUBIT_API_TOKEN` makes it the only bootstrap credential, so a deployment that
 configures a real secret is never also reachable with a token published in this repository.
+
+**Teams.** A token also names the tenant it speaks for, and that is the only thing establishing
+which team's data a request may touch (`Principal.tenant_id` → `get_current_tenant` → every scoped
+query). A single-team install never notices: its data and its bootstrap token both sit on the
+default tenant, exactly as before tenants existed.
 """
 
 from __future__ import annotations
 
 import secrets
+import uuid
 from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from qubit_core.db import has_any_tokens, resolve_token
+from qubit_core.db.models import DEFAULT_TENANT_ID, Tenant
 from sqlalchemy.orm import Session
 
 from .deps import get_session, get_settings
@@ -46,10 +53,13 @@ _DEV_DEFAULT_TOKENS = frozenset(
 
 @dataclass(frozen=True)
 class Principal:
-    """The authenticated caller: a token name + its scopes."""
+    """The authenticated caller: a token name, its scopes, and the team it speaks for."""
 
     name: str
     scopes: str  # "ro" | "rw"
+    #: Which team's data this request may reach. The token is the ONLY thing that establishes it,
+    #: which is what makes multi-team isolation enforceable rather than advisory.
+    tenant_id: uuid.UUID
 
 
 def authenticate(
@@ -59,7 +69,8 @@ def authenticate(
 ) -> Principal:
     """Resolve the bearer token to a Principal, or raise 401.
 
-    DB tokens win; if the table is empty, settings.api_token is honored as an implicit rw token.
+    DB tokens win; if the table is empty, settings.api_token is honored as an implicit rw token
+    for the DEFAULT tenant only.
     """
     raw = creds.credentials
 
@@ -67,7 +78,7 @@ def authenticate(
         row = resolve_token(session, raw)
         if row is None:
             raise _unauthorized()
-        return Principal(name=row.name, scopes=row.scopes)
+        return Principal(name=row.name, scopes=row.scopes, tenant_id=row.tenant_id)
 
     # Bootstrap (no DB tokens yet = fresh/local/desktop install): honor the configured token.
     #
@@ -79,12 +90,28 @@ def authenticate(
     # setting a real secret did not disable the published ones, which is an authentication bypass in
     # the documented production configuration. Probing a live app confirmed it, so the rule is now
     # explicit — configure a token and it becomes the *only* bootstrap credential.
+    #
+    # The bootstrap token is bound to the DEFAULT tenant, and it closes itself the moment real
+    # multi-team use begins: onboarding a second team means minting that team a token, and
+    # `has_any_tokens` above is global across every tenant, so the first mint permanently takes
+    # this branch out of reach. There is no window where a published default credential works
+    # alongside genuine per-team tokens.
     accepted = {settings.api_token}
     if settings.api_token in _DEV_DEFAULT_TOKENS:
         accepted |= _DEV_DEFAULT_TOKENS
     if any(secrets.compare_digest(raw, t) for t in accepted):
-        return Principal(name="bootstrap-dev-token", scopes="rw")
+        return Principal(name="bootstrap-dev-token", scopes="rw", tenant_id=DEFAULT_TENANT_ID)
     raise _unauthorized()
+
+
+def get_current_tenant(principal: Annotated[Principal, Depends(authenticate)]) -> uuid.UUID:
+    """The tenant this request may read and write. Every scoped route depends on this.
+
+    No `request.state` plumbing: FastAPI caches a dependency's result per request by the callable
+    itself, and the router-level guard already depends on `authenticate`, so this reuses the very
+    same resolved `Principal` rather than costing a second token lookup.
+    """
+    return principal.tenant_id
 
 
 def verify_token(principal: Annotated[Principal, Depends(authenticate)]) -> Principal:
@@ -133,6 +160,19 @@ def _unauthorized() -> HTTPException:
 
 
 @router.get("/auth/whoami")
-def whoami(principal: Annotated[Principal, Depends(authenticate)]) -> dict[str, str]:
-    """Return the current token's name + scopes (doc 05 §5.1)."""
-    return {"name": principal.name, "scopes": principal.scopes}
+def whoami(
+    principal: Annotated[Principal, Depends(authenticate)],
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, str]:
+    """Return the current token's name, scopes and team (doc 05 §5.1).
+
+    The team name is here so a user can see WHICH team's data they are looking at before acting on
+    it — on a shared engine, "these are my projects" is an assumption worth being able to check.
+    """
+    tenant = session.get(Tenant, principal.tenant_id)
+    return {
+        "name": principal.name,
+        "scopes": principal.scopes,
+        "tenant": tenant.name if tenant else "unknown",
+        "tenant_id": str(principal.tenant_id),
+    }

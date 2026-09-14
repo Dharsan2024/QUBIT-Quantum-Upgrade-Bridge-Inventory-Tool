@@ -125,6 +125,9 @@ rules:
         - { capture: fn, in: [openssl_encrypt, openssl_decrypt] }
     extract:
       algorithm: { from: algo, resolve: string-constant }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -157,6 +160,9 @@ rules:
         - { capture: algo, regex: "^MCRYPT_" }
     extract:
       algorithm: { from: algo, resolve: php-crypto-const }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:
@@ -275,6 +281,9 @@ rules:
         - { capture: algo, regex: "^PASSWORD_" }
     extract:
       algorithm: { from: algo, resolve: php-crypto-const }
+      iterations:
+        from: call
+        resolve: kdf-iterations
     asset: { asset_type: algorithm-use, usage_context: kdf }
     confidence: high
     examples:

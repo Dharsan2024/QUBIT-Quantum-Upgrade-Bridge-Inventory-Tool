@@ -173,3 +173,153 @@ class TestACodemodMustTouchTheLineItClaims:
         asset = _asset(1)
         asset.location = None
         assert _flagged_line_untouched(SQL, SQL.replace("digest", "DIGEST"), asset) is None
+
+
+# ── `weakness_gone` judges THIS occurrence, not the whole file ──────────────
+#
+# `weakness_gone` used to check the patched file whole: if the scanner found the named weakness
+# ANYWHERE after the patch, the task failed -- exactly the bug `gone` above was fixed for, but for
+# a rule whose finding is a property of the CALL (ECB-mode) rather than the algorithm (AES stays,
+# correctly, either way).
+#
+# It stopped being a corner case once `code-ecb-01`'s prompt began requiring a
+# backward-compatible read path for persisted data: the mandated dual-path read necessarily
+# KEEPS one ECB decrypt in the file, for rows written in the old format. Whole-file checking
+# rejected that patch on every attempt, regardless of how correctly it was written -- the rule
+# demanded a shape its own gate could not accept.
+
+# Line-preserving: `seal_note`'s cipher line (5) swaps ECB for GCM in place, and
+# `seal_legacy_note`'s (11) is left untouched -- standing in for a dual-path read that must still
+# decrypt rows written in the old format. Same 13 lines both sides, so the LINE-EXACT branch of
+# `_weakness_occurrence_survived` is what is under test here, not its count-based fallback.
+# Verified against the real scanner: original has `ecb-mode` at lines 5 and 11; patched has it
+# only at line 11.
+_ECB_ORIGINAL = (
+    "from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes\n"
+    "\n"
+    "\n"
+    "def seal_note(key, nonce, note):\n"
+    "    cipher = Cipher(algorithms.AES(key), modes.ECB())\n"
+    "    e = cipher.encryptor()\n"
+    "    return e.update(note) + e.finalize()\n"
+    "\n"
+    "\n"
+    "def seal_legacy_note(key, note):\n"
+    "    cipher = Cipher(algorithms.AES(key), modes.ECB())\n"
+    "    e = cipher.encryptor()\n"
+    "    return e.update(note) + e.finalize()\n"
+)
+
+_ECB_PATCHED = (
+    "from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes\n"
+    "\n"
+    "\n"
+    "def seal_note(key, nonce, note):\n"
+    "    cipher = Cipher(algorithms.AES(key), modes.GCM(nonce))\n"
+    "    e = cipher.encryptor()\n"
+    "    return e.update(note) + e.finalize()\n"
+    "\n"
+    "\n"
+    "def seal_legacy_note(key, note):\n"
+    "    cipher = Cipher(algorithms.AES(key), modes.ECB())\n"
+    "    e = cipher.encryptor()\n"
+    "    return e.update(note) + e.finalize()\n"
+)
+
+# A second pair, deliberately NOT line-preserving (an import line and a nonce line are added),
+# so that with no exact-line match available, only the OCCURRENCE COUNT can be judged -- both
+# ECB call sites originally, only one after. This is the shape `_occurrence_survived` already
+# accepted for `gone`: without line preservation, the check can tell "something in this weakness
+# class was fixed" but not which specific task fixed it, so it passes every task that shares the
+# file. Kept separate from the pair above so each fixture tests exactly one branch.
+_ECB_ORIGINAL_REFLOWED = _ECB_ORIGINAL
+_ECB_PATCHED_REFLOWED = (
+    "from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes\n"
+    "import os\n"
+    "\n"
+    "\n"
+    "def seal_note(key, note):\n"
+    "    nonce = os.urandom(12)\n"
+    "    cipher = Cipher(algorithms.AES(key), modes.GCM(nonce))\n"
+    "    e = cipher.encryptor()\n"
+    "    return nonce + e.update(note) + e.finalize() + e.tag\n"
+    "\n"
+    "\n"
+    "def seal_legacy_note(key, note):\n"
+    "    cipher = Cipher(algorithms.AES(key), modes.ECB())\n"
+    "    e = cipher.encryptor()\n"
+    "    return e.update(note) + e.finalize()\n"
+)
+
+
+def _ecb_rule():  # type: ignore[no-untyped-def]
+    rule = next((r for r in load_rules() if r.id == "code-ecb-01"), None)
+    assert rule is not None, "code-ecb-01 must be a shipped rule"
+    assert rule.rescan_expect and rule.rescan_expect.get("weakness_gone") == ["ecb-mode"]
+    return rule
+
+
+class TestWeaknessGoneJudgesTheFlaggedOccurrence:
+    def test_a_dual_path_read_that_keeps_one_legacy_occurrence_still_passes(self) -> None:
+        """The case this fix exists for: the task's own occurrence (line 5) is gone, even
+        though `seal_legacy_note`'s ECB call at line 11 is deliberately still in the file."""
+        result = _stage_rescan(
+            _ECB_PATCHED,
+            _ecb_rule(),
+            "python",
+            "AES",
+            original_source=_ECB_ORIGINAL,
+            asset_line=5,
+        )
+        assert result.status != "fail", result.detail
+
+    def test_the_untouched_occurrence_still_fails_its_own_task(self) -> None:
+        """The negative control, via the exact-line branch: a task whose OWN line is the one
+        still in ECB must still fail -- this is not "weakness_gone always passes now", only
+        "another task's fixed occurrence does not count for THIS one"."""
+        result = _stage_rescan(
+            _ECB_PATCHED,
+            _ecb_rule(),
+            "python",
+            "AES",
+            original_source=_ECB_ORIGINAL,
+            asset_line=11,  # seal_legacy_note's ECB call, unchanged by the patch
+        )
+        assert result.status == "fail"
+        assert result.expectation == "weakness_gone"
+
+    def test_without_line_preservation_a_reduced_count_passes_either_task(self) -> None:
+        """The count-based fallback, exercised when the patch adds/removes lines: it can only
+        tell that ONE of the two occurrences went away, not which. This is pre-existing
+        `_occurrence_survived` behaviour for `gone`, carried over unchanged for `weakness_gone`."""
+        result = _stage_rescan(
+            _ECB_PATCHED_REFLOWED,
+            _ecb_rule(),
+            "python",
+            "AES",
+            original_source=_ECB_ORIGINAL_REFLOWED,
+            asset_line=5,
+        )
+        assert result.status != "fail", result.detail
+
+    def test_without_line_preservation_an_unreduced_count_still_fails(self) -> None:
+        """If NEITHER occurrence was fixed, the count-based fallback must still fail -- proving
+        the pass above is measuring a real reduction, not merely "no baseline supplied"."""
+        # Same file, no migration applied at all: patched == original.
+        result = _stage_rescan(
+            _ECB_ORIGINAL_REFLOWED,
+            _ecb_rule(),
+            "python",
+            "AES",
+            original_source=_ECB_ORIGINAL_REFLOWED,
+            asset_line=5,
+        )
+        assert result.status == "fail"
+        assert result.expectation == "weakness_gone"
+
+    def test_with_no_baseline_the_whole_file_rule_still_applies(self) -> None:
+        """No `original_source` means no way to tell occurrences apart -- falls back to the old,
+        conservative whole-file check rather than passing something unverified."""
+        result = _stage_rescan(_ECB_PATCHED, _ecb_rule(), "python", "AES")
+        assert result.status == "fail"
+        assert result.expectation == "weakness_gone"

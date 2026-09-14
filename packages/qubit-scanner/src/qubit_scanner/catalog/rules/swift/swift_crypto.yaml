@@ -138,6 +138,9 @@ rules:
         - { capture: alg, regex: "^kCCAlgorithm(DES|3DES|RC4|RC2|AES|AES128|Blowfish|CAST)$" }
     extract:
       algorithm: { from: alg, resolve: commoncrypto-alg }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     dedupe: per-file

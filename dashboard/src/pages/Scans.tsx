@@ -14,17 +14,8 @@ import {
   FolderOpen,
   AlertTriangle,
   Ban,
-  Radio,
-  KeyRound,
 } from 'lucide-react';
-import {
-  createNetworkScan,
-  createScan,
-  createVaultScan,
-  deleteScan,
-  fetchScans,
-  resetAllProjects,
-} from '../api/client';
+import { createScan, deleteScan, fetchScans, resetAllProjects } from '../api/client';
 import { useUiStore } from '../stores/ui';
 import { isTauri } from '../lib/tauri';
 import type { ScanSummary } from '../api/types';
@@ -83,16 +74,11 @@ export function Scans() {
   // Default to the bundled sample apps; accepts either a local path or a git remote URL.
   const [target, setTarget] = useState('/samples');
 
-  // Source selector. The architecture claims six discovery inputs; four of them (code, config,
-  // certs, manifests) arrive through a filesystem path, but live TLS/SSH and Vault are separate
-  // entry points with their own arguments, and neither had any way in from the app.
-  const [source, setSource] = useState<'files' | 'network' | 'vault'>('files');
-  const [netHost, setNetHost] = useState('127.0.0.1');
-  const [netPort, setNetPort] = useState('8443');
-  const [probePqc, setProbePqc] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
-  const [vaultAddr, setVaultAddr] = useState('http://127.0.0.1:8200');
-  const [vaultToken, setVaultToken] = useState('');
+  // A filesystem path is the only scan source here now. The live TLS/SSH probe and the Vault/KMS
+  // reader were removed: both needed infrastructure standing beside the app to return anything,
+  // both were dead UI in every ordinary session, and neither contributes to the source-level
+  // migration work this tool exists for. The API routes remain — `qubit bridge probe` and the
+  // vault connector still use them — so nothing is lost but a tab nobody could use.
 
   const browseForFolder = async () => {
     if (!isTauri()) return; // no native picker outside the desktop shell
@@ -116,36 +102,6 @@ export function Scans() {
       )
         ? 2000
         : false,
-  });
-
-  const netScan = useMutation({
-    mutationFn: () =>
-      createNetworkScan(
-        netHost
-          .split(',')
-          .map((h) => h.trim())
-          .filter(Boolean),
-        {
-          ports: netPort
-            .split(',')
-            .map((p) => Number(p.trim()))
-            .filter((p) => Number.isFinite(p) && p > 0),
-          probePqc,
-          authorized,
-        },
-      ),
-    onSuccess: () => invalidateAfterScan(qc),
-  });
-
-  const vaultScan = useMutation({
-    mutationFn: () => createVaultScan(vaultAddr.trim(), vaultToken),
-    onSuccess: () => {
-      // Drop the token from component state the moment it is no longer needed. It is never written
-      // to localStorage and never stored server-side, so this keeps it out of a React DevTools
-      // inspection of a page someone leaves open during a demo.
-      setVaultToken('');
-      invalidateAfterScan(qc);
-    },
   });
 
   const newScan = useMutation({
@@ -205,241 +161,99 @@ export function Scans() {
         <div>
           <h1>Scans &amp; Jobs</h1>
           <p className="mt-2 text-sm text-[color:var(--color-ink-dim)]">
-            Point QUBIT at a codebase, a live TLS endpoint, or a Vault server. Assets, HNDL exposures
-            and risk are computed and stored in the registry.
+            Point QUBIT at a codebase &mdash; a local path or a git remote. Source, configuration,
+            certificates and dependency manifests are all discovered from the tree, and assets, HNDL
+            exposure and risk are computed and stored in the registry.
           </p>
         </div>
       </header>
 
-      {/* Source selector. Four of QUBIT's six discovery inputs (code, config, certs, dependency
-          manifests) come in through a filesystem path, so they share one tab; live TLS/SSH and Vault
-          take different arguments and get their own. */}
       <div className="glass-card flex flex-col gap-4 p-5">
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Scan source">
-          {(
-            [
-              ['files', 'Code / configs / certs', FolderOpen],
-              ['network', 'Live TLS / SSH', Radio],
-              ['vault', 'Vault / KMS', KeyRound],
-            ] as const
-          ).map(([key, label, Icon]) => (
-            <button
-              key={key}
-              role="tab"
-              aria-selected={source === key}
-              data-testid={`source-tab-${key}`}
-              onClick={() => setSource(key)}
-              className={
-                source === key ? 'hud-btn' : 'hud-btn hud-btn-ghost opacity-70 hover:opacity-100'
-              }
-              type="button"
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {source === 'files' && (
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="metric-label flex items-center gap-2 text-[color:var(--color-accent)]/70">
-              {isGitUrl(target) ? (
-                <GitBranch className="h-3.5 w-3.5" />
-              ) : (
-                <FolderOpen className="h-3.5 w-3.5" />
-              )}
-              {isGitUrl(target) ? 'Git remote' : 'Local path'}
-            </span>
-            <input
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder="C:\path\to\repo  or  https://github.com/org/repo.git"
-              className="glass-input min-w-0 flex-1 text-sm"
-              spellCheck={false}
-            />
-            {isTauri() && (
-              <button onClick={browseForFolder} className="hud-btn hud-btn-ghost" type="button">
-                <FolderOpen className="h-3.5 w-3.5" />
-                Browse
-              </button>
-            )}
-            <button
-              onClick={() => newScan.mutate([target])}
-              disabled={newScan.isPending || !target.trim()}
-              className="hud-btn"
-              data-testid="run-file-scan"
-            >
-              {newScan.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Plus className="h-3.5 w-3.5" />
-              )}
-              New scan
-            </button>
-
-            {/* Reset: every project, not just every scan -- deleting a project cascades its
-                scans, assets, tasks and plans. Not gated on `scans.length`: a project can be
-                sitting there with zero scans (exactly the state right after a first Reset), and
-                the button needs to stay reachable to clear those too. Always visible next to New
-                scan, same two-step confirm as the per-row delete below. */}
-            {confirmClearAll ? (
-              <span className="inline-flex items-center gap-2">
-                <span className="text-xs text-[color:var(--color-ink-faint)]">
-                  Reset everything? Removes every project, scan and migration plan.
-                </span>
-                <button
-                  onClick={handleClearAllClick}
-                  disabled={clearAll.isPending}
-                  className="hud-btn label-caps flex items-center gap-1 text-[color:var(--color-danger)]"
-                  title="Confirm reset"
-                >
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  Confirm
-                </button>
-                <button
-                  onClick={() => setConfirmClearAll(false)}
-                  className="hit-24 text-[color:var(--color-ink-faint)] transition-colors hover:text-[color:var(--color-ink)]"
-                  title="Cancel"
-                  aria-label="Cancel reset"
-                >
-                  <Ban className="inline h-4 w-4" />
-                </button>
-              </span>
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="metric-label flex items-center gap-2 text-[color:var(--color-accent)]/70">
+            {isGitUrl(target) ? (
+              <GitBranch className="h-3.5 w-3.5" />
             ) : (
+              <FolderOpen className="h-3.5 w-3.5" />
+            )}
+            {isGitUrl(target) ? 'Git remote' : 'Local path'}
+          </span>
+          <input
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            placeholder="C:\path\to\repo  or  https://github.com/org/repo.git"
+            className="glass-input min-w-0 flex-1 text-sm"
+            spellCheck={false}
+          />
+          {isTauri() && (
+            <button onClick={browseForFolder} className="hud-btn hud-btn-ghost" type="button">
+              <FolderOpen className="h-3.5 w-3.5" />
+              Browse
+            </button>
+          )}
+          <button
+            onClick={() => newScan.mutate([target])}
+            disabled={newScan.isPending || !target.trim()}
+            className="hud-btn"
+            data-testid="run-file-scan"
+          >
+            {newScan.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" />
+            )}
+            New scan
+          </button>
+
+          {/* Reset: every project, not just every scan -- deleting a project cascades its
+              scans, assets, tasks and plans. Not gated on `scans.length`: a project can be
+              sitting there with zero scans (exactly the state right after a first Reset), and
+              the button needs to stay reachable to clear those too. Always visible next to New
+              scan, same two-step confirm as the per-row delete below. */}
+          {confirmClearAll ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="text-xs text-[color:var(--color-ink-faint)]">
+                Reset everything? Removes every project, scan and migration plan.
+              </span>
               <button
                 onClick={handleClearAllClick}
                 disabled={clearAll.isPending}
-                className="hud-btn hud-btn-ghost label-caps flex items-center gap-1.5 text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-danger)]"
-                title="Reset: remove every project, scan and migration plan"
+                className="hud-btn label-caps flex items-center gap-1 text-[color:var(--color-danger)]"
+                title="Confirm reset"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                Reset
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Confirm
               </button>
-            )}
-          </div>
-        )}
-
-        {source === 'network' && (
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-4">
-              <span className="metric-label flex items-center gap-2 text-[color:var(--color-accent)]/70">
-                <Radio className="h-3.5 w-3.5" />
-                Hosts
-              </span>
-              <input
-                value={netHost}
-                onChange={(e) => setNetHost(e.target.value)}
-                placeholder="127.0.0.1, 10.0.0.5"
-                className="glass-input min-w-0 flex-1 text-sm"
-                spellCheck={false}
-                aria-label="Hosts to probe"
-              />
-              <span className="metric-label text-[color:var(--color-accent)]/70">Ports</span>
-              <input
-                value={netPort}
-                onChange={(e) => setNetPort(e.target.value)}
-                placeholder="443"
-                className="glass-input w-28 text-sm"
-                spellCheck={false}
-                aria-label="Ports to probe"
-              />
               <button
-                onClick={() => netScan.mutate()}
-                disabled={netScan.isPending || !netHost.trim()}
-                className="hud-btn"
-                data-testid="run-network-scan"
+                onClick={() => setConfirmClearAll(false)}
+                className="hit-24 text-[color:var(--color-ink-faint)] transition-colors hover:text-[color:var(--color-ink)]"
+                title="Cancel"
+                aria-label="Cancel reset"
               >
-                {netScan.isPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Radio className="h-3.5 w-3.5" />
-                )}
-                Probe endpoints
+                <Ban className="inline h-4 w-4" />
               </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-5 text-xs text-[color:var(--color-ink-dim)]">
-              <label className="flex cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={probePqc}
-                  onChange={(e) => setProbePqc(e.target.checked)}
-                />
-                Probe hybrid PQC groups (X25519MLKEM768 + the two ML-KEM P-curve hybrids)
-              </label>
-              <label className="flex cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={authorized}
-                  onChange={(e) => setAuthorized(e.target.checked)}
-                />
-                I am authorized to scan public hosts
-              </label>
-            </div>
-            <p className="text-xs leading-relaxed text-[color:var(--color-ink-faint)]">
-              Loopback and private (RFC1918) addresses are always allowed. A public host additionally
-              requires the checkbox above <em>and</em> an entry in the server&apos;s scan allowlist —
-              every attempt is written to the scan audit log whether it is permitted or refused.
-            </p>
-          </div>
+            </span>
+          ) : (
+            <button
+              onClick={handleClearAllClick}
+              disabled={clearAll.isPending}
+              className="hud-btn hud-btn-ghost label-caps flex items-center gap-1.5 text-[color:var(--color-ink-dim)] hover:text-[color:var(--color-danger)]"
+              title="Reset: remove every project, scan and migration plan"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Reset
+            </button>
         )}
-
-        {source === 'vault' && (
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-4">
-              <span className="metric-label flex items-center gap-2 text-[color:var(--color-accent)]/70">
-                <KeyRound className="h-3.5 w-3.5" />
-                Vault
-              </span>
-              <input
-                value={vaultAddr}
-                onChange={(e) => setVaultAddr(e.target.value)}
-                placeholder="http://127.0.0.1:8200"
-                className="glass-input min-w-0 flex-1 text-sm"
-                spellCheck={false}
-                aria-label="Vault address"
-              />
-              <input
-                value={vaultToken}
-                onChange={(e) => setVaultToken(e.target.value)}
-                placeholder="token"
-                type="password"
-                className="glass-input w-56 text-sm"
-                spellCheck={false}
-                autoComplete="off"
-                aria-label="Vault token"
-              />
-              <button
-                onClick={() => vaultScan.mutate()}
-                disabled={vaultScan.isPending || !vaultAddr.trim() || !vaultToken}
-                className="hud-btn"
-                data-testid="run-vault-scan"
-              >
-                {vaultScan.isPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <KeyRound className="h-3.5 w-3.5" />
-                )}
-                Scan Vault
-              </button>
-            </div>
-            <p className="text-xs leading-relaxed text-[color:var(--color-ink-faint)]">
-              Reads the <code>transit</code> key list and <code>pki</code> certificates. The token is
-              used for this scan only — it is never written to the database, the job record, or this
-              browser&apos;s storage, and is cleared from the field once the scan starts.
-            </p>
-          </div>
-        )}
+        </div>
       </div>
 
-      {[newScan, netScan, vaultScan].some((m) => m.isError) && (
+      {newScan.isError && (
         <div
           className="glass-card border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger)]/8 p-3 text-sm text-[color:var(--color-danger)]"
           data-testid="scan-error"
         >
           Scan failed:{' '}
-          {[newScan, netScan, vaultScan]
-            .map((m) => (m.error instanceof Error ? m.error.message : null))
-            .find(Boolean) ?? 'unknown error'}
+          {newScan.error instanceof Error ? newScan.error.message : 'unknown error'}
         </div>
       )}
 

@@ -1,0 +1,284 @@
+schema: qubit-playbook/v1
+
+# The verified facts behind every recommendation QUBIT makes.
+#
+# Two rules govern this file:
+#
+# 1. NOTHING is listed from memory. Every provider row was checked against that ecosystem's own
+#    registry API on `verified_on`, and the `adoption` string quotes the number that API returned.
+#    A library nobody could confirm does not belong here - saying "no adequate provider exists" is
+#    a better answer than naming one that turns out not to.
+# 2. The app NEVER reads this over the network. It ships as data; the research happened once, here.
+#
+# `codemods.py` reads `providers` for the dependency transforms and `guidance.py` reads the rest,
+# so a floor cannot drift between what the app writes into a manifest and what it tells the user.
+
+providers:
+  # --- ecosystems where a NEW package must be added ---
+  npm:
+    manifest: package.json
+    package: "@noble/post-quantum"
+    constraint: "^0.7.0"
+    latest_seen: "0.7.0"
+    license: MIT
+    provides: [ML-KEM, ML-DSA, SLH-DSA]
+    verified_on: "2026-08-25"
+    source: "registry.npmjs.org/@noble/post-quantum/latest + api.npmjs.org downloads point"
+    adoption: "346,057 downloads in the week ending 2026-08-23"
+    install: "npm install @noble/post-quantum"
+    usage: |
+      import { ml_kem768 } from "@noble/post-quantum/ml-kem";
+      const { publicKey, secretKey } = ml_kem768.keygen();
+      const { cipherText, sharedSecret } = ml_kem768.encapsulate(publicKey);
+      const shared = ml_kem768.decapsulate(cipherText, secretKey);
+
+  cargo:
+    manifest: Cargo.toml
+    package: ml-kem
+    constraint: "0.3.2"
+    latest_seen: "0.3.2"
+    license: "Apache-2.0 OR MIT"
+    provides: [ML-KEM]
+    verified_on: "2026-08-25"
+    source: "crates.io/api/v1/crates/ml-kem"
+    adoption: "3,611,087 downloads in the last 90 days; RustCrypto/KEMs"
+    # Stated plainly because the operator is the one accepting the risk: RustCrypto ships this as
+    # a pure-Rust FIPS 203 implementation but it has not had an independent audit.
+    caveat: "Pure Rust, FIPS 203. Not independently audited - review before production use."
+    install: "cargo add ml-kem"
+    usage: |
+      use ml_kem::{MlKem768, KemCore};
+      let (dk, ek) = MlKem768::generate(&mut rng);
+      let (ct, shared) = ek.encapsulate(&mut rng).unwrap();
+
+  composer:
+    manifest: composer.json
+    package: paragonie/pqcrypto_compat
+    constraint: "^0.3.2"
+    latest_seen: "0.3.2"
+    license: ISC
+    provides: [ML-KEM, ML-DSA, SLH-DSA]
+    verified_on: "2026-08-25"
+    source: "packagist.org/packages/paragonie/pqcrypto_compat.json"
+    adoption: "1,289 downloads/month, 5,779 total; not abandoned (last release 2026-04-16)"
+    caveat: >
+      Adoption is modest. Included because Paragon Initiative Enterprises is an established
+      security vendor and this is the reference pure-PHP FIPS 203/204/205 implementation; the
+      ecosystem has no better-adopted alternative.
+    install: "composer require paragonie/pqcrypto_compat"
+
+  swiftpm:
+    manifest: Package.swift
+    package: "https://github.com/apple/swift-crypto.git"
+    constraint: "from: \"4.5.1\""
+    latest_seen: "4.5.1"
+    license: Apache-2.0
+    provides: [ML-KEM, ML-DSA, X-Wing]
+    verified_on: "2026-08-25"
+    source: >
+      api.github.com/repos/apple/swift-crypto/contents/Sources/Crypto/KEM?ref=4.5.1 lists
+      MLKEM.swift and XWing.swift; .../Signatures?ref=4.5.1 lists MLDSA.swift
+    adoption: "Apple's own package; ML-KEM/ML-DSA present in the released 4.5.1 tag"
+    # Recorded because an earlier pass of this project concluded the opposite and it was wrong.
+    # The release notes for 4.5.0/4.5.1 do not mention post-quantum at all, so a search of the
+    # changelog finds nothing; the source tree at the tag is the fact that settles it.
+    note: >
+      Absent from the 4.5.x release notes, which is why a changelog search suggests Swift has no
+      provider. The files exist at the released tag - on Apple platforms Crypto defers to
+      CryptoKit, which exposes the same MLKEM/MLDSA types.
+    install: "Add .package(url: \"https://github.com/apple/swift-crypto.git\", from: \"4.5.1\")"
+
+  # --- ecosystems where the EXISTING library gains PQC at a version floor ---
+  pip:
+    manifest: [requirements.txt, pyproject.toml]
+    package: cryptography
+    constraint: ">=48.0.0"
+    latest_seen: "50.0.0"
+    license: "Apache-2.0 OR BSD-3-Clause"
+    provides: [ML-KEM, ML-DSA]
+    verified_on: "2026-08-25"
+    source: "pypi.org/pypi/cryptography/json + cryptography.io changelog"
+    adoption: "The de-facto Python cryptography library"
+    # 47.0.0 added the modules but only against AWS-LC/BoringSSL, and the published wheels link
+    # OpenSSL - so on a normal `pip install` 47 has the API and cannot run it. 48 is the first
+    # version where the shipped wheel actually performs ML-KEM, which is what a floor has to mean.
+    note: >
+      ML-KEM and ML-DSA modules landed in 47.0.0 but required AWS-LC or BoringSSL; the published
+      wheels ship OpenSSL, so 48.0.0 (OpenSSL 3.5+) is the first version where a default install
+      can actually use them.
+
+  maven:
+    manifest: [pom.xml, build.gradle, build.gradle.kts, build.sbt]
+    package: "org.bouncycastle:bcprov-jdk18on"
+    constraint: "1.79"
+    latest_seen: "1.80"
+    provides: [ML-KEM, ML-DSA, SLH-DSA]
+    verified_on: "2026-08-25"
+    source: "search.maven.org solrsearch for g:org.bouncycastle a:bcprov-jdk18on"
+    adoption: "The standard JCA provider outside the JDK"
+    alternative: >
+      JDK 25 finalises ML-KEM (JEP 496) and ML-DSA (JEP 497) in the platform JCA, so a project
+      already on JDK 25 needs no third-party provider - request KeyPairGenerator.getInstance
+      ("ML-DSA-65"). JDK 24 has both as preview features.
+
+  nuget:
+    manifest: ["*.csproj", "*.fsproj", "*.vbproj"]
+    package: BouncyCastle.Cryptography
+    constraint: "2.5.0"
+    latest_seen: "2.7.0"
+    provides: [ML-KEM, ML-DSA, SLH-DSA]
+    verified_on: "2026-08-25"
+    source: "api.nuget.org registration index for bouncycastle.cryptography"
+    adoption: "Version range 2.0.0-2.7.0 published; 2.7.0 dated 2026-07-30"
+
+  go:
+    manifest: go.mod
+    package: "crypto/mlkem (standard library)"
+    constraint: "go 1.24"
+    provides: [ML-KEM-768, ML-KEM-1024]
+    verified_on: "2026-08-25"
+    source: "go.dev/doc/go1.24 release notes"
+    adoption: "Standard library - no dependency to add"
+    # The transform is a LANGUAGE version bump, not a package add, which is why Go needs its own
+    # branch in the dependency codemod.
+    note: >
+      "The new crypto/mlkem package implements ML-KEM-768 and ML-KEM-1024" - Go 1.24 release
+      notes. crypto/mldsa followed later; a key-exchange finding only needs 1.24, so the floor is
+      not raised past what the target requires.
+
+  jose:
+    manifest: package.json
+    package: jose
+    constraint: "^6.1.0"
+    latest_seen: "6.2.10"
+    license: MIT
+    provides: [ML-DSA-44, ML-DSA-65, ML-DSA-87]
+    verified_on: "2026-08-25"
+    source: "registry.npmjs.org/jose/latest + api.npmjs.org downloads point; RFC 9964"
+    adoption: "120,022,427 downloads in the week ending 2026-08-23"
+    standard: "RFC 9964 (Standards Track, May 2026)"
+    usage: |
+      import { SignJWT, generateKeyPair } from "jose";
+      const { privateKey } = await generateKeyPair("ML-DSA-65");
+      const jwt = await new SignJWT({ sub: "u1" })
+        .setProtectedHeader({ alg: "ML-DSA-65" })
+        .sign(privateKey);
+
+# Where automation is NOT possible, and why. Each entry produces a guided path that says what the
+# operator can do TODAY, rather than a rule that matches nothing.
+unavailable:
+  dart:
+    manifest: pubspec.yaml
+    verified_on: "2026-08-25"
+    reason: >
+      No post-quantum provider on pub.dev has institutional backing. The best-adopted candidate,
+      `pqcrypto` 0.4.1, scores 150/160 pub points with 11,800 downloads in 30 days and checks in
+      NIST ACVP vectors - but it is published by an UNVERIFIED uploader, is a from-scratch pure-Dart
+      implementation of ML-KEM, ML-DSA and SLH-DSA, and states plainly that no algorithm in it
+      claims CMVP/FIPS 140 validation. Wiring that into an automatic dependency edit would put an
+      unaudited, unattributed implementation of three primitives into a user's app without them
+      deciding to.
+    options:
+      - "Call platform crypto through FFI - Apple CryptoKit on iOS/macOS, BoringSSL or liboqs elsewhere - so the primitive comes from an audited implementation."
+      - "Terminate the quantum-vulnerable exchange at a server you control (see the TLS hybrid group path) and keep the Dart client on the classical channel inside that tunnel."
+      - "If a pure-Dart implementation is genuinely required, evaluate pqcrypto 0.4.1 yourself against its checked-in NIST vectors and accept the unverified-publisher risk explicitly."
+    sources:
+      - "pub.dev/api/packages/pqcrypto/score - 150/160 points, 11 likes, 11,800 downloads/30d"
+      - "pub.dev/packages/pqcrypto - 'unverified uploader'; 'No algorithm in this package claims CMVP/FIPS 140 module validation'"
+
+  python_jose:
+    manifest: [requirements.txt, pyproject.toml]
+    verified_on: "2026-08-25"
+    reason: >
+      PyJWT 2.13.0 (2026-05-21) has no ML-DSA support and its metadata does not mention RFC 9964.
+      Python has no maintained JOSE library implementing the RFC 9964 identifiers, so a JWT
+      signing algorithm cannot be swapped in Python the way it can in JavaScript.
+    options:
+      - "Sign with ML-DSA-65 directly via cryptography>=48 and emit the RFC 9964 `alg` value yourself, rather than waiting for PyJWT."
+      - "Keep RS256/ES256 for now and record the token issuer in your crypto inventory as blocked on library support - tokens are short-lived, so this is not a harvest-now-decrypt-later exposure."
+    sources:
+      - "pypi.org/pypi/pyjwt/json - 2.13.0, no post-quantum references"
+      - "RFC 9964 registers alg=ML-DSA-44/65/87 and kty=AKP"
+
+# The standards every recommendation traces back to. Quoted in guided paths so a reader can check
+# the claim rather than take it.
+authorities:
+  fips_203: "NIST FIPS 203 (Aug 2024) - ML-KEM, module-lattice key encapsulation"
+  fips_204: "NIST FIPS 204 (Aug 2024) - ML-DSA, module-lattice digital signatures"
+  fips_205: "NIST FIPS 205 (Aug 2024) - SLH-DSA, stateless hash-based signatures"
+  ir_8547: >
+    NIST IR 8547 - quantum-vulnerable public-key algorithms (RSA, ECDSA, ECDH, finite-field DH)
+    deprecated after 2030 and disallowed after 2035
+  cnsa_2: >
+    NSA CNSA 2.0 FAQ v2.1 (Dec 2024) - ML-KEM-1024 and ML-DSA-87 for national security systems;
+    software and firmware signing exclusively CNSA 2.0 by 2030, web/cloud/OS by 2033
+  rfc_9964: "RFC 9964 (Standards Track, May 2026) - ML-DSA for JOSE and COSE; alg = ML-DSA-44/65/87, kty = AKP"
+  sp_800_38a: "NIST SP 800-38A - block cipher modes of operation; Appendix A on ECB"
+  sp_800_56b: "NIST SP 800-56B rev.2 - RSA key establishment; OAEP required"
+  sp_800_131a: "NIST SP 800-131A rev.3 - RSA below 2048 bits disallowed"
+  owasp_password: >
+    OWASP Password Storage Cheat Sheet - Argon2id m=19456 t=2 p=1; PBKDF2-HMAC-SHA256 600,000
+    iterations, SHA-512 220,000, SHA-1 1,400,000; bcrypt work factor >= 10
+  owasp_storage: "OWASP Cryptographic Storage Cheat Sheet - authenticated encryption for stored data"
+  openssl_35: "OpenSSL 3.5 - ML-KEM/ML-DSA/SLH-DSA; default TLS keyshares X25519MLKEM768 and X25519"
+
+# What "fixed" means for a certificate, a manifest QUBIT cannot edit, or any other finding whose
+# remediation is a procedure rather than an edit. These are rendered into the task's guidance so
+# the reader gets steps, not a shrug.
+procedures:
+  x509_certificate:
+    title: "Re-issue this certificate on a quantum-safe key"
+    applies_to: "X.509 certificates with an RSA or ECDSA subject key"
+    honest_note: >
+      QUBIT does not rewrite certificate files. A certificate is a signed object - editing the
+      bytes invalidates the CA signature, so the only real remediation is re-issuance. What QUBIT
+      can do is tell you exactly what to issue and confirm the result on the next scan.
+    steps:
+      - title: "Decide what the certificate protects"
+        detail: >
+          A TLS server certificate and a code-signing certificate are on different clocks. Under
+          CNSA 2.0 software and firmware signing must be exclusively post-quantum by 2030; web and
+          cloud services have until 2033. NIST IR 8547 deprecates RSA and ECDSA after 2030 for
+          everything.
+      - title: "Protect the session first, which you can do today"
+        detail: >
+          For TLS, the harvest-now-decrypt-later exposure is in the KEY EXCHANGE, not the
+          certificate signature. Enabling the X25519MLKEM768 hybrid group on the terminator
+          protects recorded traffic immediately and needs no new certificate. A signature cannot
+          be forged retroactively from a recording, so the certificate is the less urgent half.
+        command: "ssl_ecdh_curve X25519MLKEM768;   # nginx, OpenSSL 3.5+"
+      - title: "Ask your CA what it will issue"
+        detail: >
+          Public CAs are still constrained by the CA/Browser Forum baseline requirements, which do
+          not yet permit ML-DSA end-entity certificates. For an internal PKI you can issue
+          ML-DSA-65 today with OpenSSL 3.5 or BouncyCastle 1.79+.
+      - title: "Issue an ML-DSA-65 key and CSR (internal PKI)"
+        command: |
+          openssl genpkey -algorithm ML-DSA-65 -out server-mldsa.key
+          openssl req -new -key server-mldsa.key -out server-mldsa.csr -subj "/CN=your.host"
+      - title: "Plan the size change before you deploy it"
+        detail: >
+          An ML-DSA-65 signature is 3,309 bytes against 256 for RSA-2048 or 64 for ECDSA P-256.
+          Certificate chains grow by kilobytes, which matters for TLS handshake size, for embedded
+          clients with fixed buffers, and for anything that stores a signature in a fixed-width
+          column.
+      - title: "Confirm it"
+        detail: "Re-scan. The certificate finding disappears when the subject key is no longer RSA or ECDSA."
+
+  secret_rotation:
+    title: "Rotate a hardcoded key or secret"
+    applies_to: "Secrets found in source, config, or history"
+    honest_note: >
+      Removing the literal from the file is the smallest part of this. The value is compromised
+      the moment it reaches a repository, so it must be rotated at the issuer - deleting the line
+      without rotating leaves a live credential in the git history.
+    steps:
+      - title: "Rotate at the issuer first"
+        detail: "Revoke and re-issue the credential before touching the code. Until that is done the value in the repository is live."
+      - title: "Move the new value into a secret store"
+        detail: "Environment injection at deploy time, or a managed store. The application should read it at startup, never hold it as a literal."
+      - title: "Purge it from history"
+        detail: "The value is still in every clone and every CI cache until the history is rewritten."
+        command: "git filter-repo --replace-text secrets.txt   # then force-push and re-clone"
+      - title: "Confirm it"
+        detail: "Re-scan. The finding disappears when the literal is gone; the rotation is what makes that true rather than cosmetic."

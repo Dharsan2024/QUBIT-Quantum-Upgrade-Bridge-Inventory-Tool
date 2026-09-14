@@ -65,3 +65,42 @@ rules:
         - |
           import jwt
           token = jwt.encode(payload, secret, algorithm="HS256")
+
+  # JWT signature verification turned off, or `none` accepted as an algorithm. Both are the
+  # classic JWT authentication bypass (CWE-347): the token is read and trusted without its
+  # signature being checked, so anyone who can construct a token is anyone they like.
+  #
+  # Matched on the whole call rather than a specific argument shape because callers spell it
+  # several ways - `options={"verify_signature": False}`, the older `verify=False`, and
+  # `algorithms=["none"]` - and all three mean the same thing. The regex is anchored on those
+  # exact spellings, so ordinary `jwt.decode(token, key, algorithms=["RS256"])` does not match.
+  - id: PY-JWT-VERIFICATION-DISABLED
+    title: jwt.decode with signature verification off or alg "none"
+    match:
+      query: |
+        (call
+          function: (attribute object: (identifier) @obj attribute: (identifier) @meth)) @call
+      where:
+        - { capture: obj, equals: jwt }
+        - { capture: meth, in: [decode, get_unverified_header] }
+        - capture: call
+          regex: '"verify_signature"\s*:\s*False|verify\s*=\s*False|["'']none["'']'
+    extract:
+      algorithm: { literal: UNRESOLVED }
+      jwt_verification:
+        from: call
+        resolve: jwt-verification
+    asset: { asset_type: algorithm-use, usage_context: token }
+    confidence: high
+    examples:
+      positive:
+        - |
+          import jwt
+          claims = jwt.decode(token, key, options={"verify_signature": False})
+        - |
+          import jwt
+          claims = jwt.decode(token, key, algorithms=["none"])
+      negative:
+        - |
+          import jwt
+          claims = jwt.decode(token, key, algorithms=["RS256"])

@@ -1,3 +1,5 @@
+import { setApiBase } from '../api/client';
+
 /**
  * Detects whether the app is running inside the Tauri desktop shell vs. a plain browser (the
  * dev server, or a stray tab someone opens the dashboard URL in directly). Native-only features —
@@ -122,11 +124,21 @@ export async function saveBinaryFile(
  */
 export async function adoptDesktopApiBase(): Promise<boolean> {
   if (!isTauri()) return false;
+  // The API serves the UI itself (`serve_ui_from_api`), injecting its own base into the page it
+  // hands over. When that base is present the window is loaded over HTTP from 127.0.0.1, NOT from
+  // a `tauri://` origin — so the IPC bridge is unreachable and the API's own CSP refuses the
+  // request to `ipc.localhost`. The probe cannot succeed, and attempting it logged three console
+  // errors on every cold start ("Refused to connect because it violates the document's Content
+  // Security Policy") while the fallback silently did the right thing.
+  //
+  // `__TAURI_INTERNALS__` is still present in that window, so `isTauri()` alone cannot tell the
+  // two cases apart. The injected base is what distinguishes "running inside the desktop shell"
+  // from "running inside the desktop shell AND served by the engine".
+  if (typeof window !== "undefined" && window.__QUBIT_API_BASE__) return false;
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     const base = await invoke<string>("api_base");
     if (typeof base === "string" && base.startsWith("http")) {
-      const { setApiBase } = await import("../api/client");
       setApiBase(base);
       return true;
     }

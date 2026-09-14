@@ -8,9 +8,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
 from qubit_core.db import Job
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
+from ..auth import get_current_tenant
 from ..deps import get_session
 from ..jobs.bus import EventBus
 from ..jobs.runner import JobRunner
@@ -42,13 +44,22 @@ class JobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def _require_job(session: Session, job_id: UUID, tenant_id: UUID) -> Job:
+    """A job, scoped to the team that queued it. 404 (not 403) when it belongs to another team."""
+    job = session.scalar(select(Job).where(Job.id == job_id, Job.tenant_id == tenant_id))
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
 @router.get("/jobs", response_model=list[JobOut])
 def list_jobs(
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
     project_id: UUID | None = None,
     limit: int = 100,
 ) -> list[Job]:
-    query = session.query(Job)
+    query = session.query(Job).filter(Job.tenant_id == tenant_id)
     if project_id:
         query = query.filter(Job.project_id == project_id)
     return query.order_by(Job.created_at.desc()).limit(limit).all()
@@ -58,11 +69,9 @@ def list_jobs(
 def get_job(
     job_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> Job:
-    job = session.get(Job, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return job
+    return _require_job(session, job_id, tenant_id)
 
 
 @router.post("/jobs/{job_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
@@ -70,10 +79,9 @@ def cancel_job(
     job_id: UUID,
     request: Request,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> dict[str, str]:
-    job = session.get(Job, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job = _require_job(session, job_id, tenant_id)
     if job.status not in ("queued", "running"):
         raise HTTPException(status_code=400, detail=f"Cannot cancel job in status {job.status}")
 

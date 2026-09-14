@@ -7,7 +7,13 @@ thread coexist); PostgreSQL is an optional swap via the SQLAlchemy URL.
 from typing import TYPE_CHECKING, Any
 
 from .models import ApiToken, AssetRow, Base, Job, ProjectRow, RiskRun, ScanRow
-from .session import default_db_url, get_engine, session_factory
+from .session import (
+    commit_with_retry,
+    default_db_url,
+    get_engine,
+    retry_write_on_lock,
+    session_factory,
+)
 from .tokens import (
     CreatedToken,
     create_token,
@@ -27,6 +33,7 @@ __all__ = [
     "ProjectRow",
     "RiskRun",
     "ScanRow",
+    "commit_with_retry",
     "create_token",
     "default_db_url",
     "get_engine",
@@ -35,6 +42,7 @@ __all__ = [
     "hash_token",
     "list_tokens",
     "resolve_token",
+    "retry_write_on_lock",
     "revoke_token",
     "session_factory",
     "stamp_head",

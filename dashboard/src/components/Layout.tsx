@@ -16,6 +16,7 @@ import {
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { DepsBanner, DepsLeds } from './BootGate';
+import { CleanupMenu } from './CleanupMenu';
 import { PageErrorBoundary } from './PageErrorBoundary';
 import { useQuery } from '@tanstack/react-query';
 import { fetchProjects, fetchScans } from '../api/client';
@@ -131,7 +132,7 @@ export function Layout() {
             }}
             className="hud-btn w-full"
             data-testid="sidebar-initiate-migration"
-            title="Generate, approve and apply every ready patch in the open plan"
+            title="Write every prepared change in the open plan into its original file. Build the plan first — that is what generates the changes."
           >
             <Rocket className="h-3.5 w-3.5" />
             Initiate migration
@@ -185,6 +186,11 @@ export function Layout() {
           <div className="flex items-center gap-5">
             <DepsLeds />
             <span className="chip chip-info">CycloneDX 1.7</span>
+            {/* Lives in the rail rather than on a page, so removing previous migrations, scans or
+                projects is reachable from every route — which is where people look for it when a
+                run went wrong or a disk is full, not only from the panel that happens to own the
+                data. */}
+            <CleanupMenu />
             <Link to="/scans" className="hud-btn py-2">
               <Activity className="h-3.5 w-3.5" />
               New scan

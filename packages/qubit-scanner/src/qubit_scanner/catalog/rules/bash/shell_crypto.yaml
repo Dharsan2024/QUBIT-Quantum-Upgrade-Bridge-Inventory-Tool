@@ -49,6 +49,9 @@ rules:
           regex: "-(des|des3|des-ede3-cbc|des-cbc|rc2|rc4|idea|cast|cast5|bf|blowfish|seed|sm4|aes-?[0-9]{3}(-[a-z]{3})?|camellia[0-9]{3}|chacha20)(\\s|$)"
     extract:
       algorithm: { from: call, resolve: shell-algorithm }
+      mode:
+        from: call
+        resolve: cipher-mode
     asset: { asset_type: algorithm-use, usage_context: encryption-at-rest }
     confidence: high
     examples:

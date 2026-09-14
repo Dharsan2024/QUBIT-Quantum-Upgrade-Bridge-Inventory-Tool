@@ -225,7 +225,7 @@ def up_cmd(
     engine: Annotated[str, typer.Option("--engine", help="nginx or haproxy")] = "nginx",
     upstream: Annotated[
         str, typer.Option("--upstream", help="Upstream host:port")
-    ] = "vulnapp-python:5000",
+    ] = "medivault-emr:5001",
     port: Annotated[int, typer.Option("--port", help="Listen port")] = 8443,
 ):
     """Bring up a hybrid terminator container."""

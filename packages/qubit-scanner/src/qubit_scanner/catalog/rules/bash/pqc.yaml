@@ -1,0 +1,31 @@
+schema: qubit-rule/v1
+language: bash
+library:
+  name: OpenSSL 3.5 / ssh-keygen post-quantum
+  detect_imports: []
+# The shell pack detects `openssl genpkey -algorithm RSA` in `kex`/`signature` context, so
+# `code-kex-01` and `code-signature-01` target provisioning scripts -- and the PQC rewrite those
+# rules ask for could not be confirmed. `shell-algorithm` already reads the `-algorithm` flag; what
+# was missing is a rule that MATCHES when its value is a post-quantum one.
+rules:
+  - id: SHELL-OPENSSL-PQC
+    title: openssl genpkey -algorithm ML-DSA-65 / ML-KEM-768
+    match:
+      query: |
+        (command (command_name (word) @cmd)) @call
+      where:
+        - { capture: cmd, in: [openssl, ssh-keygen] }
+        - { capture: call, regex: "(?i)ml[-_]?(dsa|kem)|kyber|dilithium|falcon|sphincs|mlkem|mldsa" }
+    extract:
+      algorithm: { from: call, resolve: pqc-in-text }
+    asset: { asset_type: algorithm-use, usage_context: signature }
+    confidence: high
+    examples:
+      positive:
+        - |
+          openssl genpkey -algorithm ML-DSA-65 -out sig.key
+        - |
+          openssl genpkey -algorithm ML-KEM-768 -out kem.key
+      negative:
+        - |
+          openssl genpkey -algorithm RSA -out rsa.key

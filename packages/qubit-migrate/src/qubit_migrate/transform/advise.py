@@ -23,10 +23,11 @@ code in front of it.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from .languages import language_for_suffix
-from .llm import DEFAULT_BASE_URL, OllamaError, _ollama_generate
+from .llm import DEFAULT_BASE_URL, ExternalEndpoint, OllamaError, _generate
 
 if TYPE_CHECKING:
     from qubit_core import CryptoAsset
@@ -262,8 +263,20 @@ def generate_migration_advice(
     timeout: float = 180.0,
     failure_reason: str | None = None,
     max_attempts: int = 3,
+    provider: str = "ollama",
+    api_key: str | None = None,
+    backup: ExternalEndpoint | None = None,
+    backups: Sequence[ExternalEndpoint] = (),
+    budget_tokens: int | None = None,
 ) -> str:
-    """Ask the local model how to migrate this specific finding by hand.
+    """Ask a model how to migrate this specific finding by hand.
+
+    Goes through `_generate`, so it reaches the same pool of engines a PATCH is routed to. It used
+    to call `_ollama_generate` directly, which meant advice was produced by the local model on
+    every install no matter how many engines were configured — and advice is not a consolation
+    prize: for a `guided` finding it is the ONLY output, the thing an engineer actually works from.
+    An install with no external provider configured is unaffected, because `_generate` with
+    `provider="ollama"` and no backups is exactly the call this used to make.
 
     Raises :class:`OllamaError` if no usable answer comes back, so the caller can report that
     instead of storing an empty or truncated one.
@@ -271,9 +284,33 @@ def generate_migration_advice(
     prompt = build_advice_prompt(source, asset, rule, failure_reason=failure_reason)
     last = ""
     prompt_suffix = ""
+    #: Engines whose advice was rejected below — incomplete, or recommending an algorithm Shor
+    #: breaks. The next attempt escalates past them rather than asking the same model to correct
+    #: a mistake it has now made once with the correction already in its prompt.
+    spent: set[str] = set()
+    produced_by: list[str] = []
+
+    def _note_engine(name: str) -> None:
+        produced_by.clear()
+        produced_by.append(name)
+
     for _attempt in range(max(1, max_attempts)):
-        text = _ollama_generate(
-            prompt + prompt_suffix, model=model, base_url=base_url, timeout=timeout
+        # Reaching a second iteration means the previous answer was rejected; every accepted one
+        # returns from inside the loop.
+        spent.update(produced_by)
+        text = _generate(
+            prompt + prompt_suffix,
+            model=model,
+            base_url=base_url,
+            timeout=timeout,
+            provider=provider,
+            api_key=api_key,
+            fallback_ollama_model=model,
+            backup=backup,
+            backups=backups,
+            budget_tokens=budget_tokens,
+            avoid=spent,
+            on_engine=_note_engine,
         ).strip()
         # Strip a wrapping code fence if the model added one despite being asked for prose.
         if text.startswith("```"):

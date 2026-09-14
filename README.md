@@ -1,530 +1,103 @@
-<div align="center">
-  <h1>QUBIT</h1>
-  <p><b>Quantum Upgrade Bridge &amp; Inventory Tool</b></p>
-  <p><i>Harvest-Now-Decrypt-Later (HNDL) Risk Modeling &amp; Automated Post-Quantum Cryptographic Migration</i></p>
+# QUBIT
 
-  <img src="https://img.shields.io/badge/status-research%20prototype-yellow?style=flat-square" alt="Status" />
-  <img src="https://img.shields.io/badge/tests-1851%20passing-brightgreen?style=flat-square" alt="Tests" />
-  <img src="https://img.shields.io/badge/coverage-85.6%25-brightgreen?style=flat-square" alt="Coverage" />
-  <img src="https://img.shields.io/badge/WCAG-2.2%20AA-brightgreen?style=flat-square" alt="Accessibility" />
-  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
-  <img src="https://img.shields.io/badge/python-3.12--3.13-blue?style=flat-square" alt="Python Version" />
-  <img src="https://img.shields.io/badge/react-19-blue?style=flat-square" alt="React Version" />
-</div>
+**Quantum Upgrade Bridge & Inventory Tool** is a local-first research prototype for evidence-bound post-quantum cryptography (PQC) migration. It inventories cryptographic use, records migration tasks, produces candidate source changes, requires explicit human approval before applying a change, and preserves validation and post-write re-scan evidence.
 
----
+> QUBIT is a research workbench, not a production migration service and not an autonomous cryptographic replacement system. A lower scanner count is not a proof of semantic correctness or cryptographic safety.
 
-## 📖 Overview & The Post-Quantum Threat
-
-As Cryptographically Relevant Quantum Computers (CRQCs) approach maturity, existing public-key cryptography (such as RSA and ECC) faces an existential threat from Shor's algorithm. For sensitive data, the threat is not years away; it is happening today through **Harvest-Now-Decrypt-Later (HNDL)** attacks. Adversaries are actively intercepting and storing encrypted traffic today with the explicit intent to decrypt it once quantum hardware is available.
-
-**QUBIT** is an open-source platform engineered to automatically discover, quantify, and remediate this risk. It provides an end-to-end pipeline to transition codebases and infrastructure to NIST-standardized Post-Quantum Cryptography (PQC), specifically **ML-KEM** (FIPS 203) and **ML-DSA** (FIPS 204).
-
-QUBIT operates **fully offline** with no telemetry, leverages a **local LLM** (Ollama) for code transformation so source never leaves the machine, and emits standards-compliant **CycloneDX 1.7 Cryptographic Bill of Materials (CBOM)** artifacts.
-
-> **Honest status: QUBIT is a research prototype, not a production tool.** The engineering is real —
-> 1692 tests passing with zero skips, mypy clean across all seven packages, CI, git-safe DB
-> migrations, a live hybrid-PQC TLS bridge, a packaged desktop app. What is not production-ready is
-> the **accuracy**, and it has been measured rather than asserted:
->
-> * The HNDL exposure pass ran at **20.5% precision [14.9%, 27.7%]** before repair and **47.1%
->   [34.1%, 60.5%]** after, the latter measured out-of-sample on findings drawn after the fix.
->   Roughly half of what it reports is still a placeholder or a test fixture.
-> * QUBIT's **cryptographic** precision is *not yet established*: 27 hand-labelled exclusive
->   findings across two cohorts, all correct, is a sample too small to have a precision. It is not a
->   100% score and is not reported as one.
-> * The screening classifier the corpus comparison rests on reached **κ = 0.758 out-of-sample**,
->   after an earlier version reached 0.279 and reversed a headline.
->
-> Full method, labels and intervals in [`benchmarks/adjudication/`](benchmarks/adjudication/README.md);
-> see [Project status](#-project-status) for the engineering gaps.
-
----
-
-## 🚀 The End-to-End Pipeline
+## What it does
 
 ```mermaid
-graph TD
-    A[🔍 1. Discover] -->|AST / TLS / certs / manifests / Vault| B[📦 2. Inventory]
-    B -->|Export CycloneDX 1.7 CBOM| C[📊 3. Quantify HNDL Risk]
-    C -->|CRQC Monte-Carlo + Mosca + CNSA 2.0| D[🛠️ 4. Migrate &amp; Remediate]
-    D -->|Local LLM + deterministic templates| E[🌉 5. Runtime Verification]
-    E -->|Hybrid TLS handshake proof + re-scan| F((Verified Post-Quantum State))
-
-    style A fill:#0d1117,stroke:#3b82f6,color:#e5e7eb,stroke-width:2px
-    style B fill:#0d1117,stroke:#3b82f6,color:#e5e7eb,stroke-width:2px
-    style C fill:#0d1117,stroke:#f59e0b,color:#e5e7eb,stroke-width:2px
-    style D fill:#0d1117,stroke:#10b981,color:#e5e7eb,stroke-width:2px
-    style E fill:#0d1117,stroke:#8b5cf6,color:#e5e7eb,stroke-width:2px
-    style F fill:#0d1117,stroke:#22c55e,color:#e5e7eb,stroke-width:2px
+flowchart LR
+    A[Versioned source] --> B[Scanner finding]
+    B --> C[Candidate patch]
+    C --> D[Validation record]
+    D --> E{Explicit reviewer approval}
+    E -- reject or stale --> F[Reject, defer, or re-scan]
+    E -- approve --> G[Apply reviewed diff]
+    G --> H[Post-write re-scan]
 ```
 
-### 1. Discovery & Enumeration
-Five independent scanner sources, all real:
+The important boundary is between generating a candidate and changing source. A candidate remains untrusted until applicable validation completes and a reviewer approves it. A same-file write that makes later source evidence stale is deferred or uniquely re-anchored; it is never silently applied to an obsolete location.
 
-| Source | What it does |
-|---|---|
-| **Code (AST)** | `tree-sitter` parsing driven by a data-only `qubit-rule/v1` YAML catalog — **254 rules across 19 grammars**: Python, JavaScript, TypeScript/TSX, Java, Kotlin, Scala, Go, C, C++, C#, PHP, Ruby, Rust, Swift, Dart, SQL, Bash/Shell and PowerShell. That set is chosen against the [Stack Overflow 2025 survey](https://survey.stackoverflow.co/2025/technology)'s measured usage, not preference — it covers every language in the top 15 that can express cryptography (HTML/CSS, rank 2, has no crypto API surface). Rules cover key generation *and use* (sign/verify/encrypt/decrypt), symmetric ciphers, hashes, MACs, KDFs, JWT/JOSE, WebCrypto, OpenSSL EVP, TLS configuration, and the most-installed third-party crypto libraries. Every rule ships its own positive/negative fixtures, executed as tests. The Go pack covers the one-shot digest helpers (`md5.Sum`, `sha1.Sum`) as well as the streaming `New()` forms — matching only the latter meant a package that hashed with `md5.Sum`, which is the more idiomatic Go spelling, was reported as using no MD5 at all. |
-| **Config** | **nginx, Apache httpd/mod_ssl, and OpenSSH** `sshd_config`/`ssh_config` — protocol versions, cipher suites, MACs, **key-exchange groups** (`ssl_ecdh_curve`, `SSLECDHCurve`, `SSLOpenSSLConfCmd Curves`) and host-key algorithms. Cipher-suite names resolve in **both** spellings — IANA `TLS_..._WITH_...` and the OpenSSL form real configs actually contain (`ECDHE-RSA-AES128-SHA`) — each reducing to the component that governs HNDL risk, with a prefix-less suite correctly read as static RSA key transport. OpenSSH vendor suffixes, DH group numbers, and the PQC hybrid KEX (`sntrup761x25519-sha512@openssh.com`) all resolve to real algorithms and sizes; a bare curve in a key-exchange list is reported as ECDH, not as a signature. |
-| **Network TLS** | Live handshake enumeration, plus a **raw-ClientHello PQC-group probe** that detects `X25519MLKEM768` / `SecP256r1MLKEM768` / `SecP384r1MLKEM1024` support with no OpenSSL dependency and no key generation (RFC 8446 HelloRetryRequest technique). |
-| **Certificates & keys** | X.509 PEM/DER parsing → public-key algorithm, key size, signature algorithm. |
-| **Dependencies** | `go.mod` / `package.json` / `requirements.txt` / `pyproject.toml` / `pom.xml` / `Cargo.toml` / `composer.json` / `Gemfile` / `*.csproj` / `build.gradle[.kts]` / `build.sbt` / `pubspec.yaml` / `Package.swift` → a package→algorithm map of **903 packages across 10 ecosystems** (npm 776, PyPI 39, Go 22, crates.io 20, Maven 15, NuGet 9, Packagist 7, RubyGems 7, pub.dev 5, SwiftPM 3), the npm/PyPI/Go/Maven bulk imported from the real [csnp/cryptodeps](https://github.com/csnp/cryptodeps) dataset (Apache-2.0, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)) rather than hand-written. Upstream's own `quantumRisk`/`severity` labels are deliberately **not** imported: entries name QUBIT canonical algorithms and the registry decides the verdict, so there is one source of truth. Hand-curated entries win on conflict because they carry **version-aware capability gates** the upstream data has no equivalent for, so a library too old to have ML-KEM is never credited with it. **This is a package→algorithm map, not a vulnerability database** — it says which algorithms a dependency brings, not which CVEs it has. |
-| **HashiCorp Vault** *(opt-in)* | Polls `transit` keys and `pki` certificates over Vault's HTTP API, including its `ml-dsa` / `slh-dsa` / `hybrid` key types. |
+## Current release evidence
 
-### 2. CycloneDX 1.7 Inventory
-Findings normalize into the frozen `CryptoAsset` schema against a canonical registry of **129 algorithms** (RSA/ECDSA/EdDSA/AES/SHA families, the JOSE-JWT `RS*`/`PS*`/`ES*`/`HS*`/`EdDSA` signature identifiers **and the JWE `enc`/key-management vocabulary** from RFC 7518 — `A*GCM`, `A*CBC-HS*`, `A*KW`, `RSA1_5`, `RSA-OAEP-256`, `ECDH-ES` and its `+A*KW` composites — ML-KEM, ML-DSA, SLH-DSA, hybrid TLS groups, and the SM2/SM3/SM4 national-standard family). The DB is the source of truth; the CBOM is the exportable compliance artifact, validated against the official ECMA-424 schema.
+The following are release-validation results, not population-level accuracy claims:
 
-### 3. HNDL Risk Quantification
-A **Monte-Carlo simulation** of CRQC arrival blended with an expert-survey prior, a Bayesian network for HNDL exposure, a sensitivity classifier (PII/PHI/financial/credentials), an XGBoost regressor with split-conformal confidence intervals, and **Mosca's Inequality** (`margin = Z − (X + Y)`). A separate **CNSA 2.0 milestone evaluator** scores an inventory against NSA's regulatory deadlines (2025 → 2035) — a deterministic deadline source alongside the probabilistic one.
+| Check | Verified result | Scope |
+|---|---:|---|
+| Targeted regression suite | 98 passed in 69.47 s; 2 dependency warnings | migration, task, stale-evidence, API, and safety contracts |
+| Dashboard lint and production build | passed | frontend quality and bundle generation |
+| Windows desktop packaging | passed | Tauri Windows release build |
+| Desktop smoke workflow | passed | API startup, scan, task reopening, blocked unapproved apply, and clean shutdown |
+| Four-repository desktop re-scan | 4 of 4 completed; 0 parse failures | fixed supplied corpus |
+| Scanner emissions in that record | 92 to 86 after 6 reviewed edits | scanner-removal observation only |
+| Safety outcomes in that record | 9 proposals rejected; 2 stale Inkwell tasks unapplied | human-governed refusal and deferral behaviour |
 
-### 4. Automated Migration
-A dependency graph plus WSJF prioritization feeds a 12-state FSM. **24 transform rules** cover every asset class QUBIT discovers — web-server and OpenSSH configuration, dependency manifests, and code across Python/Go/C/JS/TS/Java — each declaring its target, its `data_compat` hazard (`in_place` / `dual_read` / `reencrypt_required`), and a worked example that doubles as few-shot prompt content. Coverage is measured rather than asserted: a guard test sweeps **every detection rule's own positive examples** and requires that every vulnerable asset the scanner can produce has a transform rule that matches it — currently **100%** (it was 31% before this was measured). The classes no code patch can fix are no longer *excluded* — they are matched by rules that declare `remediation: guided` and resolve to the operational action they actually need: certificate re-issuance, secret rotation at the issuer, and the configuration change that closes a shell-generated key's real exposure.
+Three Inkwell Ruby edits reached the available behavioural oracle. The other applied edits have scanner and syntax evidence only; this is deliberately not represented as full-suite or semantic-correctness proof.
 
-Preparing the changes and writing them are **two separate acts**. **Build plan** queues every vulnerable finding *and* generates a validated patch for each one, touching nothing on disk; **Initiate migration** writes those prepared patches into the original files, running no model and deciding nothing. The reason is what the operator is asked to trust: with one button the model's work arrived one row at a time and "migrate" meant "generate something and apply it, sight unseen", so the only way to review a plan was to click through it finding by finding. Now the slow, uncertain half finishes first and the whole set of diffs is on screen before anything irreversible is offered — and the per-row **Generate** button still exists for anyone who wants to work a single asset. Writing several patches into one repository also required narrowing the dirty-tree guard: it now recognises the files QUBIT itself wrote earlier in the same plan, because refusing to continue on the grounds of one's own edit made bulk apply impossible in any real git repository (it went unnoticed because the demo corpus is not one). Dirt from anyone else still stops the write, and the per-file `sha256` guard — which is stricter, and independent of git — is untouched. When the write finishes, a dialog offers the rescan: until the project is scanned again every finding on screen describes the code as it was *before* the migration.
+The detailed evidence, limitations, commands, and improvement plan are in [the project validation report](qubit-v2/data/QUBIT_PROJECT_VALIDATION_REPORT.md).
 
-Weak-hash remediation is deterministic in **all 19 scanned languages** — Ruby, PHP, C#, Rust, Kotlin, Scala, Swift, Dart, Bash, PowerShell, SQL and the rest — with each swap table written against that ecosystem's own reference documentation (cited in `codemods.py`) rather than from memory. Two of them need more than a rename and would otherwise produce code that compiles and then misbehaves: C# is statically typed, so the declared type moves with the factory call (`using (MD5 h = MD5.Create())` → `using (SHA256 h = SHA256.Create())`), and Swift's CommonCrypto path needs the digest **length constant** to move with the function or a 32-byte digest lands in a 20-byte buffer. Correctness is measured, not reviewed: every swap is run over a real fixture and the **output is rescanned by QUBIT's own scanner**, which must report the weak algorithm gone, SHA-256 present, and zero parse errors.
+## Architecture
 
-The LLM tier is exercised against a **real local model**, not a mocked HTTP response. That distinction is not academic: every test it had was mocked, and the first time the local `qwen2.5-coder:7b` was actually asked to migrate 3DES in a **Ruby** file it returned **Go** — it was echoing the rule's worked example, because the prompt labelled the file's language as `multi` and attached a Go demonstration to it. A rule now declares which language its example is written in, a file whose language has no example gets none, and the rewrite is rejected and re-prompted if it does not parse as the file's own language. All four languages tested now come back correct — Ruby gets `OpenSSL::Cipher.new('aes-256-gcm')` with a fresh nonce and auth tag, Kotlin gets `SSLContext.getInstance("TLS")`.
-
-The division of labour between deterministic codemods and the **local, sandboxed LLM** is explicit rather than incidental. Where the correct output is a *constant* — `ssl_ecdh_curve X25519MLKEM768`, `KexAlgorithms sntrup761x25519-sha512@openssh.com`, a dependency version floor — the codemod is marked `codemod_authoritative` and an LLM never replaces it, even when one is explicitly requested: a 7B model asked to harden an nginx.conf produced a config that *looked* modern (TLS 1.2+1.3, AEAD suites) while silently omitting the hybrid group, which is the one line that actually makes the deployment quantum-safe. The LLM is used where the transform needs judgement about surrounding code (key lengths, nonce handling, call-site changes), behind a repair loop that feeds rejections back for up to 3 attempts and a preservation guard that refuses a rewrite which drops unrelated code or fails to parse.
-
-For the findings QUBIT **cannot** patch, the answer is a **guided path**, and it is a result rather than a failure. Three kinds of finding reach it: a rule that declares no edit is correct (a certificate is a signed object — editing the bytes invalidates the CA signature), a finding no rule covers, and a generation the model could not complete. All three get a plan built from shipped data — the rule pack, the migration knowledge base, the weakness catalogue and the verified provider playbook — so it exists with Ollama stopped and states facts rather than recalling them: the target and its parameter set, the package and version floor that provides it with the registry figure behind that claim, the artefact sizes the change breaks, and how to confirm it on the next scan. When the local model IS running it adds a reading of that specific file underneath, under its own heading, so a reader can tell a verified fact from a model's opinion of their code.
-
-That split exists because the model, asked what to do about a 1024-bit RSA key, first suggested RSA-2048 and ECDSA-P256 — both Shor-breakable. Facts QUBIT is authoritative about are no longer asked of it.
-
-Measured on the 21-app demo corpus: **75 of 251 findings (30%) previously matched no rule at all**, and every one of them was reported as a failed migration. That number is now **0** — every finding in the corpus resolves to a codemod, an LLM rewrite, or a written remediation path, and the completion banner counts those three separately instead of calling the last two failures.
-
-Patches are validated in a Docker sandbox with **no network**, using each language's own parser where one can check a single file — `php -l`, `ruby -c`, `node --check`, `bash -n`, Python's `compile()`. The sandbox **never pulls an image**: a tool whose promise is that your code never leaves the machine must not make an unrequested network call, so a missing image skips the stage and names the `docker pull` command instead of fetching it.
-
-Because remediation output is also scanner *input*, hardened files are re-scanned and asserted on: the algorithms the codemods write must resolve in the canonical registry and must be rated quantum-safe, so a migration can prove where it landed instead of reporting its own output as `UNKNOWN`. A versioned migration knowledge base (`migration_kb.yaml`) and crypto-agility policy decide each target. Governance gates require sign-off before a patch can be applied.
-
-### 4a. The weakness catalogue, and where its facts come from
-
-Two questions decide whether a finding is actionable, and the algorithm registry can only answer
-the first. *Is this primitive broken?* is a property of the name. *Is this USE of an unbroken
-primitive broken?* is a property of the call, and in real code it accounts for a large share of
-what any scanner reports. AES-256 is a sound cipher; `AES-256/ECB` leaks the structure of every
-plaintext it encrypts. RSA-3072 is a sound key; `RSA/ECB/PKCS1Padding` is Bleichenbacher-
-attackable. PBKDF2 is an approved KDF; PBKDF2 at 1 000 iterations is a password table waiting to
-be cracked offline.
-
-So the scanner now reads the **mode**, the **padding scheme**, the **iteration count** and the
-**PRF** at the call site, and `qubit_core.weaknesses` derives the classical weaknesses those
-facts imply — each carrying its CWE, the publication that says it is a weakness, and its remedy.
-One tokenizer covers every ecosystem, because they all spell the mode identically and differ only
-in punctuation: JCA `"AES/ECB/PKCS5Padding"`, PyCryptodome `AES.MODE_ECB`, OpenSSL
-`EVP_aes_128_ecb`, Node `"aes-128-ecb"`, .NET `CipherMode.ECB`. The negative cases are the ones
-that matter: JCA spells RSA as `RSA/ECB/PKCS1Padding`, where "ECB" is an artefact of the provider
-interface and not a mode of operation at all, and reading it literally would report a false
-weakness on nearly every Java RSA call site in existence.
-
-The version floors and package names QUBIT writes into a manifest, and the ones it quotes in a
-guided path, come from **one file**: `params/remediation_playbook.yaml`. Every row records the
-registry API that answered, the date it answered, and the adoption figure it returned, because a
-floor with no provenance is a number somebody remembered — this project has already shipped one of
-those, an npm package called `ml-kem` that does not exist, carried forward from a note whose real
-subject was the crates.io crate of that name. Where an ecosystem has no provider QUBIT is willing
-to install on the user's behalf, the file says so and says why, with sources: Dart's best-adopted
-candidate is published by an unverified uploader and claims no CMVP validation, and RubyGems' best
-has 7 708 downloads in total.
-
-### 4b. Reports — one format per audience
-
-Chosen from what security teams actually consume, not from what was easiest to emit. `qubit report <path> -f pdf|sarif|json`:
-
-| Format | Audience | Why this one |
+| Layer | Main technology | Responsibility |
 |---|---|---|
-| **SARIF 2.1.0** | AppSec / SOC analysts | An [OASIS standard](https://docs.github.com/en/code-security/concepts/code-scanning/sarif-files). Upload with `github/codeql-action/upload-sarif@v3` and each finding becomes a code-scanning alert **annotated on the offending line**; VS Code and Azure DevOps read the same schema. QUBIT's stable asset fingerprint is passed through as `partialFingerprints`, which is how GitHub keeps an alert identical across commits instead of closing and reopening it whenever code shifts above the finding. `error` is reserved for Shor-breakable public key — the only class whose compromise is retroactive. |
-| **PDF** | Compliance, audit, leadership | [EO 14412](https://www.qusecure.com/pqc-migration-executive-orders/) (June 2026) and OMB M-26-15 make cryptographic inventory a *reporting* obligation with fixed dates, and what gets filed and archived is a paginated document. The report states posture against those deadlines — high-value assets on PQC key establishment by 2030-12-31 — rather than only printing scores. Rendered with `reportlab` (pure Python, no system libraries), so it works fully offline. |
-| **CycloneDX 1.7 CBOM** | Supply-chain tooling, agency inventory | The machine format the regulations actually **name** (ECMA-424). Already available via `qubit cbom export`, byte-reproducible with `--reproducible`. |
-| **JSON** | SIEM / spreadsheets | The raw risk-annotated inventory. |
+| Desktop shell | Tauri 2 / Rust | starts, supervises, and shuts down the local service |
+| Operator UI | React 19, TypeScript, Vite, Tailwind CSS, TanStack, Zustand, Plotly | scan records, task review, validation evidence, and diffs |
+| Local service | Python, FastAPI, Pydantic, SQLAlchemy, Alembic, SQLite | project, scan, task, validation, and migration APIs |
+| Discovery | tree-sitter and a rule catalogue | source-aware crypto findings and locations |
+| Migration | deterministic codemods, task state machine, re-anchoring | candidate generation and approval-gated source writes |
+| Validation | parser, symbol, compile, behavioural, test, and re-scan gates where applicable | explicit evidence record per candidate |
+| Risk support | Mosca timeline, QARS integration, heuristic sensitivity, HNDL Bayesian network | explainable prioritisation support |
 
-All three are reachable from the app, not just the CLI. The Report page composes the same data on
-screen and offers **Download PDF report** and **SARIF** buttons that fetch the real server-generated
-artifacts (`GET /scans/{id}/report.pdf`, `GET /scans/{id}/sarif`) — distinct from its **Print page**
-button, which is a browser rendering of the page rather than the composed document. A dedicated
-**CNSA 2.0** page (`GET /scans/{id}/cnsa2`) shows milestone posture.
+Docker and Ollama extend the local workflow but are not required for basic scanning and inventory. External source processing is disabled by default.
 
-> **Why this is called out.** The PDF and SARIF writers, and the CNSA 2.0 evaluator, were all real,
-> tested code that the app could not reach: the reports were CLI-only, and the CNSA 2.0 evaluator had
-> no caller outside its own unit tests. The dashboard's PDF button was `window.print()`. Backend
-> capability that no interface exposes is not a shipped feature, and a test suite that only exercises
-> the Python will keep reporting success anyway — so these now have API routes, UI, API tests and
-> real-browser tests.
->
-> The CNSA 2.0 page deliberately shows **two** numbers. `overall_score` is *schedule adherence* — a
-> milestone that is not yet due scores full marks, so it can read 100% while most milestones are
-> unmet. Beside it the page shows **PQC readiness** (milestones actually satisfied, e.g. 1/5).
-> Reporting the score alone under a "compliance" heading would tell a user they were done when they
-> were not, which is the same conflation the upstream reference implementation had to fix.
+## Language and digital-twin evaluation scope
 
-### 5. Verification & Hybrid TLS Bridge
-No patch is trusted blindly: every patch is validated in a Docker sandbox and proven by re-scan. The bridge stands up a **hybrid PQC TLS terminator** on native **OpenSSL 3.5+** negotiating `X25519MLKEM768`, then swaps classical→hybrid **on the same port** and verifies the negotiated group.
+The fixed multi-language desktop workflow was exercised on four deliberately vulnerable, self-authored digital twins of real-world application domains:
 
----
-
-## 🏗️ Architecture & Monorepo Structure
-
-A Python monorepo managed by `uv`. Packages communicate strictly through `qubit-core` models, the database, and the REST API — no private cross-package imports (enforced in CI).
-
-| Module | Role & Core Technologies |
-|---|---|
-| 📦 **`qubit-core`** | **Source of truth.** Frozen `CryptoAsset` Pydantic + SQLAlchemy models, the canonical algorithm registry, Alembic migrations (applied automatically at startup), fingerprinting, evidence redaction, CBOM export/import. |
-| 🔍 **`qubit-scanner`** | **Discovery engine.** The five sources above, plus deterministic normalization and dedup. |
-| 📊 **`qubit-risk`** | **HNDL engine.** CRQC Monte-Carlo timeline, Bayesian network, sensitivity classifier, XGBoost regressor, Mosca margin, CNSA 2.0 policy. All parameters live in versioned YAML with a reproducibility hash. |
-| 🛠️ **`qubit-migrate`** | **Orchestrator.** Dependency graph, WSJF queue, FSM, LLM + template transforms (prompt-injection hardened), IaC patches, migration KB, agility + governance policy. |
-| 🌉 **`qubit-bridge`** | **Runtime validation.** Hybrid TLS terminator images, `openssl s_client` probe/verify, capture/diff, same-port classical↔hybrid swap. |
-| 🔌 **`qubit-api`** | **Control plane.** FastAPI normative REST registry, `JobRunner` with crash recovery, SSE progress, and **real bearer-token auth** (DB-backed, sha256-hashed, `ro`/`rw` scopes, revocable). |
-| 💻 **`qubit-cli`** | **Typer CLI.** The `qubit` entrypoint — scan, risk, migrate, bridge, cbom, demo, serve, tokens, rules. |
-| 🎨 **`dashboard`** | **UI.** React 19 + Vite 8 + TailwindCSS v4 + Plotly, shipped both as a web app and as a **native Windows desktop app** (Tauri 2). |
-
----
-
-## ⚙️ Quick Start
-
-### Prerequisites
-- **Python 3.12 or 3.13** (`uv` manages the interpreter; 3.14 is not yet supported — `pgmpy`/`torch`)
-- **uv** — `winget install --id astral-sh.uv -e`
-- **Docker Desktop** — sandbox validation, the hybrid-TLS bridge, and integration tests
-- **Node.js 22+** — only to build the dashboard from source
-- **Ollama** *(optional)* — LLM-generated patches; deterministic templates work without it
-  (`ollama pull qwen2.5-coder:7b-instruct-q4_K_M`)
-
-### Option A — the Windows desktop app
-
-Double-click **`qubit-desktop.bat`** (or run `./qubit-desktop.sh` on Linux/macOS). It installs the
-Python dependencies on first run, rebuilds the dashboard, starts the engine on a port it has
-verified it can actually bind, and opens the app window. Closing the console stops it.
-
-This is the supported way to run QUBIT: everything stays on the machine, and the scanner can read
-local paths and clone git repositories — which is the whole point of a tool you point at private
-source.
-
-> **Container deployment.** The API and dashboard images build cleanly and a compose stack was
-> verified from a clean slate, but the deployment scaffolding is kept out of this repository: it
-> carried environment-specific endpoints, and QUBIT's privacy claim rests on the offline local
-> default rather than a hosted one. The desktop path above is the one to use.
-
-### Option B — from source
-
-```bash
-uv sync --all-packages          # installs every workspace package + dev tooling
-
-uv run qubit scan ./my-project --cbom out.json    # discover + export a CBOM
-uv run qubit risk run -p default                  # score HNDL risk
-uv run qubit migrate plan -p default              # ranked migration queue
-uv run qubit migrate apply --auto-approve         # generate + validate + apply patches
-```
-
-> `pip install qubit-cli` is **not yet available** — publishing to PyPI is deferred until after the
-> current hardening sprint. Use `uv sync --all-packages` for now.
-
-### The one-command demo
-
-```bash
-uv run qubit demo run --all
-```
-
-Runs the whole story: capture classical TLS → discover the vulnerable crypto → score HNDL risk →
-generate, validate and apply a patch → re-scan to prove remediation → bring up the hybrid bridge on the
-same port → verify `X25519MLKEM768` was negotiated. Add `--canned` to run it without Docker.
-
-### Other useful commands
-
-```bash
-uv run qubit scan-network example.com --port 443      # live TLS + PQC-group probe
-uv run qubit scan-vault http://127.0.0.1:8200 --token <tok>
-uv run qubit rules list                               # inspect the detection catalog
-uv run qubit serve token create --scopes rw           # mint a real API token
-uv run qubit cbom validate out.json                   # validate against CycloneDX 1.7
-```
-
----
-
-## 📊 Project status
-
-Phases 0–2 are complete; the project is in its **Phase 3 hardening sprint** (deadline end of
-September 2026). It is a **research prototype** — see the honest-status note at the top for what the
-accuracy actually measures.
-
-**Done and verified:** all five scanner sources · CBOM 1.7 export/import · the full risk engine ·
-LLM + template migration with sandbox validation · the hybrid TLS bridge with same-port swap ·
-extended modules E1–E5 (migration KB, agility policy, per-asset recommendation, dependency-graph API,
-governance gates) · real token auth with scopes ·
-**1851 tests passing** · **85.6% line+branch coverage** over `packages/` · CI green ·
-mypy clean across all seven packages · **WCAG 2.2 AA with zero axe-core violations**, pinned by
-real-browser tests.
-
-**Measured, not asserted:** a 26-repository corpus with a pre-registered inclusion criterion, four
-independent detectors, capture–recapture population estimates, and 801 blind hand labels under a
-protocol fixed before the first label. Both the classifier and QUBIT's own HNDL pass were found
-defective by that measurement and repaired; the repairs were then confirmed on a held-out cohort.
-See [`benchmarks/adjudication/`](benchmarks/adjudication/README.md).
-
-**Since measured, and no longer outstanding:** cryptographic precision now has a figure against
-**published, independently-labelled ground truth** (CryptoAPI-Bench), not a self-generated sample —
-16.1% -> 51.8% recall on the in-scope category after an intra-file constant-folding fix, with the
-remaining 0% on field-sensitive and cross-file cases reported rather than hidden. Two human
-annotators now give a real inter-rater kappa instead of the intra-rater substitute.
-
-**Still outstanding:** PyPI publication · a structured-logging story · a recorded backup demo video ·
-a third annotator (two points establish a direction, not a population threshold).
-
-### Rebuilding the Windows desktop app after a change
-
-**The dashboard is compiled into `qubit-desktop.exe`** (`frontendDist: "../dist"` in
-`tauri.conf.json`). An installed copy therefore keeps showing the UI it was built with, no matter how
-many times the repo changes — this is exactly how several sessions of front-end work stayed invisible
-in the installed app while every automated test passed, because the tests drove the API + browser
-path and never the installed binary.
-
-After any dashboard change, rebuild and reinstall:
-
-```bash
-cd dashboard
-npx tauri build          # runs `npm run build` first, then bundles
-# then install the produced setup over the existing copy:
-#   dashboard/src-tauri/target/release/bundle/nsis/QUBIT_0.1.0_x64-setup.exe   (/S for silent)
-```
-
-An installed copy lives in `%LOCALAPPDATA%\QUBIT` with a Start Menu shortcut; the Start Menu entry is
-what most people actually launch, so verifying against `qubit serve` or `npm run dev` alone proves
-nothing about it. Check `LastWriteTime` on `%LOCALAPPDATA%\QUBIT\qubit-desktop.exe` if the app looks
-stale.
-
-Note that a force-kill of the app skips the window-destroyed handler that reaps its API child, and
-that child is `uvicorn.exe` → `python.exe`, so `Stop-Process -Name uvicorn` does not catch all of it.
-Match on the command line (`*qubit_api.main:app*`) when cleaning up.
-
-### Every discovery source is reachable from the app
-
-The architecture claims six discovery inputs. Two of them — **live TLS/SSH** and **Vault/KMS** —
-were real, tested Python that the app had no way to reach: `scan_network`'s own docstring said "not
-yet wired into qubit-api's job runner either; both are CLI-only for now". Backend capability that no
-interface exposes is not a shipped feature, and a suite that only exercises the Python keeps
-reporting success regardless.
-
-Both now run from the **Scans** page via a source selector, as `POST /projects/{id}/scans/network`
-and `POST /projects/{id}/scans/vault`. They reuse the existing `scan` job kind, so they inherit
-progress events, cancellation, concurrency limits and crash recovery rather than duplicating them.
-
-- **Live TLS/SSH** performs the handshake enumeration *and* the raw-ClientHello hybrid-PQC group
-  probe. Authorization stays in the scanner (`verify_scan_authorization`): loopback and RFC1918 are
-  always permitted, a public host additionally needs an allowlist entry **and** an explicit
-  authorization flag, and every attempt is written to the scan audit log whether allowed or refused.
-- **Vault** reads the `transit` key list and `pki` certificates. The token is **never persisted** —
-  not in `Job.payload` (a JSON column that would put a live credential in the database and in
-  `GET /jobs/{id}`), not on the scan row, not in any response. It travels through a process-local
-  single-use store (`qubit_api/jobs/secrets.py`), which documents what that costs: no resume across
-  a restart, single-process only. A test asserts the absence against the raw DB rows, not just the
-  API responses, because a response filter would be the easy way to look correct while still storing
-  it.
-
-Verified end-to-end against real infrastructure — the hybrid-PQC nginx container and a seeded Vault
-dev server — with `X25519MLKEM768` read off an actual handshake.
-
-### Bugs this work surfaced, and what they were
-
-Each of these was found by exercising the running app rather than by reading code, and each is fixed
-with a regression test that was confirmed to fail when the fix is reverted.
-
-| Bug | Why it mattered | Root cause |
-|---|---|---|
-| **Buttons stopped responding after the first click** | App-wide. Every page is wrapped in `AnimatedPage`, and after any interaction that changed the page's height a real mouse click landed on nothing. Sidebar navigation included. | `:active { transform: scale(0.98) }` promoted the control to its own compositor layer, so `mousedown` hit the button while `mouseup` hit an ancestor and no `click` was ever generated. Captured with document-level listeners: `mousedown@BUTTON … mouseup@DIV[null]`. Press feedback is now non-geometric. |
-| **Certificate signature algorithms were rated quantum-safe** | `sha256WithRSAEncryption`, `sha1WithRSAEncryption` and `md5WithRSAEncryption` all resolved to nothing, and an unresolved name is rated **not vulnerable** — so every RSA-signed certificate's signature was reported safe. Reachable from the cert scanner and Vault's PKI mount. | The registry had no X.509 signature-algorithm spellings. Worse, `ecdsa-with-SHA256` was mistaken for a prefix-less OpenSSL cipher suite and reported as **RSA** — confidently wrong rather than merely unknown. |
-| **A failed scan job left its scan "running" forever** | The job recorded the failure; the scan row did not, so the UI showed a spinner that never resolved and only the next restart cleaned it up. Affected every scan mode, including the filesystem one this predates. | `JobRunner._finish` updated only the `Job` row. |
-| **An unreachable Vault reported "succeeded, 0 assets"** | Indistinguishable from a Vault that genuinely holds nothing, so a typo'd address or expired token read as "Vault is clean" — the worst way to be wrong about a credential store. | `scan_vault` resolves connection errors to an empty result (correct for a background sweep). User-initiated scans now preflight with `verify_vault_reachable`. |
-| **Every relative timestamp was wrong by the viewer's UTC offset** | The Scan history read "6 h ago" for a scan created seconds earlier on a UTC+5:30 machine. Noticed immediately after a cold start, where nothing could be 6 hours old. | QUBIT stores UTC, but SQLite has no timezone type, so values came back naive and serialized with no offset — and JavaScript parses an offset-less datetime as *local* time. Fixed at the API boundary, since an API emitting ambiguous timestamps is the actual defect and any consumer would misread them. |
-| **The desktop launcher could not start at all** | `qubit-desktop.bat` hardcoded port 8787. Windows reserves port blocks for Hyper-V/WSL and on the development machine 8695-8794 was reserved, so binding failed with WinError 10013 even though nothing was listening. | Fixed two ways: `scripts/pick_port.py` probes for a genuinely bindable port, and the API now injects its own base URL into the HTML it serves so the front-end follows whatever port wins instead of relying on a build-time constant. |
-
-### Security review of the deployed surface
-
-A pass over the request-handling surface — probing a running server rather than reading the code —
-found and closed two real defects. Both were reachable in a *documented* configuration, which is why
-they are called out here rather than quietly patched:
-
-| Defect | Why it mattered | Fix |
-|---|---|---|
-| The SPA catch-all served files from outside `dashboard_dist` | `full_path` arrives URL-**decoded**, and while the HTTP layer normalizes a literal `/../` it does not normalize a percent-encoded one, so `GET /%2e%2e%2fSECRET.txt` returned any file the process could read. The route is deliberately unauthenticated (it serves the login shell) and the mount is on by default in `qubit serve` / desktop mode — so this was the shipping posture, not an edge case. | The resolved candidate must stay under `dist`; anything else falls through to the SPA shell. Verified against a live uvicorn for plain, encoded, uppercase-encoded and double-encoded forms. |
-| Setting `QUBIT_API_TOKEN` did not disable the bundled dev tokens | The bootstrap path accepted `settings.api_token` **and** both tokens published in this repo whenever the `api_tokens` table was empty. An operator who configured a strong secret but had not yet minted a DB token still had `dev_token` working as **rw** — an authentication bypass in the documented production configuration, confirmed at HTTP 200. | The bundled defaults are honored only while `api_token` is *itself* still a default, i.e. while nothing has been configured. Configure a token and it becomes the only bootstrap credential. |
-
-Both fixes ship with regression tests that were each confirmed to fail when the fix is reverted, and
-`test_spa_hosting.py` gives the SPA-hosting route its first coverage of any kind.
-
-#### Second pass — live penetration testing
-
-A later pass probed the running API directly (35 checks across authentication, traversal, injection,
-SSRF, headers and error handling). Two more real defects, both fixed and pinned:
-
-| Defect | Why it mattered | Fix |
-|---|---|---|
-| **SSRF to the cloud instance-metadata service** | Python's `ipaddress.is_private` returns true for link-local, so the network scanner's "local targets need no authorization" rule auto-allowed `169.254.169.254` — the AWS/Azure/GCP metadata endpoint, and the standard pivot for stealing instance credentials. Confirmed against the running app: the scan was accepted and reported `succeeded`, while `8.8.8.8` and `example.com` were correctly refused, so this was a gap in the rule and not an open door. | Link-local is excluded from the auto-allow and now needs the same explicit allowlist entry plus `authorized` flag as any other off-network target. |
-| **No baseline response headers** | No `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options` or `Referrer-Policy` on any response — and in desktop mode the API serves the dashboard HTML itself, so those headers land on a page a real browser engine renders. | All four set, with a CSP that forbids framing, objects, base-URI rewriting and `unsafe-eval`. |
-
-Everything else held: unauthenticated/bad/empty tokens rejected, path traversal refused, git-URL
-command injection not exploitable (the clone is `subprocess` with an argument list, never a shell),
-SQL injection stopped at the type boundary, and no stack traces in 4xx bodies.
-
-#### Accessibility conformance
-
-EN 301 549 — the standard the European Accessibility Act has enforced since 28 June 2025 — is
-anchored to WCAG Level AA, so an accessibility defect in a shipped tool is a compliance defect. The
-dashboard was audited with **axe-core in a real browser across all eight pages**:
-
-| Check | Before | After |
-|---|---|---|
-| axe-core violations (WCAG 2.0/2.1/2.2 A + AA) | 3 critical | **0** |
-| SC 2.5.8 Target Size — interactive targets below 24x24 CSS px | 21 | **0** |
-| SC 2.4.7 Focus Visible / SC 2.4.11 Focus Not Obscured | already clean | clean |
-
-The three violations were real Level A failures: two Settings inputs had labels positioned above
-them but never associated via `htmlFor`, so a screen reader announced them as unlabelled, and the
-CRQC Timeline algorithm picker had no accessible name at all. The target-size failures were ordinary
-usability defects independent of assistive technology — the scan-row delete control was 16x21 px.
-All of it is pinned by [`dashboard/e2e/accessibility.spec.ts`](dashboard/e2e/accessibility.spec.ts).
-
-**Known hardening gaps** (real deployments should plan for these): the API container runs as root;
-there is no request-size cap in front of the scan endpoints (rate limiting on mutating verbs now
-exists); PostgreSQL is
-URL-supported through SQLAlchemy but only SQLite is exercised by the suite; and a scan target is any
-path the server process can read, so the API is designed to be bound to localhost or a trusted
-network rather than exposed publicly.
-
-> **Optional external tool.** `qubit bridge capture` and the harvest phase of `qubit demo` need
-> **tshark** (ships with Wireshark) to record a pcap. Without it QUBIT says so plainly and writes an
-> empty file rather than pretending; with it, the demo measures the real on-the-wire cost of
-> post-quantum key establishment — a classical server key_share of **32 bytes** against
-> **1120 bytes** for X25519MLKEM768. QUBIT finds tshark on PATH, in the standard Wireshark install
-> directories, or via `QUBIT_TSHARK`.
-The three defects previously tracked for Phase 3 are now closed.
-
-### Performance
-
-Measured with `cProfile` and `-X importtime` on a real repository, not estimated:
-
-| Path | Before | After | What was wrong |
+| Twin | Domain | Language / stack | Offline test evidence |
 |---|---|---|---|
-| `qubit` CLI start-up | 1.77 s | **0.75 s** | `scipy.stats`, `alembic` and `libcst` were all imported eagerly — by `qubit scan`, by `qubit --help`, and by every validator subprocess — for code paths none of them touch |
-| Repeat `scan_paths()` | 2.17 s | **1.21 s** | the rule catalog re-parsed 29 YAML files and recompiled ~152 tree-sitter queries on *every* call (0.8 s, 37% of a scan), though the pack is static per install |
-| Full test suite | 90 s | **77 s** | same catalog caching, which most tests pay for too |
-| Patch validation (per patch) | 1.55 s | **1.44 s** | plus it no longer requires `uv` on PATH, and can no longer hang on a nested `uv run` environment lock |
+| MediVault EMR | electronic medical records | Python / FastAPI | 96 pytest tests; 14 planned findings; 14 of 14 mutation outcomes predicted |
+| Inkwell eSign | electronic signatures | Ruby 3.3 | 25 tests / 50 assertions; 14 of 14 mutation outcomes predicted |
+| Sentinel IdP | identity and SSO | Go 1.23 | 23 subtests; 15 of 15 mutation outcomes predicted |
+| Paymesh Gateway | payment orchestration | Java 21 / Spring Boot | 22 JUnit tests; 13 of 13 mutation outcomes predicted |
 
-Read-endpoint latency, measured against a **20,000-asset** database (10 scans × 2,000):
+These twins model real-world constraints such as persisted values, remote protocol parties, identity state, and payment records while retaining pre-registered ground truth and offline test oracles. They are controlled research fixtures, not live production services and not a statistically representative industrial corpus. Support means QUBIT can execute the recorded workflow on the tested rule surfaces; it does not imply whole-language semantic analysis or coverage of every cryptographic library API.
 
-| Endpoint | Before | After | What was wrong |
-|---|---|---|---|
-| `GET /projects/{id}/trends` | 470 ms | **47 ms** | hydrated every asset in the project — 20,000 ORM objects, ~40,000 JSON columns parsed — to produce 10 numbers. Now a `GROUP BY` plus a window-function median, so the database returns one row per scan |
-| `GET /scans/{id}/diff` | 57 ms | **7 ms** | built two full ORM objects per asset to compare two strings and two floats; now selects only `fingerprint` and `risk_score` |
-| `GET /scans/{id}/summary` | 30 ms | **6 ms** | two histograms, a sorted score list and a top-10, all of which SQL does directly |
+## Model and automation posture
 
-`GET /scans/{id}/cbom` stays at ~110 ms and is left alone: a CBOM is an export of *every* asset, so it is inherently O(n), and the cost is pydantic validation that is worth keeping on a compliance artifact. `MigrationOrchestrator.build_plan` also moved its scope filter into SQL — it used to load every asset in the entire database, across every project and every historical scan, and discard the safe ones in Python.
+QUBIT uses deterministic transformations first. A local Ollama path can invoke `qwen2.5-coder:7b-instruct-q4_K_M` where an applicable deterministic transform does not exist. An optional OpenAI-compatible provider can be configured by an operator, but its output remains an untrusted candidate and external processing stays off by default.
 
-None of these changed a single output value: `test_aggregation_perf.py` holds each new implementation against a literal transcription of the one it replaced, including seven median cases, because an optimization that changes the numbers is a bug rather than an optimization.
+The release also contains optional analytical or experimental components:
 
-The risk engine turned out to be **already near its floor** — `simulate()` was correctly cached per
-algorithm, so 213 assets cost only 5 real Monte-Carlo runs. Its hottest function (`min_distance`,
-72% of the pipeline) was rewritten for a modest 1.09x and, more usefully, fewer moving parts; two
-faster-looking alternatives were measured, found slower, and are recorded in the code so they are not
-retried. Reporting a 9% win as a 5x one would have been the easy mistake here.
+- The QARS risk score is an adopted analytical model, not a novel QUBIT model.
+- The HNDL Bayesian network uses expert-specified conditional probabilities; it is not trained on observed incidents.
+- The optional DistilBERT sensitivity harness uses synthetic/template data and is not a default inference path.
+- The optional XGBoost regressor approximates the analytical pipeline; it must not be presented as externally validated risk-prediction accuracy.
 
----
+Observed local-model routing in a recorded 10-finding pilot produced 8 patches (5 deterministic and 3 local-model); all reached evidence level 2 only. Recorded local calls took approximately one to two minutes on the test hardware. These are configuration-specific observations, not a general model-quality, throughput, or accuracy benchmark.
 
-## 🤖 Learned tiers
+## Getting started
 
-Three learned or generative components sit inside QUBIT. Each is **optional**, each degrades to a
-deterministic path when absent, and none of them decides anything alone — the scanner's findings and
-the patch-validation gate are rule-based throughout. Full cards, with the numbers read out of the
-artifacts themselves, are in `paper_evidence/MODELS.md`.
+Prerequisites: Python 3.12 or 3.13, [uv](https://docs.astral.sh/uv/), Node.js for the dashboard, and the Rust toolchain for desktop builds.
 
-| Component | What it does | Status |
-|---|---|---|
-| **XGBoost risk regressor** + split conformal | Distils the closed-form HNDL score so the app returns a score *and* a calibrated interval without re-running the Monte-Carlo timeline per asset | Trained. Test MAE **0.0021** on a 0–1 score; **90.51%** empirical interval coverage against a 90% target; 34 features; 50,000 synthetic assets |
-| **DistilBERT sensitivity classifier** | Decides what *kind* of data a finding protects (PHI, PII, financial, credentials, IP, ephemeral, public) — the input that sets shelf-life, and therefore the Mosca margin | Harness present, **not trained in this checkout**, so no accuracy is claimed for it |
-| **Local code-rewriting model** (`qwen2.5-coder:7b`) | Writes patches for rules with no deterministic codemod, entirely on-device through Ollama | Greedy decoding, pinned seed. Four passes per structural rewrite — plan, draft, rescan, self-review — then a reasoning check, behind a 3-attempt repair loop with every attempt re-validated |
-| **The experience base** (no model, no training) | Retains every validated migration — the hunk, the model's reasoning, and the rejections — keyed by a structural shape, so later findings of the same shape start from proven work | Written only by the validation gate; visible in the app under *What QUBIT has learned* |
-
-### How the engine gets better with use
-
-Two stores, and the second exists because the first was learning the wrong half of the problem.
-
-The **line cache** replays an exact validated line with no model call at all. It works, and it only
-ever learns the easiest fixes: it refuses any rewrite whose line count moved, which is precisely
-the multi-statement change the generator prompt asks for. Measured on this installation, it held
-**21 rows against 59 accepted LLM patches** — roughly two thirds of everything the model got
-*right* taught it nothing, and the harder the rewrite the more certain it was to be discarded. A
-second defect compounded it: **17 of those 21 rows carried the rule's `multi` as their language**
-while every lookup passes the file's, so they could never be retrieved for grounding at all.
-
-The **experience base** keeps what the cache could not. Retrieval is by a **structural shape key**
-— identifiers and literals folded out — so `hashlib.md5(payload)` and `hashlib.md5(data)` are one
-problem rather than two, while `MODE_ECB` and `MODE_GCM` stay firmly apart. Against that key it
-stores the changed *hunk*, the model's own reasoning for a patch that passed, and the **rejections**,
-which nothing retained before: a shape that has already defeated the model is now said out loud in
-the next prompt instead of being rediscovered over three more calls.
-
-Two consequences follow. A structural rewrite plans before it writes — the model answers *what
-changes, what new values appear, what stops being readable, what must not move* before it is asked
-for a file, so its own answers are in its context while it writes. And a finding that FAILED in an
-earlier run is picked back up by the next one: the engine that failed it is not the engine that
-runs next, and 9 findings on this corpus had sat unresolved across three subsequent runs without
-ever being tried again.
-
-The regressor's coverage figure is the one that matters: split-conformal prediction gives a
-distribution-free guarantee that the interval contains the true value at the target rate, and 90.51%
-against a 90% target is the check that the guarantee held on data the model never saw. It is trained
-on a **synthetic** population drawn from the same priors the closed-form score uses, so it distils a
-model rather than learning from observed breaches — it inherits every assumption in `qubit_risk`,
-which is stated as a limitation rather than a footnote.
-
----
-
-## 🧪 Research & Evaluation
-
-QUBIT is the basis of a research paper on automated cryptographic agility. The paper and its four
-formal experiment suites (scanner precision/recall vs. baselines, risk calibration, LLM patch pass@k,
-hybrid-handshake overhead via `tc netem`) are **deliberately deferred** until after the product
-hardening deadline so they cannot compete with shipping.
-
----
-
-## 🛠️ Developer Guide
-
-```bash
+```powershell
 uv sync --all-packages
+uv run poe unit
 
-uv run poe check          # format + lint + typecheck + unit tests
-uv run poe unit           # tests that need no Docker/Ollama/network
-uv run poe integ          # Docker-backed integration tests
-
-# Dashboard, including real-browser tests of the Report + CNSA 2.0 pages (needs a running API):
-cd dashboard && npm run build && npm run test:e2e
+cd dashboard
+npm ci
+npm run build
 ```
 
-Quality bar: **zero test failures, zero skips**, ruff clean, and ≥70% coverage on `qubit-core`,
-`qubit-scanner`, and `qubit-risk` (currently 82%).
+To build the Windows desktop application, use the dashboard's documented Tauri release command after the Python environment and dashboard dependencies are installed. Optional Docker validation images and Ollama are opt-in and should be installed only when that workflow is needed.
 
-The dashboard is verified in a real Chromium via Playwright — **31 browser tests, zero skips** —
-against a real risk-annotated scan seeded through the public API, not mocked. That includes the
-project drill-in: a data tab opens on its project grid, clicking a project scopes the tab to it,
-and the choice survives a reload. `tsc -b` proves every API field access
-matches the declared contract, but only a browser catches a component that throws at mount, a
-`median(undefined)` printing NaN, or an export button that downloads an empty file. The suite asserts
-the rendered verdict, the CRQC years, the algorithm inventory, all five CNSA 2.0 milestones, and
-that the export buttons produce real artifacts — the PDF is checked by its `%PDF-` magic number and
-`%%EOF` trailer rather than by size, because an HTML error page is also "some bytes" and a truncated
-PDF opens in some readers and fails in others. Renaming one API field in the page makes it fail, which is how the
-tests were confirmed to be non-vacuous.
+## Reproducibility and responsible use
 
-Adding a detection rule needs **no Python** — drop a YAML file in
-`packages/qubit-scanner/src/qubit_scanner/catalog/rules/<language>/` with embedded positive/negative
-examples, and the test suite picks it up automatically.
+For a research result, retain the repository revision, OS/toolchain versions, rule and generator configuration, task-state export, validation JSON, applied-diff hashes, post-write scan, and command output. Do not send sensitive repositories to an external provider without explicit organisational approval and a source-transfer policy.
 
-The implementable specification behind every module — the design documents, the build plan, the
-project-status reports and the paper draft — is maintained alongside this repository rather than
-inside it.
+Before a publication claim, distinguish clearly between current release validation, controlled self-authored digital-twin results, historical campaigns, and planned future studies. The project documentation intentionally reports rejected, deferred, and unavailable-validation outcomes alongside successes.
 
-## 📜 License
+## License
 
-MIT — see [LICENSE](LICENSE). Third-party projects whose public schemas or data informed specific files
-are credited in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); benchmark corpora and baseline tools
-used in evaluation are run-only and subject to their own upstream licenses.
+MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

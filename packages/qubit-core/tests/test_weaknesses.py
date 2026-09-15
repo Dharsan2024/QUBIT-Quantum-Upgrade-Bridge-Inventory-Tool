@@ -238,12 +238,18 @@ def test_cbc_mode_without_a_mac_is_a_weakness_of_a_sound_cipher() -> None:
 def test_cbc_and_ecb_are_mutually_exclusive() -> None:
     """A call is in exactly one mode; the two weaknesses must never both fire on one asset."""
     assert ids(
-        algorithm="AES-256", family="AES", key_size=256,
-        usage_context="encryption-at-rest", extra={"mode": "ECB"},
+        algorithm="AES-256",
+        family="AES",
+        key_size=256,
+        usage_context="encryption-at-rest",
+        extra={"mode": "ECB"},
     ) == ["ecb-mode"]
     assert ids(
-        algorithm="AES-256", family="AES", key_size=256,
-        usage_context="encryption-at-rest", extra={"mode": "CBC"},
+        algorithm="AES-256",
+        family="AES",
+        key_size=256,
+        usage_context="encryption-at-rest",
+        extra={"mode": "CBC"},
     ) == ["cbc-unauthenticated"]
 
 
@@ -265,7 +271,10 @@ def test_rsa_is_never_flagged_cbc_unauthenticated() -> None:
     """RSA is not a block cipher in the sense this weakness cares about; the family gate must
     exclude it regardless of anything a scanner might put in `extra["mode"]`."""
     found = ids(
-        algorithm="RSA-3072", family="RSA", key_size=3072,
-        usage_context="signature", extra={"mode": "CBC"},
+        algorithm="RSA-3072",
+        family="RSA",
+        key_size=3072,
+        usage_context="signature",
+        extra={"mode": "CBC"},
     )
     assert "cbc-unauthenticated" not in found

@@ -194,7 +194,7 @@ class TestAlgorithmConsistency:
         "import javax.crypto.spec.SecretKeySpec;\n\n"
         "public String cardToken(String pan) {\n"
         '    Mac mac = Mac.getInstance("HmacSHA1");\n'
-        "    mac.init(new SecretKeySpec(pepper.getBytes(UTF_8), \"HmacSHA1\"));\n"
+        '    mac.init(new SecretKeySpec(pepper.getBytes(UTF_8), "HmacSHA1"));\n'
         "    return Hex.encode(mac.doFinal(pan.getBytes(UTF_8)));\n"
         "}\n"
     )
@@ -273,7 +273,7 @@ func seal() *rsa.PublicKey {
         assert "ek" not in result.detail
 
     def test_a_go_multiple_assignment_binds_every_name_on_the_left(self) -> None:
-        """`pub, priv, err := ...` binds three names; only the right-hand side can need an import."""
+        """`pub, priv, err := ...` binds three names; only the RHS can need an import."""
         from qubit_migrate.transform.languages import locally_bound
 
         source = "package p\nfunc f() {\n\tpub, priv, err := mldsa65.GenerateKey(rand.Reader)\n}\n"
@@ -347,7 +347,7 @@ class TestFullyQualifiedReferences:
     def test_a_reverse_dns_root_is_not_reported(self) -> None:
         from qubit_migrate.transform.languages import unresolved_qualifiers
 
-        source = "class C { void m() { java.security.MessageDigest.getInstance(\"SHA-256\"); } }\n"
+        source = 'class C { void m() { java.security.MessageDigest.getInstance("SHA-256"); } }\n'
 
         assert "java" not in unresolved_qualifiers(source, "java")
 

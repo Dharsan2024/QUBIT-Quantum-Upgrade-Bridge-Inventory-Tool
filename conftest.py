@@ -6,7 +6,7 @@ single package's tests/conftest.py.
 from __future__ import annotations
 
 import logging
-from typing import Iterator
+from collections.abc import Iterator
 
 import pytest
 
@@ -37,8 +37,18 @@ def _isolate_root_logging_state() -> Iterator[None]:
     root = logging.root
     original_handlers = list(root.handlers)
     original_level = root.level
-    original_disabled = {
-        name: logger.disabled
+    original_filters = list(root.filters)
+    original_disabled = root.disabled
+    original_propagate = root.propagate
+    original_disable_threshold = root.manager.disable
+    original_loggers = {
+        name: (
+            list(logger.handlers),
+            logger.level,
+            logger.propagate,
+            logger.disabled,
+            list(logger.filters),
+        )
         for name, logger in root.manager.loggerDict.items()
         if isinstance(logger, logging.Logger)
     }
@@ -47,6 +57,23 @@ def _isolate_root_logging_state() -> Iterator[None]:
     finally:
         root.handlers[:] = original_handlers
         root.setLevel(original_level)
+        root.filters[:] = original_filters
+        root.disabled = original_disabled
+        root.propagate = original_propagate
+        logging.disable(original_disable_threshold)
         for name, logger in root.manager.loggerDict.items():
             if isinstance(logger, logging.Logger):
-                logger.disabled = original_disabled.get(name, False)
+                state = original_loggers.get(name)
+                if state is None:
+                    logger.handlers.clear()
+                    logger.filters.clear()
+                    logger.setLevel(logging.NOTSET)
+                    logger.propagate = True
+                    logger.disabled = False
+                    continue
+                handlers, level, propagate, disabled, filters = state
+                logger.handlers[:] = handlers
+                logger.setLevel(level)
+                logger.propagate = propagate
+                logger.disabled = disabled
+                logger.filters[:] = filters

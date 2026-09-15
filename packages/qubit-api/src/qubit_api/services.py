@@ -11,7 +11,7 @@ from qubit_core import asset_to_row, row_to_asset
 from qubit_core.cbom import export_cbom
 from qubit_core.db import AssetRow, ProjectRow, RiskRun, ScanRow
 from qubit_core.schemas import utcnow
-from qubit_migrate.state import MigrationPlan, MigrationTask
+from qubit_migrate.state import MigrationPlan, MigrationTask, PatchProposal
 from qubit_scanner import scan_paths
 from sqlalchemy import Integer, Select, String, case, cast, func, select
 from sqlalchemy.orm import Session
@@ -91,6 +91,19 @@ def require_task(session: Session, task_id: UUID, tenant_id: UUID) -> MigrationT
     if task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="task not found")
     return task
+
+
+def require_patch(session: Session, patch_id: UUID, tenant_id: UUID) -> PatchProposal:
+    """A patch proposal scoped through its task and migration plan."""
+    patch = session.scalar(
+        select(PatchProposal)
+        .join(MigrationTask, MigrationTask.id == PatchProposal.task_id)
+        .join(MigrationPlan, MigrationPlan.id == MigrationTask.plan_id)
+        .where(PatchProposal.id == patch_id, MigrationPlan.tenant_id == tenant_id)
+    )
+    if patch is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="patch not found")
+    return patch
 
 
 def require_risk_run(session: Session, risk_run_id: UUID, tenant_id: UUID) -> RiskRun:

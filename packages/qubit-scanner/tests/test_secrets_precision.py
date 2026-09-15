@@ -182,10 +182,11 @@ class TestPrefixedKeywords:
     def test_a_specific_rule_wins_over_the_generic_one(self, tmp_path: Path) -> None:
         """One line, one finding -- and the one naming the provider is the one worth keeping.
 
-        Widening the keyword made the generic rule reach `GOOGLE_API_KEY = "AIza..."`, which the
-        provider rule had already claimed. The two match at different columns, so the existing
-        column-level de-duplication could not see the collision.
+        Widening the keyword made the generic rule reach a provider-specific API-key assignment,
+        which the provider rule had already claimed. The two match at different columns,
+        so the existing column-level de-duplication could not see the collision.
         """
-        line = "GOOGLE_API_KEY = 'AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI'"
+        # Constructed at runtime: this is a shape-only test fixture, never a credential literal.
+        line = "GOOGLE_API_KEY = '" + "AIza" + ("A" * 35) + "'"
         found = _findings(tmp_path, line)
         assert found == ["SECRET-GOOGLE-API"], found

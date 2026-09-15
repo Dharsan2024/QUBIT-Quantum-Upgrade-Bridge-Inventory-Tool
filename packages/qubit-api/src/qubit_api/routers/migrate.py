@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_tenant
 from ..deps import get_session
 from ..schemas import UtcDateTime
-from ..services import require_plan, require_project, require_task
+from ..services import require_patch, require_plan, require_project, require_scan, require_task
 
 logger = logging.getLogger(__name__)
 
@@ -326,8 +326,20 @@ def create_plan(
     session: Annotated[Session, Depends(get_session)],
     tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> PlanOut:
+    scan = None
+    if payload.scan_id is not None:
+        scan = require_scan(session, payload.scan_id, tenant_id)
     if payload.project_id is not None:
         require_project(session, payload.project_id, tenant_id)
+    if (
+        scan is not None
+        and payload.project_id is not None
+        and scan.project_id != payload.project_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="scan does not belong to the requested project",
+        )
 
     # Planning the same scan twice is a duplicate, not a second opinion. Measured against the
     # running app: one scan of demo-lab/vulnapp-python ended up with THREE plans -- one built
@@ -373,7 +385,10 @@ def create_plan(
 
 
 @router.get("/migrate/learning", response_model=LearningOut)
-def get_learning(session: Annotated[Session, Depends(get_session)]) -> LearningOut:
+def get_learning(
+    session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+) -> LearningOut:
     """What this installation has learned from its own validated migrations.
 
     Everything here is local and was written by the validation gate, not by the model: a rewrite
@@ -382,8 +397,22 @@ def get_learning(session: Annotated[Session, Depends(get_session)]) -> LearningO
     """
     from qubit_core.db.models import LearnedOutcome, LearnedPatch
 
-    cached_lines = session.scalar(select(func.count()).select_from(LearnedPatch)) or 0
-    cache_hits = session.scalar(select(func.coalesce(func.sum(LearnedPatch.hit_count), 0))) or 0
+    cached_lines = (
+        session.scalar(
+            select(func.count())
+            .select_from(LearnedPatch)
+            .where(LearnedPatch.tenant_id == tenant_id)
+        )
+        or 0
+    )
+    cache_hits = (
+        session.scalar(
+            select(func.coalesce(func.sum(LearnedPatch.hit_count), 0)).where(
+                LearnedPatch.tenant_id == tenant_id
+            )
+        )
+        or 0
+    )
 
     rows = session.execute(
         select(
@@ -392,7 +421,9 @@ def get_learning(session: Annotated[Session, Depends(get_session)]) -> LearningO
             LearnedOutcome.outcome,
             func.count().label("n"),
             func.coalesce(func.sum(LearnedOutcome.hit_count), 0).label("uses"),
-        ).group_by(LearnedOutcome.rule_id, LearnedOutcome.language, LearnedOutcome.outcome)
+        )
+        .where(LearnedOutcome.tenant_id == tenant_id)
+        .group_by(LearnedOutcome.rule_id, LearnedOutcome.language, LearnedOutcome.outcome)
     ).all()
 
     per: dict[tuple[str, str], dict[str, int]] = {}
@@ -590,6 +621,7 @@ def run_plan(
 
     job = Job(
         kind="migrate",
+        tenant_id=plan.tenant_id,
         project_id=plan.project_id,
         ref_id=plan.id,
         payload={
@@ -637,11 +669,13 @@ def generate_patch(
     task_id: UUID,
     payload: GenerateRequest,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> PatchOut:
+    task = require_task(session, task_id, tenant_id)
     orch = MigrationOrchestrator(session)
     try:
         patch = orch.generate_patch(
-            task_id,
+            task.id,
             generator=payload.generator,
             repo_root=Path(payload.repo_root) if payload.repo_root else None,
         )
@@ -675,7 +709,7 @@ def generate_patch(
         # sends them looking for something that does not exist. `resume_task` reclaims a genuinely
         # stranded `generating` task, so reaching here in that state means the generation really is
         # still running — which is a wait, not a conflict to resolve.
-        state = session.get(MigrationTask, task_id)
+        state = session.get(MigrationTask, task.id)
         if state is not None and state.state == "generating":
             raise HTTPException(
                 status_code=409,
@@ -738,6 +772,7 @@ def advise_task(
     task_id: UUID,
     payload: AdviseRequest,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> TaskOut:
     """Ask the local model how to migrate this finding by hand.
 
@@ -748,16 +783,17 @@ def advise_task(
 
     Needs Ollama. Cached on the task; `force` regenerates.
     """
+    task = require_task(session, task_id, tenant_id)
     orch = MigrationOrchestrator(session)
     try:
-        task = orch.advise_task(task_id, force=payload.force)
+        task = orch.advise_task(task.id, force=payload.force)
     except ValueError as e:
         # The model is optional; an answer is not. Ollama being down, or the file being unreadable,
         # used to make this a 422 and the guidance panel stayed empty — the app's answer to "what
         # do I do about this?" depended on a side-car the user may not be running. The deterministic
         # plan is built from shipped data and always exists, so fall back to it and say so.
         try:
-            task = orch.resolve_guided(task_id, force=payload.force)
+            task = orch.resolve_guided(task.id, force=payload.force)
         except ValueError as inner:
             raise HTTPException(status_code=422, detail=str(inner)) from e
     return _task_out(task, session.get(AssetRow, task.asset_id))
@@ -767,7 +803,9 @@ def advise_task(
 def list_task_patches(
     task_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> list[PatchOut]:
+    require_task(session, task_id, tenant_id)
     patches = session.scalars(
         select(PatchProposal)
         .where(PatchProposal.task_id == task_id)
@@ -822,10 +860,12 @@ def review_patch(
     patch_id: UUID,
     payload: ReviewRequest,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> PatchOut:
+    patch = require_patch(session, patch_id, tenant_id)
     orch = MigrationOrchestrator(session)
     try:
-        patch = orch.review_patch(patch_id, approve=payload.approve, note=payload.note, actor="api")
+        patch = orch.review_patch(patch.id, approve=payload.approve, note=payload.note, actor="api")
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return _patch_out(patch)
@@ -836,13 +876,15 @@ def apply_patch(
     patch_id: UUID,
     payload: ApplyRequest,
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
 ) -> PatchOut:
+    patch = require_patch(session, patch_id, tenant_id)
     repo_root = Path(payload.repo_root)
     if not repo_root.is_dir():
         raise HTTPException(status_code=422, detail=f"repo_root {payload.repo_root} not found")
     orch = MigrationOrchestrator(session)
     try:
-        patch = orch.apply_patch(patch_id, repo_root=repo_root, branch=payload.branch, actor="api")
+        patch = orch.apply_patch(patch.id, repo_root=repo_root, branch=payload.branch, actor="api")
     except Exception as e:  # EditApplyError / ValueError / subprocess errors
         msg = str(e)
         if "Governance gate blocked" in msg:

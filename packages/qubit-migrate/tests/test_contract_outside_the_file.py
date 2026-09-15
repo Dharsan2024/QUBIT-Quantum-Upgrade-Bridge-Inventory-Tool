@@ -615,7 +615,7 @@ class TestVersionedOutput:
 
         assert (
             _VERSIONED_OUTPUT.search(
-                'pbkdf2.Key([]byte(password), salt, iterations, length, sha1.New)'
+                "pbkdf2.Key([]byte(password), salt, iterations, length, sha1.New)"
             )
             is None
         )
@@ -637,7 +637,7 @@ class TestSigningCounterpart:
 
     #: `lib/inkwell/crypto/signing.rb`, both halves and the documentation that separates them.
     #: Verbatim — `TestTheExcerptsAreTheRealCode` re-checks it against the twin.
-    SIGNING_PAIR = '''\
+    SIGNING_PAIR = """\
       # Sign a document.
       #
       # QUBIT-FIXTURE: code-signature-01 — RSA-2048 over a SHA-1 digest.
@@ -669,7 +669,7 @@ class TestSigningCounterpart:
       rescue OpenSSL::PKey::PKeyError
         false
       end
-'''
+"""
 
     def test_the_verifier_inherits_the_signers_refusal(self):
         from qubit_migrate.protocol_contract import inherited_from_signing_counterpart
@@ -889,7 +889,10 @@ class TestDigestNamesStoredState:
     def test_the_enclosing_definition_is_found_past_a_long_docstring(self) -> None:
         """Indentation, not distance. A 40-line lookback found nothing here, because scrapy's
         `fingerprint` opens 60+ lines above the digest it computes and all of it is docstring."""
-        line = self.SCRAPY_FINGERPRINT.splitlines().index("        cache[cache_key] = hashlib.sha1(") + 1
+        line = (
+            self.SCRAPY_FINGERPRINT.splitlines().index("        cache[cache_key] = hashlib.sha1(")
+            + 1
+        )
 
         assert enclosing_definition_name(self.SCRAPY_FINGERPRINT, line) == "fingerprint"
 
@@ -903,8 +906,7 @@ class TestDigestNamesStoredState:
         where persistence follows from the construction rather than from a guess.
         """
         source = (
-            "def fingerprint(payload: bytes) -> str:\n"
-            "    return hashlib.md5(payload).hexdigest()\n"
+            "def fingerprint(payload: bytes) -> str:\n    return hashlib.md5(payload).hexdigest()\n"
         )
 
         assert digest_names_stored_state(source, 2) is None

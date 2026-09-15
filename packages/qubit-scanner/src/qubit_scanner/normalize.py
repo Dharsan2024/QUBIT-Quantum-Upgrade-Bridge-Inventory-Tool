@@ -214,9 +214,12 @@ def _reconcile_usage_with_algorithm(
     # `normalize` re-labels the algorithm to the same curve's agreement twin when this fires, since
     # an ECDSA-P256 asset with `usage=kex` would be a contradiction the next reader has to
     # untangle. See `_AGREEMENT_TWIN`.
-    if usage == "signature" and family in _SIGNATURE_ONLY_FAMILIES:
-        if _usage_from_surroundings(extra or {}, file_path) == "kex":
-            return "kex"
+    if (
+        usage == "signature"
+        and family in _SIGNATURE_ONLY_FAMILIES
+        and _usage_from_surroundings(extra or {}, file_path) == "kex"
+    ):
+        return "kex"
     return usage
 
 

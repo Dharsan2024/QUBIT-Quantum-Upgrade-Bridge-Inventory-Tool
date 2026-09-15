@@ -25,7 +25,9 @@ The following are release-validation results, not population-level accuracy clai
 
 | Check | Verified result | Scope |
 |---|---:|---|
-| Targeted regression suite | 98 passed in 69.47 s; 2 dependency warnings | migration, task, stale-evidence, API, and safety contracts |
+| Offline regression suite (15 September 2026) | 3,247 passed; 1 skipped; 798.818 s | excludes integration, online and live-LLM markers |
+| Desktop credential regression tests | 2 passed | Rust launcher token handling |
+| Earlier targeted regression baseline | 98 passed in 69.47 s; 2 dependency warnings | prior, narrower migration/API/safety release gate |
 | Dashboard lint and production build | passed | frontend quality and bundle generation |
 | Windows desktop packaging | passed | Tauri Windows release build |
 | Desktop smoke workflow | passed | API startup, scan, task reopening, blocked unapproved apply, and clean shutdown |
@@ -36,6 +38,8 @@ The following are release-validation results, not population-level accuracy clai
 Three Inkwell Ruby edits reached the available behavioural oracle. The other applied edits have scanner and syntax evidence only; this is deliberately not represented as full-suite or semantic-correctness proof.
 
 The detailed evidence, limitations, commands, and improvement plan are in [the project validation report](qubit-v2/data/QUBIT_PROJECT_VALIDATION_REPORT.md).
+
+The [15 September security remediation report](SECURITY_REMEDIATION_REPORT.md) records the API isolation fixes, concurrency regressions, fresh native desktop hash-migration smoke test, and exact validation boundaries. The four-repository results above are historical evidence, not a new four-twin rerun.
 
 ## Architecture
 

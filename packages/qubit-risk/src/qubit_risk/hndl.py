@@ -12,16 +12,20 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .config import RiskConfig
 from .timeline import TimelineCurve
 
+if TYPE_CHECKING:
+    from scipy import stats
+
 _GL_POINTS = 512
 
 
-def _shelf_dist(shelf_spec: dict) -> "stats.rv_continuous":
+def _shelf_dist(shelf_spec: dict) -> stats.rv_continuous:
     """Return the frozen shelf-life distribution for a sensitivity class.
 
     `scipy.stats` is imported here, not at module level -- its own __init__ eagerly pulls in

@@ -10,12 +10,14 @@ than leaving it for GC to warn about.
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 import threading
 from pathlib import Path
 
 from qubit_api.jobs.bus import EventBus
 from qubit_api.jobs.runner import ProgressReporter
 from qubit_core.db import Base, Job, ProjectRow, ScanRow, get_engine, session_factory
+from sqlalchemy.exc import OperationalError
 
 
 def _sf(tmp_path: Path):
@@ -86,3 +88,29 @@ def test_update_closes_the_coroutine_when_scheduling_races_a_closing_loop(
         job = s.get(Job, job_id)
         assert job.progress == 0.5
         assert job.message == "halfway"
+
+
+def test_update_retries_the_actual_commit_and_reapplies_after_rollback(tmp_path, monkeypatch):
+    sf = _sf(tmp_path)
+    job_id = _seed_job(sf)
+
+    async def make_reporter():
+        return ProgressReporter(job_id, sf, EventBus(), threading.Event())
+
+    reporter = asyncio.run(make_reporter())
+    real_commit = sf.class_.commit
+    attempts = []
+
+    def commit(session):
+        attempts.append(1)
+        if len(attempts) == 1:
+            session.flush()
+            raise OperationalError("COMMIT", {}, sqlite3.OperationalError("database is locked"))
+        return real_commit(session)
+
+    monkeypatch.setattr(sf.class_, "commit", commit)
+    reporter.update(0.75, "verify", "retried successfully")
+    assert len(attempts) == 2
+    with sf() as session:
+        job = session.get(Job, job_id)
+        assert (job.progress, job.stage, job.message) == (0.75, "verify", "retried successfully")

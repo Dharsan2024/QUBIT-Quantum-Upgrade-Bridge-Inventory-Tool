@@ -144,7 +144,7 @@ export function Layout() {
             <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--color-safe)] shadow-[0_0_8px_2px_rgba(135,255,225,0.55)]" />
             Offline · local
           </div>
-          No telemetry. Your code never leaves the machine.
+          External source processing requires explicit opt-in. Review provider settings before use.
         </div>
       </aside>
 

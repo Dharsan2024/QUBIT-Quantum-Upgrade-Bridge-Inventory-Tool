@@ -32,9 +32,9 @@ from qubit_core.schemas import (
     SourceScanner,
     UsageContext,
 )
+from qubit_migrate.orchestrator import _relocate_finding_line
 from qubit_migrate.state import MigrationPlan, MigrationTask, MigrationUnit
 from qubit_migrate.state.models import PatchProposal
-from qubit_migrate.orchestrator import _relocate_finding_line
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 

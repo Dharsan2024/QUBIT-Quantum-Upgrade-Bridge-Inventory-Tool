@@ -19,6 +19,11 @@ OUT = Path("qubit-v2/05-detection/detection_agreement.csv")
 
 files = sorted(CORPUS.rglob("*.py"))
 print(f"sonar python test files: {len(files)}")
+if not files:
+    raise SystemExit(
+        f"Sonar corpus is missing or empty at {CORPUS}. Clone the documented vendor corpus before "
+        "running this agreement script."
+    )
 
 # Fixed argv from `cli_command`, no shell, and the only path is this repository's own vendored
 # corpus.

@@ -408,8 +408,7 @@ def test_a_scope_that_both_signs_and_encrypts_is_left_to_the_names() -> None:
 def _assets_named(source: str, language: str, file_path: str):
     """Like `_assets`, but the FILE NAME matters to what is under test here."""
     return [
-        normalize(d)
-        for d in _SCANNER.scan_source(source.encode(), language, file_path=file_path)
+        normalize(d) for d in _SCANNER.scan_source(source.encode(), language, file_path=file_path)
     ]
 
 
@@ -435,7 +434,8 @@ def test_an_ec_keygen_in_a_key_exchange_module_is_key_agreement() -> None:
     The curve is kept and only the operation corrected: it is the same keypair either way.
     """
     ec_assets = [
-        a for a in _assets_named(_EC_KEYGEN, "python", "app/services/keyexchange.py")
+        a
+        for a in _assets_named(_EC_KEYGEN, "python", "app/services/keyexchange.py")
         if a.algorithm.startswith("EC")
     ]
     assert ec_assets
@@ -450,7 +450,8 @@ def test_the_same_keygen_elsewhere_keeps_the_rules_own_answer() -> None:
     the only behaviour that changed is the one that was measurably wrong.
     """
     ec_assets = [
-        a for a in _assets_named(_EC_KEYGEN, "python", "app/services/util.py")
+        a
+        for a in _assets_named(_EC_KEYGEN, "python", "app/services/util.py")
         if a.algorithm.startswith("EC")
     ]
     assert ec_assets
@@ -472,7 +473,8 @@ def test_a_signing_scope_still_beats_the_file_name() -> None:
         "    return classical.sign(data, ec.ECDSA(None))\n"
     )
     ec_assets = [
-        a for a in _assets_named(source, "python", "app/services/keyexchange.py")
+        a
+        for a in _assets_named(source, "python", "app/services/keyexchange.py")
         if a.algorithm.startswith("EC")
     ]
     assert ec_assets

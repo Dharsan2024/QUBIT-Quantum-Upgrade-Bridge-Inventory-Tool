@@ -800,6 +800,8 @@ def test_asset_batch_ingest_lands_bridge_findings_in_the_inventory(tmp_path: Pat
         assert scan["status"] == "succeeded"
         assert scan["scanners"] == ["network"]
         assert scan["targets"] == ["localhost:8443"]
+        assert scan["stats"]["assets"] == 2
+        assert scan["stats"]["vulnerable"] == 1
 
         assets = client.get(f"/api/v1/scans/{scan_id}/assets").json()
         assert {a["algorithm"] for a in assets["items"]} == {"X25519MLKEM768", "RSA-2048"}

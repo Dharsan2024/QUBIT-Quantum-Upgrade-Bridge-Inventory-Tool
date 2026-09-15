@@ -19,7 +19,8 @@ Verified against a copy of a real database — row counts, data, indexes, and th
 `projects` to `scans`/`assets`/`jobs` — before being applied anywhere real.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 
 import sqlalchemy as sa
 from alembic import op
@@ -34,41 +35,68 @@ depends_on: str | Sequence[str] | None = None
 _OLD_COLUMNS = "id, name, slug, root_path, description, settings, created_at, updated_at"
 
 
+@contextmanager
+def _sqlite_rebuild() -> Iterator[None]:
+    """Toggle FK enforcement outside a transaction; rebuild atomically inside one.
+
+    Explicit BEGIN is required even with SQLite's legacy DDL transaction behavior. A failed
+    downgrade (for example duplicate names across tenants) must leave the original schema/data
+    intact. Alembic's autocommit block commits preceding migration work, not this rebuild.
+    """
+    with op.get_context().autocommit_block():
+        bind = op.get_bind()
+        was_enabled = bind.exec_driver_sql("PRAGMA foreign_keys").scalar()
+        bind.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        try:
+            bind.exec_driver_sql("BEGIN IMMEDIATE")
+            try:
+                yield
+                if bind.exec_driver_sql("PRAGMA foreign_key_check").first() is not None:
+                    raise RuntimeError("Project rebuild would violate foreign keys")
+                bind.exec_driver_sql("COMMIT")
+            except BaseException:
+                bind.exec_driver_sql("ROLLBACK")
+                raise
+        finally:
+            bind.exec_driver_sql(
+                "PRAGMA foreign_keys=ON" if was_enabled else "PRAGMA foreign_keys=OFF"
+            )
+
+
 def _sqlite_rebuild_with_tenant() -> None:
     """Rebuild `projects` with tenant_id and per-tenant uniqueness, preserving every row."""
-    op.execute("PRAGMA foreign_keys=OFF")
-    op.execute(
-        """
-        CREATE TABLE projects_new (
-            id CHAR(32) NOT NULL,
-            tenant_id CHAR(32) NOT NULL,
-            name VARCHAR(120) NOT NULL,
-            slug VARCHAR(64) NOT NULL,
-            root_path VARCHAR,
-            description VARCHAR,
-            settings JSON NOT NULL,
-            created_at DATETIME NOT NULL,
-            updated_at DATETIME NOT NULL,
-            PRIMARY KEY (id),
-            CONSTRAINT uq_project_tenant_name UNIQUE (tenant_id, name),
-            CONSTRAINT uq_project_tenant_slug UNIQUE (tenant_id, slug),
-            FOREIGN KEY(tenant_id) REFERENCES tenants (id) ON DELETE CASCADE
+    with _sqlite_rebuild():
+        op.execute(
+            """
+            CREATE TABLE projects_new (
+                id CHAR(32) NOT NULL,
+                tenant_id CHAR(32) NOT NULL,
+                name VARCHAR(120) NOT NULL,
+                slug VARCHAR(64) NOT NULL,
+                root_path VARCHAR,
+                description VARCHAR,
+                settings JSON NOT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                CONSTRAINT uq_project_tenant_name UNIQUE (tenant_id, name),
+                CONSTRAINT uq_project_tenant_slug UNIQUE (tenant_id, slug),
+                FOREIGN KEY(tenant_id) REFERENCES tenants (id) ON DELETE CASCADE
+            )
+            """
         )
-        """
-    )
-    # _OLD_COLUMNS and DEFAULT_TENANT_ID are fixed module-level constants, not user input.
-    copy_rows = (
-        f"INSERT INTO projects_new (tenant_id, {_OLD_COLUMNS}) "  # noqa: S608
-        f"SELECT '{DEFAULT_TENANT_ID.hex}', {_OLD_COLUMNS} FROM projects"
-    )
-    op.execute(copy_rows)
-    op.execute("DROP TABLE projects")
-    op.execute("ALTER TABLE projects_new RENAME TO projects")
-    # Plain index, not UNIQUE: the composite uq_project_tenant_slug carries uniqueness now, and
-    # this one only exists to keep slug lookups fast.
-    op.execute("CREATE INDEX ix_projects_slug ON projects (slug)")
-    op.execute("CREATE INDEX ix_projects_tenant_id ON projects (tenant_id)")
-    op.execute("PRAGMA foreign_keys=ON")
+        # _OLD_COLUMNS and DEFAULT_TENANT_ID are fixed module-level constants, not user input.
+        copy_rows = (
+            f"INSERT INTO projects_new (tenant_id, {_OLD_COLUMNS}) "  # noqa: S608
+            f"SELECT '{DEFAULT_TENANT_ID.hex}', {_OLD_COLUMNS} FROM projects"
+        )
+        op.execute(copy_rows)
+        op.execute("DROP TABLE projects")
+        op.execute("ALTER TABLE projects_new RENAME TO projects")
+        # Plain index, not UNIQUE: the composite uq_project_tenant_slug carries uniqueness now,
+        # and this one only exists to keep slug lookups fast.
+        op.execute("CREATE INDEX ix_projects_slug ON projects (slug)")
+        op.execute("CREATE INDEX ix_projects_tenant_id ON projects (tenant_id)")
 
 
 def _generic_rescope() -> None:
@@ -113,32 +141,31 @@ def downgrade() -> None:
     """Downgrade schema: back to global name/slug uniqueness, dropping tenant_id."""
     bind = op.get_bind()
     if bind.dialect.name == "sqlite":
-        op.execute("PRAGMA foreign_keys=OFF")
-        op.execute(
-            """
-            CREATE TABLE projects_old (
-                id CHAR(32) NOT NULL,
-                name VARCHAR(120) NOT NULL,
-                slug VARCHAR(64) NOT NULL,
-                root_path VARCHAR,
-                description VARCHAR,
-                settings JSON NOT NULL,
-                created_at DATETIME NOT NULL,
-                updated_at DATETIME NOT NULL,
-                PRIMARY KEY (id),
-                UNIQUE (name)
+        with _sqlite_rebuild():
+            op.execute(
+                """
+                CREATE TABLE projects_old (
+                    id CHAR(32) NOT NULL,
+                    name VARCHAR(120) NOT NULL,
+                    slug VARCHAR(64) NOT NULL,
+                    root_path VARCHAR,
+                    description VARCHAR,
+                    settings JSON NOT NULL,
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL,
+                    PRIMARY KEY (id),
+                    UNIQUE (name)
+                )
+                """
             )
-            """
-        )
-        restore_rows = (
-            f"INSERT INTO projects_old ({_OLD_COLUMNS}) "  # noqa: S608
-            f"SELECT {_OLD_COLUMNS} FROM projects"
-        )
-        op.execute(restore_rows)
-        op.execute("DROP TABLE projects")
-        op.execute("ALTER TABLE projects_old RENAME TO projects")
-        op.execute("CREATE UNIQUE INDEX ix_projects_slug ON projects (slug)")
-        op.execute("PRAGMA foreign_keys=ON")
+            restore_rows = (
+                f"INSERT INTO projects_old ({_OLD_COLUMNS}) "  # noqa: S608
+                f"SELECT {_OLD_COLUMNS} FROM projects"
+            )
+            op.execute(restore_rows)
+            op.execute("DROP TABLE projects")
+            op.execute("ALTER TABLE projects_old RENAME TO projects")
+            op.execute("CREATE UNIQUE INDEX ix_projects_slug ON projects (slug)")
         return
 
     op.drop_constraint("uq_project_tenant_slug", "projects", type_="unique")

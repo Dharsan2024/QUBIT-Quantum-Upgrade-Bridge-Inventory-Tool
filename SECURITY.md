@@ -24,3 +24,15 @@ Do not test against systems, repositories, network services, or credentials you 
 ## Security model reminder
 
 QUBIT is an approval-gated research prototype. Candidate patches, model output, successful parsing, and scanner-removal counts are not equivalent to a security guarantee. Report any route that bypasses explicit approval, writes outside the selected repository, leaks source to an unapproved destination, or misrepresents validation evidence.
+
+### Deployment boundary
+
+The default tenant is the installation operator. Only that tenant can read or change shared LLM provider configuration, engine pools, provider budgets, and threat-intelligence settings. Read-only operator tokens cannot mutate them. Other tenants can use their own scan and migration records, but cannot administer shared credentials. Tenant separation is an API/database boundary, not an operating-system sandbox: do not expose the service to mutually untrusted users with unrestricted local filesystem access.
+
+Use a unique configured API token, keep the desktop API bound to loopback, and protect any remote deployment with authenticated TLS and network access controls. Published development defaults are only for unconfigured local bootstrap. Protect the application data directory and its encryption-key file with OS permissions; encryption at rest does not protect against an attacker who can read both the database and the key.
+
+### Exposed credentials and test fixtures
+
+If a committed credential was issued by a provider, revoke or rotate it at that provider and inspect its usage. Removing a literal from the current tree does not revoke a key or remove earlier Git history. Do not close a secret alert as resolved solely because a source edit landed. Confirm the provider-side action, or independently establish that the value was never a credential.
+
+Scanner tests must use synthetic values constructed at runtime. Never paste actual provider credentials into fixtures, screenshots, reports, issues, or test output. Existing secret-scanning CI remains enabled; do not add a broad allowlist to suppress an alert.

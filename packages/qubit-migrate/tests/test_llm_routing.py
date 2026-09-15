@@ -39,7 +39,11 @@ SMALL_GO = 'package main\n\nimport "crypto/rsa"\n\nfunc f(k *rsa.PublicKey) {}\n
 def orch() -> MigrationOrchestrator:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
-    return MigrationOrchestrator(Session(engine))
+    # These routing tests explicitly exercise opted-in external providers; default-deny
+    # source transfer is tested separately in test_engine_order.py. No provider is called here.
+    return MigrationOrchestrator(
+        Session(engine), MigrateConfig(allow_external_source_processing=True)
+    )
 
 
 def _kex_rule():

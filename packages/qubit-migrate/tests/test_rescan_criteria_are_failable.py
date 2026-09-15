@@ -67,8 +67,13 @@ class TestPyRsaKexGonePrefix:
         rule = next(r for r in load_rules() if r.id == "py-rsa-kex-01")
 
         result = _stage_rescan(
-            source, rule, "python", asset_algorithm="RSA-2048",
-            original_source=source, asset_line=6, target_rel_path="k.py",
+            source,
+            rule,
+            "python",
+            asset_algorithm="RSA-2048",
+            original_source=source,
+            asset_line=6,
+            target_rel_path="k.py",
         )
 
         assert not getattr(result, "vacuous", False)

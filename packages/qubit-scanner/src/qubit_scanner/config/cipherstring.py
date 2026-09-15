@@ -116,9 +116,8 @@ def expand_cipher_string(cipher_string: str) -> list[str]:
             # test_weak_openssl_cipher_list_is_not_reported_clean). A bare alias-shaped word with
             # no hyphen and no `TLS_` prefix (`NOTAREALALIAS`, a typo'd group name) is still
             # rejected -- that is precisely the case this guard exists for.
-            elif _looks_like_suite_name(part):
-                if part not in suites:
-                    suites.append(part)
+            elif _looks_like_suite_name(part) and part not in suites:
+                suites.append(part)
 
     return suites
 

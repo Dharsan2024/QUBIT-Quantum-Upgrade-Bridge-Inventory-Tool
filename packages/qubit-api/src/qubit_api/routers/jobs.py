@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
@@ -90,7 +91,9 @@ def cancel_job(
     return {"status": "cancel requested"}
 
 
-async def _sse_generator(bus: EventBus, request: Request, job_id: UUID | None = None):
+async def _sse_generator(
+    bus: EventBus, request: Request, tenant_id: UUID, job_id: UUID | None = None
+):
     last_event_id = request.headers.get("Last-Event-ID")
 
     # We use a context manager if sse_starlette had one, but it handles GeneratorExit.
@@ -99,15 +102,18 @@ async def _sse_generator(bus: EventBus, request: Request, job_id: UUID | None = 
             if await request.is_disconnected():
                 break
 
-            # Filter by job_id if requested
-            if job_id:
-                import json
-
-                try:
-                    data = json.loads(ev.data)
-                    if data.get("job_id") != str(job_id):
-                        continue
-                except json.JSONDecodeError:
+            # Check stored ownership on live AND replayed events. Unowned/malformed events
+            # fail closed. Do not hold a DB transaction for the lifetime of an SSE connection.
+            try:
+                data = json.loads(ev.data)
+                event_job_id = UUID(data["job_id"])
+            except (ValueError, KeyError, TypeError):
+                continue
+            if job_id is not None and event_job_id != job_id:
+                continue
+            with request.app.state.session_factory() as session:
+                owner = session.scalar(select(Job.tenant_id).where(Job.id == event_job_id))
+                if owner != tenant_id:
                     continue
 
             yield {"id": ev.id, "event": ev.event, "data": ev.data}
@@ -116,12 +122,20 @@ async def _sse_generator(bus: EventBus, request: Request, job_id: UUID | None = 
 
 
 @router.get("/events")
-async def global_events(request: Request) -> EventSourceResponse:
+async def global_events(
+    request: Request, tenant_id: Annotated[UUID, Depends(get_current_tenant)]
+) -> EventSourceResponse:
     bus: EventBus = request.app.state.event_bus
-    return EventSourceResponse(_sse_generator(bus, request))
+    return EventSourceResponse(_sse_generator(bus, request, tenant_id))
 
 
 @router.get("/jobs/{job_id}/events")
-async def job_events(job_id: UUID, request: Request) -> EventSourceResponse:
+async def job_events(
+    job_id: UUID,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+) -> EventSourceResponse:
+    _require_job(session, job_id, tenant_id)
     bus: EventBus = request.app.state.event_bus
-    return EventSourceResponse(_sse_generator(bus, request, job_id=job_id))
+    return EventSourceResponse(_sse_generator(bus, request, tenant_id, job_id=job_id))

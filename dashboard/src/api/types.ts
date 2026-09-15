@@ -384,12 +384,11 @@ export interface PlanGraphResponse {
 }
 
 export interface GovernanceGateResponse {
-  gate_status: string;
-  required_approvals: number;
-  current_approvals: number;
-  approvers: string[];
-  sensitivity: string;
-  reasons: string[];
+  status: 'passed' | 'blocked';
+  required: number;
+  current: number;
+  policy_hash?: string;
+  reason?: string;
 }
 
 /** Response of GET /assets/{id}/recommendation — per-asset PQC recommendation (E1, doc 08 §2). */

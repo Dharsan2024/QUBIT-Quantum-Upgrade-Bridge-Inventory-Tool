@@ -417,7 +417,7 @@ function TaskRow({
             {governance && (
               <div className="mb-3 flex items-center justify-between rounded-lg border border-[color:var(--glass-border)] bg-black/20 px-3 py-2 text-xs">
                 <div className="flex items-center gap-2">
-                  {governance.gate_status === 'passed' ? (
+                  {governance.status === 'passed' ? (
                     <ShieldCheck className="h-4 w-4 text-[color:var(--color-safe)]" />
                   ) : (
                     <ShieldAlert className="h-4 w-4 text-amber-400" />
@@ -426,14 +426,14 @@ function TaskRow({
                     Governance Policy:
                   </span>
                   <span className="text-[color:var(--color-ink-dim)]">
-                    {governance.current_approvals} / {governance.required_approvals} approvals (
-                    {governance.sensitivity} sensitivity)
+                    {governance.current} / {governance.required} approvals (
+                    {task.sensitivity ?? 'unknown'} sensitivity)
                   </span>
                 </div>
                 <span
-                  className={governance.gate_status === 'passed' ? 'chip chip-safe' : 'chip chip-warn'}
+                  className={governance.status === 'passed' ? 'chip chip-safe' : 'chip chip-warn'}
                 >
-                  {governance.gate_status}
+                  {governance.status}
                 </span>
               </div>
             )}

@@ -872,6 +872,8 @@ _CIPHER_MODES: tuple[str, ...] = (
 AEAD_MODES = frozenset({"GCM", "CCM", "OCB", "EAX", "SIV", "GCM-SIV", "GCM_SIV"})
 
 _MODE_SPLIT_RE = re.compile(r"[^A-Za-z0-9]+")
+_GCM_SIV_RE = re.compile(r"(?<![A-Za-z0-9])GCM[-_]SIV(?![A-Za-z0-9])", re.IGNORECASE)
+_CBC_MAC_RE = re.compile(r"(?<![A-Za-z0-9])CBC[-_]MAC(?![A-Za-z0-9])", re.IGNORECASE)
 
 
 def _cipher_mode(text: str | None) -> str | None:
@@ -883,13 +885,16 @@ def _cipher_mode(text: str | None) -> str | None:
 
     Tokenized rather than substring-matched: `"aes-128-cbc"` contains no `ECB`, but a naive
     substring search for `CBC` also fires on `CBC_MAC`, and one for `ECB` fires on a variable
-    named `recbuf`. Splitting on non-alphanumerics and comparing whole tokens avoids both.
+    named `recbuf`. Exclude compound MAC names before comparing whole mode tokens.
     """
     if not text:
         return None
-    tokens = {t.upper() for t in _MODE_SPLIT_RE.split(text) if t}
+    # Compound spellings must be handled before token matching: splitting `GCM-SIV` produces
+    # `GCM` and `SIV`, while `CBC-MAC` is a MAC construction rather than CBC encryption.
+    if _GCM_SIV_RE.search(text):
+        return "GCM-SIV"
+    tokens = {t.upper() for t in _MODE_SPLIT_RE.split(_CBC_MAC_RE.sub("", text)) if t}
     for mode in _CIPHER_MODES:
-        # `GCM_SIV` survives the split as two tokens, so check the joined spellings too.
         if mode in tokens or mode.replace("-", "_") in tokens:
             return mode.replace("_", "-")
     return None

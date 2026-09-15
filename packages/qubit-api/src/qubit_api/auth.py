@@ -126,6 +126,17 @@ def require_rw(principal: Annotated[Principal, Depends(authenticate)]) -> Princi
     return principal
 
 
+def require_operator_tenant(principal: Annotated[Principal, Depends(authenticate)]) -> Principal:
+    """Installation-wide settings belong to the default (operator) tenant.
+
+    These resources are singletons, not team-owned records. Scope-by-method still enforces
+    read-only tokens. Do not grant ordinary teams authority over shared provider credentials.
+    """
+    if principal.tenant_id != DEFAULT_TENANT_ID:
+        raise HTTPException(status_code=403, detail="Installation operator access required")
+    return principal
+
+
 # Methods that never mutate state — a ro token may call these; everything else needs rw.
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 

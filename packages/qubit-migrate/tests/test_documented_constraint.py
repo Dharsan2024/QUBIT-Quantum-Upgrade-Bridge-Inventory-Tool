@@ -129,7 +129,9 @@ class TestTheDiscrimination:
         """The bare adjective, measured on the same `cardToken` docstring one clause later:
         "...which is what makes the algorithm unchangeable." — no `persisted`/`stored`/`must`
         anywhere in THIS clause, so it needs its own entry rather than riding another match."""
-        assert documented_constraint("It is also what makes the algorithm unchangeable.") is not None
+        assert (
+            documented_constraint("It is also what makes the algorithm unchangeable.") is not None
+        )
 
 
 class TestTheWindow:
@@ -237,7 +239,9 @@ class TestProtocolMandated:
         assert documented_constraint(both) is not None
 
     def test_the_spaced_spelling_is_caught_too(self) -> None:
-        assert documented_constraint("This digest is protocol mandated by the acquirer.") is not None
+        assert (
+            documented_constraint("This digest is protocol mandated by the acquirer.") is not None
+        )
 
 
 class TestModuleDeclaresNoThirdParty:
@@ -260,7 +264,10 @@ class TestModuleDeclaresNoThirdParty:
         assert module_declares_no_third_party(self.MODULE_HEADER) is True
 
     def test_a_file_that_never_says_so_is_not_assumed(self) -> None:
-        assert module_declares_no_third_party('"""Just a docstring, no claim either way."""\n') is False
+        assert (
+            module_declares_no_third_party('"""Just a docstring, no claim either way."""\n')
+            is False
+        )
 
     def test_an_undocumented_file_is_not_assumed(self) -> None:
         assert module_declares_no_third_party("def f(x):\n    return x\n") is False
@@ -279,5 +286,7 @@ class TestModuleDeclaresNoThirdParty:
     def test_the_flag_does_not_clear_an_independently_persisted_value(self) -> None:
         context = "Our half of the exchange. Also persisted as the row's primary key."
         verdict = documented_constraint(context, module_declares_no_third_party=True)
-        assert verdict is not None, "a persisted value must still refuse when the veto is suppressed"
+        assert verdict is not None, (
+            "a persisted value must still refuse when the veto is suppressed"
+        )
         assert "outlives" in verdict.reason

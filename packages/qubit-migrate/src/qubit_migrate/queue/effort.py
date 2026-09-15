@@ -53,9 +53,12 @@ def estimate_effort(
         total += 2
         drivers.append("sig swap (+2)")
     else:
-        # KEM semantic change (e.g. RSA-enc → KEM+DEM)
+        # Preserve the effort table's score, but do not label hashes/ciphers as KEM work.
         total += 3
-        drivers.append("KEM semantic change (+3)")
+        if any(kind in rule_kind for kind in ("kem", "kex", "ecdh", "rsa-enc")):
+            drivers.append("KEM semantic change (+3)")
+        else:
+            drivers.append("source transformation (+3)")
 
     # Modifiers
     if enclosing_loc > 50:

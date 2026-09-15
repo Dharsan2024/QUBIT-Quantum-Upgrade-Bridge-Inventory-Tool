@@ -426,6 +426,8 @@ def test_a_windowed_file_is_routed_by_its_excerpt_not_by_the_whole_file(tmp_path
 
     source, at = _big_python()
     orch, _ = _seeded(tmp_path, source, at)
+    # Engine selection is simulated; this scenario explicitly permits external routing.
+    orch.config.allow_external_source_processing = True
     rule = _rule()
 
     # This installation has measured the local model failing this pairing, repeatedly.

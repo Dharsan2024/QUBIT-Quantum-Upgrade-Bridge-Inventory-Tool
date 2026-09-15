@@ -246,9 +246,7 @@ class TestSuiteCommand:
         test_file.parent.mkdir()
         test_file.write_text("# minitest\n", encoding="utf-8")
 
-        command = orch._test_command_for(
-            SimpleNamespace(plan_id=uuid4()), tmp_path, "ruby"
-        )
+        command = orch._test_command_for(SimpleNamespace(plan_id=uuid4()), tmp_path, "ruby")
 
         assert command == "ruby -Ilib -Itest test/crypto_contract_test.rb"
 
@@ -259,8 +257,6 @@ class TestSuiteCommand:
         (tmp_path / "test").mkdir()
         (tmp_path / "test" / "unit_test.rb").write_text("# minitest\n", encoding="utf-8")
 
-        command = orch._test_command_for(
-            SimpleNamespace(plan_id=uuid4()), tmp_path, "ruby"
-        )
+        command = orch._test_command_for(SimpleNamespace(plan_id=uuid4()), tmp_path, "ruby")
 
         assert command == "rake test"

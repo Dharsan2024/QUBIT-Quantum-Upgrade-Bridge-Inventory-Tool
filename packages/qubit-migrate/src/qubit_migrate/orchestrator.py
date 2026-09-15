@@ -2913,13 +2913,17 @@ class MigrationOrchestrator:
         repo_name = repo_root.name.replace("__", "-").lower()
         image_name = repo_name
         with contextlib.suppress(OSError, subprocess.SubprocessError):
-            origin = subprocess.run(
-                ["git", "remote", "get-url", "origin"],
-                cwd=str(repo_root),
-                capture_output=True,
-                check=True,
-                timeout=30,
-            ).stdout.decode("utf-8", "replace").strip()
+            origin = (
+                subprocess.run(
+                    ["git", "remote", "get-url", "origin"],
+                    cwd=str(repo_root),
+                    capture_output=True,
+                    check=True,
+                    timeout=30,
+                )
+                .stdout.decode("utf-8", "replace")
+                .strip()
+            )
             origin = origin.removesuffix("/").removesuffix(".git")
             # Handles both https://host/owner/repo and git@host:owner/repo. The owner is useful
             # only for the commit-pinned builder convention; the final component is also used for
@@ -2981,7 +2985,8 @@ class MigrationOrchestrator:
                         break
                     if len(matches) > 1:
                         logger.warning(
-                            "multiple local sandbox images match %s; configure test_sandbox_image explicitly",
+                            "multiple local sandbox images match %s; "
+                            "configure test_sandbox_image explicitly",
                             stem,
                         )
         self._IMAGE_CACHE[key] = found
@@ -3043,7 +3048,8 @@ class MigrationOrchestrator:
             if ruby_tests:
                 return (
                     "ruby -Ilib -Itest -e "
-                    "'Dir[\"test/**/*_test.rb\"].sort.each { |path| require File.expand_path(path) }'"
+                    '\'Dir["test/**/*_test.rb"].sort.each '
+                    "{ |path| require File.expand_path(path) }'"
                 )
         if self.config.test_command == MigrateConfig.model_fields["test_command"].default:
             by_language = _LANGUAGE_SANDBOX.get((language or "").lower())
@@ -3294,7 +3300,8 @@ class MigrationOrchestrator:
 
         # Re-scan the file AS IT NOW SITS ON DISK, and require the finding to be gone.
         #
-        # This used to transition straight to `verify_pass` and return `ValidationReport(passed=True)`
+        # This used to transition straight to `verify_pass` and return
+        # `ValidationReport(passed=True)`
         # unconditionally, with a comment saying real verification would come later. It never did.
         # The result was a method whose entire job is to answer "did the migration hold?" and which
         # answered yes without looking -- including for a patch whose file had since been reverted,
@@ -3316,7 +3323,9 @@ class MigrationOrchestrator:
             )
 
         # `self._rules` is a list, matching every other lookup in this class.
-        rule = next((r for r in self._rules if r.id == task.rule_id), None) if task.rule_id else None
+        rule = (
+            next((r for r in self._rules if r.id == task.rule_id), None) if task.rule_id else None
+        )
         language = language_for_suffix(file_path.suffix) or "python"
         result = _stage_rescan(
             current,

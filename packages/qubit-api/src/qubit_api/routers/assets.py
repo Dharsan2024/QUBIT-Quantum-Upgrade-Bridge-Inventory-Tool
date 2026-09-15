@@ -135,7 +135,10 @@ def ingest_asset_batch(
         # `network` is the frozen SourceScanner value these assets already carry; naming it here
         # keeps the scan row honest about where its contents came from.
         scanners=["network"],
-        stats={"assets": len(payload.assets)},
+        stats={
+            "assets": len(payload.assets),
+            "vulnerable": sum(1 for asset in payload.assets if asset.quantum_vulnerable.vulnerable),
+        },
         started_at=utcnow(),
         finished_at=utcnow(),
     )

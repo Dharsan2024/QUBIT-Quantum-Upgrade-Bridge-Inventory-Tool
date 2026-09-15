@@ -42,33 +42,30 @@ class ProgressReporter:
 
         # Update DB using a short-lived session
         with self.sf() as session:
-            job = session.get(Job, self.job_id)
-            if job:
+            # Progress is telemetry. The complete load/update/commit is the retry unit: retrying
+            # a no-op and committing outside it only caught a lock after the update was dropped.
+            def persist_progress() -> Job | None:
+                job = session.get(Job, self.job_id)
+                if job is None:
+                    return None
                 job.progress = progress
                 job.stage = stage
                 job.message = message
-                # Progress is TELEMETRY. It must never be able to kill the work it is describing,
-                # and it was: SQLite allows one writer, the migration itself writes constantly
-                # (task states, patches, outcomes), and a progress commit that lost that race
-                # raised `OperationalError: database is locked` out of `reporter.update` and
-                # straight through `migrate_handler`, failing the whole job. Observed on a certbot
-                # run at "Writing 1/1: .../misc.py" -- the patch had already been applied to disk
-                # and the job was still reported as failed, with two more runs queued behind it.
-                #
-                # Retried briefly because the lock is held for milliseconds, then given up on: a
-                # progress bar that misses a frame costs nothing, and the alternative is losing a
-                # migration that has already done its work.
-                try:
-                    retry_write_on_lock(session, lambda: None, attempts=3)
-                    session.commit()
-                except OperationalError:
-                    session.rollback()
-                    logger.warning(
-                        "job %s: progress update skipped, database busy (%s)",
-                        self.job_id,
-                        message[:80],
-                    )
+                session.commit()
+                return job
 
+            try:
+                job = retry_write_on_lock(session, persist_progress, attempts=3)
+            except OperationalError:
+                session.rollback()
+                logger.warning(
+                    "job %s: progress update skipped, database busy (%s)",
+                    self.job_id,
+                    message[:80],
+                )
+                return
+
+            if job is not None and not self.loop.is_closed():
                 # `update()` runs on a worker thread (anyio.to_thread.run_sync), while `self.loop`
                 # closes on the EVENT LOOP thread — the `is_closed()` check below and the
                 # `run_coroutine_threadsafe` call are not atomic, so the loop can close in the gap
@@ -77,21 +74,20 @@ class ProgressReporter:
                 # the orphaned coroutine `run_coroutine_threadsafe` never got to schedule).
                 # `run_coroutine_threadsafe` owns the coro once scheduling succeeds; on the race,
                 # `coro.close()` retires it deterministically instead of leaving it to GC.
-                if not self.loop.is_closed():
-                    coro = self.bus.publish(
-                        "job.progress",
-                        {
-                            "job_id": str(self.job_id),
-                            "kind": job.kind,
-                            "progress": progress,
-                            "stage": stage,
-                            "message": message,
-                        },
-                    )
-                    try:
-                        asyncio.run_coroutine_threadsafe(coro, self.loop)
-                    except RuntimeError:
-                        coro.close()
+                coro = self.bus.publish(
+                    "job.progress",
+                    {
+                        "job_id": str(self.job_id),
+                        "kind": job.kind,
+                        "progress": progress,
+                        "stage": stage,
+                        "message": message,
+                    },
+                )
+                try:
+                    asyncio.run_coroutine_threadsafe(coro, self.loop)
+                except RuntimeError:
+                    coro.close()
 
 
 class JobRunner:

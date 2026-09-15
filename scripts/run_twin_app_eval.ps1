@@ -8,10 +8,23 @@
 # Each twin is duplicated into test-output/ first and the COPY is what gets migrated, because a
 # migrated twin is a spent twin.
 
+param(
+    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+)
+
 $ErrorActionPreference = "Stop"
-$repo = "X:\final yaer\main projects"
-$exe  = "$repo\dashboard\src-tauri\target\release\qubit-desktop.exe"
-$py   = "$repo\.venv\Scripts\python.exe"
+$repo = (Resolve-Path $RepoRoot).Path
+$exe  = Join-Path $repo "dashboard\src-tauri\target\release\qubit-desktop.exe"
+$py   = Join-Path $repo ".venv\Scripts\python.exe"
+if (-not (Test-Path $exe)) { throw "Desktop executable not found: $exe" }
+if (-not (Test-Path $py)) { throw "Python executable not found: $py" }
+if (Get-Process qubit-desktop -ErrorAction SilentlyContinue) {
+    throw "Close the existing QUBIT desktop before evaluation; this script will not stop your session."
+}
+if (Get-NetTCPConnection -State Listen -LocalPort 8787,9222 -ErrorAction SilentlyContinue) {
+    throw "Evaluation ports 8787/9222 are occupied. Stop the conflicting service deliberately first."
+}
+$desktopProcess = $null
 
 $twins = @(
     @{ name = "medivault-emr";   image = "qubit-eval/medivault:py312"; cmd = "python -m pytest tests -q --continue-on-collection-errors" },
@@ -21,16 +34,22 @@ $twins = @(
 )
 
 function Stop-Engine {
-    # Filter on the COMMAND LINE, not the image name: matching python.exe or *qubit* also kills
-    # background pytest runs, which has cost a full suite mid-flight before.
-    Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
-        Where-Object { $_.CommandLine -like '*uvicorn*' } |
-        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-    Get-Process qubit-desktop -ErrorAction SilentlyContinue | Stop-Process -Force
-    Start-Sleep -Seconds 3
+    # Only the process tree started by this invocation is ours to stop. Never kill arbitrary
+    # Python/uvicorn processes or a user's independently opened desktop.
+    if ($null -ne $script:desktopProcess -and -not $script:desktopProcess.HasExited) {
+        & "$env:SystemRoot\System32\taskkill.exe" /PID $script:desktopProcess.Id /T /F | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Could not stop the evaluation desktop process tree." }
+        $script:desktopProcess.WaitForExit(10000) | Out-Null
+    }
+    $script:desktopProcess = $null
 }
 
-foreach ($twin in $twins) {
+$savedEnvironment = @{}
+foreach ($name in @('WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS', 'QUBIT_MIGRATE_TEST_SANDBOX_IMAGE', 'QUBIT_MIGRATE_TEST_COMMAND')) {
+    $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+}
+try {
+  foreach ($twin in $twins) {
     Write-Output "=============================================================="
     Write-Output "  $($twin.name)   sandbox=$($twin.image)"
     Write-Output "=============================================================="
@@ -41,7 +60,7 @@ foreach ($twin in $twins) {
     $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
     $env:QUBIT_MIGRATE_TEST_SANDBOX_IMAGE = $twin.image
     $env:QUBIT_MIGRATE_TEST_COMMAND = $twin.cmd
-    Start-Process -FilePath $exe
+    $script:desktopProcess = Start-Process -FilePath $exe -WorkingDirectory $repo -PassThru -WindowStyle Hidden
     Start-Sleep -Seconds 15
 
     $ok = $false
@@ -52,10 +71,19 @@ foreach ($twin in $twins) {
             }
         } catch { Start-Sleep -Seconds 3 }
     }
-    if (-not $ok) { Write-Output "  engine never came up; skipping $($twin.name)"; continue }
+    if (-not $ok) { throw "Engine never became healthy for $($twin.name); evaluation incomplete." }
 
-    & $py "$repo\scripts\twin_app_eval.py" --twin $twin.name --out "$repo\qubit-v2\data\app_eval_$($twin.name).json"
+    $outputDirectory = Join-Path $repo 'test-output\desktop-evaluation'
+    New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
+    & $py "$repo\scripts\twin_app_eval.py" --twin $twin.name --out (Join-Path $outputDirectory "app_eval_$($twin.name).json")
+    if ($LASTEXITCODE -ne 0) { throw "Evaluation failed for $($twin.name). Inspect its output." }
+  }
+} finally {
+    try { Stop-Engine } finally {
+        foreach ($name in $savedEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name], 'Process')
+        }
+    }
 }
 
-Stop-Engine
-Write-Output "done -- per-twin results in qubit-v2\data\app_eval_*.json"
+Write-Output "done -- per-twin results in test-output\desktop-evaluation\app_eval_*.json"

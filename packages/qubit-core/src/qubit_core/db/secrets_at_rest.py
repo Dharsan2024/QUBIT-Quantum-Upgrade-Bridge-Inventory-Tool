@@ -15,7 +15,7 @@ for something that has to survive a restart instead of living only in memory.
 from __future__ import annotations
 
 import os
-import stat
+import tempfile
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -37,21 +37,23 @@ def _load_or_create_key() -> bytes:
     except FileNotFoundError:
         pass
     key = Fernet.generate_key()
-    # Written once, on first use, restricted to the owner. `0o600` is a no-op on Windows (no POSIX
-    # mode bits), where the file already inherits the user-profile directory's own ACLs -- same
-    # reasoning `default_db_url`'s directory already relies on for the database file beside it.
+    # Publish only a completely-written key. Creating the final path first and writing into it
+    # leaves a window where another process can read an empty or partial Fernet key. A
+    # same-directory temporary file is written and fsynced first; `link` atomically publishes it
+    # only if no other process has already won. On a loss, the winner's final path is complete.
+    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, stat.S_IRUSR | stat.S_IWUSR)
-    except FileExistsError:
-        # Lost a race with another process creating the same file first -- its key is as valid as
-        # the one just generated here, so use what is actually on disk rather than two keys
-        # fighting over which one is real.
-        return path.read_bytes()
-    try:
-        os.write(fd, key)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(key)
+            fh.flush()
+            os.fsync(fh.fileno())
+        try:
+            os.link(temp_name, path)
+        except FileExistsError:
+            return path.read_bytes()
+        return key
     finally:
-        os.close(fd)
-    return key
+        Path(temp_name).unlink(missing_ok=True)
 
 
 def _fernet() -> Fernet:

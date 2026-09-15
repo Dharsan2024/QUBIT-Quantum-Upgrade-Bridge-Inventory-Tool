@@ -41,6 +41,14 @@ def test_estimate_effort():
     e = estimate_effort(a, fan_out=4)
     assert e.points == 13
 
+    # Explanations must name the actual kind of change, without silently recalibrating scores.
+    generic = estimate_effort(a, rule_kind="py-weakhash-01", data_compat="dual_read")
+    assert generic.points == 5
+    assert "source transformation (+3)" in generic.drivers
+    assert not any("KEM" in driver for driver in generic.drivers)
+    kem = estimate_effort(a, rule_kind="py-rsa-kex-01")
+    assert "KEM semantic change (+3)" in kem.drivers
+
 
 def test_rank_ready_frontier():
     class _FakeRisk:

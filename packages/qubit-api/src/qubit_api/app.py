@@ -224,7 +224,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     from fastapi import Depends
 
-    from .auth import enforce_scope_by_method
+    from .auth import enforce_scope_by_method, require_operator_tenant
     from .auth import router as auth_router
 
     # One guard on every data router: authenticates the bearer token AND enforces scope-by-method
@@ -241,8 +241,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(risk_router, prefix=settings.api_prefix, dependencies=guard)
     app.include_router(migrate_router, prefix=settings.api_prefix, dependencies=guard)
     app.include_router(recommendation_router, prefix=settings.api_prefix, dependencies=guard)
-    app.include_router(threat_intel_router, prefix=settings.api_prefix, dependencies=guard)
-    app.include_router(llm_provider_router, prefix=settings.api_prefix, dependencies=guard)
+    operator_guard = [*guard, Depends(require_operator_tenant)]
+    app.include_router(threat_intel_router, prefix=settings.api_prefix, dependencies=operator_guard)
+    app.include_router(llm_provider_router, prefix=settings.api_prefix, dependencies=operator_guard)
 
     _mount_dashboard(app, settings)
     return app

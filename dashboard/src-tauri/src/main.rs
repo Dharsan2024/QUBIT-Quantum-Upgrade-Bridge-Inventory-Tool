@@ -163,6 +163,11 @@ fn log_path() -> Option<std::path::PathBuf> {
     Some(base.join("QUBIT").join("api.log"))
 }
 
+fn desktop_api_token(configured: Option<String>) -> String {
+    // A configured credential must never be replaced by a published development token.
+    configured.unwrap_or_else(|| "dev_token".to_owned())
+}
+
 fn spawn_api(root: &std::path::Path, port: u16) -> std::io::Result<Child> {
     let dist = root.join("dashboard").join("dist");
     let port_str = port.to_string();
@@ -196,9 +201,13 @@ fn spawn_api(root: &std::path::Path, port: u16) -> std::io::Result<Child> {
     };
 
     cmd.current_dir(root)
-        // Serve the dashboard from the API too (single origin) + keep the bundle's default token.
+        // Serve the dashboard from the API too (single origin). Honor an operator's token;
+        // the dashboard Login page accepts the matching credential when one is configured.
         .env("QUBIT_DASHBOARD_DIST", dist)
-        .env("QUBIT_API_TOKEN", "dev_token")
+        .env(
+            "QUBIT_API_TOKEN",
+            desktop_api_token(std::env::var("QUBIT_API_TOKEN").ok()),
+        )
         // A release build carries `windows_subsystem = "windows"` (no console), so this process's
         // own stdio handles are invalid. `Command::spawn` INHERITS by default, and uvicorn writes
         // its startup banner to stdout before it ever binds a socket -- so the child blocked on
@@ -227,7 +236,11 @@ fn open_log_file() -> Option<(std::fs::File, std::fs::File)> {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let out = OpenOptions::new().create(true).append(true).open(&path).ok()?;
+    let out = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .ok()?;
     let err = out.try_clone().ok()?;
     Some((out, err))
 }
@@ -417,4 +430,23 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error while running QUBIT desktop");
+}
+
+#[cfg(test)]
+mod security_tests {
+    use super::desktop_api_token;
+
+    #[test]
+    fn desktop_preserves_configured_token() {
+        assert_eq!(
+            desktop_api_token(Some("operator-test-value".into())),
+            "operator-test-value"
+        );
+    }
+
+    #[test]
+    fn desktop_only_defaults_when_token_is_absent() {
+        assert_eq!(desktop_api_token(None), "dev_token");
+        assert_eq!(desktop_api_token(Some(String::new())), "");
+    }
 }

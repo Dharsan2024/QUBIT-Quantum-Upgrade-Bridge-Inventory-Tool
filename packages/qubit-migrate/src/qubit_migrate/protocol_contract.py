@@ -577,7 +577,8 @@ _COUNTERPARTY_LANGUAGE = re.compile(
       | coordinated\s+rotation
       # The authors saying outright that a protocol fixes this algorithm. Checked here rather than
       # in `_PERSISTED_LANGUAGE` for the same reason as the phrases above: a mandate is not undone
-      # by the value being short-lived, so the regenerable veto must not reach it. `legacyPortalToken`
+      # by the value being short-lived, so the regenerable veto must not reach it.
+      # `legacyPortalToken`
       # (PM-04) is a DAILY token -- it expires within a day and is still not this codebase's to
       # change, because the reconciliation portal recomputes the same MD5 and compares.
       #
@@ -959,9 +960,7 @@ def inherited_from_signing_counterpart(source: str, line: int) -> ContractVerdic
         return None  # not a verifier, or is itself the signing half
 
     body = required_algorithm_in_body(source, line)
-    keys = {
-        word for m in _IDENTIFIER.finditer(body) if "key" in (word := m.group(0).lower())
-    }
+    keys = {word for m in _IDENTIFIER.finditer(body) if "key" in (word := m.group(0).lower())}
     if not keys:
         return None
 
